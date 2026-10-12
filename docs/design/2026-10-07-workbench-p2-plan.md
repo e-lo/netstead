@@ -1,6 +1,6 @@
 # Workbench P2 (Validate + Edit) Implementation Plan
 
-Status: **proposed** (branch `feat/workbench-p2`) · Date: 2026-10-07 · Refreshed: 2026-10-10 · Owner: Elizabeth Sall
+Status: **implemented (PR pending)** (branch `feat/workbench-p2-impl`) · Date: 2026-10-07 · Refreshed: 2026-10-10 · Implemented: 2026-10-11 · Owner: Elizabeth Sall
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -28,6 +28,36 @@ Status: **proposed** (branch `feat/workbench-p2`) · Date: 2026-10-07 · Refresh
 >   markers through `addLayer`, Edit/Delete/Fix/Undo/Run validation/Save a copy through the commands registry and the
 >   palette, and the record editor through `schemaForm` (Tasks 13–17).
 > Tasks 1–4 are unchanged: nothing they touch changed in Parts 1–2 (re-run, see the honesty note).
+
+## Deviations from this plan, as built
+
+Tasks 0–18 are implemented as written, except for these changes. Most came from the two review rounds (the review
+ids are in the commit messages).
+
+- **A stale plan is refused (S-1).** `EditPlan` carries the network `version` it read. `Session.mutate` and
+  `host.mutate` take `expected_version=` and refuse with `ActionError`, changing nothing, when the network moved
+  since. The core edit Actions pass it, and `host.plan_*` read the version before planning.
+- **Delete runs on the confirmed plan.** `POST …/delete-plan` returns the `version` it planned on, and
+  `DeleteRows` takes it as `expected_version`, so the cascade that goes is the one the user confirmed. The copied
+  script leaves it out (a new `BaseAction.replay_omits`): a replay plans again.
+- **Undo checks the network has not changed behind the ledger (I-2, I-7).** `Session.revert` refuses when the
+  version moved, or when one of the newest edit's tables holds a different expression than the one the ledger
+  recorded (an in-place reverse that left the version alone).
+- **Job commits (I-3 to I-6).** A save whose network was closed meanwhile never marks edits saved
+  (`closed_while_saving`; `edited_while_saving` when it was edited). A validation that finishes after a newer one
+  keeps the newer set and reports `superseded`. The report draws on the snapshot the run read. A crashed or
+  cut-short live check (`check_failed`, `truncated`) refuses `SaveNetwork` unless `accept_warnings`, even with no
+  warnings listed; the refusal payload always carries both flags.
+- **Notes are plain text.** A save's `notes` name the tables that differ from the source; the save never
+  intercepts corral's `OutOfSyncWarning` on its job thread.
+- **Recorded rows keep the table's types (corral, I-1).** Rows rebuilt for add and undo are cast to the table's
+  column types with a safe cast, so `2.7` added to an integer column is refused rather than stored as `2`.
+- **Unplaced anchors.** The selection payload adds `anchors_unplaced` (from/to nodes with no coordinates), which
+  the facility forms and Details use; a selection read never fails on the facility forms.
+- **Undo row order.** Undo of a delete appends the restored rows at the end of their table (corral's reverse is
+  an append). The cookbook says so.
+- **Right-click (R8, as decided).** Core's only feature / row menu command is **Fix…**, on a record with an
+  issue or an edit warning; Edit record… and Delete record… are palette commands and Details buttons.
 
 ## Built on Plugins Parts 1 and 2 (read this first)
 

@@ -214,14 +214,123 @@ Focus is a view. Clicking never changes the selection.
   to search every command: open a network, Settings, zoom, the view modes. With a record focused it also lists
   that record's commands ("For link 123"), and the selection's ("Selection (3 links)"). Arrow keys pick, Enter
   runs, Escape closes.
-- **Right-click** a link or node on the map, or a table row, for its commands. With no command for it (as in a
-  Workbench with no plugins), the map keeps its right-drag rotate and the row the browser's own menu.
+- **Right-click** a link or node on the map, or a table row, for its commands. Core puts one command there:
+  **Fix…**, on a record that has an issue or an edit warning (see [Validate and fix](#validate-and-fix)). Edit
+  and Delete are in the palette (**Edit record…**, **Delete record…**) and in Details, not in the menu. With no
+  command for a record (no issue, and no plugin command), right-click opens no menu: the map keeps its right-drag
+  rotate and the row the browser's own menu.
 - **Workspaces and the dock.** When a plugin adds a workspace, tabs for each appear in the header; each keeps the
   map / split / table view you left it in. The right drawer is a dock: when it holds more than one panel (core's
   **Details** plus a plugin's), tabs appear at its top.
 - **Settings → Plugins** lists the installed [Workbench plugins](workbench-plugins.md): version, the plugin API
   each needs and whether it fits, and any error loading it. Its switch turns a plugin on or off; that applies the
   next time `netstead app` starts.
+
+## Validate and fix
+
+- **Run validation** (in the **Issues** panel, or in the command palette, Ctrl+K / ⌘K) checks the spec, the
+  keys and the quality rules as a background job; the Jobs badge counts it while it runs. The quality rules
+  read **Settings → Validation** (`validation.rules`, keyed by rule code, such as
+  `quality.high_speed_residential`).
+- When it finishes, the panel reads `Validated v0: 272 warnings, 16 info` (for the Leavenworth fixture), the
+  **Issues** tab badge counts the issues plus any open edit warnings, and each located issue is a dot on the
+  map. **Layers → Overlays → Issues** hides the dots.
+- **Click an issue:** its record is focused, the map flies to it, and when the table shows that table its row is
+  scrolled into view and marked. **Click a dot** on the map: the Issues panel opens on **This record**, that
+  record's issues. Rows with issues carry a mark in the table.
+- Filter by severity, table and code. **This record** lists only the focused record's issues. Issues with
+  no place on the map (a table-level check, a row whose node has no coordinates) are listed under **Unlocated**.
+- **Fix…** on an issue opens the record editor on that issue's record, on the column the issue names (or the
+  whole record when it names none), prefilled with the current value and with the issue as the note. Apply sends
+  one edit with only the values you changed.
+- **Stale results.** An edit makes the stored validation stale: the panel says
+  `the network changed since: re-run`, and the button becomes **Re-run validation**. The list and the dots
+  stay until you re-run, so you can work down them. If two runs overlap, the newer one wins; the older one
+  finishing later says so and leaves the panel alone.
+- **Export report** downloads the offline HTML validation report (`<network>-validation.html`) for a current
+  (not stale) validation. It needs the reports extra.
+
+The same from Python:
+
+<!-- doctest: skip -->
+```python
+from netstead.workbench import RunValidation
+
+app.do(RunValidation())  # a job; the result has counts, version, stale and superseded
+```
+
+## Edit tables
+
+Edits change the network you opened **in memory**. Nothing is written to disk until you
+[save a copy](#save-a-copy), and the source is never overwritten.
+
+- **A cell.** Click a row to focus it, then click one of its cells, type, and press Enter (Escape cancels; an
+  empty value clears the cell). The key column and geometry are not edited in place. A value the column cannot
+  hold (`1.5` lanes) is refused with a toast, and nothing changes.
+- **A record.** **Edit…** in Details, or **Edit record…** in the palette for the focused record, opens a form
+  for every editable column. When the record is a link in a multi-link selection, a checkbox applies the same
+  values to every selected link. The note you type is kept with the edit.
+- **Fix…** opens the same editor from an issue, or from right-clicking a record that has one.
+- **Delete…** (Details, the record editor, or **Delete record…** in the palette) first runs a dry run and says
+  what goes with the record: a link takes its lanes and time-of-day rows (`Delete 1 link row? This also deletes
+  2 lane rows, 1 link_tod row.`). Confirm to delete. A node a link still uses cannot be deleted: the refusal
+  names the links. The delete runs against the network version the dry run planned on: if anything changed the
+  network in between, it is refused and you confirm again.
+- **Adding rows** is Python or the API only: `app.do(AddRows(table="node", rows=[{...}]))`.
+- Each edit is one action in the session history (so "copy as Python" replays it), bumps the network's version,
+  and is listed in the **Edits** panel with what it changed.
+
+### Undo
+
+**Undo last** in the Edits panel (or Details, or **Undo last edit** in the palette) reverses your newest edit.
+Undo is last-in, first-out across everything that changed the network, and the Workbench only undoes **its own**
+edits:
+
+- If the newest change came from Python (`session.mutate(...)` outside an action), Undo is unavailable and
+  says `The last change was made from Python; undo it there.` Undo it with
+  `session.undo_last(net_id, source="python")`.
+- If a plugin made it, Undo names the plugin: undo it in that plugin.
+- Undo puts deleted rows back **at the end of their table**, not where they were. Row order carries no meaning
+  in GMNS, but a table sorted by position will show the restored rows last.
+
+### Live warnings
+
+An edit the spec disagrees with is still applied, and warned about at once: a foreign key that is not in the
+referenced table, a required field left empty, a value of the wrong type or outside the allowed list, or a
+duplicate key. The cell is underlined (hover for why), the row is marked, and the warning is listed under
+**Edit warnings** at the top of the Issues panel, with **Fix…**. A later edit that puts it right clears the
+warning. The live check covers the rows an edit touched; after a very large edit it stops early and says so,
+and **Run validation** checks everything.
+
+### What the selection does after an edit
+
+A selection follows an edit of links or nodes:
+
+- one made by a query (a natural-language select) is resolved again against the edited network, so it may gain
+  or lose links;
+- one made by clicking or by ids keeps its links, minus any you deleted (and is cleared when none is left).
+
+An edit of lanes or time-of-day rows leaves the selection alone. Undo restores the links, but an id selection
+does not take back a link it lost.
+
+### Save a copy
+
+**Edits → Save a copy** (or **Save a copy…** in the palette): name the copy, pick a format, then **Choose
+folder…** inside your allowed folders. The save runs as a job and writes a **new** folder or file; the network
+you opened, local or remote, is never written to, and a copy inside the source folder is refused.
+
+- **It never overwrites.** If the name already exists in that folder, the save fails with `… already exists`.
+- **Warnings are confirmed.** With edit warnings open, the save lists them and asks whether to save anyway. If the
+  live check failed or stopped early, it says that instead (the warning count may be 0, and proves nothing) and
+  asks the same. Saving anyway is recorded as `SaveNetwork(..., accept_warnings=True)`. The server checks again
+  when the job runs, and asks again if something changed.
+- When the job ends, a toast says where the copy went and which tables differ from the source. The badge on the
+  Edits tab and in the network switcher (`• 1 unsaved`) counts edits no saved copy holds yet, and clears. If
+  the network was edited while saving, the copy holds the version the save started from and the later edits stay
+  unsaved; if it was closed while saving, nothing is marked saved.
+- **Replay.** A replayed `SaveNetwork` writes the copy again (and fails if it is still there), and its
+  `accept_warnings=True` accepts whatever warnings the network has when the replay runs. See
+  [Every action is replayable](#every-action-is-replayable).
 
 ## Language models (natural-language selection)
 

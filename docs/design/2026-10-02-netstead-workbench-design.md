@@ -1,6 +1,6 @@
 # Netstead Workbench — unified front-end UX design
 
-Status: **accepted; P0, P1a, P1b implemented** (#211, #212); P2 next · Date: 2026-10-02 · Owner: netstead
+Status: **accepted; P0, P1a, P1b implemented** (#211, #212); P2 implemented (PR pending); P3 next · Date: 2026-10-02 · Owner: netstead
 
 > **Amended by the [Workbench plugins design](2026-10-05-workbench-plugins-design.md) (PR #217):**
 > P2's `netstead.changes` package (NetworkChange, DraftCard, ProjectCard export) moves out of core into
@@ -347,6 +347,10 @@ This also fixes the stale `NETSTEAD_AUTO_APPROVE` vs `CORRAL_AUTO_APPROVE` docst
 | Later | Apply cards; scenarios | `apply_card`, then `Scenario(base, cards[])` built on the lineage, and diff → cards |
 
 P1b plan: [2026-10-05-workbench-p1b-plan.md](2026-10-05-workbench-p1b-plan.md); decisions on click = focus, POST for id lists, and one-hop relations are recorded there.
+
+P2 plan: [2026-10-07-workbench-p2-plan.md](2026-10-07-workbench-p2-plan.md): validation and direct table edits in core
+(live warnings, cascading deletes, undo, Save a copy), built on plugins Parts 1 and 2. ProjectCard editing is the cards
+plugin's ([scope](2026-10-07-cards-plugin-scope.md)).
 
 Next: the P0 implementation plan (`docs/design/2026-10-02-workbench-p0-plan.md`).
 
