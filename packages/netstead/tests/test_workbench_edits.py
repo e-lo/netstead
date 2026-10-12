@@ -573,3 +573,11 @@ def test_node_moves_refresh_a_selection_s_anchors(session):
     session._keep_selected_ids(handle(session), sel, {"node"}, removed=set())
     assert session.selection is not sel and session.selection["link_ids"] == [1]
     session._keep_selected_ids(handle(session), session.selection, {"link"}, removed=set())
+
+
+def test_mutating_with_no_edits_changes_nothing(session):
+    before = len(session.history)
+    assert session.mutate("leavenworth", [], note="nothing") == []
+    assert handle(session).version == 0 and "leavenworth" not in session.edits and len(session.history) == before
+    with pytest.raises(ActionError, match="unknown network"):
+        session.mutate("nope", [], note="x")

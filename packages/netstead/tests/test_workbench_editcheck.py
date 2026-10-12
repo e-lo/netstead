@@ -24,8 +24,10 @@ def codes(net, touched):
 
 
 def test_leavenworth_rows_start_clean(net):
-    keys = net.tables["link"].select("link_id").to_pandas()["link_id"].tolist()
-    assert check_rows(net, {"link": keys}).warnings == ()
+    keyed = {t: pk for t, pk in table_keys(net).items() if pk is not None}
+    assert {"link", "node", "lane", "link_tod", "geometry"} <= set(keyed)
+    touched = {t: net.tables[t].select(pk).to_pandas()[pk].tolist() for t, pk in keyed.items()}
+    assert check_rows(net, touched).warnings == ()
 
 
 def test_a_clean_edit_has_no_warnings(net):

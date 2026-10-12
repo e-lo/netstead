@@ -6,15 +6,15 @@ P3, the NL assistant all funnel through ``dispatch``. Each call is recorded as a
 ``history`` + ``state`` events for the browser. Network edits are Actions too (``EditCells``,
 ``DeleteRows``, ``AddRows``, ``UndoEdit``); each one's mutation is a pending edit (see :mod:`.ledger`).
 
-Actions marked ``runs_as_job`` (``OpenNetwork``, ``BuildNetwork``) do their slow
-work on a background job thread *without* the session lock. :meth:`Session.submit`
-starts one and returns immediately (the HTTP path); :meth:`Session.dispatch` starts
-one and waits (Python, the CLI), so callers see the same blocking behaviour as before.
+Actions marked ``runs_as_job`` (``OpenNetwork``, ``BuildNetwork``, ``RunValidation``,
+``SaveNetwork``) do their slow work on a background job thread *without* the session lock.
+:meth:`Session.submit` starts one and returns immediately (the HTTP path); :meth:`Session.dispatch`
+starts one and waits (Python, the CLI), so callers see the same blocking behaviour as before.
 
-A successful job ends in :meth:`Session._commit`, which registers the loaded network
-*and* records its history entry in one critical section. History order therefore
-always matches registry order, even when two jobs overlap, so replaying the history
-reproduces the same network ids. Failed and cancelled jobs are recorded by
+A successful job ends in :meth:`Session._commit`, which commits the job's outcome (registers the
+loaded network, stores the issues, marks the edits saved) *and* records its history entry in one
+critical section. History order therefore always matches registry order, even when two jobs overlap,
+so replaying the history reproduces the same network ids. Failed and cancelled jobs are recorded by
 :meth:`Session._finish`.
 
 ``Select`` with an utterance may call a language model, which can take seconds. Its parse
@@ -803,6 +803,8 @@ class Session:
         """
         with self._lock:
             handle = self._handle(net_id)
+            if not edits:  # nothing to apply: no version bump, no pending edit, nothing recorded
+                return []
             draft = derived_copy(handle.roadway)  # shares the immutable table expressions; copies the wrappers
             applied = [apply_edit(draft, edit) for edit in edits]
             self._swap(handle, draft, {e.table for e in edits}, note, origin)
