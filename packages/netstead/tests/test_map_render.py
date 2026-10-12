@@ -321,9 +321,13 @@ def test_link_issue_on_osm_network_popup_has_edit_in_osm(tmp_path):
         row=0,
     )
     html = render_network_html(net, [issue])
-    # iD URL for way 5001 should be present.
-    assert "https://www.openstreetmap.org/edit?editor=id&amp;way=5001" in html or (
-        "https://www.openstreetmap.org/edit?editor=id&way=5001" in html
+    # iD URL for way 5001 should be present — as HTML-escaped markup, as a raw
+    # query string, or (inside the map payload's <script> block) as the
+    # JSON-safe & escape used to keep "&" from being misread as markup.
+    assert (
+        "https://www.openstreetmap.org/edit?editor=id&amp;way=5001" in html
+        or "https://www.openstreetmap.org/edit?editor=id&way=5001" in html
+        or "editor=id\\u0026way=5001" in html
     )
 
 
@@ -502,3 +506,34 @@ def test_header_shows_located_vs_unlocated_split(tmp_path):
     html = render_validation_html(net, report)
     assert "1 on map" in html
     assert "1 unlocated" in html
+
+
+def test_a_data_value_cannot_close_the_payload_script(tmp_path):
+    """Messages quote data values (a street name): one holding ``</script>`` must stay inside the JSON blob."""
+    net = _osm_network(tmp_path)
+    evil = "</script><script>alert(1)</script>"
+    issue = Issue(Severity.WARNING, Category.SCHEMA, "schema.required", evil, table="link", row=0)
+    html = render_validation_html(net, ValidationReport(issues=[issue]))
+    assert "<script>alert(1)" not in html
+
+
+def test_the_payload_script_still_parses_to_the_original_data(tmp_path):
+    """Escaping the payload for the ``<script>`` block must round-trip: JSON.parse sees the real value back."""
+    import json
+
+    net = _osm_network(tmp_path)
+    evil = "</script><script>alert(1)</script> & tricky \u2028 \u2029 line breaks"
+    issue = Issue(Severity.WARNING, Category.SCHEMA, "schema.required", evil, table="link", row=0)
+    html = render_validation_html(net, ValidationReport(issues=[issue]))
+
+    assignment_prefix = r"\(window\.__NETSTEAD_INSTANCES__ = window\.__NETSTEAD_INSTANCES__ \|\| \{\}\)"
+    assignment_suffix = r"\s*=\s*(\{.*\});\s*\(window\.__NETSTEAD_QUEUE__"
+    match = re.search(
+        assignment_prefix + r'\["[^"]+"\]' + assignment_suffix,
+        html,
+        re.DOTALL,
+    )
+    assert match, "could not find the embedded payload assignment in the rendered HTML"
+    payload = json.loads(match.group(1))
+    messages = [marker["message"] for marker in payload.get("markers", [])]
+    assert evil in messages
