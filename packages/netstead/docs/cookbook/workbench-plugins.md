@@ -246,6 +246,9 @@ A plugin never sees the `Session`. Every handler, `router`, `state` and `on_load
 | `host.selection` | A copy of the shared selection payload (the same dict `/api/state` carries), or `None`. |
 | `host.network(net_id=None)` | The network handle (default: the active one). Read it, but change it only through `mutate`. |
 | `host.mutate(net_id, edits, note=...)` | Applies `corral.editing.Edit`s to a network's roadway **all or nothing**. The edits run on a draft, so a failing edit leaves the network (and its caches) untouched and re-raises. On success it bumps the version, appends `"<id>: <note>"` to the lineage and pushes state. It returns the `EditResult`s (the rollback data). Inside a handler, the change is undone if the handler fails. Outside one (a job, a route), it is recorded as a non-replayable `<id>.mutate` history entry. |
+| `host.undo(net_id=None)` | Reverts this plugin's newest mutation of a network, if it is that network's newest change, and returns the undone entry (`seq`, `source`, `note`, `version`, `rows`, `saved`). Raises `ActionError` when there is nothing to undo or the newest change came from core, Python or another plugin. API 1.2. |
+| `host.edit_warnings(net_id=None)` | The live edit warnings on a network now, from every source (dicts with `code`, `table`, `key`, `column`, `value`, `message`). API 1.2. |
+| `host.plan_update(net_id, table, ids, values)`, `host.plan_delete(net_id, table, ids)`, `host.plan_add(net_id, table, rows)` | Core's edit plans (`EditPlan`: `edits`, `summary`, `rows` per table, `keys`), refusing what storage cannot hold with `EditRefused`. Apply one with `host.mutate`. API 1.2. |
 | `host.derive(net_id, label=..., note=...)` | Registers a **copy-on-write** copy of a network (a preview or scenario) and returns its id. Edits to the copy never touch the base. The copy records `derived_from` and inherits the lineage. Inside a handler that fails, the copy is unregistered again. |
 | `host.has_action(type)` | Whether core or any loaded plugin registered that Action type. Use it for soft cross-plugin dependencies. |
 | `host.dispatch(action)` | Dispatches any Action (a model or a dict). Called from a handler, it is recorded in history as nested in that handler's Action (`parent_seq`): "copy as Python" shows it as a comment, since replaying the outer Action runs it again, and it is undone if the outer handler fails. Job Actions (`open_network`, `build_network`) can't be dispatched from a handler, because waiting for them would deadlock. Use `host.submit_job` for slow work instead. |
@@ -266,6 +269,38 @@ def widen(host: Host, action: Widen) -> str:
     host.mutate(preview, [Edit(op="update_rows", table="link", payload=payload)], note=f"widen {action.link_id}")
     return preview  # the base network is untouched
 ```
+
+### Editing networks (API 1.2)
+
+Plan a change with core's rules, apply it, check it, and undo it yourself if you need to:
+
+<!-- doctest: skip -->
+```python
+from netstead.workbench import ActionError
+from netstead.workbench.plugins import EditRefused
+
+
+def retag(host: Host, action: Retag) -> list[dict]:
+    try:
+        plan = host.plan_update(None, "link", [action.link_id], {"name": action.name})
+    except EditRefused as exc:  # a value the column cannot hold, a key column, a missing row...
+        raise ActionError(str(exc)) from exc
+    host.mutate(None, plan.edits, note=plan.summary)
+    return host.edit_warnings()  # read these before committing anything to disk
+```
+
+- A plan reads the network as it is now, so apply it before anything else changes the network. Inside a
+  handler that holds (handlers run under the session lock); from a job, plan and `mutate` back to back.
+- `host.plan_delete` cascades through the spec's foreign keys (a link takes its lanes with it) and refuses
+  to delete a node a link still uses; `plan.rows` says what would go.
+- What the spec says about the new values (required, enum, type, foreign keys, duplicate keys) is never
+  a refusal: it comes back as a live warning from `host.edit_warnings()`.
+- Every `host.mutate` is a pending edit whose source is your plugin id. Core lists it in its Edits panel
+  with that id and never undoes it.
+- Undo is strict last-in, first-out across sources. `host.undo()` reverts your newest change only when it
+  is the network's newest change; core's Undo and `host.undo` each refuse the other's change, naming who
+  made it.
+- A plugin that uses these declares `requires_api="1.2"` (or `HOST_API`).
 
 ### Exposing Actions to the NL assistant
 
@@ -346,7 +381,7 @@ export function activate(wb) {
 
 | Member | What it gives you |
 |---|---|
-| `wb.id`, `wb.hostApi` | This plugin's id, and the plugin API this netstead provides (`"1.1"`). |
+| `wb.id`, `wb.hostApi` | This plugin's id, and the plugin API this netstead provides (`"1.2"`). |
 | `wb.api.fetch(path, init)`, `wb.api.get(path)`, `wb.api.post(path, body)` | `fetch`, and JSON helpers, scoped to your router: `"/count"` is `/api/plugins/<id>/count`. A path must start with `/` and, once resolved (`%2e%2e` and `\` count as `..` and `/`), stay under that prefix; other hosts are refused. |
 | `wb.api.dispatch(action)` | Posts any Action (yours, another plugin's, core's) to `POST /api/actions` and resolves to its result. |
 | `wb.store.get()`, `wb.store.subscribe(keys, fn)` | The server state (`/api/state`), and a listener that fires when any of `keys` changes. Keys may be dotted (`"plugins.hello"`). `get()` and the listener's argument are a frozen copy: changing it throws (changes go through Actions). Returns an unsubscribe function. |
@@ -547,6 +582,7 @@ A minor bump only adds to the API and a major bump breaks it.
 |---|---|
 | `1.0` | The Python plugin core: Actions, `Host`, settings, state, routes, static files. |
 | `1.1` | The browser API: `activate(wb)` and the `wb` object (workspaces, dock panels, commands, map layers, `schemaForm`), and `GET /api/actions`. A plugin with a front end should pass `requires_api="1.1"` (or `HOST_API`); a `1.0` plugin still runs. |
+| `1.2` | Editing: `host.undo`, `host.edit_warnings` and `host.plan_update` / `plan_delete` / `plan_add` (with `EditPlan` and `EditRefused` exported from `netstead.workbench.plugins`). Every `host.mutate` becomes a pending edit with the plugin's id as its source. |
 
 **The plugin API is provisional until netstead v1.0.** Until then it may change without a major
 bump. Pin the netstead versions you support in your package's dependencies, and check the changelog

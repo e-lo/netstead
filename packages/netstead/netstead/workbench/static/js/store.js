@@ -31,7 +31,7 @@ export const store = createStore({
   dockPanel: {},              // workspace id -> the dock panel showing in it
   commandSeq: 0,              // bumped when a command registers or goes, so menus re-check what applies
   pluginStatus: [],           // GET /api/plugins: each plugin's startup outcome
-  hostApi: null,              // the plugin API this netstead provides ("1.1")
+  hostApi: null,              // the plugin API this netstead provides ("1.2")
   pluginErrors: {},           // plugin id -> [{phase, message}] from the browser (activate, panel, command, layer…)
 });
 

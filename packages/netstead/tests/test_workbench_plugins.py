@@ -1103,8 +1103,8 @@ def test_the_plugin_id_core_is_reserved(make_session):
 
 
 def test_a_plugin_built_for_api_1_0_installs_on_this_host(make_session):
-    """A minor bump only adds: a plugin that declares 1.0 still installs (and its Action registers) on 1.1."""
-    assert HOST_API == "1.1"
+    """A minor bump only adds: a plugin that declares 1.0 still installs (and its Action registers) on 1.2."""
+    assert HOST_API == "1.2"
     session = make_session(make_hello(requires_api="1.0"))
     assert _status(session, "hello").state == "loaded" and session.actions.has("hello.greet")
 
@@ -1130,3 +1130,48 @@ def test_host_selection_exposes_the_facility_form(make_session, rdu_source):
     session.dispatch(Select(link_ids=[first]))
     facility = session._hosts["hello"].selection["projectcard"]
     assert facility["picked"] is True and facility["resolved"]["links"]["model_link_id"] == [first]
+
+
+class Retag(BaseAction):
+    type: Literal["tagger.retag"] = "tagger.retag"
+    mutates: ClassVar[bool] = True
+    link_id: int
+
+
+def test_host_1_2_plans_mutates_reports_and_undoes(make_session):
+    from netstead.fixtures import leavenworth
+    from netstead.workbench.actions import OpenNetwork
+    from netstead.workbench.plugins import EditRefused
+
+    def retag(host, action: Retag) -> list[str]:
+        plan = host.plan_update(None, "link", [action.link_id], {"from_node_id": 424242})
+        host.mutate(None, plan.edits, note=plan.summary)
+        return [w["code"] for w in host.edit_warnings()]
+
+    tagger = WorkbenchPlugin(
+        id="tagger", name="Tagger", version="0.1", requires_api="1.2", actions=(ActionSpec(Retag, retag),)
+    )
+    session = make_session(tagger)
+    session.dispatch(OpenNetwork(source=str(leavenworth.parquet_dir())))
+    assert session.dispatch(Retag(link_id=1)) == ["edit.fk_missing"]
+    assert session.edits["leavenworth"].last().source == "tagger"
+    host = session._hosts["tagger"]
+    assert host.undo()["source"] == "tagger" and host.edit_warnings() == []
+    assert session.history[-1].action["type"] == "tagger.revert"  # outside an Action: recorded, not replayable
+    with pytest.raises(EditRefused, match="does not fit"):
+        host.plan_update(None, "link", [1], {"lanes": 1.5})
+    assert host.plan_delete(None, "link", [1]).rows == {"lane": 1, "link": 1}
+    assert host.plan_add(None, "node", [{"node_id": 9001, "x_coord": -120.6, "y_coord": 47.6}]).rows == {"node": 1}
+
+
+def test_host_undo_refuses_core_s_change(make_session):
+    from netstead.fixtures import leavenworth
+    from netstead.workbench.actions import OpenNetwork
+    from netstead.workbench.editing import plan_update
+
+    session = make_session(make_hello())
+    session.dispatch(OpenNetwork(source=str(leavenworth.parquet_dir())))
+    plan = plan_update(session.network().roadway, "link", [1], {"lanes": 2})
+    session.mutate(None, plan.edits, note=plan.summary)  # Python's change, not hello's
+    with pytest.raises(ActionError, match="made by python"):
+        session._hosts["hello"].undo()

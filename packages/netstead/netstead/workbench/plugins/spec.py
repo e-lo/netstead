@@ -20,7 +20,8 @@ __all__ = ["HOST_API", "ActionSpec", "WorkbenchPlugin", "api_compatible", "probl
 #: The plugin API this netstead provides: ``major.minor``. A minor bump only adds; a major bump breaks.
 #: Provisional until netstead v1.0 (it may change without a major bump before then).
 #: 1.1: the browser host object ``wb`` (workspaces, dock panels, commands, map layers, schema forms).
-HOST_API = "1.1"
+#: 1.2: Host.undo, Host.edit_warnings and Host.plan_update/plan_delete/plan_add; every mutation is a pending edit.
+HOST_API = "1.2"
 
 #: A plugin id: the namespace for its Action types, routes, state, settings and static files (``fullmatch``).
 _PLUGIN_ID = re.compile(r"[a-z][a-z0-9_]*")
