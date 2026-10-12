@@ -79,9 +79,9 @@ export function onEditJob(job) {
   mine.delete(job.id);
   if (action.type === "run_validation" && job.status === "done") {
     const text = validatedText(job.result);
-    if (text) toast(text);
+    if (text) toast(text, "info");
   } else if (action.type === "save_network" && job.status === "done") {
-    toast(savedText(job.result));
+    toast(savedText(job.result), "info");
   } else if (action.type === "save_network" && job.status === "failed" && job.payload && "check_failed" in job.payload) {
     const prompt = savePrompt(job.payload);
     if (prompt && window.confirm(prompt)) dispatchJob({ ...action, accept_warnings: true }).catch(fail);
@@ -99,7 +99,7 @@ function save(folder) {
     if (!window.confirm(prompt)) return;
     action.accept_warnings = true;
   }
-  toast("Saving a copy… (see Jobs)");
+  toast("Saving a copy… (see Jobs)", "info");
   dispatchJob(action).catch(fail);
 }
 

@@ -149,6 +149,7 @@
            background:#3a1517; color:#ffd7d5; border:1px solid var(--to); border-radius:8px; padding:8px 14px;
            font-size:12.5px; display:none; }
   #toast.show { display:block; }
+  #toast.info { background:#14262f; color:#d5ecff; border-color:#3b6b85; }
 
   /* ---- P1a: jobs + Open / Import wizard ---- */
   [hidden] { display:none !important; }
