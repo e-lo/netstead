@@ -57,7 +57,7 @@ export async function deleteRecord(table, id) {
     const plan = await postJSON(netPath(net, `table/${encodeURIComponent(table)}/delete-plan`), { ids: [id] });
     if (plan.refused) { toast(plan.refused); return false; }
     if (!window.confirm(deletePlanText(plan))) return false;
-    await dispatch(deleteAction(table, [id]));
+    await dispatch(deleteAction(table, [id], { version: plan.version }));
     return true;
   } catch (e) { toast(e.message); return false; }
 }

@@ -1553,7 +1553,9 @@ class Session:
 
     def _do_delete_rows(self, action: DeleteRows) -> dict[str, Any]:
         handle = self._edit_target(action)
-        plan = _planned(lambda: plan_delete(handle.roadway, action.table, action.ids, version=handle.version))
+        # A confirmed delete plan's version: mutate refuses it if the network changed since the confirmation.
+        version = handle.version if action.expected_version is None else action.expected_version
+        plan = _planned(lambda: plan_delete(handle.roadway, action.table, action.ids, version=version))
         return self._apply_plan(handle, plan, action.note)  # the selection follows in mutate (R4)
 
     def _do_add_rows(self, action: AddRows) -> dict[str, Any]:

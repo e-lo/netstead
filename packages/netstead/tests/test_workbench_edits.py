@@ -254,6 +254,17 @@ def test_delete_a_link_then_undo(session):
     assert [e.action["type"] for e in session.history[-2:]] == ["delete_rows", "undo_edit"]
 
 
+def test_a_delete_confirmed_on_an_older_version_is_refused(session):
+    plan = session.delete_preview(handle(session), "link", [1])
+    session.dispatch(EditCells(ids=[2], values={"lanes": 2}))  # the network moves on after the confirmation
+    with pytest.raises(ActionError, match="changed since the edit was planned"):
+        session.dispatch(DeleteRows(ids=[1], expected_version=plan["version"]))
+    assert 1 in set(handle(session).links_df().link_id)
+    done = session.dispatch(DeleteRows(ids=[1], expected_version=handle(session).version))
+    assert done["rows"] == plan["rows"]
+    assert "expected_version" not in session.history[-1].python  # a replay plans again
+
+
 def test_deleting_a_node_a_link_uses_is_refused(session):
     with pytest.raises(ActionError, match="still used by link"):
         session.dispatch(DeleteRows(table="node", ids=[1]))

@@ -15,10 +15,12 @@ export function renderSelection(sel) {
     ? `<span class="status ${esc(sel.status)}">${esc(sel.status.replace("_", " "))}</span>` +
       (sel.utterance ? ` <span class="diag">${esc(sel.utterance)}</span>` : "")
     : HINT;
-  const anchors = sel ? sel.anchors : [];
+  // Anchors whose node has no coordinates (`anchors_unplaced`) are listed too, as not on the map.
+  const anchors = sel ? [...sel.anchors, ...(sel.anchors_unplaced || []).map(a => ({ ...a, unplaced: true }))] : [];
   $("anchors").innerHTML = anchors.length
     ? anchors.map(a => `<div><span class="dot" style="background:${a.role === "from" ? "#35c46a" : "#e0524d"}"></span>` +
-        `<b>${esc(a.role)}</b> · node ${esc(a.node_id)} · ${esc(a.kind)} <span class="diag">(${esc(a.detail)})</span></div>`).join("")
+        `<b>${esc(a.role)}</b> · node ${esc(a.node_id)} · ${esc(a.kind)} <span class="diag">(${esc(a.detail)})</span>` +
+        `${a.unplaced ? ' <span class="diag">· not on the map</span>' : ""}</div>`).join("")
     : '<span class="empty">—</span>';
   $("fragment").textContent = sel && sel.fragment ? JSON.stringify(sel.fragment, null, 2) : "—";
   const diags = sel ? sel.diagnostics : [];

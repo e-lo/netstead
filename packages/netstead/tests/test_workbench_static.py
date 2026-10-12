@@ -415,12 +415,19 @@ def test_record_edits_undo_and_save_are_registered_commands():
     fix = (JS_DIR / "fixeditor.js").read_text()
     assert 'from "./formview.js"' in fix and "schemaForm(" in fix and "recordSchema(" in fix
     assert "delete-plan" in fix and "deletePlanText(" in fix  # the dry-run cascade is shown before deleting
+    assert "version: plan.version" in fix  # the delete runs against the version its plan was confirmed on
     assert "form.errors()" in fix and "changedValues(" in fix  # one EditCells with only what changed
     side = (JS_DIR / "side.js").read_text()
     for act in ("edit", "delete", "undo"):
         assert f'data-act="{act}"' in side
     edits = (JS_DIR / "edits.js").read_text()
     assert "accept_warnings = true" in edits and "window.confirm(" in edits  # saving over warnings is confirmed
+    # A refused save (the server checks again) is confirmed too; a save's and a validation's result are reported.
+    assert "accept_warnings: true" in edits and "savePrompt(job.payload)" in edits
+    assert "savedText(job.result)" in edits and "validatedText(job.result)" in edits
+    assert "onEditJob(e.job)" in (JS_DIR / "main.js").read_text()
+    # Anchors with no coordinates are still listed in Details, as not on the map (escaped like the others).
+    assert "anchors_unplaced" in side and "not on the map" in side
     html = (STATIC_DIR / "index.html").read_text()
     pane = html[html.index('id="dock-edits"') : html.index("</aside>")]
     for element_id in (

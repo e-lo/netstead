@@ -62,7 +62,8 @@ class BaseAction(BaseModel):
     A subclass declares ``type: Literal["<type>"] = "<type>"`` (plugins: ``"<plugin id>.<name>"``)
     and its fields. ``mutates`` marks actions the assistant must draft before applying;
     ``runs_as_job`` (core only) runs the slow work on a background job thread; ``replay_overrides``
-    are fields forced in the ``to_python`` replay snippet.
+    are fields forced in the ``to_python`` replay snippet, and ``replay_omits`` are fields it leaves out
+    (a guard that only means something in the live session, such as a planned version).
 
     Field values must round-trip through ``repr`` (str, numbers, bools, None, lists/dicts/tuples of
     those, nested pydantic models): "copy session as Python" writes each field as ``name=<repr(value)>``,
@@ -73,6 +74,7 @@ class BaseAction(BaseModel):
     mutates: ClassVar[bool] = False
     runs_as_job: ClassVar[bool] = False
     replay_overrides: ClassVar[dict[str, Any]] = {}
+    replay_omits: ClassVar[frozenset[str]] = frozenset()
     if TYPE_CHECKING:  # every concrete Action declares its own ``type`` field; not a field of the base
         type: str
 
@@ -339,16 +341,20 @@ class DeleteRows(BaseAction):
     """Delete rows of one table by key, with every row that depends on them through the spec's foreign keys.
 
     A link takes its lanes and time-of-day rows with it. A node that a link still uses is refused.
-    ``POST …/table/<table>/delete-plan`` shows what would go, without deleting anything.
+    ``POST …/table/<table>/delete-plan`` shows what would go, without deleting anything, and the network
+    ``version`` it planned on: pass that as ``expected_version`` and the deletion is refused if the network
+    changed since, so what goes is what was confirmed. The copied script leaves it out (a replay plans again).
     """
 
     type: Literal["delete_rows"] = "delete_rows"
     mutates: ClassVar[bool] = True
+    replay_omits: ClassVar[frozenset[str]] = frozenset({"expected_version"})
     net_id: str | None = None
     component: Component = "roadway"
     table: str = "link"
     ids: list[int | str] = Field(min_length=1, max_length=MAX_EDIT_IDS)
     note: str | None = Field(default=None, max_length=500)
+    expected_version: int | None = Field(default=None, ge=0)
 
 
 class AddRows(BaseAction):
@@ -584,11 +590,13 @@ def script_imports(lines: Iterable[str]) -> list[str]:
 def to_python(action: BaseAction) -> str:
     """The Python call that replays ``action`` against a live workbench handle named ``app``.
 
-    Top-level fields equal to their default are omitted; nested models (an ``area``) are written
-    in full, so their discriminator survives. ``replay_overrides`` are applied last.
+    Top-level fields equal to their default, and ``replay_omits``, are omitted; nested models (an ``area``)
+    are written in full, so their discriminator survives. ``replay_overrides`` are applied last.
     """
-    defaults = {name: f.get_default(call_default_factory=True) for name, f in type(action).model_fields.items()}
-    fields = {k: v for k, v in action.model_dump(exclude={"type"}).items() if v != defaults[k]}
-    fields.update(type(action).replay_overrides)
+    cls = type(action)
+    defaults = {name: f.get_default(call_default_factory=True) for name, f in cls.model_fields.items()}
+    dumped = action.model_dump(exclude={"type", *cls.replay_omits})
+    fields = {k: v for k, v in dumped.items() if v != defaults[k]}
+    fields.update(cls.replay_overrides)
     args = ", ".join(f"{k}={v!r}" for k, v in fields.items())
     return f"app.do({type(action).__name__}({args}))"

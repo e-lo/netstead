@@ -370,6 +370,37 @@ def test_cell_and_delete_actions(node_module):
     assert clear == {"type": "edit_cells", "table": "link", "ids": [1, 2], "values": {"name": None}}
     gone = node_module("editmodel.js", ["deleteAction"], 'deleteAction("link", [1])')
     assert gone == {"type": "delete_rows", "table": "link", "ids": [1]}
+    planned = node_module("editmodel.js", ["deleteAction"], 'deleteAction("link", [1], {version: 0, note: "n"})')
+    assert planned == {"type": "delete_rows", "table": "link", "ids": [1], "note": "n", "expected_version": 0}
+
+
+def test_the_save_confirmation_says_when_the_live_check_failed(node_module):
+    def prompt(info):
+        return node_module("editmodel.js", ["savePrompt"], f"savePrompt({json.dumps(info)})")
+
+    assert prompt({"check_failed": False, "truncated": False, "warnings": []}) == ""
+    assert prompt(None) == ""
+    two = prompt({"check_failed": False, "truncated": False, "warnings": [{"message": "a"}, {"message": "b"}]})
+    assert two.startswith("2 edit warnings are still open:\n• a\n• b")
+    crashed = prompt({"check_failed": True, "truncated": False, "count": 0, "warnings": []})
+    assert crashed.startswith("The live edit check failed") and "warning" not in crashed.split("\n")[0]
+    assert crashed.endswith("Save the copy anyway?")
+    cut = prompt({"check_failed": True, "truncated": True, "count": 60, "warnings": [{"message": "w"}] * 50})
+    assert "stopped early" in cut and "found 60 warnings" in cut and "… and 50 more" in cut
+
+
+def test_what_a_finished_save_and_validation_say(node_module):
+    base = {"output": "/out/copy", "version": 3, "edits_saved": 2, "notes": ["1 table(s) differ from the source: link"]}
+
+    def saved(**extra):
+        return node_module("editmodel.js", ["savedText"], f"savedText({json.dumps({**base, **extra})})")
+
+    assert saved() == "Saved a copy to /out/copy (2 edits). 1 table(s) differ from the source: link"
+    assert "closed while saving" in saved(closed_while_saving=True)
+    assert "copy holds version 3" in saved(edited_while_saving=True)
+    expr = "[validatedText({superseded: true}), validatedText({superseded: false})]"
+    said = node_module("editmodel.js", ["validatedText"], expr)
+    assert said[0].startswith("A newer validation finished first") and said[1] == ""
 
 
 def test_the_record_schema_and_what_changed(node_module):

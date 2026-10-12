@@ -3,7 +3,7 @@
 // copy. Notes and table names are data: every one is escaped.
 import { dispatch, getJSON, netPath } from "./api.js";
 import { $, esc, toast } from "./dom.js";
-import { dirtyBadge, editsBadge, pendingLine, undoBlocked } from "./editmodel.js";
+import { dirtyBadge, editsBadge, pendingLine, savedText, savePrompt, undoBlocked, validatedText } from "./editmodel.js";
 import { createFileBrowser } from "./filebrowser.js";
 import { issuesBadge } from "./issuelist.js";
 import { ALL_WORKSPACES, CORE } from "./slots.js";
@@ -45,7 +45,8 @@ export function renderEdits(edits) {
   $("ed-undo-why").textContent = e && e.pending ? why : "";
   const parts = e ? [dirtyBadge(e) || (e.pending ? "Every edit is in a saved copy." : ""),
     e.warnings.length ? `${e.warnings.length} open warning(s): see Issues.` : "",
-    e.truncated ? "The live check was cut short: run validation." : ""] : [];
+    e.check_failed ? "The live check failed: run validation." :
+      e.truncated ? "The live check was cut short: run validation." : ""] : [];
   $("ed-status").textContent = parts.filter(Boolean).join(" · ");
   $("ed-list").innerHTML = e && e.entries.length ? e.entries.map(x =>
     `<div class="chg${x.saved ? "" : " unsaved"}">${esc(pendingLine(x))}<div class="diag">` +
@@ -53,26 +54,53 @@ export function renderEdits(edits) {
     : '<span class="empty">No edits yet. Click a row, then a cell, to edit it; or fix an issue.</span>';
 }
 
-// The confirmation shown before saving while edit warnings are open ("" when there are none).
-function warningsPrompt(warnings) {
-  const n = warnings.length;
-  if (!n) return "";
-  const shown = warnings.slice(0, 10).map(w => `• ${w.message}`).join("\n");
-  const more = n > 10 ? `\n… and ${n - 10} more` : "";
-  return `${n} edit warning${n === 1 ? " is" : "s are"} still open:\n${shown}${more}\n\nSave the copy anyway?`;
+// Jobs this tab started and reports on when they end (job id → action), and recently ended jobs, for a job that
+// ends before its dispatch resolves.
+const mine = new Map(), ended = new Map();
+
+// Dispatch a job action (save_network, run_validation) and report its outcome here when it ends.
+export async function dispatchJob(action) {
+  const r = await dispatch(action);
+  const id = r && r.job_id;
+  if (!id) return r;
+  mine.set(id, action);
+  if (ended.has(id)) onEditJob(ended.get(id));
+  return r;
 }
 
-// Save a copy into `folder`. Open warnings are listed first, and saving anyway is an explicit, recorded choice.
+// A job ended: a save's result (where, and what was or was not marked saved), a refused save's confirmation (save
+// anyway, explicitly), and a validation that a newer one overtook.
+export function onEditJob(job) {
+  if (job.status === "running") return;
+  ended.set(job.id, job);
+  if (ended.size > 20) ended.delete(ended.keys().next().value);
+  const action = mine.get(job.id);
+  if (!action) return;
+  mine.delete(job.id);
+  if (action.type === "run_validation" && job.status === "done") {
+    const text = validatedText(job.result);
+    if (text) toast(text);
+  } else if (action.type === "save_network" && job.status === "done") {
+    toast(savedText(job.result));
+  } else if (action.type === "save_network" && job.status === "failed" && job.payload && "check_failed" in job.payload) {
+    const prompt = savePrompt(job.payload);
+    if (prompt && window.confirm(prompt)) dispatchJob({ ...action, accept_warnings: true }).catch(fail);
+  }
+}
+
+// Save a copy into `folder`. Open warnings, or a live check that failed or stopped early, are confirmed first, and
+// saving anyway is an explicit, recorded choice. The server checks again, so a refusal is confirmed then too.
 function save(folder) {
-  const e = store.get().edits, warnings = e && e.net_id === activeId() ? e.warnings : [];
+  const e = store.get().edits;
   const action = { type: "save_network", output_dir: folder, name: $("ed-save-name").value.trim(),
     output_format: $("ed-save-format").value };
-  const prompt = warningsPrompt(warnings);
+  const prompt = savePrompt(e && e.net_id === activeId() ? e : null);
   if (prompt) {
     if (!window.confirm(prompt)) return;
     action.accept_warnings = true;
   }
-  dispatch(action).then(() => toast("Saving a copy… (see Jobs)")).catch(fail);
+  toast("Saving a copy… (see Jobs)");
+  dispatchJob(action).catch(fail);
 }
 
 export function wireEdits() {

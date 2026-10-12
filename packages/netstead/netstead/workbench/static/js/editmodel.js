@@ -37,9 +37,11 @@ export function cellAction({ table, ids, column, raw, current, note = null }) {
   return action;
 }
 
-export function deleteAction(table, ids, note = null) {
+// `version` is the delete plan's: the server refuses the deletion if the network changed since it was confirmed.
+export function deleteAction(table, ids, { note = null, version = null } = {}) {
   const action = { type: "delete_rows", table, ids: [...ids] };
   if (note) action.note = note;
+  if (version != null) action.expected_version = version;
   return action;
 }
 
@@ -116,3 +118,37 @@ export function undoBlocked(summary) {
   if (summary.last_source !== "workbench") return `The last change was made by ${summary.last_source}; undo it there.`;
   return "";
 }
+
+// The confirmation before saving a copy, from the Edits data or a refused save's payload ({check_failed,
+// truncated, warnings, count?}); "" when there is nothing to confirm. A failed or cut-short live check is said
+// as such: its warning count may be 0 and proves nothing.
+export function savePrompt(info) {
+  if (!info) return "";
+  const warnings = info.warnings || [];
+  const n = info.count ?? warnings.length;
+  const listed = warnings.slice(0, 10).map(w => `• ${w.message}`).join("\n");
+  const more = n > Math.min(warnings.length, 10) ? `\n… and ${n - Math.min(warnings.length, 10)} more` : "";
+  if (info.check_failed || info.truncated) {
+    // A refused save says check_failed for both; truncated tells them apart.
+    const why = info.truncated ? "stopped early (too many edited rows to check)" : "failed";
+    const seen = n ? `\nIt found ${n} warning${n === 1 ? "" : "s"} before that:\n${listed}${more}` : "";
+    return `The live edit check ${why}, so these edits may break the network unnoticed. Run validation to see ` +
+      `every issue.${seen}\n\nSave the copy anyway?`;
+  }
+  if (!n) return "";
+  return `${n} edit warning${n === 1 ? " is" : "s are"} still open:\n${listed}${more}\n\nSave the copy anyway?`;
+}
+
+// What a finished SaveNetwork job says. `notes` is plain text naming the edited tables.
+export function savedText(result) {
+  const n = result.edits_saved;
+  const parts = [`Saved a copy to ${result.output} (${n} edit${n === 1 ? "" : "s"}).`];
+  if (result.closed_while_saving) parts.push("The network was closed while saving, so no edits are marked saved.");
+  else if (result.edited_while_saving) parts.push(`The network was edited while saving: the copy holds version ${result.version}; later edits are still unsaved.`);
+  parts.push(...(result.notes || []));
+  return parts.join(" ");
+}
+
+// What a finished RunValidation job adds: a run overtaken by a newer one did not change the stored issues.
+export const validatedText = result =>
+  result && result.superseded ? "A newer validation finished first; the Issues panel keeps its results." : "";

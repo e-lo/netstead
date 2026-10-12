@@ -6,7 +6,7 @@ import { registerCoreCommands } from "./corecmds.js";
 import { openContextMenu, wireContextMenus } from "./ctxmenu.js";
 import { $, toast } from "./dom.js";
 import { registerEditCommands } from "./editcmds.js";
-import { onEditsState, registerEditPanels, renderEdits, wireEdits } from "./edits.js";
+import { onEditJob, onEditsState, registerEditPanels, renderEdits, wireEdits } from "./edits.js";
 import { rememberRecent, renderHeader, renderRecent, wireHeader } from "./header.js";
 import { showEntry, wireHistory } from "./history.js";
 import { hub } from "./hub.js";
@@ -221,7 +221,7 @@ async function boot() {
       onSettingChanged(e.entry).catch(err => toast(err.message)); hub.emit("core.history", e.entry);
     },
     navigate: e => { if (mapReady) onNavigate(e); },
-    job: e => { onJob(e.job); onWizardJob(e.job); onLLMJob(e.job); hub.emit("core.job", e.job); },
+    job: e => { onJob(e.job); onEditJob(e.job); onWizardJob(e.job); onLLMJob(e.job); hub.emit("core.job", e.job); },
     plugin: e => hub.emit(`${e.plugin}.${e.name}`, e.payload),
     llm: onLLMEvent,
   });

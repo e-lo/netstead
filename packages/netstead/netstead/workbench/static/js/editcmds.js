@@ -5,6 +5,7 @@ import { dispatch } from "./api.js";
 import { $, toast } from "./dom.js";
 import { addCommandTo, commandContext, runCommand } from "./commands.js";
 import { editSummary, undoBlocked } from "./editmodel.js";
+import { dispatchJob } from "./edits.js";
 import { deleteRecord, openFixEditor } from "./fixeditor.js";
 import { recordIssues } from "./issuelist.js";
 import { detailsSettled } from "./side.js";
@@ -47,7 +48,7 @@ async function editRecord(table, id) {
 
 export function registerEditCommands() {
   add({ id: "run_validation", group: "Issues", title: "Run validation", when: c => Boolean(c.network),
-    run: () => { showPanel("issues"); return dispatch({ type: "run_validation" }); } });
+    run: () => { showPanel("issues"); return dispatchJob({ type: "run_validation" }); } });
   add({ id: "fix_issue", group: "Issues", title: "Fix the picked issue…", when: () => Boolean(store.get().fixTarget),
     run: () => { showPanel("issues"); return openFixEditor($("iss-fixer"), store.get().fixTarget); } });
   // The only core context-menu command (R8): on a record with an issue, focus it, filter Issues to it, and fix.
