@@ -466,3 +466,21 @@ def test_row_marks_flag_issues_and_edit_warnings(node_module):
         " issues: 2, warned: true})"
     )
     assert node_module("linking.js", ["rowMarks"], expr) == ["iss", "warn"]
+
+
+def test_only_non_key_scalar_cells_are_edited_in_place(node_module):
+    expr = (
+        '[{name: "link_id", kind: "num"}, {name: "name", kind: "str"}, {name: "geometry", kind: "geom"},'
+        ' {name: "directed", kind: "bool"}, undefined].map(c => cellEditable(c, "link_id"))'
+    )
+    assert node_module("editmodel.js", ["cellEditable"], expr) == [False, True, False, True, False]
+
+
+def test_an_empty_cell_parses_by_its_column_kind(node_module):
+    expr = '[cellSample(null, "num"), cellSample(null, "bool"), cellSample(null, "str"), cellSample(3, "str")]'
+    assert node_module("editmodel.js", ["cellSample"], expr) == [0, False, "", 3]
+    refused = (
+        '(() => { try { parseCell("maybe", cellSample(null, "bool")); return "sent"; }'
+        ' catch (e) { return "refused"; } })()'
+    )
+    assert node_module("editmodel.js", ["parseCell", "cellSample"], refused) == "refused"

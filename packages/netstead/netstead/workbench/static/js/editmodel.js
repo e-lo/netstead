@@ -2,6 +2,8 @@
 // in part from the offline report's "Fix locally" editor (map/templates/map_component.js: coerceLikely).
 // Import-free and DOM-free: unit-tested under node (tests/test_workbench_js.py).
 
+const JSON_TYPE = { num: "number", bool: "boolean", str: "string" };
+
 // The typed text as the value to send. Empty clears the cell (null). A number when the current value is a
 // number; true/false for a yes/no value; otherwise the text as typed (a text column keeps "007"). The server
 // coerces to the column's real type and refuses a value that does not fit.
@@ -20,6 +22,14 @@ export function parseCell(input, sample) {
   return text;
 }
 
+// Whether a grid cell of schema column `col` ({name, kind}) can be edited in place: never the key (a changed key
+// would orphan every row that points at it; decision 2), and only the kinds the editor parses (not geometry).
+export const cellEditable = (col, pk) => Boolean(col) && col.name !== pk && Boolean(JSON_TYPE[col.kind]);
+
+// What the typed text is parsed against: the cell's value, or for an empty cell a value of its column's kind (so
+// "yes" in an empty boolean cell is true and "maybe" is refused rather than sent as text).
+export const cellSample = (current, kind) => (current != null ? current : kind === "num" ? 0 : kind === "bool" ? false : "");
+
 // The EditCells action: one column of one or more rows of one table.
 export function cellAction({ table, ids, column, raw, current, note = null }) {
   const action = { type: "edit_cells", table, ids: [...ids], values: { [column]: parseCell(raw, current) } };
@@ -33,7 +43,6 @@ export function deleteAction(table, ids, note = null) {
   return action;
 }
 
-const JSON_TYPE = { num: "number", bool: "boolean", str: "string" };
 
 // The record editor's JSON Schema (for wb.schemaForm) from a table's /schema columns ({name, kind}): every column
 // but the key and geometry, each nullable (empty clears the cell), or only `only` (a fix names one column).

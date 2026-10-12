@@ -179,6 +179,7 @@ function wireStore() {
   store.subscribe(["issues", "issueFocus"], () => render());
   store.subscribe(["issues"], () => refreshRows());
   store.subscribe(["edits"], s => renderEditWarnings(s.edits));
+  store.subscribe(["edits"], () => refreshRows()); // the cell and row warning marks follow the live check
   store.subscribe(["highlightMode"], s => { $("btn-highlight").classList.toggle("on", s.highlightMode); $("map").classList.toggle("highlighting", s.highlightMode); });
 }
 

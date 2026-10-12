@@ -192,7 +192,7 @@ def test_table_bar_has_a_scope_menu_not_the_old_checkbox():
 
 def test_fk_cells_link_to_their_target():
     table = (JS_DIR / "table.js").read_text()
-    assert 'class="fk"' in table and "jumpTo(" in table and "stopPropagation" in table  # an FK click is not a row click
+    assert 'class="fk' in table and "jumpTo(" in table and "stopPropagation" in table  # an FK click is not a row click
 
 
 def test_related_module_feeds_the_map_and_the_rail():
@@ -390,3 +390,13 @@ def test_issue_markers_and_validation_commands_use_the_slots():
     for element_id in ("iss-edit", "iss-run", "iss-report", "iss-status", "iss-list", "iss-unlocated", "iss-fixer"):
         assert f'id="{element_id}"' in pane
     assert 'id="tg-issues"' not in html  # hidden through Layers → Overlays, not a toggle of its own
+
+
+def test_cells_of_the_focused_row_are_edited_in_place():
+    table = (JS_DIR / "table.js").read_text()
+    assert "cellEditable(" in table  # the key column (decision 2) and geometry stay read-only
+    assert "if (!tableVisible() || editing) { dirty = true; return; }" in table  # rows never re-render under the input
+    assert "if (editing) { dirty = true; return; }" in table  # nor does a page already loading
+    assert "dispatch(action)" in table and "cellAction(" in table
+    assert 'openContextMenu("row"' in table  # the row menu wiring stays (R8: it opens only on a record with an issue)
+    assert "edit_record" not in table and "delete_record" not in table
