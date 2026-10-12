@@ -132,12 +132,12 @@ class RuleSettings(_Section):
     """One quality rule's config (mirrors :class:`corral.quality.base.RuleConfig`)."""
 
     enabled: bool = True
-    severity_override: str | None = None
+    severity_override: Literal["error", "warning", "info"] | None = None
     thresholds: dict[str, Any] = Field(default_factory=dict)
 
 
 class ValidationSettings(_Section):
-    """Per-rule quality configuration, keyed by rule name."""
+    """Per-rule quality configuration, keyed by rule code (e.g. ``quality.high_speed_residential``)."""
 
     rules: dict[str, RuleSettings] = Field(default_factory=dict)
 

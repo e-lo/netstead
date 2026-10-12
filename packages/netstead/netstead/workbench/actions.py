@@ -38,6 +38,7 @@ __all__ = [
     "EditCells",
     "Navigate",
     "OpenNetwork",
+    "RunValidation",
     "Select",
     "SetActiveNetwork",
     "SetSetting",
@@ -169,6 +170,19 @@ class Navigate(BaseAction):
         if sum([self.bbox is not None, self.to_network, self.to_selection]) != 1:
             raise ValueError("give exactly one of bbox, to_network, to_selection")
         return self
+
+
+class RunValidation(BaseAction):
+    """Validate a network (spec, keys, structure, and the quality rules in Settings → validation) as a job."""
+
+    type: Literal["run_validation"] = "run_validation"
+    runs_as_job: ClassVar[bool] = True
+    net_id: str | None = None
+    quality: bool = True
+
+    def job_label(self) -> str:
+        """``validate <network>``."""
+        return f"validate {self.net_id or 'network'}"
 
 
 class SetSetting(BaseAction):
@@ -362,7 +376,8 @@ Action = Annotated[
     | EditCells
     | DeleteRows
     | AddRows
-    | UndoEdit,
+    | UndoEdit
+    | RunValidation,
     Field(discriminator="type"),
 ]
 #: The Actions every session understands, in registry order (``to_python`` imports them from ``netstead.workbench``).
@@ -381,6 +396,7 @@ CORE_ACTIONS: tuple[type[BaseAction], ...] = (
     DeleteRows,
     AddRows,
     UndoEdit,
+    RunValidation,
 )
 
 

@@ -73,6 +73,7 @@ from .actions import (
     EditCells,
     Navigate,
     OpenNetwork,
+    RunValidation,
     Select,
     SetActiveNetwork,
     SetSetting,
@@ -87,6 +88,7 @@ from .editing import EditPlan, EditRefused, plan_add, plan_delete, plan_update, 
 from .errors import ActionError, ApprovalRequired, JobCancelled, NotSupportedYet, PathNotAllowed
 from .estimate import Estimate, needs_approval
 from .events import EventBus
+from .issues import IssueSet, locate_issues, run_validation
 from .jobs import Job, JobContext, JobRunner
 from .ledger import CORE_SOURCE, PYTHON_SOURCE, EditLedger, PendingEdit
 from .paths import allowed_roots, open_locator
@@ -130,6 +132,39 @@ class _Loaded:
     label: str | None
     net_id: str | None = None
     extra: dict[str, Any] = field(default_factory=dict)  # merged into the job result after ``net_id``
+
+    def commit(self, session: Session) -> dict[str, Any]:
+        """Register the network and make it active (called under the session lock)."""
+        handle = session.registry.add(self.net, source=self.source, label=self.label, net_id=self.net_id)
+        handle.prime(**self.frames)
+        session.active = handle.id
+        return {"net_id": handle.id, **self.extra}
+
+
+@dataclass
+class _Validated:
+    """A validation job's issues, waiting to be stored for the network version they describe."""
+
+    handle: NetworkHandle
+    issues: IssueSet
+
+    def commit(self, session: Session) -> dict[str, Any]:
+        """Store the issue set (called under the session lock); the network may have been edited meanwhile."""
+        h = self.handle
+        if h.id not in session.registry.ids() or session.registry.get(h.id) is not h:
+            raise ActionError(f"network {h.id!r} was closed while it was being validated")
+        session.issues[h.id] = self.issues
+        return {
+            "net_id": h.id,
+            "version": self.issues.version,
+            "stale": h.version != self.issues.version,
+            "counts": self.issues.counts(),
+            "unknown_rules": list(self.issues.unknown_rules),
+        }
+
+
+#: What a job hands :meth:`Session._commit`: each kind commits itself under the session lock.
+_Outcome = _Loaded | _Validated
 
 
 @dataclass
@@ -259,6 +294,7 @@ class Session:
         self.style: dict[str, Any] = copy.deepcopy(DEFAULT_STYLE)
         self.history: list[HistoryEntry] = []
         self.edits: dict[str, EditLedger] = {}  # net_id -> its pending edits
+        self.issues: dict[str, IssueSet] = {}  # net_id -> its last validation
         self._injected_parser = parser
         self._parser = parser
         #: The registry ``_parser`` was built from (an injected parser is paired with the current one):
@@ -608,19 +644,17 @@ class Session:
             on_finish=lambda job: self._finish(action, job),
         )
 
-    def _commit(self, action: BaseAction, ctx: JobContext, loaded: _Loaded) -> dict[str, Any]:
-        """Register ``loaded`` and record the success entry in ONE critical section; return the job result.
+    def _commit(self, action: BaseAction, ctx: JobContext, outcome: _Outcome) -> dict[str, Any]:
+        """Commit ``outcome`` and record the success entry in ONE critical section; return the job result.
 
-        Doing both under one lock acquisition is what keeps history order equal to registry order:
+        The outcome's ``commit`` registers a network, stores issues, or marks edits saved. Doing that and
+        recording under one lock acquisition is what keeps history order equal to registry order:
         with separate acquisitions two overlapping jobs could register A, B but record B, A, and a
         replay would then hand out swapped ids. The caller's last ``ctx.stage`` was the final
         cancellation checkpoint, so nothing can cancel the job once this runs.
         """
         with self._lock:
-            handle = self.registry.add(loaded.net, source=loaded.source, label=loaded.label, net_id=loaded.net_id)
-            handle.prime(**loaded.frames)
-            self.active = handle.id
-            result = {"net_id": handle.id, **loaded.extra}
+            result = outcome.commit(self)
             entry = self._record(action, ok=True, result=result, error=None, error_type=None)
             self._committed[ctx.job_id] = entry.seq
         return result
@@ -942,7 +976,20 @@ class Session:
                 "style": copy.deepcopy(self.style),
                 "plugins": self._plugin_state(),
                 "edits": {nid: ledger.summary() for nid, ledger in self.edits.items()},
+                "issues": {
+                    nid: {
+                        "version": s.version,
+                        "stale": s.version != self.registry.get(nid).version,
+                        "counts": s.counts(),
+                    }
+                    for nid, s in self.issues.items()
+                },
             }
+
+    def issue_set(self, net_id: str) -> IssueSet | None:
+        """The last validation of ``net_id`` (``None`` before any)."""
+        with self._lock:
+            return self.issues.get(net_id)
 
     def action_catalog(self) -> list[dict[str, Any]]:
         """Each registered Action, for the browser's generated forms and ``wb.hasAction``.
@@ -1069,6 +1116,26 @@ class Session:
         }
         return _Loaded(loaded, frames, source=output, label=action.label or action.name, extra=extra)
 
+    def _job_run_validation(self, action: RunValidation, ctx: JobContext) -> _Validated:
+        with self._lock:
+            handle = self._handle(action.net_id)
+            version, rules = handle.version, self.settings.validation
+            # A snapshot of the tables at ``version``: an edit meanwhile swaps new expressions into the
+            # handle's own table wrappers, which this run must not see half-way through.
+            roadway = derived_copy(handle.roadway)
+        ctx.stage("validate", progress=0.05)
+        try:
+            report, unknown = run_validation(roadway, rules, quality=action.quality)
+            ctx.stage("locate", progress=0.85)
+            issues = locate_issues(report, roadway)
+        except ActionError:
+            raise
+        except Exception as exc:  # boundary: a crashing check is a reported failure, with its reason
+            logger.exception("workbench validation of %s failed", handle.id)
+            raise ActionError(f"validation failed: {type(exc).__name__}: {scrub(str(exc), limit=None)}") from exc
+        ctx.stage("store", progress=0.95)  # last cancellation checkpoint
+        return _Validated(handle, IssueSet(handle.id, version, issues, report, unknown))
+
     def _do_close_network(self, action: CloseNetwork) -> None:
         self._handle(action.net_id)
         self.registry.remove(action.net_id)
@@ -1078,6 +1145,7 @@ class Session:
         # Its few-shot examples go too: a later network may reuse the id.
         self._examples = deque((e for e in self._examples if e[0] != action.net_id), maxlen=_MAX_EXAMPLES)
         self.edits.pop(action.net_id, None)
+        self.issues.pop(action.net_id, None)
         if self.selection and self.selection["net_id"] == action.net_id:
             self.selection = None
         if self.active == action.net_id:
@@ -1339,7 +1407,6 @@ _RESTART_KEYS = ("app.host", "app.port", "app.console", "app.disabled_plugins")
 #: Sections in the schema that nothing reads yet (see the P1b plan, open question 8).
 _SECTION_NOTES = {
     "engine": "Not used by the workbench yet: networks open with DuckDB's own defaults.",
-    "validation": "Not used by the workbench yet: validation in the app arrives in phase P2.",
     "credentials": "Not used by the workbench yet: credential sources are shown by the URL check only.",
 }
 
