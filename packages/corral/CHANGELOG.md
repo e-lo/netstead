@@ -46,7 +46,8 @@ is taken). Version bumped in lockstep with `netstead` v1.0.0-beta.2.
   `NULL` in a timestamp, decimal, binary or list column no longer arrives typed
   `null`/`string`. Undo of such rows used to fail (`Unsupported cast from
   string to list`) or mis-match them, and adding a row with a `NULL` list
-  failed outright.
+  failed outright. Values are cast to the column type safely: `2.7` added to
+  an integer column raises `ArrowInvalid` instead of landing as `2`.
 
 ### Added
 
