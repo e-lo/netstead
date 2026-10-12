@@ -16,6 +16,7 @@ from pydantic import BaseModel, ValidationError
 
 from ..editing import EditPlan, plan_add, plan_delete, plan_update
 from ..paths import resolve_allowed
+from ..selection import payload_facility_forms
 
 if TYPE_CHECKING:
     from corral.editing import Edit, EditResult
@@ -77,9 +78,16 @@ class Host:
 
     @property
     def selection(self) -> dict[str, Any] | None:
-        """A copy of the shared selection payload (the same dict ``/api/state`` carries)."""
+        """A copy of the shared selection payload (the dict ``/api/state`` carries), plus its ``projectcard``.
+
+        ``projectcard`` holds the ProjectCard facility forms of a resolved selection (``picked``, ``resolved``,
+        ``query``), or ``None``: core owns the facility form, so a plugin never builds its own.
+        """
         # Not via ``state()``: that calls every plugin's ``state(host)``, which may read this property.
-        return self._session.selection_copy()
+        sel = self._session.selection_copy()
+        if sel is not None:
+            sel["projectcard"] = payload_facility_forms(sel)
+        return sel
 
     def network(self, net_id: str | None = None) -> NetworkHandle:
         """The handle for ``net_id`` (default: active). Read it; change it only via :meth:`mutate`."""

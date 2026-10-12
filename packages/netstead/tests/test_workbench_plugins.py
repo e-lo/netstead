@@ -938,6 +938,7 @@ def test_host_selection_is_a_deep_copy(host_of):
     first = int(session.network().links_df()["link_id"].iloc[0])
     session.dispatch({"type": "select", "link_ids": [first]})
     copied = host.selection
+    assert copied.pop("projectcard")["picked"] is True  # host.selection adds the facility forms on read
     assert copied == session.selection and copied is not session.selection
     copied["link_ids"].append(-1)
     copied["net_id"] = "elsewhere"

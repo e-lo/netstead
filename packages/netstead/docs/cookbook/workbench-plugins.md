@@ -243,7 +243,7 @@ A plugin never sees the `Session`. Every handler, `router`, `state` and `on_load
 | `host.plugin_id` | This plugin's id. |
 | `host.settings` | The validated `[plugins.<id>]` model, or `None` if there is no `settings_model`. Re-read on each access, so it reflects setting changes. |
 | `host.active` | The active network's id, or `None`. |
-| `host.selection` | A copy of the shared selection payload (the same dict `/api/state` carries), or `None`. |
+| `host.selection` | A copy of the shared selection payload (the dict `/api/state` carries), or `None`. It adds `projectcard`: a resolved selection's ProjectCard facility forms (`picked`, `resolved`, `query`), else `None`. |
 | `host.network(net_id=None)` | The network handle (default: the active one). Read it, but change it only through `mutate`. |
 | `host.mutate(net_id, edits, note=...)` | Applies `corral.editing.Edit`s to a network's roadway **all or nothing**. The edits run on a draft, so a failing edit leaves the network (and its caches) untouched and re-raises. On success it bumps the version, appends `"<id>: <note>"` to the lineage and pushes state. It returns the `EditResult`s (the rollback data). Inside a handler, the change is undone if the handler fails. Outside one (a job, a route), it is recorded as a non-replayable `<id>.mutate` history entry. |
 | `host.undo(net_id=None)` | Reverts this plugin's newest mutation of a network, if it is that network's newest change, and returns the undone entry (`seq`, `source`, `note`, `version`, `rows`, `saved`). Raises `ActionError` when there is nothing to undo or the newest change came from core, Python or another plugin. API 1.2. |

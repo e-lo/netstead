@@ -223,6 +223,7 @@ def intent_from_payload(payload: dict[str, Any], utterance: str) -> SelectionInt
         link_ids=payload.get("link_ids"),
         modes=payload.get("modes"),
         conditions=payload.get("conditions") or {},
+        ignore_missing=bool(payload.get("ignore_missing", True)),
         utterance=utterance,
     )
 
@@ -249,6 +250,8 @@ def payload_from_intent(intent: SelectionIntent) -> dict[str, Any]:
         out["modes"] = list(intent.modes)
     if intent.conditions:
         out["conditions"] = dict(intent.conditions)
+    if not intent.ignore_missing:  # the default (True) is left out, so few-shot examples stay unchanged
+        out["ignore_missing"] = False
     return out
 
 

@@ -842,15 +842,32 @@ def test_mutate_unknown_network_is_an_action_error(opened):
         opened.mutate("nope", [], note="x")
 
 
-def test_a_selection_carries_its_projectcard_facility(opened):
+def test_a_selection_rebuilds_its_projectcard_facility(opened):
+    from netstead.workbench.selection import payload_facility_forms
+
     first = int(opened.registry.get("rdu-i40").links_df()["link_id"].iloc[0])
     sel = opened.dispatch(Select(link_ids=[first]))
-    assert sel["projectcard"]["picked"] is True
-    assert sel["projectcard"]["resolved"] == {"links": {"model_link_id": [first], "ignore_missing": True}}
-    assert sel["projectcard"]["query"]["links"]["model_link_id"] == [first]
-    json.dumps(sel)  # plain JSON: no numpy scalars
+    assert "projectcard" not in sel and "projectcard" not in opened.state()["selection"]  # ids once, not 3 more times
+    forms = payload_facility_forms(sel)
+    assert forms["picked"] is True
+    assert forms["resolved"] == {"links": {"model_link_id": [first], "ignore_missing": True}}
+    assert forms["query"]["links"]["model_link_id"] == [first]
+    json.dumps(forms)  # plain JSON: no numpy scalars
+
+
+def test_a_query_selection_rebuilds_its_query_form(opened):
+    from netstead.workbench.selection import payload_facility_forms
+
+    sel = opened.dispatch(Select(utterance="I-40"))
+    if sel["status"] != "resolved":
+        pytest.skip("the stub parser did not resolve I-40 on this fixture")
+    forms = payload_facility_forms(sel)
+    assert forms["picked"] is False and forms["resolved"]["links"]["model_link_id"] == sel["link_ids"]
+    assert "model_link_id" not in forms["query"]["links"]  # a query selector, not the ids
 
 
 def test_an_unparsed_selection_has_no_facility(opened):
+    from netstead.workbench.selection import payload_facility_forms
+
     sel = opened.dispatch(Select(utterance="zzzz not a road"))
-    assert sel["status"] != "resolved" and sel["projectcard"] is None
+    assert sel["status"] != "resolved" and payload_facility_forms(sel) is None
