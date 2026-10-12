@@ -106,9 +106,31 @@ def _concat_arrow(left: pa.Table, right: pa.Table) -> pa.Table:
 def _null_safe(left: ibis.Table, right: ibis.Table, columns: list[str]) -> list[Any]:
     """Join predicates that also match NULL to NULL (``=`` never does, so a row holding a null would never match).
 
-    ``right`` is cast to ``left``'s types: a column that is all null in the recorded rows arrives typed ``null``.
+    ``right`` is built with ``left``'s types (:func:`_rows_like`), so no cast is needed; one is added only for a
+    column whose recorded rows could not take the current type.
     """
-    return [left[c].identical_to(right[c].cast(left[c].type())) for c in columns]
+    out = []
+    for c in columns:
+        rhs = right[c] if right[c].type() == left[c].type() else right[c].cast(left[c].type())
+        out.append(left[c].identical_to(rhs))
+    return out
+
+
+def _rows_like(rows: list[dict], current: pa.Table, engine: Engine) -> pa.Table:
+    """Recorded rows as arrow, typed like ``current``'s columns (a NULL-only column keeps its real type).
+
+    Inferring types from the rows instead made an all-NULL timestamp, decimal, binary or list column
+    ``null`` (then ``string``), which no cast turns back into a list. Rows with a column ``current`` lacks,
+    or values its type cannot take, fall back to inference.
+    """
+    fields = {f.name: f for f in current.schema}
+    names = list(dict.fromkeys(k for r in rows for k in r))
+    if all(n in fields for n in names):
+        try:
+            return pa.Table.from_pylist(rows, schema=pa.schema([fields[n] for n in names]))
+        except (pa.ArrowInvalid, pa.ArrowTypeError, TypeError, ValueError):
+            pass
+    return _arrow_of(engine.from_records(rows))
 
 
 # ---------------------------------------------------------------------------
@@ -124,7 +146,7 @@ def _apply_add_rows(current: pa.Table, edit: Edit, engine: Engine) -> tuple[pa.T
     if not rows:
         return current, {"added_rows": []}, {"rows_added": 0, "rows_removed": 0, "rows_changed": 0}
 
-    new_arrow = _arrow_of(engine.from_records(rows))
+    new_arrow = _rows_like(rows, current, engine)  # typed like the table: a NULL-only list column stays a list
     combined = _concat_arrow(current, new_arrow)
     return (
         combined,
@@ -208,7 +230,7 @@ def _reverse_add_rows(current: pa.Table, rollback_data: dict, engine: Engine) ->
     added_rows = rollback_data.get("added_rows") or []
     if not added_rows:
         return current
-    added_arrow = _arrow_of(engine.from_records(added_rows))
+    added_arrow = _rows_like(added_rows, current, engine)
     join_cols = [c for c in current.column_names if c in added_arrow.column_names]
     if not join_cols:
         return current
@@ -221,7 +243,7 @@ def _reverse_delete_rows(current: pa.Table, rollback_data: dict, engine: Engine)
     deleted_rows = rollback_data.get("deleted_rows") or []
     if not deleted_rows:
         return current
-    return _concat_arrow(current, _arrow_of(engine.from_records(deleted_rows)))
+    return _concat_arrow(current, _rows_like(deleted_rows, current, engine))
 
 
 def _reverse_update_rows(current: pa.Table, rollback_data: dict, engine: Engine) -> pa.Table:
@@ -234,7 +256,7 @@ def _reverse_update_rows(current: pa.Table, rollback_data: dict, engine: Engine)
     touched = rollback_data.get("predicate_fields") or []
     if not original_rows:
         return current
-    original_arrow = _arrow_of(engine.from_records(original_rows))
+    original_arrow = _rows_like(original_rows, current, engine)
     if not touched:
         return current
     identity_cols = [c for c in current.column_names if c not in touched]

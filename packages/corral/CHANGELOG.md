@@ -6,18 +6,7 @@ This file is for the **corral** package only. `netstead` (which depends on corra
 
 ## [Unreleased]
 
-### Fixed
-
-- **Undo restores rows that hold nulls.** `reverse_edit` of an `update_rows` or
-  `add_rows` edit found the touched rows with an `=` anti-join, which never
-  matches `NULL`; a row with any null was left behind as a duplicate (or, for
-  an added row, never removed). The reverse joins now compare null-safely.
-
-### Added
-
-- `corral.editing.affected_rows(result)`: the rows an applied edit added,
-  changed (as they were before the edit) or removed, read from its rollback
-  data. Additive; no existing signature changed.
+(Reserved for changes between the most recent release and the next.)
 
 ## [1.0.0-beta.2] — TBD
 
@@ -47,11 +36,25 @@ is taken). Version bumped in lockstep with `netstead` v1.0.0-beta.2.
 - **The shared DuckDB connection is serialized behind an engine lock** (#211),
   since it isn't thread-safe; `to_pandas` converts outside the lock (#212).
 - Remote Parquet URLs are no longer mangled into local paths (#211).
+- **Undo restores rows that hold nulls.** `reverse_edit` of an `update_rows` or
+  `add_rows` edit found the touched rows with an `=` anti-join, which never
+  matches `NULL`; a row with any null was left behind as a duplicate (or, for
+  an added row, never removed). The reverse joins now compare null-safely.
+- **Edits and undo keep column types when a value is `NULL`.** Recorded rows
+  (added, deleted, or as they were before an update) are rebuilt with the
+  table's own column types instead of types guessed from the values, so a
+  `NULL` in a timestamp, decimal, binary or list column no longer arrives typed
+  `null`/`string`. Undo of such rows used to fail (`Unsupported cast from
+  string to list`) or mis-match them, and adding a row with a `NULL` list
+  failed outright.
 
 ### Added
 
 - **GeoParquet `geo` metadata + bbox** on Parquet writes of WKB geometry
   columns (#202).
+- `corral.editing.affected_rows(result)`: the rows an applied edit added,
+  changed (as they were before the edit) or removed, read from its rollback
+  data. Additive; no existing signature changed.
 
 Test fixtures were also adjusted for the rebuilt Leavenworth fixture
 (`netstead.fixtures.leavenworth` now covers the whole city polygon).

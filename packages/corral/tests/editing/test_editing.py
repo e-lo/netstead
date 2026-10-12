@@ -508,3 +508,61 @@ def test_affected_rows_reads_each_op() -> None:
     assert [r["id"] for r in affected_rows(added)] == [4]
     assert affected_rows(changed) == [{"id": 1, "name": "a", "v": 1.0}]  # the values before the edit
     assert [r["id"] for r in affected_rows(removed)] == [3]
+
+
+def _typed_with_nulls() -> Package:
+    """Columns whose NULLs used to break the reverse join: timestamp, decimal, binary and list."""
+    import datetime as _dt
+    from decimal import Decimal
+
+    import pyarrow as pa
+
+    e = IbisEngine()
+    arrow = pa.table(
+        {
+            "id": pa.array([1, 2, 3], pa.int64()),
+            "ts": pa.array([_dt.datetime(2026, 1, 1), None, _dt.datetime(2026, 1, 3)], pa.timestamp("us")),
+            "dec": pa.array([Decimal("1.25"), None, Decimal("3.50")], pa.decimal128(10, 2)),
+            "bin": pa.array([b"a", None, b"c"], pa.binary()),
+            "lst": pa.array([[1, 2], None, [3]], pa.list_(pa.int64())),
+            "v": pa.array([1.0, 2.0, 3.0], pa.float64()),
+        }
+    )
+    return Package.from_tables({"x": Table(name="x", expr=e.from_arrow(arrow), engine=e)})
+
+
+def test_reverse_update_restores_rows_with_typed_nulls() -> None:
+    pkg = _typed_with_nulls()
+    before = _rows(pkg)
+    r = apply_edit(
+        pkg, Edit(op="update_rows", table="x", payload={"predicate": lambda t: t.id == 2, "set": {"v": 9.0}})
+    )
+    reverse_edit(pkg, r)
+    assert _rows(pkg) == before
+
+
+def test_reverse_update_of_a_row_without_nulls_in_a_table_with_typed_columns() -> None:
+    pkg = _typed_with_nulls()
+    before = _rows(pkg)
+    r = apply_edit(
+        pkg, Edit(op="update_rows", table="x", payload={"predicate": lambda t: t.id == 1, "set": {"v": 9.0}})
+    )
+    reverse_edit(pkg, r)
+    assert _rows(pkg) == before
+
+
+def test_reverse_add_removes_rows_with_typed_nulls() -> None:
+    pkg = _typed_with_nulls()
+    before = _rows(pkg)
+    row = {"id": 4, "ts": None, "dec": None, "bin": None, "lst": None, "v": 4.0}
+    r = apply_edit(pkg, Edit(op="add_rows", table="x", payload={"rows": [row]}))
+    reverse_edit(pkg, r)
+    assert _rows(pkg) == before
+
+
+def test_reverse_delete_restores_rows_with_typed_nulls() -> None:
+    pkg = _typed_with_nulls()
+    before = _rows(pkg)
+    r = apply_edit(pkg, Edit(op="delete_rows", table="x", payload={"predicate": lambda t: t.id == 2}))
+    reverse_edit(pkg, r)
+    assert _rows(pkg) == before
