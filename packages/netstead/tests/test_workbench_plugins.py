@@ -1119,3 +1119,14 @@ def test_the_action_catalog_drops_an_unloaded_plugins_actions(make_session):
     session.unload_plugin("hello", "its mount failed")
     types = {a["type"] for a in client.get("/api/actions").json()["actions"]}
     assert "hello.greet" not in types and "open_network" in types
+
+
+def test_host_selection_exposes_the_facility_form(make_session, rdu_source):
+    from netstead.workbench.actions import OpenNetwork, Select
+
+    session = make_session(make_hello())
+    session.dispatch(OpenNetwork(source=rdu_source))
+    first = int(session.registry.get("rdu-i40").links_df()["link_id"].iloc[0])
+    session.dispatch(Select(link_ids=[first]))
+    facility = session._hosts["hello"].selection["projectcard"]
+    assert facility["picked"] is True and facility["resolved"]["links"]["model_link_id"] == [first]

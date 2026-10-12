@@ -138,3 +138,13 @@ def test_projectcard_query_form_emits_native_fields():
 def test_unknown_form_raises():
     with pytest.raises(SelectError):
         to_fragment(_resolved_result(SelectionIntent(select_all=True)), form="bogus")
+
+
+def test_projectcard_links_always_carry_ignore_missing():
+    # The ProjectCard schema requires it on every links selector (select_links.json "required").
+    assert to_projectcard(_resolved())["links"]["ignore_missing"] is True
+    page = SelectionIntent(facility=Facility(name=["Page Road"]))
+    assert to_projectcard(_resolved_result(page), form="query")["links"]["ignore_missing"] is True
+    strict = SelectionIntent(facility=Facility(name=["Page Road"]), ignore_missing=False)
+    assert to_projectcard(_resolved_result(strict), form="query")["links"]["ignore_missing"] is False
+    assert to_projectcard(_resolved_result(strict))["links"]["ignore_missing"] is False

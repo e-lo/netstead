@@ -2,14 +2,29 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
-from netstead.select.emit import to_fragment
+from netstead.select.emit import to_fragment, to_projectcard
 from netstead.viz.styling import json_scalar
 
 from .registry import NetworkHandle
 
-__all__ = ["selection_payload", "unparsed_payload"]
+__all__ = ["facility_forms", "selection_payload", "unparsed_payload"]
+
+
+def facility_forms(result: Any) -> dict[str, Any]:
+    """A resolved selection as ProjectCard facility objects, for plugins (``host.selection["projectcard"]``).
+
+    ``resolved`` lists the link ids (``model_link_id``); ``query`` is the re-resolvable selector (name, ref, ...);
+    ``picked`` says the selection was made by id (a click or "Set as selection"), not by a query.
+    """
+    forms = {
+        "picked": bool(result.intent.link_ids),
+        "resolved": to_projectcard(result),
+        "query": to_projectcard(result, form="query"),
+    }
+    return json.loads(json.dumps(forms, default=json_scalar))  # numpy ids -> plain JSON
 
 
 def selection_payload(
@@ -18,7 +33,8 @@ def selection_payload(
     """JSON-safe selection: status, link ids, located anchors, fragment, diagnostics, and who parsed it.
 
     ``parsed_by`` is the parser's ``describe()`` (provider/model/mode, never a key); ``None`` for a
-    selection by explicit link ids.
+    selection by explicit link ids. ``projectcard`` is the :func:`facility_forms` of a resolved selection
+    (``None`` otherwise).
     """
     node_xy = handle.node_xy()
     anchors = []
@@ -43,6 +59,7 @@ def selection_payload(
         "link_ids": [json_scalar(i) for i in result.link_ids],
         "anchors": anchors,
         "fragment": to_fragment(result) if result.status == "resolved" else None,
+        "projectcard": facility_forms(result) if result.status == "resolved" else None,
         "diagnostics": list(result.diagnostics),
         "parsed_by": parsed_by,
     }
@@ -60,6 +77,7 @@ def unparsed_payload(
         "link_ids": [],
         "anchors": [],
         "fragment": None,
+        "projectcard": None,
         "diagnostics": [f"could not parse: {error}"],
         "parsed_by": parsed_by,
     }

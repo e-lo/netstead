@@ -1,5 +1,6 @@
 """Tests for the workbench Session (the action bus)."""
 
+import json
 import threading
 import time
 from pathlib import Path
@@ -840,3 +841,17 @@ def test_mutate_results_can_be_reversed(opened):
 def test_mutate_unknown_network_is_an_action_error(opened):
     with pytest.raises(ActionError, match="unknown network"):
         opened.mutate("nope", [], note="x")
+
+
+def test_a_selection_carries_its_projectcard_facility(opened):
+    first = int(opened.registry.get("rdu-i40").links_df()["link_id"].iloc[0])
+    sel = opened.dispatch(Select(link_ids=[first]))
+    assert sel["projectcard"]["picked"] is True
+    assert sel["projectcard"]["resolved"] == {"links": {"model_link_id": [first], "ignore_missing": True}}
+    assert sel["projectcard"]["query"]["links"]["model_link_id"] == [first]
+    json.dumps(sel)  # plain JSON: no numpy scalars
+
+
+def test_an_unparsed_selection_has_no_facility(opened):
+    sel = opened.dispatch(Select(utterance="zzzz not a road"))
+    assert sel["status"] != "resolved" and sel["projectcard"] is None
