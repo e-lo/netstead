@@ -39,6 +39,7 @@ __all__ = [
     "Navigate",
     "OpenNetwork",
     "RunValidation",
+    "SaveNetwork",
     "Select",
     "SetActiveNetwork",
     "SetSetting",
@@ -258,6 +259,15 @@ def _values_under(value: Any, name: str) -> Iterator[Any]:
 
 #: Name suffixes that imply an output format; a ``BuildNetwork.name`` ending in one must match it.
 _OUTPUT_SUFFIXES = frozenset({".zip", ".duckdb", ".csv", ".parquet"})
+#: A file or folder name: letters, digits, ``_ . -``; no path separator, no leading dot.
+_NAME_PATTERN = r"^[A-Za-z0-9](?:[A-Za-z0-9_.-]*[A-Za-z0-9_-])?$"
+
+
+def _check_name(name: str, output_format: str) -> None:
+    """Refuse a name whose format suffix (``.zip``, ``.duckdb``, …) is not ``output_format``'s."""
+    suffix = PurePath(name).suffix.lower()
+    if suffix in _OUTPUT_SUFFIXES and suffix != f".{output_format}":
+        raise ValueError(f"name {name!r} ends in {suffix} but output_format is {output_format!r}")
 
 
 class BuildNetwork(BaseAction):
@@ -279,7 +289,7 @@ class BuildNetwork(BaseAction):
     input_file: str | None = None
     output_dir: str
     output_format: Literal["parquet", "csv", "duckdb", "zip"]
-    name: str = Field(pattern=r"^[A-Za-z0-9](?:[A-Za-z0-9_.-]*[A-Za-z0-9_-])?$", max_length=100)
+    name: str = Field(pattern=_NAME_PATTERN, max_length=100)
     network_type: str = "drive"
     extra_tags: list[str] | None = None
     spec_version: str | None = None
@@ -293,9 +303,7 @@ class BuildNetwork(BaseAction):
             raise ValueError("give exactly one of area or input_file")
         if self.overture_release is not None and self.source != "overture":
             raise ValueError("overture_release only applies to source='overture'")
-        suffix = PurePath(self.name).suffix.lower()
-        if suffix in _OUTPUT_SUFFIXES and suffix != f".{self.output_format}":
-            raise ValueError(f"name {self.name!r} ends in {suffix} but output_format is {self.output_format!r}")
+        _check_name(self.name, self.output_format)
         return self
 
     def job_label(self) -> str:
@@ -363,6 +371,32 @@ class UndoEdit(BaseAction):
     net_id: str | None = None
 
 
+class SaveNetwork(BaseAction):
+    """Write the open network, with its edits, as a new copy in ``output_dir``. The source is never written to.
+
+    The copy never overwrites anything and never lands inside the network's own source folder. While the
+    network has open edit warnings the save is refused, listing them, unless ``accept_warnings``.
+    """
+
+    type: Literal["save_network"] = "save_network"
+    mutates: ClassVar[bool] = True
+    runs_as_job: ClassVar[bool] = True
+    net_id: str | None = None
+    output_dir: str
+    output_format: Literal["parquet", "csv", "duckdb", "zip"]
+    name: str = Field(pattern=_NAME_PATTERN, max_length=100)
+    accept_warnings: bool = False
+
+    @model_validator(mode="after")
+    def _name_matches_format(self) -> SaveNetwork:
+        _check_name(self.name, self.output_format)
+        return self
+
+    def job_label(self) -> str:
+        """``save <name>``."""
+        return f"save {self.name}"
+
+
 Action = Annotated[
     OpenNetwork
     | BuildNetwork
@@ -377,7 +411,8 @@ Action = Annotated[
     | DeleteRows
     | AddRows
     | UndoEdit
-    | RunValidation,
+    | RunValidation
+    | SaveNetwork,
     Field(discriminator="type"),
 ]
 #: The Actions every session understands, in registry order (``to_python`` imports them from ``netstead.workbench``).
@@ -397,6 +432,7 @@ CORE_ACTIONS: tuple[type[BaseAction], ...] = (
     AddRows,
     UndoEdit,
     RunValidation,
+    SaveNetwork,
 )
 
 

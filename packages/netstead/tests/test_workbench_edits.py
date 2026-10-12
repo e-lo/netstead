@@ -1,9 +1,13 @@
 """Pending edits: every mutation is recorded, re-checked live, reverted last-first, and shown as dirty state."""
 
+import shutil
+import warnings
+from pathlib import Path
 from typing import ClassVar, Literal
 
 import pytest
 from corral.editing import Edit, UnsupportedEditOp
+from netstead import Network
 from netstead.fixtures import leavenworth
 from netstead.select.parse import StubParser
 from netstead.workbench import Session
@@ -14,11 +18,12 @@ from netstead.workbench.actions import (
     DeleteRows,
     EditCells,
     OpenNetwork,
+    SaveNetwork,
     Select,
     UndoEdit,
 )
 from netstead.workbench.editing import plan_add, plan_delete, plan_update
-from netstead.workbench.errors import ActionError, NotSupportedYet
+from netstead.workbench.errors import ActionError, NotSupportedYet, PathNotAllowed
 from netstead.workbench.plugins import HOST_API, ActionSpec, WorkbenchPlugin
 
 SRC = str(leavenworth.parquet_dir())
@@ -311,3 +316,79 @@ def test_a_replayed_history_reproduces_the_edits(session, tmp_path):
     df = other.network("leavenworth").links_df()
     assert df.loc[df.link_id == 1, "free_speed"].tolist() == [30.0]
     assert df.loc[df.link_id == 2, "lanes"].tolist() == [1]
+
+
+# ---------------------------------------------------------------------------- saving a copy
+
+
+def outdir(tmp_path):
+    out = tmp_path / "out"
+    out.mkdir(exist_ok=True)
+    return str(out)
+
+
+def test_save_writes_a_new_copy_and_never_the_source(session, tmp_path):
+    session.dispatch(EditCells(ids=[1], values={"free_speed": 30}))
+    result = session.dispatch(SaveNetwork(output_dir=outdir(tmp_path), name="edited", output_format="parquet"))
+    assert Path(result["output"]).parent == Path(outdir(tmp_path)) and result["edits_saved"] == 1
+    assert result["edited_while_saving"] is False and result["accepted_warnings"] == 0
+    assert any("stale" in n for n in result["notes"])  # corral's OutOfSyncWarning: kept as text, not raised
+    assert session.state()["edits"]["leavenworth"]["dirty"] is False
+    assert session.history[-1].imports == "from netstead.workbench import SaveNetwork"
+    back = Network.from_source(result["output"]).tables["link"].to_pandas()
+    assert back.loc[back.link_id == 1, "free_speed"].tolist() == [30.0]
+    source = Network.from_source(SRC).tables["link"].to_pandas()
+    assert source.loc[source.link_id == 1, "free_speed"].tolist() == [40.0]
+    with pytest.raises(ActionError, match="already exists"):
+        session.dispatch(SaveNetwork(output_dir=outdir(tmp_path), name="edited", output_format="parquet"))
+
+
+def test_saving_with_open_warnings_needs_confirmation(session, tmp_path):
+    session.dispatch(EditCells(table="node", ids=[1], values={"ctrl_type": "bogus"}))
+    with pytest.raises(ActionError, match="1 open edit warning"):
+        session.dispatch(SaveNetwork(output_dir=outdir(tmp_path), name="edited", output_format="parquet"))
+    assert session.history[-1].result["warnings"][0]["code"] == "edit.enum"
+    assert not (tmp_path / "out" / "edited").exists()
+    result = session.dispatch(
+        SaveNetwork(output_dir=outdir(tmp_path), name="edited", output_format="parquet", accept_warnings=True)
+    )
+    assert result["accepted_warnings"] == 1
+    assert "accept_warnings=True" in session.history[-1].python  # a replay makes the same choice
+
+
+def test_save_stays_inside_the_allowed_roots(session):
+    with pytest.raises(PathNotAllowed):
+        session.dispatch(SaveNetwork(output_dir="/etc", name="x", output_format="parquet"))
+
+
+def test_save_refuses_the_source_folder(tmp_path, isolated_env):
+    src = tmp_path / "src"
+    shutil.copytree(SRC, src)
+    (src / "sub").mkdir()
+    s = Session(project_dir=tmp_path, environ=isolated_env, parser=StubParser(), plugins=[])
+    s.dispatch(OpenNetwork(source=str(src)))
+    s.dispatch(EditCells(ids=[1], values={"free_speed": 30}))
+    for folder in (src, src / "sub"):
+        with pytest.raises(ActionError, match="own source folder"):
+            s.dispatch(SaveNetwork(output_dir=str(folder), name="edited", output_format="parquet"))
+    assert sorted(p.name for p in src.iterdir()) == sorted([*(p.name for p in Path(SRC).iterdir()), "sub"])
+    assert not any((src / "sub").iterdir())
+    assert s.dispatch(SaveNetwork(output_dir=str(tmp_path), name="edited", output_format="parquet"))["output"]
+
+
+def test_save_scrubs_the_warning_text(session, tmp_path, monkeypatch):
+    from netstead.workbench import build
+
+    real = build.write_output
+
+    def warn_then_write(net, tmp, output_format, ctx):
+        from corral.dataset.package import OutOfSyncWarning
+
+        text = "Package source 'https://h.example/n?X-Amz-Signature=s3cr3t' has 1 stale table"
+        warnings.warn(text, OutOfSyncWarning, stacklevel=2)
+        real(net, tmp, output_format, ctx)
+
+    monkeypatch.setattr(build, "write_output", warn_then_write)
+    result = session.dispatch(SaveNetwork(output_dir=outdir(tmp_path), name="edited", output_format="parquet"))
+    assert any("https://h.example/n" in n for n in result["notes"])
+    assert not any("s3cr3t" in n for n in result["notes"])

@@ -53,6 +53,7 @@ __all__ = [
     "BuildPlan",
     "estimate_for",
     "fetch_and_convert",
+    "output_path",
     "plan_build",
     "promote",
     "remove_stale_partials",
@@ -97,6 +98,23 @@ def _local(path: str, what: str, settings: Settings) -> Path:
     return Path(target)
 
 
+def output_path(output_dir: str, name: str, output_format: str, settings: Settings, *, what: str = "builds") -> Path:
+    """Where ``name`` lands in ``output_dir`` (inside ``io.allowed_roots``); never an existing path.
+
+    Raises:
+        PathNotAllowed: ``output_dir`` is outside ``io.allowed_roots``.
+        ActionError: ``output_dir`` is a URL, the folder does not exist, or the destination already does.
+    """
+    out_dir = _local(output_dir, "output_dir", settings)
+    if not out_dir.is_dir():
+        raise ActionError(f"output folder does not exist: {output_dir}")
+    suffix = _SUFFIX[output_format]
+    dest = out_dir / (name if name.lower().endswith(suffix) else f"{name}{suffix}")
+    if dest.exists():
+        raise ActionError(f"{dest} already exists; choose another name ({what} never overwrite)")
+    return dest
+
+
 def plan_build(action: BuildNetwork, settings: Settings) -> BuildPlan:
     """Check the action against the filesystem before any work: allowed roots, inputs, a free destination.
 
@@ -109,13 +127,7 @@ def plan_build(action: BuildNetwork, settings: Settings) -> BuildPlan:
     """
     for module in _EXTRA_MODULES[action.source]:
         optional_module(module, action.source)  # fail now, not as an "unavailable" estimate later
-    out_dir = _local(action.output_dir, "output_dir", settings)
-    if not out_dir.is_dir():
-        raise ActionError(f"output folder does not exist: {action.output_dir}")
-    suffix = _SUFFIX[action.output_format]
-    dest = out_dir / (action.name if action.name.lower().endswith(suffix) else f"{action.name}{suffix}")
-    if dest.exists():
-        raise ActionError(f"{dest} already exists; choose another name (builds never overwrite)")
+    dest = output_path(action.output_dir, action.name, action.output_format, settings)
     if action.input_file is None:
         if action.source == "overture":
             _overture_data_root(settings)  # a local data_root must be inside the roots too: fail before any work

@@ -31,12 +31,14 @@ import functools
 import logging
 import threading
 import time
+import warnings
 from collections import deque
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
+from corral.dataset.package import OutOfSyncWarning
 from corral.editing import Edit, EditingError, EditResult
 from corral.editing.apply import apply_edit, reverse_edit
 from corral.engines.ibis_engine import IbisEngine
@@ -74,6 +76,7 @@ from .actions import (
     Navigate,
     OpenNetwork,
     RunValidation,
+    SaveNetwork,
     Select,
     SetActiveNetwork,
     SetSetting,
@@ -91,7 +94,7 @@ from .events import EventBus
 from .issues import IssueSet, locate_issues, run_validation
 from .jobs import Job, JobContext, JobRunner
 from .ledger import CORE_SOURCE, PYTHON_SOURCE, EditLedger, PendingEdit
-from .paths import allowed_roots, open_locator
+from .paths import allowed_roots, open_locator, split_source
 from .plugins.discovery import PluginStatus, discover
 from .plugins.host import Host, PluginSettingsError, validate_plugin_settings
 from .plugins.spec import HOST_API, WorkbenchPlugin, api_compatible, problems
@@ -163,8 +166,36 @@ class _Validated:
         }
 
 
+@dataclass
+class _Saved:
+    """A save job's output, reported once the copy is in place."""
+
+    handle: NetworkHandle
+    version: int
+    output: str
+    notes: list[str]
+    edits: int
+    accepted: int
+
+    def commit(self, session: Session) -> dict[str, Any]:
+        """Mark the pending edits saved, if the network did not change while saving (called under the lock)."""
+        edited = self.handle.version != self.version
+        ledger = session.edits.get(self.handle.id)
+        if ledger is not None and not edited:
+            ledger.mark_saved()
+        return {
+            "net_id": self.handle.id,
+            "output": self.output,
+            "version": self.version,
+            "edited_while_saving": edited,
+            "edits_saved": self.edits,
+            "accepted_warnings": self.accepted,
+            "notes": self.notes,
+        }
+
+
 #: What a job hands :meth:`Session._commit`: each kind commits itself under the session lock.
-_Outcome = _Loaded | _Validated
+_Outcome = _Loaded | _Validated | _Saved
 
 
 @dataclass
@@ -1136,6 +1167,38 @@ class Session:
         ctx.stage("store", progress=0.95)  # last cancellation checkpoint
         return _Validated(handle, IssueSet(handle.id, version, issues, report, unknown))
 
+    def _job_save_network(self, action: SaveNetwork, ctx: JobContext) -> _Saved:
+        with self._lock:
+            handle = self._handle(action.net_id)
+            version, settings = handle.version, self.settings
+            ledger = self.edits.get(handle.id)
+            pending = len(ledger.entries) if ledger else 0
+            open_warnings = ledger.check.warnings if ledger else ()
+            # A snapshot of the tables at ``version`` (an edit meanwhile must not reach this copy half-way).
+            roadway = derived_copy(handle.roadway)
+        if open_warnings and not action.accept_warnings:
+            n = len(open_warnings)
+            refused = ActionError(
+                f"the network has {n} open edit warning{'s' if n != 1 else ''}; review them in the Issues panel, "
+                "then save with accept_warnings=True"
+            )
+            refused.payload = {"count": n, "warnings": [w.to_dict() for w in open_warnings[:50]]}
+            raise refused
+        dest = build.output_path(action.output_dir, action.name, action.output_format, settings, what="saves")
+        _refuse_inside_source(dest, handle.source)
+        build.remove_stale_partials(dest.parent)
+        # Writing an edited network warns OutOfSyncWarning ("... stale table(s) ..."): keep the text for the
+        # result instead of letting the warning escape. (catch_warnings is process-global; jobs are few and
+        # short, and other warnings keep their configured behaviour.)
+        with build.staging(dest) as tmp, warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", OutOfSyncWarning)
+            build.write_output(roadway, tmp, action.output_format, ctx)
+            ctx.stage("save", progress=0.95)  # last cancellation checkpoint
+            build.promote(tmp, dest)
+        # The warning names the source, which may be a presigned URL: never keep its query string.
+        notes = [scrub(str(w.message), limit=None) for w in caught if issubclass(w.category, OutOfSyncWarning)]
+        return _Saved(handle, version, str(dest), notes, pending, len(open_warnings))
+
     def _do_close_network(self, action: CloseNetwork) -> None:
         self._handle(action.net_id)
         self.registry.remove(action.net_id)
@@ -1520,10 +1583,24 @@ def _value_or_unset(settings: Settings, key: str) -> Any:
         raise
 
 
-def _planned(build: Callable[[], EditPlan]) -> EditPlan:
+def _refuse_inside_source(dest: Path, source: str) -> None:
+    """Refuse a save that would land in the network's own (local) source: the source is never written to."""
+    try:
+        kind, path = split_source(source)
+    except PathNotAllowed:
+        return  # not a locator this session could have opened from disk
+    if kind != "local":
+        return
+    src = Path(path).expanduser().resolve()
+    target = dest.resolve()
+    if target == src or target.is_relative_to(src):
+        raise ActionError("a saved copy can't go inside the network's own source folder; choose another folder")
+
+
+def _planned(planner: Callable[[], EditPlan]) -> EditPlan:
     """Run an edit planner; its refusal becomes a recorded :class:`ActionError` (nothing changed)."""
     try:
-        return build()
+        return planner()
     except EditRefused as exc:
         raise ActionError(str(exc)) from exc
 
