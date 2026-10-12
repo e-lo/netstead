@@ -59,13 +59,16 @@ class EditLedger:
         self.entries: list[PendingEdit] = []
         self.check = CheckResult()
         self.diverged = False  # an undo reverted a saved edit: the open network differs from the saved copy
+        #: The network version the ledger last saw (after its newest add or pop). When the network's version
+        #: differs, something changed it without going through the ledger, so its results can't be reversed.
+        self.version: int | None = None
         self._seq = 0
 
     def copy(self) -> EditLedger:
         """A snapshot (entries copied one level down), for the session's rollback of a failed Action."""
         other = EditLedger()
         other.entries = [replace(e) for e in self.entries]
-        other.check, other.diverged, other._seq = self.check, self.diverged, self._seq
+        other.check, other.diverged, other.version, other._seq = self.check, self.diverged, self.version, self._seq
         return other
 
     def add(
@@ -75,17 +78,19 @@ class EditLedger:
         self._seq += 1
         entry = PendingEdit(self._seq, source, note, version, list(results), touched)
         self.entries.append(entry)
+        self.version = version
         return entry
 
     def last(self) -> PendingEdit | None:
         """The newest entry (``None`` when there is none)."""
         return self.entries[-1] if self.entries else None
 
-    def pop(self) -> PendingEdit:
-        """Drop the newest entry (after its edits were reverted) and return it."""
+    def pop(self, version: int) -> PendingEdit:
+        """Drop the newest entry (after its edits were reverted, leaving the network at ``version``); return it."""
         entry = self.entries.pop()
         if entry.saved:
             self.diverged = True
+        self.version = version
         return entry
 
     def touched(self) -> dict[str, set[Any]]:

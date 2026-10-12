@@ -798,9 +798,9 @@ class Session:
         it is undone if that Action (or one it is nested in) fails. Outside any Action (a job, a plugin
         route, Python) nothing would record it, so it gets a history entry of its own, ``<origin>.mutate``,
         whose ``python`` is a comment: it is visible but not replayable. ``origin`` (default ``"python"``
-        there) also prefixes the lineage note. The returned :class:`~corral.editing.EditResult` objects carry
-        the rollback data :func:`corral.editing.apply.reverse_edit` needs; :meth:`revert` (or
-        :meth:`undo_last`) reverses the newest pending edit.
+        there) also prefixes the lineage note. The returned :class:`~corral.editing.EditResult` objects are
+        the pending edit's rollback data: undo it with :meth:`undo_last` (or :meth:`revert`, given them),
+        never by reversing them on the network yourself, which the ledger cannot see (undo then refuses).
         """
         with self._lock:
             handle = self._handle(net_id)
@@ -824,7 +824,8 @@ class Session:
         pending edit is dropped, the live checks re-run, and ``state`` is published. Inside an Action a
         failure undoes it; outside one it is recorded as ``<origin>.revert`` (not replayable). Only the
         newest pending edit can be reverted, since corral reverses an edit against the table that edit left
-        behind: anything else raises :class:`ActionError`.
+        behind: anything else raises :class:`ActionError`, as does a network whose version moved without the
+        ledger (changed in place, outside :meth:`mutate` and :meth:`revert`).
         """
         with self._lock:
             handle = self._handle(net_id)
@@ -832,11 +833,13 @@ class Session:
             last = ledger.last() if ledger else None
             if last is None or not _same_results(results, last.results):
                 raise ActionError(f"only the newest change to {handle.id} can be reverted")
+            if ledger.version != handle.version:  # type: ignore[union-attr]  # ``last`` is set, so is ``ledger``
+                raise ActionError(f"{handle.id} changed outside the Workbench since; undo is unavailable")
             draft = derived_copy(handle.roadway)
             for result in reversed(last.results):
                 reverse_edit(draft, result)
             self._swap(handle, draft, {r.edit.table for r in last.results}, note, origin)
-            self._ledger_for(handle.id).pop()
+            self._ledger_for(handle.id).pop(handle.version)
             self._settle(handle, note, origin, kind="revert", first=last.touched)
 
     def undo_last(self, net_id: str | None, *, source: str = CORE_SOURCE) -> PendingEdit:

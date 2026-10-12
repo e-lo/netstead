@@ -826,17 +826,15 @@ def test_mutate_rolls_back_every_table_of_a_cascade(opened):
 
 
 def test_mutate_results_can_be_reversed(opened):
-    """What P2's undo needs: each returned EditResult reverses its edit (on a row without NULLs here)."""
-    from corral.editing.apply import reverse_edit
-
+    """What P2's undo needs: the returned EditResults reverse the edit through ``Session.revert``."""
     handle = opened.registry.get("rdu-i40")
     full = handle.links_df().dropna()
     link = int(full["link_id"].iloc[0])
     before = _lanes(handle, link)
-    (result,) = opened.mutate(None, [_set_lanes(link, before + 1)], note="lanes+1")
-    reverse_edit(handle.roadway, result)
-    handle.bump()
+    results = opened.mutate(None, [_set_lanes(link, before + 1)], note="lanes+1")
+    opened.revert(None, results, note="undo: lanes+1")
     assert _lanes(handle, link) == before and len(handle.links_df()) == len(handle.links_df().drop_duplicates())
+    assert handle.version == 2 and opened.edits["rdu-i40"].entries == []
 
 
 def test_mutate_unknown_network_is_an_action_error(opened):

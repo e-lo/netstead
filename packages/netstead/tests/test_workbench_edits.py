@@ -450,3 +450,49 @@ def test_a_crashed_check_is_reported_as_failed_not_truncated(session, monkeypatc
     session.dispatch(EditCells(ids=[1], values={"free_speed": 30}))
     summary = session.state()["edits"]["leavenworth"]
     assert summary["check_failed"] is True and summary["truncated"] is False and cell(session, 1) == [30.0]
+
+
+# ---------------------------------------------------------------------------- undo and the ledger
+
+
+def test_undo_refuses_after_a_change_the_ledger_did_not_see(session):
+    from corral.editing.apply import reverse_edit
+
+    h = handle(session)
+    (result,) = mutate(session, plan_update(h.roadway, "link", [1], {"free_speed": 30}))
+    reverse_edit(h.roadway, result)  # in place, behind the ledger's back
+    h.bump()
+    with pytest.raises(ActionError, match="changed outside the Workbench since; undo is unavailable"):
+        session.undo_last("leavenworth", source="python")
+    assert int((h.links_df().link_id == 1).sum()) == 1 and cell(session, 1) == [40.0]  # not reversed twice
+
+
+def test_core_undo_last_refuses_a_python_entry(session):
+    mutate(session, plan_update(handle(session).roadway, "link", [1], {"lanes": 2}))
+    with pytest.raises(ActionError, match="made by python"):
+        session.undo_last("leavenworth")  # the default source is the Workbench's
+    assert len(session.edits["leavenworth"].entries) == 1
+
+
+class Unwind(BaseAction):
+    type: Literal["unwind.go"] = "unwind.go"
+    mutates: ClassVar[bool] = True
+
+
+def _unwind(host, action: Unwind) -> None:
+    host.undo()
+    raise RuntimeError("after the undo")
+
+
+def test_a_failed_action_restores_what_its_revert_undid(tmp_path, isolated_env):
+    plugin = WorkbenchPlugin(
+        id="unwind", name="Unwind", version="0", requires_api=HOST_API, actions=(ActionSpec(Unwind, _unwind),)
+    )
+    s = Session(project_dir=tmp_path, environ=isolated_env, parser=StubParser(), plugins=[plugin])
+    s.dispatch(OpenNetwork(source=SRC))
+    s.mutate(None, plan_update(s.network().roadway, "link", [1], {"free_speed": 30}).edits, note="x", origin="unwind")
+    entry = s.edits["leavenworth"].last()
+    assert not s.dispatch_recorded(Unwind()).ok
+    assert s.edits["leavenworth"].last() == entry and s.edits["leavenworth"].version == s.network().version == 1
+    assert cell(s, 1) == [30.0] and s.network().lineage == ["unwind: x"]
+    assert s._hosts["unwind"].undo()["seq"] == entry.seq and cell(s, 1) == [40.0]  # still undoable afterwards
