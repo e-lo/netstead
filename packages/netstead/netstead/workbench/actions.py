@@ -375,7 +375,13 @@ class SaveNetwork(BaseAction):
     """Write the open network, with its edits, as a new copy in ``output_dir``. The source is never written to.
 
     The copy never overwrites anything and never lands inside the network's own source folder. While the
-    network has open edit warnings the save is refused, listing them, unless ``accept_warnings``.
+    network has open edit warnings, or its live check failed or stopped early, the save is refused unless
+    ``accept_warnings``.
+
+    Replay: ``to_python`` renders a runnable call, as for ``BuildNetwork``, so a replayed script writes the
+    copy again. That fails with "already exists" while the earlier copy is there (a second replay always
+    does), and ``accept_warnings=True`` accepts the warnings the network has when the replay runs, not the
+    ones reviewed when it was recorded.
     """
 
     type: Literal["save_network"] = "save_network"
