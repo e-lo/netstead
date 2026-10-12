@@ -54,17 +54,28 @@ export function clampOffset(offset, limit, total) {
   return total > 0 && offset >= total ? pageOffset(total - 1, limit) : offset;
 }
 
-// CSS classes for one grid row.
-export function rowMarks({ table, id, selection, highlights, focus, via }) {
+// CSS classes for one grid row. `issues`: how many issues the last validation recorded against this record;
+// `warned`: it has live edit warnings.
+export function rowMarks({ table, id, selection, highlights, focus, via, issues = 0, warned = false }) {
   const marks = [];
   if (table === "link" && selection && selection.link_ids.includes(id)) marks.push("sel");
   if (table === "link" && highlights.has(id)) marks.push("hl");
   if (focus && focus.table === table && focus.id === id) marks.push("focus");
   if (via) marks.push("rel");
+  if (issues) marks.push("iss");
+  if (warned) marks.push("warn");
   return marks;
 }
 
 export const pageOffset = (index, limit) => Math.floor(index / limit) * limit;
+
+// What a new decoded-network key ("<id>@<version>") means for the view: "switched" (another network, or none),
+// "edited" (the same network at a new version: an edit or an undo), or "same".
+export function netChange(prevKey, nextKey) {
+  if (prevKey === nextKey) return "same";
+  const id = k => (k ? k.slice(0, k.lastIndexOf("@")) : null);
+  return prevKey && nextKey && id(prevKey) === id(nextKey) ? "edited" : "switched";
+}
 
 // A key as the grid shows it (data-* attributes are strings): back to a number when its column is numeric
 // and it is a plain integer within the exact range of a JS number (as the server reads it: "007" is 7).
