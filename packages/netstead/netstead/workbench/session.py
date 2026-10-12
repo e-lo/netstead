@@ -1713,6 +1713,7 @@ def _removed_links(results: Sequence[EditResult], *, reverted: bool) -> set[Any]
     Deleting rows (reversing an addition) removes their ids; adding rows (reversing a deletion) and setting
     cells other than ``link_id`` remove none. Anything else (a key change, a whole-table replace) is unknown.
     """
+    # e.g. undoing an add_rows deletes the rows it added, so reversed, add_rows is the op that removes links
     removing, keeping = ("add_rows", "delete_rows") if reverted else ("delete_rows", "add_rows")
     out: set[Any] = set()
     for result in results:
