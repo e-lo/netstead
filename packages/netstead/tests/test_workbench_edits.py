@@ -496,3 +496,80 @@ def test_a_failed_action_restores_what_its_revert_undid(tmp_path, isolated_env):
     assert s.edits["leavenworth"].last() == entry and s.edits["leavenworth"].version == s.network().version == 1
     assert cell(s, 1) == [30.0] and s.network().lineage == ["unwind: x"]
     assert s._hosts["unwind"].undo()["seq"] == entry.seq and cell(s, 1) == [40.0]  # still undoable afterwards
+
+
+# ---------------------------------------------------------------------------- the selection after an edit
+
+
+def test_a_lane_only_edit_leaves_the_selection_object_untouched(session, monkeypatch):
+    from netstead.workbench import session as session_module
+
+    session.dispatch(Select(utterance="Ski Hill Drive"))
+    before = session.selection
+    monkeypatch.setattr(session_module, "resolve_frames", lambda *a: pytest.fail("a lane edit re-resolved"))
+    session.dispatch(EditCells(table="lane", ids=[1], values={"width": 3.0}))
+    assert session.selection is before
+
+
+def test_an_unrelated_delete_keeps_an_id_selection_without_resolving_it_again(session, monkeypatch):
+    from netstead.workbench import session as session_module
+
+    session.dispatch(Select(link_ids=[1, 2]))
+    before = session.selection
+    monkeypatch.setattr(session_module, "resolve_frames", lambda *a: pytest.fail("resolved the selection again"))
+    session.dispatch(DeleteRows(ids=[3]))  # the deleted ids come from the edit, not from re-reading the links
+    assert session.selection is before
+
+
+def test_a_delete_drops_selected_ids(session):
+    session.dispatch(Select(link_ids=[1, 2]))
+    session.dispatch(DeleteRows(ids=[1]))
+    assert session.selection["link_ids"] == [2]
+    session.dispatch(UndoEdit())  # reversing the delete brings link 1 back, but an id selection stays as it is
+    assert session.selection["link_ids"] == [2]
+
+
+def _boom(*args, **kwargs):
+    raise RuntimeError("resolver crashed")
+
+
+def test_a_failing_selection_update_never_fails_the_edit_outside_an_action(session, monkeypatch):
+    from netstead.workbench import session as session_module
+
+    session.dispatch(Select(link_ids=[1, 2]))
+    monkeypatch.setattr(session_module, "resolve_frames", _boom)
+    mutate(session, plan_delete(handle(session).roadway, "link", [1]))
+    assert session.selection is None and handle(session).version == 1  # cleared, but the edit stands
+    assert session.history[-1].action["type"] == "python.mutate" and session.history[-1].ok
+
+
+def test_a_failing_selection_update_never_fails_the_edit_inside_an_action(session, monkeypatch):
+    from netstead.workbench import session as session_module
+
+    session.dispatch(Select(link_ids=[1, 2]))
+    published = []
+    monkeypatch.setattr(session.events, "publish", published.append)
+    monkeypatch.setattr(session_module, "resolve_frames", _boom)
+    entry = session.dispatch_recorded(DeleteRows(ids=[1]))
+    assert entry.ok and session.selection is None and 1 not in set(handle(session).links_df().link_id)
+    states = [e["state"] for e in published if e["type"] == "state"]
+    assert states and states[-1]["selection"] is None and states[-1]["networks"][0]["version"] == 1
+
+
+def test_a_failing_query_falls_back_to_its_ids(session, monkeypatch):
+    from netstead.workbench import session as session_module
+
+    sel = session.dispatch(Select(utterance="Ski Hill Drive"))
+    gone = sel["link_ids"][0]
+    monkeypatch.setattr(session_module, "intent_from_payload", _boom)
+    session.dispatch(DeleteRows(ids=[gone]))
+    assert session.selection["link_ids"] == sel["link_ids"][1:] and session.selection["intent"] is None
+
+
+def test_node_moves_refresh_a_selection_s_anchors(session):
+    session.dispatch(Select(link_ids=[1]))
+    sel = {**session.selection, "anchors": [{"role": "from", "node_id": 1}]}  # as a query's fallback keeps them
+    session.selection = sel
+    session._keep_selected_ids(handle(session), sel, {"node"}, removed=set())
+    assert session.selection is not sel and session.selection["link_ids"] == [1]
+    session._keep_selected_ids(handle(session), session.selection, {"link"}, removed=set())

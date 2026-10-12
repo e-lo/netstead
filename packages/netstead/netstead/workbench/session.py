@@ -39,7 +39,7 @@ from pathlib import Path
 from typing import Any
 
 from corral.dataset.package import OutOfSyncWarning
-from corral.editing import Edit, EditingError, EditResult
+from corral.editing import Edit, EditingError, EditResult, affected_rows
 from corral.editing.apply import apply_edit, reverse_edit
 from corral.engines.ibis_engine import IbisEngine
 
@@ -56,7 +56,6 @@ from netstead.config import (
 from netstead.llm import LLMError, MissingKey, ProviderRegistry, build_registry
 from netstead.llm.context import assistant_context, find_project_context, read_capped
 from netstead.llm.secrets import redact_settings
-from netstead.select.errors import IntentError
 from netstead.select.intent import SelectionIntent
 from netstead.select.parse import LLMParser, intent_from_payload, make_parser, payload_from_intent
 from netstead.select.prompt import PromptContext, close_match_hint, vocabulary_from_links
@@ -811,7 +810,8 @@ class Session:
             for table, keys in [*(recheck or {}).items(), *self._referencing(handle, applied).items()]:
                 touched.setdefault(table, set()).update(keys)
             self._ledger_for(handle.id).add(self._source(origin), note, handle.version, applied, touched)
-            self._settle(handle, note, origin, kind="mutate", first=touched)
+            tables, removed = {e.table for e in edits}, _removed_links(applied, reverted=False)
+            self._settle(handle, note, origin, kind="mutate", first=touched, tables=tables, removed=removed)
         return applied
 
     def revert(
@@ -840,7 +840,8 @@ class Session:
                 reverse_edit(draft, result)
             self._swap(handle, draft, {r.edit.table for r in last.results}, note, origin)
             self._ledger_for(handle.id).pop(handle.version)
-            self._settle(handle, note, origin, kind="revert", first=last.touched)
+            tables, removed = {r.edit.table for r in last.results}, _removed_links(last.results, reverted=True)
+            self._settle(handle, note, origin, kind="revert", first=last.touched, tables=tables, removed=removed)
 
     def undo_last(self, net_id: str | None, *, source: str = CORE_SOURCE) -> PendingEdit:
         """Revert the network's newest pending edit, if ``source`` made it; return the entry undone.
@@ -942,11 +943,13 @@ class Session:
         origin: str | None,
         *,
         kind: str,
-        first: Mapping[str, Iterable[Any]] | None = None,
+        first: Mapping[str, Iterable[Any]],
+        tables: set[str],
+        removed: set[Any] | None,
     ) -> None:
-        """After a swap: re-run the live checks, then publish (inside an Action) or record (outside one)."""
+        """After a swap: re-run the live checks, move the selection, then publish (in an Action) or record."""
         self._recheck(handle, first)
-        self._refresh_selection(handle)
+        self._refresh_selection(handle, tables, removed)
         if self._running:
             self.events.publish({"type": "state", "state": self.state()})
         else:
@@ -968,36 +971,53 @@ class Session:
             logger.exception("live edit check on %s failed", handle.id)
             ledger.check = CheckResult(failed=True)
 
-    def _refresh_selection(self, handle: NetworkHandle) -> None:
+    def _refresh_selection(self, handle: NetworkHandle, tables: set[str], removed: set[Any] | None) -> None:
         """Keep the shared selection true to an edited network (call with the lock held, after a swap).
 
         A selection made by a query (its payload keeps the parsed ``intent``) is resolved again; one made
         by ids keeps them, minus the links that no longer exist, and is cleared when none is left. It is
         deterministic, so a replayed session agrees; a failed Action restores the old one (``_roll_back``).
+        Only an edit of ``link`` or ``node`` can move it. ``removed`` is the link ids the edit took away
+        (``None``: unknown, so the link table is read). A failure here never fails the edit: the query
+        falls back to the ids rule, and that to no selection.
         """
         sel = self.selection
         if not sel or sel["net_id"] != handle.id or sel["component"] != "roadway":
             return
-        links, nodes = handle.links_df(), handle.nodes_df()
+        if not tables & {"link", "node"}:  # a lane or time-of-day edit cannot change which links match
+            return
         if sel.get("intent") is not None:
             try:
                 intent = intent_from_payload(sel["intent"], sel["utterance"] or "")
-            except IntentError:  # cannot happen for a payload we wrote; keep the ids rule rather than fail an edit
-                logger.exception("could not re-read the selection's intent on %s", handle.id)
-            else:
-                result = resolve_frames(intent, links, nodes)
+                result = resolve_frames(intent, handle.links_df(), handle.nodes_df())
                 self.selection = selection_payload(
                     handle, result, utterance=sel["utterance"], parsed_by=sel["parsed_by"]
                 )
                 return
-        present = {json_scalar(v) for v in links["link_id"]}
-        kept = [i for i in sel["link_ids"] if i in present]
-        if kept == sel["link_ids"]:
+            except Exception:  # boundary: keep the edit; fall back to the ids it selected
+                logger.exception("re-resolving the selection's query on %s failed; keeping its ids", handle.id)
+                removed = None
+        try:
+            self._keep_selected_ids(handle, sel, tables, removed)
+        except Exception:  # boundary: keep the edit; an unknown selection is no selection
+            logger.exception("updating the selection on %s after an edit failed; clearing it", handle.id)
+            self.selection = None
+
+    def _keep_selected_ids(
+        self, handle: NetworkHandle, sel: dict[str, Any], tables: set[str], removed: set[Any] | None
+    ) -> None:
+        """The ids rule: keep the selected links that still exist; refresh anchors when nodes moved."""
+        if removed is None:
+            present = {json_scalar(v) for v in handle.links_df()["link_id"]}
+            kept = [i for i in sel["link_ids"] if i in present]
+        else:
+            kept = [i for i in sel["link_ids"] if i not in removed]
+        if kept == sel["link_ids"] and not ("node" in tables and sel["anchors"]):
             return
         if not kept:
             self.selection = None
             return
-        result = resolve_frames(SelectionIntent(link_ids=kept), links, nodes)
+        result = resolve_frames(SelectionIntent(link_ids=kept), handle.links_df(), handle.nodes_df())
         self.selection = selection_payload(handle, result)
 
     def _record_outside_action(self, net_id: str, note: str, origin: str, *, kind: str = "mutate") -> None:
@@ -1626,6 +1646,25 @@ def _value_or_unset(settings: Settings, key: str) -> Any:
         if key.strip().lower().split(".", 1)[0] == "plugins":
             return None
         raise
+
+
+def _removed_links(results: Sequence[EditResult], *, reverted: bool) -> set[Any] | None:
+    """The link ids applying (or, ``reverted``, reversing) ``results`` removed; ``None`` when that is unknown.
+
+    Deleting rows (reversing an addition) removes their ids; adding rows (reversing a deletion) and setting
+    cells other than ``link_id`` remove none. Anything else (a key change, a whole-table replace) is unknown.
+    """
+    removing, keeping = ("add_rows", "delete_rows") if reverted else ("delete_rows", "add_rows")
+    out: set[Any] = set()
+    for result in results:
+        edit = result.edit
+        if edit.table != "link" or edit.op == keeping:
+            continue
+        if edit.op == removing:
+            out.update(json_scalar(row.get("link_id")) for row in affected_rows(result))
+        elif edit.op != "update_rows" or "link_id" in ((edit.payload or {}).get("set") or {}):
+            return None
+    return out
 
 
 def _refuse_inside_source(dest: Path, source: str) -> None:
