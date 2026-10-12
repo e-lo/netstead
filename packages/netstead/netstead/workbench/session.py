@@ -149,15 +149,23 @@ class _Validated:
     issues: IssueSet
 
     def commit(self, session: Session) -> dict[str, Any]:
-        """Store the issue set (called under the session lock); the network may have been edited meanwhile."""
+        """Store the issue set (called under the session lock); the network may have been edited meanwhile.
+
+        A run that finishes after a newer one (overlapping validations) is ``superseded``: the newer set is
+        kept, so a stale result never replaces a current one.
+        """
         h = self.handle
         if h.id not in session.registry.ids() or session.registry.get(h.id) is not h:
             raise ActionError(f"network {h.id!r} was closed while it was being validated")
-        session.issues[h.id] = self.issues
+        held = session.issues.get(h.id)
+        superseded = held is not None and held.version > self.issues.version
+        if not superseded:
+            session.issues[h.id] = self.issues
         return {
             "net_id": h.id,
             "version": self.issues.version,
             "stale": h.version != self.issues.version,
+            "superseded": superseded,
             "counts": self.issues.counts(),
             "unknown_rules": list(self.issues.unknown_rules),
         }
@@ -175,15 +183,22 @@ class _Saved:
     accepted: int
 
     def commit(self, session: Session) -> dict[str, Any]:
-        """Mark the pending edits saved, if the network did not change while saving (called under the lock)."""
-        edited = self.handle.version != self.version
-        ledger = session.edits.get(self.handle.id)
-        if ledger is not None and not edited:
+        """Mark the pending edits saved, if the network did not change while saving (called under the lock).
+
+        A network closed while saving (and perhaps reopened under the same id) is never marked: the copy holds
+        the edits of the network that was closed.
+        """
+        h = self.handle
+        closed = h.id not in session.registry.ids() or session.registry.get(h.id) is not h
+        edited = h.version != self.version
+        ledger = session.edits.get(h.id)
+        if ledger is not None and not edited and not closed:
             ledger.mark_saved()
         return {
-            "net_id": self.handle.id,
+            "net_id": h.id,
             "output": self.output,
             "version": self.version,
+            "closed_while_saving": closed,
             "edited_while_saving": edited,
             "edits_saved": self.edits,
             "accepted_warnings": self.accepted,
@@ -1230,7 +1245,7 @@ class Session:
             logger.exception("workbench validation of %s failed", handle.id)
             raise ActionError(f"validation failed: {type(exc).__name__}: {scrub(str(exc), limit=None)}") from exc
         ctx.stage("store", progress=0.95)  # last cancellation checkpoint
-        return _Validated(handle, IssueSet(handle.id, version, issues, report, unknown))
+        return _Validated(handle, IssueSet(handle.id, version, issues, report, unknown, network=roadway))
 
     def _job_save_network(self, action: SaveNetwork, ctx: JobContext) -> _Saved:
         with self._lock:
@@ -1239,15 +1254,35 @@ class Session:
             ledger = self.edits.get(handle.id)
             pending = len(ledger.entries) if ledger else 0
             open_warnings = ledger.check.warnings if ledger else ()
+            crashed, truncated = (ledger.check.failed, ledger.check.truncated) if ledger else (False, False)
             # A snapshot of the tables at ``version`` (an edit meanwhile must not reach this copy half-way).
             roadway = derived_copy(handle.roadway)
+        if (crashed or truncated) and not action.accept_warnings:
+            # The live check did not cover every edited row, so "no warnings" proves nothing: confirm explicitly.
+            why = "failed" if crashed else "stopped early (too many edited rows to check)"
+            refused = ActionError(
+                f"the live edit check {why}, so the edits may break the network unnoticed; run validation to see "
+                "every issue, then save with accept_warnings=True"
+            )
+            refused.payload = {
+                "check_failed": True,
+                "truncated": truncated,
+                "count": len(open_warnings),
+                "warnings": [w.to_dict() for w in open_warnings[:50]],
+            }
+            raise refused
         if open_warnings and not action.accept_warnings:
             n = len(open_warnings)
             refused = ActionError(
                 f"the network has {n} open edit warning{'s' if n != 1 else ''}; review them in the Issues panel, "
                 "then save with accept_warnings=True"
             )
-            refused.payload = {"count": n, "warnings": [w.to_dict() for w in open_warnings[:50]]}
+            refused.payload = {
+                "check_failed": False,
+                "truncated": False,
+                "count": n,
+                "warnings": [w.to_dict() for w in open_warnings[:50]],
+            }
             raise refused
         dest = build.output_path(action.output_dir, action.name, action.output_format, settings, what="saves")
         _refuse_inside_source(dest, handle.source)

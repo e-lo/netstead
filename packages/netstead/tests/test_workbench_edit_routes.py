@@ -102,6 +102,21 @@ def test_the_report_needs_a_current_validation(fresh):
     assert fresh.get(f"{BASE}/report.html").status_code == 409
 
 
+def test_the_report_draws_the_network_the_run_read(tmp_path, monkeypatch):
+    from netstead import map as netstead_map
+
+    s = _session(tmp_path)
+    s.dispatch({"type": "run_validation"})
+    drawn = []
+    monkeypatch.setattr(netstead_map, "render_validation_html", lambda net, report, title: drawn.append(net) or "")
+    c = TestClient(build_app(s))
+    assert c.get(f"{BASE}/report.html").status_code == 200
+    snapshot = s.issue_set("leavenworth").network
+    assert len(drawn) == 1 and drawn[0] is snapshot and snapshot is not s.network().roadway
+    s.dispatch({"type": "edit_cells", "ids": [1], "values": {"free_speed": 30}})
+    assert c.get(f"{BASE}/report.html").status_code == 409  # stale: refused, not drawn on the edited tables
+
+
 def test_the_report_and_issues_escape_data_values(tmp_path):
     # A validation message can quote a data value (a street name): the report must never let it out as markup.
     s = _session(tmp_path)

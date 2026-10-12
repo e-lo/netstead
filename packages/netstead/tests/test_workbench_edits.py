@@ -411,6 +411,79 @@ def test_concurrent_saves_keep_their_notes_and_never_swallow_other_threads_warni
         assert job.status == "done" and job.result["notes"] == ["1 table(s) differ from the source: link"]
 
 
+def _paused_write(monkeypatch):
+    """Make the next save stop mid-write: returns ``(writing, release)`` events."""
+    import threading
+
+    from netstead.workbench import build
+
+    real, writing, release = build.write_output, threading.Event(), threading.Event()
+
+    def paused(net, tmp, output_format, ctx):
+        writing.set()
+        assert release.wait(timeout=10)
+        real(net, tmp, output_format, ctx)
+
+    monkeypatch.setattr(build, "write_output", paused)
+    return writing, release
+
+
+def test_a_network_closed_and_reopened_while_saving_is_not_marked_saved(session, tmp_path, monkeypatch):
+    session.dispatch(EditCells(ids=[1], values={"free_speed": 30}))
+    writing, release = _paused_write(monkeypatch)
+    job = session.submit(SaveNetwork(output_dir=outdir(tmp_path), name="edited", output_format="parquet"))
+    assert writing.wait(timeout=10)
+    session.dispatch(CloseNetwork(net_id="leavenworth"))
+    session.dispatch(OpenNetwork(source=SRC))  # the same id, a different network
+    session.dispatch(EditCells(ids=[2], values={"free_speed": 25}))
+    release.set()
+    job.wait()
+    assert job.status == "done" and job.result["closed_while_saving"] is True
+    assert session.state()["edits"]["leavenworth"]["unsaved"] == 1  # the reopened network's edit is not saved
+
+
+def test_an_edit_while_saving_leaves_the_edits_unsaved(session, tmp_path, monkeypatch):
+    session.dispatch(EditCells(ids=[1], values={"free_speed": 30}))
+    writing, release = _paused_write(monkeypatch)
+    job = session.submit(SaveNetwork(output_dir=outdir(tmp_path), name="edited", output_format="parquet"))
+    assert writing.wait(timeout=10)
+    session.dispatch(EditCells(ids=[2], values={"free_speed": 25}))
+    release.set()
+    job.wait()
+    assert job.result["edited_while_saving"] is True and job.result["closed_while_saving"] is False
+    assert session.state()["edits"]["leavenworth"]["unsaved"] == 2
+    back = Network.from_source(job.result["output"]).tables["link"].to_pandas()
+    assert back.loc[back.link_id.isin([1, 2]), "free_speed"].tolist() == [30.0, 40.23]  # the version it read
+
+
+def test_a_crashed_live_check_needs_confirmation_to_save(session, tmp_path, monkeypatch):
+    from netstead.workbench import session as session_module
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("check crashed")
+
+    monkeypatch.setattr(session_module, "check_rows", boom)
+    session.dispatch(EditCells(ids=[1], values={"free_speed": 30}))
+    assert not session.edit_check("leavenworth").warnings  # nothing to see, because nothing was checked
+    with pytest.raises(ActionError, match="live edit check failed"):
+        session.dispatch(SaveNetwork(output_dir=outdir(tmp_path), name="edited", output_format="parquet"))
+    assert session.history[-1].result["check_failed"] is True
+    assert not (tmp_path / "out" / "edited").exists()
+    action = SaveNetwork(output_dir=outdir(tmp_path), name="edited", output_format="parquet", accept_warnings=True)
+    assert session.dispatch(action)["output"]
+
+
+def test_a_truncated_live_check_needs_confirmation_to_save(session, tmp_path, monkeypatch):
+    from netstead.workbench import editcheck
+
+    monkeypatch.setattr(editcheck, "MAX_CHECKED_KEYS", 1)
+    session.dispatch(EditCells(ids=[1, 2], values={"free_speed": 30}))
+    assert session.state()["edits"]["leavenworth"]["truncated"] is True
+    with pytest.raises(ActionError, match="stopped early"):
+        session.dispatch(SaveNetwork(output_dir=outdir(tmp_path), name="edited", output_format="parquet"))
+    assert session.history[-1].result["truncated"] is True
+
+
 # ---------------------------------------------------------------------------- what the live check covers
 
 

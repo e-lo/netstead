@@ -91,6 +91,44 @@ def test_an_edit_makes_the_issue_set_stale_and_a_rerun_sees_it(session):
     assert session.dispatch(RunValidation())["counts"]["warning"] == 271  # link 1 is no longer flagged
 
 
+def test_a_validation_that_finishes_after_a_newer_one_is_superseded(session, monkeypatch):
+    import threading
+
+    from netstead.workbench import session as session_module
+
+    real, started, release = session_module.run_validation, threading.Event(), threading.Event()
+    calls = []
+
+    def first_waits(net, rules, *, quality=True):
+        calls.append(net)
+        if len(calls) == 1:
+            started.set()
+            assert release.wait(timeout=10)
+        return real(net, rules, quality=quality)
+
+    monkeypatch.setattr(session_module, "run_validation", first_waits)
+    old = session.submit(RunValidation())  # reads version 0, then waits
+    assert started.wait(timeout=10)
+    session.dispatch(EditCells(ids=[1], values={"free_speed": 30}))
+    current = session.dispatch(RunValidation())  # version 1, stored
+    release.set()
+    old.wait()
+    assert current["superseded"] is False and current["stale"] is False
+    assert old.result["superseded"] is True and old.result["stale"] is True and old.result["version"] == 0
+    assert session.issue_set("leavenworth").version == 1
+    assert session.state()["issues"]["leavenworth"]["stale"] is False
+
+
+def test_issues_located_after_an_undo_point_at_the_restored_rows(session):
+    session.dispatch(EditCells(ids=[1], values={"free_speed": 30}))
+    session.dispatch({"type": "undo_edit"})
+    result = session.dispatch(RunValidation())
+    assert result["stale"] is False and result["counts"]["warning"] == 272  # link 1 is flagged again
+    issues = session.issue_set("leavenworth")
+    hit = issues.query(code="quality.high_speed_residential", record=("link", "1"))
+    assert [(i["key"], i["anchor"]) for i in hit] == [(1, {"link": 1})]
+
+
 def test_closing_the_network_drops_its_issues(session):
     session.dispatch(RunValidation())
     session.dispatch({"type": "close_network", "net_id": "leavenworth"})
