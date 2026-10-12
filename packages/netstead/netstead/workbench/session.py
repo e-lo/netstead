@@ -913,13 +913,18 @@ class Session:
             }
 
     def delete_preview(self, handle: NetworkHandle, table: str, ids: Sequence[Any]) -> dict[str, Any]:
-        """What deleting ``ids`` from ``table`` would remove (rows per table), or why it is refused. Changes nothing."""
+        """What deleting ``ids`` from ``table`` would remove (rows per table), or why it is refused. Changes nothing.
+
+        Plans on a snapshot taken under the lock, then reads it without the lock, so the cascade's lookups never
+        hold up other actions.
+        """
         with self._lock:
-            try:
-                plan = plan_delete(handle.roadway, table, ids)
-            except EditRefused as exc:
-                return {"table": table, "refused": str(exc), "rows": {}, "summary": None}
-            return {"table": table, "refused": None, "rows": dict(plan.rows), "summary": plan.summary}
+            version, roadway = handle.version, derived_copy(handle.roadway)
+        try:
+            plan = plan_delete(roadway, table, ids, version=version)
+        except EditRefused as exc:
+            return {"table": table, "version": version, "refused": str(exc), "rows": {}, "summary": None}
+        return {"table": table, "version": version, "refused": None, "rows": dict(plan.rows), "summary": plan.summary}
 
     def _swap(self, handle: NetworkHandle, draft: Network, names: Iterable[str], note: str, origin: str | None) -> None:
         """Swap ``draft``'s tables ``names`` into ``handle`` in one step: bump the version, extend the lineage.

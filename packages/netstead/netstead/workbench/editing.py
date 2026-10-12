@@ -149,6 +149,8 @@ def plan_update(
             raise EditRefused(f"{column} is the {table} key; keys cannot be edited here (add a row with the new key)")
         if column not in schema:
             raise EditRefused(f"{table} has no column {column!r}")
+        if not editable(schema[column]):  # before coerce_value lets None through: clearing a geometry is an edit too
+            raise EditRefused(f"{column} ({schema[column]}) cannot be edited yet")
         sets[column] = coerce_value(value, schema[column], column)
     keys = _keys(src, pk, ids)
     _require_present(src, pk, keys, table)
@@ -186,6 +188,8 @@ def plan_delete(net: Any, table: str, ids: Sequence[Any], *, version: int | None
 
 def plan_add(net: Any, table: str, rows: Sequence[Mapping[str, Any]], *, version: int | None = None) -> EditPlan:
     """Append ``rows`` to ``table``: every row needs its key; columns left out are empty (null).
+
+    ``None`` is accepted in any column, even one P2 cannot edit (a geometry): a new row may leave it empty.
 
     A key that is already taken is added anyway; the live checks report it as ``edit.duplicate_key``.
     """

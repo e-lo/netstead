@@ -175,6 +175,7 @@ def test_the_delete_plan_is_a_dry_run(edited):
     j = c.post(f"{BASE}/table/link/delete-plan", json={"ids": [1]}).json()
     assert j == {
         "table": "link",
+        "version": s.network("leavenworth").version,
         "refused": None,
         "rows": {"lane": 1, "link": 1},
         "summary": "delete link 1 (and 1 lane rows that depend on it)",
@@ -182,6 +183,21 @@ def test_the_delete_plan_is_a_dry_run(edited):
     refused = c.post(f"{BASE}/table/node/delete-plan", json={"ids": [1]}).json()["refused"]
     assert refused.startswith("node 1 is still used")
     assert len(s.history) == before and len(s.registry.get("leavenworth").links_df()) == 339
+
+
+def test_the_delete_plan_reads_a_snapshot_without_the_lock(tmp_path, monkeypatch):
+    from netstead.workbench import session as session_module
+
+    s = _session(tmp_path)
+    real, held = session_module.plan_delete, []
+
+    def spy(net, *args, **kwargs):
+        held.append((s._lock._is_owned(), net is s.network().roadway))
+        return real(net, *args, **kwargs)
+
+    monkeypatch.setattr(session_module, "plan_delete", spy)
+    assert s.delete_preview(s.network(), "link", [1])["rows"] == {"lane": 1, "link": 1}
+    assert held == [(False, False)]  # not under the lock, and not on the live tables
 
 
 def test_bad_delete_plans(edited):
