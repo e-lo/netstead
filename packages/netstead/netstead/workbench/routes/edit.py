@@ -14,6 +14,8 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..actions import MAX_EDIT_IDS
+from ..errors import ActionError
+from ..extras import optional_module
 from ..issues import MAX_MARKERS
 from ..session import Session
 from .common import network_handle
@@ -118,9 +120,11 @@ def edit_router(session: Session) -> APIRouter:
             raise HTTPException(409, "run validation first")
         if s.version != h.version:
             raise HTTPException(409, "the network changed since validation; re-run it, then export the report")
-        from netstead.map import render_validation_html  # jinja2 is a corral dependency: always present
-
-        html = render_validation_html(h.roadway, s.report, title=f"validation: {h.label}")
+        try:  # at runtime: netstead.map belongs to the [reports] extra (see extras.py)
+            render = optional_module("netstead.map", "reports").render_validation_html
+        except ActionError as exc:
+            raise HTTPException(501, str(exc)) from exc
+        html = render(h.roadway, s.report, title=f"validation: {h.label}")
         headers = {  # network ids are slugs, so the filename needs no quoting
             "Content-Disposition": f'attachment; filename="{h.id}-validation.html"',
             "X-Content-Type-Options": "nosniff",

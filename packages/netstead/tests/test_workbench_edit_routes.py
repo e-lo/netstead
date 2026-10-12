@@ -83,6 +83,21 @@ def test_the_report_downloads(client):
     assert "<html" in r.text.lower() and "high_speed_residential" in r.text
 
 
+def test_the_report_without_the_reports_extra(validated, monkeypatch):
+    import importlib
+
+    real = importlib.import_module
+
+    def missing(name, *args):
+        if name == "netstead.map":
+            raise ImportError("No module named 'jinja2'")
+        return real(name, *args)
+
+    monkeypatch.setattr(importlib, "import_module", missing)
+    r = TestClient(build_app(validated)).get(f"{BASE}/report.html")
+    assert r.status_code == 501 and "[reports]" in r.json()["detail"]
+
+
 def test_the_report_needs_a_current_validation(fresh):
     assert fresh.get(f"{BASE}/report.html").status_code == 409
 
