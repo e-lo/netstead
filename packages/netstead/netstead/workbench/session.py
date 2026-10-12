@@ -812,7 +812,9 @@ class Session:
         whose ``python`` is a comment: it is visible but not replayable. ``origin`` (default ``"python"``
         there) also prefixes the lineage note. The returned :class:`~corral.editing.EditResult` objects are
         the pending edit's rollback data: undo it with :meth:`undo_last` (or :meth:`revert`, given them),
-        never by reversing them on the network yourself, which the ledger cannot see (undo then refuses).
+        never by reversing them on the network yourself. The ledger records the version and each changed
+        table's expression, so it notices such a change (even one that left the version alone) and undo
+        then refuses rather than reverse the edit a second time.
         """
         with self._lock:
             handle = self._handle(net_id)
@@ -824,8 +826,9 @@ class Session:
             touched = touched_keys(applied, table_keys(handle.roadway))
             for table, keys in [*(recheck or {}).items(), *self._referencing(handle, applied).items()]:
                 touched.setdefault(table, set()).update(keys)
-            self._ledger_for(handle.id).add(self._source(origin), note, handle.version, applied, touched)
             tables, removed = {e.table for e in edits}, _removed_links(applied, reverted=False)
+            exprs = _exprs(handle, tables)
+            self._ledger_for(handle.id).add(self._source(origin), note, handle.version, applied, touched, exprs)
             self._settle(handle, note, origin, kind="mutate", first=touched, tables=tables, removed=removed)
         return applied
 
@@ -839,8 +842,9 @@ class Session:
         pending edit is dropped, the live checks re-run, and ``state`` is published. Inside an Action a
         failure undoes it; outside one it is recorded as ``<origin>.revert`` (not replayable). Only the
         newest pending edit can be reverted, since corral reverses an edit against the table that edit left
-        behind: anything else raises :class:`ActionError`, as does a network whose version moved without the
-        ledger (changed in place, outside :meth:`mutate` and :meth:`revert`).
+        behind: anything else raises :class:`ActionError`, as does a network changed without the ledger
+        (in place, outside :meth:`mutate` and :meth:`revert`): its version moved, or one of the edit's tables
+        holds an expression other than the one the ledger recorded.
         """
         with self._lock:
             handle = self._handle(net_id)
@@ -848,14 +852,15 @@ class Session:
             last = ledger.last() if ledger else None
             if last is None or not _same_results(results, last.results):
                 raise ActionError(f"only the newest change to {handle.id} can be reverted")
-            if ledger.version != handle.version:  # type: ignore[union-attr]  # ``last`` is set, so is ``ledger``
+            tables = {r.edit.table for r in last.results}
+            if ledger.unseen_change(handle.version, _exprs(handle, tables)):  # type: ignore[union-attr]  # ``last`` is set
                 raise ActionError(f"{handle.id} changed outside the Workbench since; undo is unavailable")
             draft = derived_copy(handle.roadway)
             for result in reversed(last.results):
                 reverse_edit(draft, result)
-            self._swap(handle, draft, {r.edit.table for r in last.results}, note, origin)
-            self._ledger_for(handle.id).pop(handle.version)
-            tables, removed = {r.edit.table for r in last.results}, _removed_links(last.results, reverted=True)
+            self._swap(handle, draft, tables, note, origin)
+            self._ledger_for(handle.id).pop(handle.version, _exprs(handle, tables))
+            removed = _removed_links(last.results, reverted=True)
             self._settle(handle, note, origin, kind="revert", first=last.touched, tables=tables, removed=removed)
 
     def undo_last(self, net_id: str | None, *, source: str = CORE_SOURCE) -> PendingEdit:
@@ -1635,6 +1640,11 @@ def _json_schema_or_none(model: type[BaseAction]) -> dict[str, Any] | None:
     except Exception:  # boundary: a plugin's model may raise anything; the catalog must still answer
         logger.exception("no JSON schema for workbench action %r", model.action_type())
         return None
+
+
+def _exprs(handle: NetworkHandle, tables: Iterable[str]) -> dict[str, Any]:
+    """Each of ``tables``' current expression on ``handle``'s roadway (what the ledger compares by identity)."""
+    return {name: handle.roadway.tables[name].expr for name in tables if name in handle.roadway.tables}
 
 
 def _same_results(given: Sequence[EditResult], held: Sequence[EditResult]) -> bool:

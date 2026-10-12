@@ -549,11 +549,27 @@ def test_undo_refuses_after_a_change_the_ledger_did_not_see(session):
 
     h = handle(session)
     (result,) = mutate(session, plan_update(h.roadway, "link", [1], {"free_speed": 30}))
-    reverse_edit(h.roadway, result)  # in place, behind the ledger's back
-    h.bump()
+    reverse_edit(h.roadway, result)  # in place, behind the ledger's back, and no version bump
     with pytest.raises(ActionError, match="changed outside the Workbench since; undo is unavailable"):
         session.undo_last("leavenworth", source="python")
-    assert int((h.links_df().link_id == 1).sum()) == 1 and cell(session, 1) == [40.0]  # not reversed twice
+    links = h.roadway.tables["link"].to_pandas()  # not links_df: its cache is per version, which never moved
+    assert links.loc[links.link_id == 1, "free_speed"].tolist() == [40.0]  # reversed once, not twice
+    assert len(session.edits["leavenworth"].entries) == 1
+
+
+def test_undo_refuses_after_a_version_bump_the_ledger_did_not_see(session):
+    mutate(session, plan_update(handle(session).roadway, "link", [1], {"free_speed": 30}))
+    handle(session).bump()
+    with pytest.raises(ActionError, match="changed outside the Workbench since"):
+        session.undo_last("leavenworth", source="python")
+
+
+def test_undo_after_undo_still_works_with_the_recorded_tables(session):
+    session.dispatch(EditCells(ids=[1], values={"free_speed": 30}))
+    session.dispatch(EditCells(ids=[2], values={"free_speed": 25}))
+    session.dispatch(UndoEdit())
+    session.dispatch(UndoEdit())  # the first undo's own swap was recorded, so this one is not refused
+    assert cell(session, 1) == [40.0] and session.edits["leavenworth"].entries == []
 
 
 def test_core_undo_last_refuses_a_python_entry(session):

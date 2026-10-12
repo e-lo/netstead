@@ -62,6 +62,10 @@ class EditLedger:
         #: The network version the ledger last saw (after its newest add or pop). When the network's version
         #: differs, something changed it without going through the ledger, so its results can't be reversed.
         self.version: int | None = None
+        #: Each table a pending edit touched -> the expression it held after the ledger's newest add or pop
+        #: (compared by identity). A reverse in place keeps the version but swaps the expression, so this
+        #: catches what the version check cannot.
+        self.exprs: dict[str, Any] = {}
         self._seq = 0
 
     def copy(self) -> EditLedger:
@@ -69,29 +73,51 @@ class EditLedger:
         other = EditLedger()
         other.entries = [replace(e) for e in self.entries]
         other.check, other.diverged, other.version, other._seq = self.check, self.diverged, self.version, self._seq
+        other.exprs = dict(self.exprs)
         return other
 
     def add(
-        self, source: str, note: str, version: int, results: list[EditResult], touched: dict[str, set[Any]]
+        self,
+        source: str,
+        note: str,
+        version: int,
+        results: list[EditResult],
+        touched: dict[str, set[Any]],
+        exprs: dict[str, Any],
     ) -> PendingEdit:
-        """Record one applied mutation and return it."""
+        """Record one applied mutation and return it; ``exprs`` maps each table it changed to its new expression."""
         self._seq += 1
         entry = PendingEdit(self._seq, source, note, version, list(results), touched)
         self.entries.append(entry)
         self.version = version
+        self.exprs.update(exprs)
         return entry
 
     def last(self) -> PendingEdit | None:
         """The newest entry (``None`` when there is none)."""
         return self.entries[-1] if self.entries else None
 
-    def pop(self, version: int) -> PendingEdit:
-        """Drop the newest entry (after its edits were reverted, leaving the network at ``version``); return it."""
+    def pop(self, version: int, exprs: dict[str, Any]) -> PendingEdit:
+        """Drop the newest entry (after its edits were reverted, leaving the network at ``version``); return it.
+
+        ``exprs`` maps each table the revert changed to its new expression.
+        """
         entry = self.entries.pop()
         if entry.saved:
             self.diverged = True
         self.version = version
+        self.exprs.update(exprs)
         return entry
+
+    def unseen_change(self, version: int, exprs: dict[str, Any]) -> bool:
+        """Whether the network changed without the ledger since its newest add or pop.
+
+        It did if its ``version`` moved, or if one of ``exprs`` (tables to look at, with their expressions now)
+        is not the expression the ledger recorded for that table.
+        """
+        if self.version != version:
+            return True
+        return any(name in self.exprs and self.exprs[name] is not expr for name, expr in exprs.items())
 
     def touched(self) -> dict[str, set[Any]]:
         """Every key any pending entry touched: what the live check covers."""
