@@ -362,6 +362,42 @@ def test_save_stays_inside_the_allowed_roots(session):
         session.dispatch(SaveNetwork(output_dir="/etc", name="x", output_format="parquet"))
 
 
+@pytest.mark.parametrize(("output_format", "name"), [("csv", "edited"), ("zip", "edited.zip"), ("duckdb", "edited")])
+def test_save_writes_every_format(session, tmp_path, output_format, name):
+    session.dispatch(EditCells(ids=[1], values={"free_speed": 30}))
+    result = session.dispatch(SaveNetwork(output_dir=outdir(tmp_path), name=name, output_format=output_format))
+    assert Path(result["output"]).exists() and not list(Path(outdir(tmp_path)).glob(".partial-*"))
+    back = Network.from_source(result["output"]).tables["link"].to_pandas()
+    assert back.loc[back.link_id == 1, "free_speed"].tolist() == [30.0] and len(back) == 339
+
+
+def test_save_refuses_a_symlink_into_the_source_folder(tmp_path, isolated_env):
+    src = tmp_path / "src"
+    shutil.copytree(SRC, src)
+    (src / "sub").mkdir()
+    (tmp_path / "looks_elsewhere").symlink_to(src / "sub", target_is_directory=True)
+    s = Session(project_dir=tmp_path, environ=isolated_env, parser=StubParser(), plugins=[])
+    s.dispatch(OpenNetwork(source=str(src)))
+    s.dispatch(EditCells(ids=[1], values={"free_speed": 30}))
+    with pytest.raises(ActionError, match="own source folder"):
+        s.dispatch(SaveNetwork(output_dir=str(tmp_path / "looks_elsewhere"), name="edited", output_format="parquet"))
+    assert not any((src / "sub").iterdir())
+
+
+def test_save_beside_a_local_duckdb_source_leaves_it_alone(tmp_path, isolated_env):
+    source = tmp_path / "net.duckdb"
+    Network.from_source(SRC).write(source, format="duckdb")
+    before = source.read_bytes()
+    s = Session(project_dir=tmp_path, environ=isolated_env, parser=StubParser(), plugins=[])
+    s.dispatch(OpenNetwork(source=str(source)))
+    s.dispatch(EditCells(ids=[1], values={"free_speed": 30}))
+    result = s.dispatch(SaveNetwork(output_dir=str(tmp_path), name="edited", output_format="duckdb"))
+    assert Path(result["output"]) == tmp_path / "edited.duckdb"  # beside the source file is not inside it
+    back = Network.from_source(result["output"]).tables["link"].to_pandas()
+    assert back.loc[back.link_id == 1, "free_speed"].tolist() == [30.0]
+    assert source.read_bytes() == before
+
+
 def test_save_refuses_the_source_folder(tmp_path, isolated_env):
     src = tmp_path / "src"
     shutil.copytree(SRC, src)
