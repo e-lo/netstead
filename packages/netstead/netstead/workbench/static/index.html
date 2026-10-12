@@ -139,7 +139,20 @@
       <div class="label">Unlocated <span id="iss-unloc-count" class="pcount">0</span></div>
       <div id="iss-unlocated"></div>
     </section>
-    <section class="dock-pane" id="dock-edits" data-panel="edits" role="tabpanel" aria-labelledby="dtab-edits" hidden></section>
+    <section class="dock-pane" id="dock-edits" data-panel="edits" role="tabpanel" aria-labelledby="dtab-edits" hidden>
+      <p class="diag">Every change to this network since it was opened, newest first: your edits, Python's and any
+        plugin's. Undo reverses your newest edit. The strip at the bottom is the session history (every action).</p>
+      <div class="row wrap"><button class="mini ghost" id="ed-undo" disabled>Undo last</button>
+        <span class="diag" id="ed-undo-why"></span></div>
+      <div id="ed-status" class="diag" role="status"></div>
+      <div id="ed-list"><span class="empty">No edits yet.</span></div>
+      <div class="label">Save a copy</div>
+      <div class="row wrap"><input id="ed-save-name" placeholder="leavenworth-fixed" aria-label="Copy name">
+        <select id="ed-save-format" aria-label="Format"><option value="parquet">Parquet folder</option>
+          <option value="csv">CSV folder</option><option value="duckdb">DuckDB file</option><option value="zip">Zip</option></select>
+        <button class="mini ghost" id="ed-save" aria-expanded="false" aria-controls="ed-save-fb">Choose folder…</button></div>
+      <div class="fb" id="ed-save-fb" hidden></div>
+    </section>
   </aside>
   <footer id="history">
     <span id="hist-seq">—</span>

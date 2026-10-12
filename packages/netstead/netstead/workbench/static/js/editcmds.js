@@ -4,8 +4,10 @@
 import { dispatch } from "./api.js";
 import { $, toast } from "./dom.js";
 import { addCommandTo, commandContext, runCommand } from "./commands.js";
-import { openFixEditor } from "./fixeditor.js";
+import { editSummary, undoBlocked } from "./editmodel.js";
+import { deleteRecord, openFixEditor } from "./fixeditor.js";
 import { recordIssues } from "./issuelist.js";
+import { detailsSettled } from "./side.js";
 import { CORE, slots } from "./slots.js";
 import { store } from "./store.js";
 import { showPanel } from "./workspaces.js";
@@ -33,6 +35,16 @@ function recordFixTarget(t) {
   return recordIssues(records, t.table, t.id).length ? { table: t.table, id: t.id } : null;
 }
 
+// Focus the record (Details shows it), then open the record editor in Details.
+async function editRecord(table, id) {
+  showPanel("details");
+  const f = store.get().focus;
+  if (!f || f.table !== table || f.id !== id) store.set({ focus: { table, id, from: "table" } });
+  await detailsSettled();
+  const host = document.querySelector("#details .det-edit");
+  if (host) await openFixEditor(host, { table, id });
+}
+
 export function registerEditCommands() {
   add({ id: "run_validation", group: "Issues", title: "Run validation", when: c => Boolean(c.network),
     run: () => { showPanel("issues"); return dispatch({ type: "run_validation" }); } });
@@ -47,4 +59,13 @@ export function registerEditCommands() {
         issueFilter: { ...store.get().issueFilter, thisRecord: true } });
       runCore("fix_issue");
     } });
+  // The focused record, from the palette only (R8: not in the feature / row menus; Details has the same buttons).
+  add({ id: "edit_record", group: "Edits", title: "Edit record…", when: c => Boolean(c.focus),
+    run: c => editRecord(c.focus.table, c.focus.id) });
+  add({ id: "delete_record", group: "Edits", title: "Delete record…", when: c => Boolean(c.focus),
+    run: c => deleteRecord(c.focus.table, c.focus.id) });
+  add({ id: "undo_edit", group: "Edits", title: "Undo last edit", when: c => !undoBlocked(editSummary(c.state)),
+    run: () => dispatch({ type: "undo_edit" }) });
+  add({ id: "save_copy", group: "Edits", title: "Save a copy…", when: c => Boolean(c.network),
+    run: () => { showPanel("edits"); $("ed-save-name").focus(); } });
 }

@@ -326,3 +326,8 @@
   #tbl-grid tr.focus td { cursor:text; } #tbl-grid tr.focus td.ro { cursor:default; }
   #tbl-grid a.fk.go { text-decoration:none; opacity:.75; margin-left:2px; }
   .cell-in { width:100%; min-width:64px; font:inherit; padding:1px 4px; }
+  .chg { padding:7px 0; border-bottom:1px solid var(--edge); font-size:12.5px; }
+  .chg.unsaved { box-shadow:inset 3px 0 0 var(--accent); padding-left:8px; }
+  .fix-editor { margin:6px 0; padding:8px; border:1px solid var(--edge); border-radius:8px; background:#0c0e12; }
+  .fix-editor .row { display:flex; gap:6px; align-items:center; margin:4px 0; }
+  .det-actions { display:flex; gap:6px; margin:6px 0; }

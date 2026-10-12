@@ -6,7 +6,7 @@ import { registerCoreCommands } from "./corecmds.js";
 import { openContextMenu, wireContextMenus } from "./ctxmenu.js";
 import { $, toast } from "./dom.js";
 import { registerEditCommands } from "./editcmds.js";
-import { onEditsState, registerEditPanels } from "./edits.js";
+import { onEditsState, registerEditPanels, renderEdits, wireEdits } from "./edits.js";
 import { rememberRecent, renderHeader, renderRecent, wireHeader } from "./header.js";
 import { showEntry, wireHistory } from "./history.js";
 import { hub } from "./hub.js";
@@ -21,7 +21,7 @@ import { populateColorby, renderLegend, renderPluginLayers, syncControls, wirePa
 import { commandReporters } from "./pluginload.js";
 import { loadPlugins, reportPluginError } from "./plugins.js";
 import { renderPluginsPanel, wirePluginsPanel } from "./pluginspanel.js";
-import { clearDetails, renderHighlights, renderSelection, showDetails, wireSide } from "./side.js";
+import { clearDetails, renderHighlights, renderSelection, showDetails, syncDetailsUndo, wireSide } from "./side.js";
 import { cancelRelated, renderRelatedBadges, scheduleRelated } from "./related.js";
 import { onSettingsHistory, registerSection, wireSettings } from "./settings.js";
 import { activeSelection, store } from "./store.js";
@@ -180,6 +180,8 @@ function wireStore() {
   store.subscribe(["issues"], () => refreshRows());
   store.subscribe(["edits"], s => renderEditWarnings(s.edits));
   store.subscribe(["edits"], () => refreshRows()); // the cell and row warning marks follow the live check
+  store.subscribe(["edits"], s => renderEdits(s.edits));
+  store.subscribe(["server"], s => syncDetailsUndo(s.server));
   store.subscribe(["highlightMode"], s => { $("btn-highlight").classList.toggle("on", s.highlightMode); $("map").classList.toggle("highlighting", s.highlightMode); });
 }
 
@@ -195,7 +197,7 @@ async function boot() {
   registerEditCommands();
   wirePalette({ onError: whenError, onRunError: runError });
   wireActionForm();
-  wireStore(); wirePanels(); wireSide(); wireTable(); wireHeader(); wireHistory(); wireMapButtons(); wireJobs(); wireWizard(); wireLLM(); wireSettings(); wireIssues();
+  wireStore(); wirePanels(); wireSide(); wireTable(); wireHeader(); wireHistory(); wireMapButtons(); wireJobs(); wireWizard(); wireLLM(); wireSettings(); wireIssues(); wireEdits();
   registerIssueLayer(); // after wireStore: the layerSeq subscription that renders Overlays is in place
   registerSection("llm", "Language models", "llm-panel", () => renderLLMPanel());
   registerSection("plugins", "Plugins", "plugins-panel", () => renderPluginsPanel());

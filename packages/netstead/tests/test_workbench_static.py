@@ -400,3 +400,39 @@ def test_cells_of_the_focused_row_are_edited_in_place():
     assert "dispatch(action)" in table and "cellAction(" in table
     assert 'openContextMenu("row"' in table  # the row menu wiring stays (R8: it opens only on a record with an issue)
     assert "edit_record" not in table and "delete_record" not in table
+
+
+def test_record_edits_undo_and_save_are_registered_commands():
+    cmds = (JS_DIR / "editcmds.js").read_text()
+    assert 'id: "edit_record"' in cmds and 'id: "delete_record"' in cmds
+    # R8 (2026-10-11): Edit record… and Delete record… are palette commands on the focused record, never menu items;
+    # Fix… (Task 15) stays the only feature / row command.
+    assert cmds.count('contexts: ["feature", "row"]') == 1
+    assert 'title: "Edit record…", when: c => Boolean(c.focus)' in cmds
+    assert 'title: "Delete record…", when: c => Boolean(c.focus)' in cmds
+    for command in ("undo_edit", "save_copy"):
+        assert f'id: "{command}"' in cmds
+    fix = (JS_DIR / "fixeditor.js").read_text()
+    assert 'from "./formview.js"' in fix and "schemaForm(" in fix and "recordSchema(" in fix
+    assert "delete-plan" in fix and "deletePlanText(" in fix  # the dry-run cascade is shown before deleting
+    assert "form.errors()" in fix and "changedValues(" in fix  # one EditCells with only what changed
+    side = (JS_DIR / "side.js").read_text()
+    for act in ("edit", "delete", "undo"):
+        assert f'data-act="{act}"' in side
+    edits = (JS_DIR / "edits.js").read_text()
+    assert "accept_warnings = true" in edits and "window.confirm(" in edits  # saving over warnings is confirmed
+    html = (STATIC_DIR / "index.html").read_text()
+    pane = html[html.index('id="dock-edits"') : html.index("</aside>")]
+    for element_id in (
+        "ed-undo",
+        "ed-undo-why",
+        "ed-status",
+        "ed-list",
+        "ed-save-name",
+        "ed-save-format",
+        "ed-save",
+        "ed-save-fb",
+    ):
+        assert f'id="{element_id}"' in pane
+    header = (JS_DIR / "header.js").read_text()
+    assert "dirtyBadge(" in header and "networkBadge(" in header
