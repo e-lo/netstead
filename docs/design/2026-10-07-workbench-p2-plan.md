@@ -75,7 +75,8 @@ Every question this plan raised is decided. None is open.
 - No redo: re-applying is re-dispatching the `EditCells` shown in the history strip.
 
 **(b) Add and delete. Decided 2026-10-08:** delete a link in the UI; add rows from Python and the API only.
-- **Delete** is in Details, the fix editor, and the map feature / table row context menus. Deleting a link cascades
+- **Delete** is in Details, the fix editor, and the palette (on the focused record); not in context menus (R8, as
+  changed 2026-10-11). Deleting a link cascades
   to the rows that depend on it through the spec's foreign keys (`lane`, `link_tod`, then their own dependents), as
   one undoable edit. Before anything is removed, a confirmation shows what will go
   (`POST …/table/{name}/delete-plan`: rows per table). Deleting a node that a link still references is refused,
@@ -94,49 +95,62 @@ Every question this plan raised is decided. None is open.
 **(d) Sequencing. Decided 2026-10-08, extended 2026-10-10:** plugin Part 1, then Part 2, then P2 (see
 [Built on Plugins Parts 1 and 2](#built-on-plugins-parts-1-and-2-read-this-first)).
 
-**Decided (recommendation) 2026-10-10** (made while refreshing the plan against the built code; each is the
-recommended answer, recorded so the user can see and overturn it):
-- **R1. `Session.revert` is the undo primitive.** `revert(net_id, results, *, note, origin=None)` reverses the
+**Decided 2026-10-11** (R1–R10 were proposed on 2026-10-10 while refreshing the plan against the built code; the
+user decided them on 2026-10-11). R3 and R7 are confirmed by the user as written; R8 was **changed** by the user;
+R1, R2, R4, R5, R6, R9 and R10 take the recommendation as written:
+- **R1. `Session.revert` is the undo primitive.** *(Decided 2026-10-11: the recommendation.)* `revert(net_id, results, *, note, origin=None)` reverses the
   network's newest pending edit on a copy-on-write draft and swaps it in, exactly as `mutate` swaps edits in: the
   version is bumped, the lineage records the note, state is published, a failing Action rolls it back, and outside an
   Action it is recorded as a non-replayable `<origin>.revert` entry. It refuses anything but the newest pending
   edit's results (corral reverses an edit against the table that edit left). `undo_last(net_id, *, source)` finds
   that entry, checks its source, and calls `revert`; `UndoEdit` and `host.undo` call `undo_last`. *Why:* the
   in-place `reverse_edit` + `bump()` that Part 1's test uses skips the undo record, the lineage and the publish.
-- **R2. The pending-edit ledger records the results it reverses.** `mutate` does not write history (the calling
+- **R2. The pending-edit ledger records the results it reverses.** *(Decided 2026-10-11: the recommendation.)* `mutate` does not write history (the calling
   Action does), so each mutation's `EditResult`s go into the network's ledger entry. `UndoEdit` locates them there;
   nothing is stored on the history entry. The ledger joins the dispatch-level rollback (a snapshot undo record), so a
   failed Action leaves no pending edit behind.
-- **R3. The ledger's source comes from Part 1's `origin`.** A plugin's `host.mutate` passes its id; a core Action's
+- **R3. The ledger's source comes from Part 1's `origin`.** *(Decided 2026-10-11, user-confirmed: Undo in the
+  Workbench only undoes edits made in the Workbench.)* A plugin's `host.mutate` passes its id; a core Action's
   `mutate` (inside an Action, no origin) is `"workbench"`; a `mutate` outside any Action is `"python"`, matching the
   `python.mutate` history entry Part 1 writes. Core's Undo undoes `"workbench"` entries only; Python can undo its own
   with `session.undo_last(net_id, source="python")`.
-- **R4. The selection follows an edit.** After every `mutate` and `revert` on the selected network: a selection made
+- **R4. The selection follows an edit.** *(Decided 2026-10-11: the recommendation. A query selection is
+  re-resolved; a click selection keeps its ids minus deleted links; an empty one is cleared.)* After every `mutate` and `revert` on the selected network: a selection made
   by a **query** (an utterance, whose parsed intent the payload now keeps as `intent`) is resolved again on the
   edited network; a selection made by **ids** (clicks, "Set as selection") keeps its ids minus any link that no longer
   exists, and becomes no selection when none is left. This replaces the first draft's Decision 15 ("a deletion clears
   a selection that includes a deleted link"). It is deterministic, so a replayed session agrees, and a failed Action
   restores the old selection through Part 1's rollback.
-- **R5. New core Actions join `CORE_ACTIONS` *and* the `Action` union.** `parse_action` returns an `Action` and the
+- **R5. New core Actions join `CORE_ACTIONS` *and* the `Action` union.** *(Decided 2026-10-11: the
+  recommendation.)* `parse_action` returns an `Action` and the
   core registry parses every `CORE_ACTIONS` member, so the union must list them too (Part 1's test pins the two
   equal). Plugin Actions still never join the union.
-- **R6. The script header stays frozen at the nine pre-P2 Actions.** `script_imports` heads every script with
+- **R6. The script header stays frozen at the nine pre-P2 Actions.** *(Decided 2026-10-11: the recommendation.)* `script_imports` heads every script with
   `from netstead.workbench import Session, OpenNetwork, …, SetSetting`, byte for byte as today; a later core Action
   that a session used adds one `from netstead.workbench import <Name>` line after it, once.
-- **R7. Issues and Edits are dock panels in every workspace** (`workspace: "*"`, like Details), not only Inspect: a
+- **R7. Issues and Edits are dock panels in every workspace** *(Decided 2026-10-11, user-confirmed)* (`workspace: "*"`, like Details), not only Inspect: a
   plugin's Edit workspace changes the same network, so its warnings and undo stay in view. Their badges read the
   server state (`issues`, `edits`), so they refresh with every `state` event. Hiding the issue markers is Part 2's
   Overlays switch (`hiddenLayers`), replacing the first draft's `showIssues` toggle.
-- **R8. Record edits and deletes are context commands.** Core registers `edit_record` ("Edit…") and
-  `delete_record` ("Delete…") for the `feature` and `row` contexts, and the palette commands `fix_issue`,
-  `undo_edit`, `run_validation` and `save_copy`; the Issues panel's Fix button runs `fix_issue` through
-  `runCommand`. With these registered, a right-click on a link, a node or a keyed row always opens a menu (Part 2's
-  rule: a menu opens when a command applies).
-- **R9. The record editor is a `schemaForm`.** Details → Edit… (and the `edit_record` command) shows a generated form
+- **R8. Right-click stays silent, except on a record with an issue.** *(Decided 2026-10-11; the user **changed**
+  the recommendation, which put Edit… and Delete… in the feature and row context menus.)*
+  - The only core command in the `feature` and `row` contexts is `fix_record` ("Fix…"), with
+    `when` = the right-clicked record has an issue (a located issue from the last validation run, or a live edit
+    warning on it). On any other record, a right-click opens no core menu (Part 2's rule: a menu opens only when a
+    command applies), so the map and the table behave as they do today.
+  - "Edit record…" (`edit_record`) and "Delete record…" (`delete_record`) are **not** in context menus. They are
+    reached through: the command palette (`palette` context, acting on the **focused** record, `when` = a record
+    is focused); the **Edit…** and **Delete…** buttons in the Details panel for the focused record; and cell
+    editing in the data table (Task 16).
+  - The palette also has `fix_issue` ("Fix the picked issue…"), `undo_edit`, `run_validation` and `save_copy`; the
+    Issues panel's Fix button runs `fix_issue` through `runCommand`. Because `fix_record` is in the `feature` /
+    `row` contexts, the palette's "For <table> <id>" group lists "Fix…" for a focused record with an issue.
+- **R9. The record editor is a `schemaForm`.** *(Decided 2026-10-11: the recommendation.)* Details → Edit… (and
+  the `edit_record` palette command) shows a generated form
   over the record's editable columns and sends one `EditCells` with only the changed values; the fix editor (from an
   issue) is the same form narrowed to the issue's column. Types come from the table schema (`num`, `bool`, `str`);
   the server still coerces and refuses (Decision 1).
-- **R10. `HOST_API` goes to 1.2** (Part 2 took 1.1): `Host.undo`, `Host.edit_warnings` and `Host.plan_*` are new
+- **R10. `HOST_API` goes to 1.2** *(Decided 2026-10-11: the recommendation.)* (Part 2 took 1.1): `Host.undo`, `Host.edit_warnings` and `Host.plan_*` are new
   plugin API.
 
 ---
@@ -147,7 +161,8 @@ recommended answer, recorded so the user can see and overturn it):
   filters by severity, table and code, and lists unlocated issues separately. An edit marks the result stale;
   one click re-runs it. **Export report** downloads the existing `render_validation_html` page.
 - **Edit.** Cell edits in the data table (click a cell of the focused row), the record editor (Details → Edit…, or
-  Edit… on a feature or row), and the fix editor launched from an issue. Each edit is a recorded Action
+  "Edit record…" in the palette for the focused record), and the fix editor launched from an issue (Fix in the
+  Issues panel, or Fix… on a right-clicked record that has an issue). Each edit is a recorded Action
   (`EditCells`, `DeleteRows`, `AddRows`) applied through `Session.mutate` as corral `Edit`s (`update_rows`,
   `delete_rows`, `add_rows`): recorded in history, with a network version bump and a lineage entry.
 - **Live warnings.** After each edit, the touched rows are checked against the spec. Warnings show on the cell, the
@@ -181,8 +196,9 @@ recommended answer, recorded so the user can see and overturn it):
     Details;
   - issue markers are a core layer in the layer registry (`addLayer(CORE, "roadway", "issues", …)`), listed under
     Layers → Overlays;
-  - Edit…, Delete…, Fix the picked issue…, Undo last edit, Run validation and Save a copy… are registered commands
-    (feature / row context menus and the palette);
+  - Fix… (the only feature / row context-menu command, and only on a record with an issue), and Edit record…,
+    Delete record…, Fix the picked issue…, Undo last edit, Run validation and Save a copy… in the palette are
+    registered commands (R8);
   - an edit (same network id, new version) keeps the focus, highlights, table, page and scope, instead of resetting
     them the way a network switch does;
   - pure rules live in import-free `issuelist.js` and `editmodel.js`, unit-tested under node;
@@ -4418,8 +4434,11 @@ def test_issue_markers_and_validation_commands_use_the_slots():
     assert 'addLayer(CORE, "roadway", "issues"' in issues and 'title: "Issues"' in issues
     assert '"issues"' not in (JS_DIR / "map.js").read_text()  # the layer lives in issues.js, not in map.js
     cmds = (JS_DIR / "editcmds.js").read_text()
-    for command in ("run_validation", "fix_issue"):
+    for command in ("run_validation", "fix_issue", "fix_record"):
         assert f'id: "{command}"' in cmds
+    # R8 (2026-10-11): Fix… is the only core feature / row command, and only on a record that has an issue.
+    assert cmds.count('contexts: ["feature", "row"]') == 1
+    assert 'id: "fix_record", title: "Fix…", contexts: ["feature", "row"], when: c => Boolean(recordFixTarget(' in cmds
     assert 'runCore("fix_issue")' in issues  # an issue's Fix button goes through the commands registry
     main = (JS_DIR / "main.js").read_text()
     assert "registerIssueLayer()" in main and "registerEditCommands()" in main
@@ -4479,15 +4498,21 @@ Append to `app.css`:
 
 - [ ] **Step 4: The commands**
 
+R8 (decided 2026-10-11): a right-click stays silent except on a record with an issue. `fix_record` ("Fix…") is the
+only core command in the `feature` and `row` contexts, and its `when` holds only when the right-clicked record has a
+live edit warning or a located issue from the last validation run. Every other core command is palette-only.
+
 Create `packages/netstead/netstead/workbench/static/js/editcmds.js` (Task 17 adds the record and undo commands):
 
 ```js
-// Core's validate and edit commands, registered like a plugin's (palette, feature and row menus). Core commands
-// may read the page's store; plugin commands only get the frozen ctx.
+// Core's validate and edit commands, registered like a plugin's. All are palette commands except Fix…, the one
+// feature / row menu command, which applies only to a record with an issue (R8: right-click stays silent
+// otherwise). Core commands may read the page's store; plugin commands only get the frozen ctx.
 import { dispatch } from "./api.js";
 import { $, toast } from "./dom.js";
 import { addCommandTo, commandContext, runCommand } from "./commands.js";
 import { openFixEditor } from "./fixeditor.js";
+import { recordIssues } from "./issuelist.js";
 import { CORE, slots } from "./slots.js";
 import { store } from "./store.js";
 import { showPanel } from "./workspaces.js";
@@ -4503,11 +4528,31 @@ export function runCore(id) {
   runCommand(command, ctx, (c, e) => fail(e));
 }
 
+// The fix target for a right-clicked (or focused) record: its first live edit warning, narrowed to that column; else
+// the whole record when the last validation located an issue on it. Null when it has none, so no Fix… menu.
+function recordFixTarget(t) {
+  const s = store.get(), net = s.server && s.server.active;
+  if (!t || !net) return null;
+  const same = x => x.table === t.table && String(x.key) === String(t.id);
+  const w = s.edits && s.edits.net_id === net ? s.edits.warnings.find(same) : null;
+  if (w) return { table: t.table, id: t.id, column: w.column, note: w.message };
+  const records = s.issues && s.issues.net_id === net ? s.issues.records : null;
+  return recordIssues(records, t.table, t.id).length ? { table: t.table, id: t.id } : null;
+}
+
 export function registerEditCommands() {
   add({ id: "run_validation", group: "Issues", title: "Run validation", when: c => Boolean(c.network),
     run: () => { showPanel("issues"); return dispatch({ type: "run_validation" }); } });
   add({ id: "fix_issue", group: "Issues", title: "Fix the picked issue…", when: () => Boolean(store.get().fixTarget),
     run: () => { showPanel("issues"); return openFixEditor($("iss-fixer"), store.get().fixTarget); } });
+  // The only core context-menu command (R8): on a record with an issue, focus it, filter Issues to it, and fix.
+  add({ id: "fix_record", title: "Fix…", contexts: ["feature", "row"], when: c => Boolean(recordFixTarget(c.target)),
+    run: c => {
+      const { table, id } = c.target;
+      store.set({ fixTarget: recordFixTarget(c.target), focus: { table, id, from: "table" },
+        issueFilter: { ...store.get().issueFilter, thisRecord: true } });
+      runCore("fix_issue");
+    } });
 }
 ```
 
@@ -4781,7 +4826,8 @@ A row click focuses the record (P1b). A click on a cell of the **focused** row o
 applies an `EditCells` action, Escape or leaving cancels. Cells with live edit warnings are underlined, with the
 messages as their tooltip, and their row is marked. In the focused row a foreign-key cell shows its value as text
 plus a small ↗ link, so a click on the value edits it and the ↗ still jumps to the referenced row. A right-click on a
-row keeps opening Part 2's row menu (Task 17 adds Edit… and Delete… to it).
+row keeps Part 2's row menu wiring; per R8 (2026-10-11) it opens a menu only on a row whose record has an issue
+(Task 15's Fix…). Edit… and Delete… are not in the row menu: they are in Details and the palette (Task 17).
 
 **Files:**
 - Modify: `packages/netstead/netstead/workbench/static/js/table.js`, `main.js`
@@ -4929,7 +4975,11 @@ git commit -m "feat(workbench): edit cells in the data table; live warning marks
 
 ---
 
-### Task 17: The record and fix editor, Edit… and Delete… commands, the Edits panel, Undo, Save a copy, and the switcher badge
+### Task 17: The record and fix editor, Edit record… and Delete record… palette commands, the Edits panel, Undo, Save a copy, and the switcher badge
+
+R8 (decided 2026-10-11): Edit record… and Delete record… are **not** context-menu commands. They act on the focused
+record and are reached through the palette (`palette` context), the Details panel's Edit… and Delete… buttons, and
+cell editing (Task 16). The only core context-menu command stays Task 15's Fix….
 
 **Files:**
 - Modify (fill the stub): `packages/netstead/netstead/workbench/static/js/fixeditor.js`
@@ -4945,7 +4995,11 @@ Append to `packages/netstead/tests/test_workbench_static.py`:
 def test_record_edits_undo_and_save_are_registered_commands():
     cmds = (JS_DIR / "editcmds.js").read_text()
     assert 'id: "edit_record"' in cmds and 'id: "delete_record"' in cmds
-    assert cmds.count('contexts: ["feature", "row"]') == 2
+    # R8 (2026-10-11): Edit record… and Delete record… are palette commands on the focused record, never menu items;
+    # Fix… (Task 15) stays the only feature / row command.
+    assert cmds.count('contexts: ["feature", "row"]') == 1
+    assert 'title: "Edit record…", when: c => Boolean(c.focus)' in cmds
+    assert 'title: "Delete record…", when: c => Boolean(c.focus)' in cmds
     for command in ("undo_edit", "save_copy"):
         assert f'id: "{command}"' in cmds
     fix = (JS_DIR / "fixeditor.js").read_text()
@@ -4968,7 +5022,7 @@ Expected: FAIL: no `edit_record` command.
 Replace the stub:
 
 ```js
-// The record editor (Details → Edit…, or Edit… on a feature or row) and the fix editor (an issue's Fix…): a
+// The record editor (Details → Edit…, or "Edit record…" in the palette) and the fix editor (an issue's Fix…): a
 // generated form (wb.schemaForm, formview.js) over the record's editable columns, or just the issue's column,
 // that sends one EditCells action with only what changed. Ported from the offline report's "Fix locally"
 // mini-editor (map_component.js). Delete asks the server what the cascade would remove (a dry run) first.
@@ -5065,7 +5119,7 @@ link uses) before anything happens.
 - [ ] **Step 5: The commands**
 
 In `editcmds.js`:
-- extend the imports: `import { editSummary, undoBlocked } from "./editmodel.js";`,
+- extend the imports (keep Task 15's `recordIssues` import): `import { editSummary, undoBlocked } from "./editmodel.js";`,
   `import { deleteRecord, openFixEditor } from "./fixeditor.js";` (replacing the single import), and
   `import { detailsSettled } from "./side.js";`;
 - add before `registerEditCommands`:
@@ -5085,19 +5139,20 @@ async function editRecord(table, id) {
 - add at the end of `registerEditCommands`:
 
 ```js
-  // A right-clicked map feature or grid row (and, in the palette, the focused record's "For …" group).
-  add({ id: "edit_record", title: "Edit…", contexts: ["feature", "row"], when: c => Boolean(c.target),
-    run: c => editRecord(c.target.table, c.target.id) });
-  add({ id: "delete_record", title: "Delete…", contexts: ["feature", "row"], when: c => Boolean(c.target),
-    run: c => deleteRecord(c.target.table, c.target.id) });
+  // The focused record, from the palette only (R8: not in the feature / row menus; Details has the same buttons).
+  add({ id: "edit_record", group: "Edits", title: "Edit record…", when: c => Boolean(c.focus),
+    run: c => editRecord(c.focus.table, c.focus.id) });
+  add({ id: "delete_record", group: "Edits", title: "Delete record…", when: c => Boolean(c.focus),
+    run: c => deleteRecord(c.focus.table, c.focus.id) });
   add({ id: "undo_edit", group: "Edits", title: "Undo last edit", when: c => !undoBlocked(editSummary(c.state)),
     run: () => dispatch({ type: "undo_edit" }) });
   add({ id: "save_copy", group: "Edits", title: "Save a copy…", when: c => Boolean(c.network),
     run: () => { showPanel("edits"); $("ed-save-name").focus(); } });
 ```
 
-With `edit_record` and `delete_record` registered, a right-click on a link, a node or a keyed grid row always opens a
-menu (R8); Part 2's right-drag guard still keeps MapLibre's rotate.
+`edit_record` and `delete_record` are palette-only, so a right-click on a link, a node or a grid row still opens no
+core menu unless the record has an issue (Task 15's Fix…; R8 as decided 2026-10-11). Part 2's right-drag guard still
+keeps MapLibre's rotate.
 
 - [ ] **Step 6: The Edits pane**
 
@@ -5266,9 +5321,11 @@ In `packages/netstead/docs/cookbook/workbench.md`, add before `## Language model
 
 - **In the table:** click a row to focus it, then click one of its cells, type, and press Enter (Escape
   cancels; an empty value clears the cell). The key column is not edited in place.
-- **A whole record:** **Edit…** in Details, or right-click a link, a node or a row → **Edit…**, opens a form
-  for every editable column (or for every selected link at once). **Fix** on an issue opens it on that column.
-- **Delete…** (Details, the editor, or the right-click menu) first says what goes with the record: a link takes
+- **A whole record:** **Edit…** in Details, or **Edit record…** in the command palette (Ctrl+K / ⌘K) for the
+  focused record, opens a form for every editable column (or for every selected link at once). **Fix** on an
+  issue opens it on that column. Right-clicking a link, a node or a row that has an issue offers **Fix…**; on
+  other records, right-click does nothing.
+- **Delete…** (Details, the editor, or **Delete record…** in the palette) first says what goes with the record: a link takes
   its lanes and time-of-day rows. A node that a link still uses cannot be deleted.
 - **Adding rows** is Python or the API only: `app.do(AddRows(table="node", rows=[{...}]))`.
 - Each edit is one action in the session history (so "copy as Python" replays it), bumps the network's
@@ -5343,9 +5400,10 @@ Start the app through `preview_start`, with a `.claude/launch.json` entry that r
    the cell again, type link 2's old value, Enter: the warning clears.
 6. **Refusal.** Click link 1's `lanes` cell, type `1.5`, Enter. A toast says it does not fit; nothing changes
    and no edit is listed.
-7. **Context menus and the palette.** Right-click a link: the menu offers **Edit…** and **Delete…**; Edit… opens
-   the record form in Details. Ctrl+K (⌘K): **Undo last edit**, **Run validation** and **Save a copy…** are listed;
-   with a record focused, its "For link …" group lists Edit… and Delete….
+7. **Context menus and the palette.** Right-click a link with no issue: no menu opens. Right-click link 1 (flagged
+   by the validation run): the menu offers only **Fix…**, which opens the fix editor in Issues. Ctrl+K (⌘K):
+   **Undo last edit**, **Run validation** and **Save a copy…** are listed; with a record focused, **Edit record…**
+   and **Delete record…** are listed too, and Edit record… opens the record form in Details.
 8. **Undo.** Edits → **Undo last** (or the palette). The value is back, the entry is gone, and the history has
    `UndoEdit`.
 9. **Delete and the selection.** Select "Ski Hill Drive" (20 links). Details for one of its links → **Delete…**.
@@ -5395,7 +5453,7 @@ git commit -m "docs(workbench): validate, edit tables, edit warnings and save a 
 | The stored selection after an edit (R4) | Task 6 |
 | Issues and Edits through the dock, with badges (Part 2) | Task 14 (`addPanel`, `issuesBadge`, `editsBadge`) |
 | Issue markers through the layer registry (Part 2) | Task 15 (`addLayer(CORE, "roadway", "issues", …)`) |
-| Context commands and the palette (Part 2) | Tasks 15 (`run_validation`, `fix_issue`), 17 (`edit_record`, `delete_record`, `undo_edit`, `save_copy`) |
+| Context commands and the palette (Part 2; R8 as decided 2026-10-11) | Tasks 15 (`run_validation`, `fix_issue`, `fix_record`: the only context-menu command), 17 (`edit_record`, `delete_record`, `undo_edit`, `save_copy`: palette) |
 | `schemaForm` for edit forms (Part 2) | Task 17 (`fixeditor.js`) |
 | "Copy as Python" byte-identical for old sessions; new Actions bring their imports | Task 8 (`_SCRIPT_HEADER`, `script_imports`; the server tests stay green) |
 | Host API 1.2 | Task 7 |
@@ -5408,7 +5466,7 @@ git commit -m "docs(workbench): validate, edit tables, edit warnings and save a 
 **Placeholder scan:**
 - No "TBD" and no "similar to Task N".
 - New files are given in full, except `fixeditor.js` (a stub in Task 15, given in full in Task 17), `edits.js` (the
-  panels and feed in Task 14, the Edits panel added in Task 17) and `editcmds.js` (two commands in Task 15, four
+  panels and feed in Task 14, the Edits panel added in Task 17) and `editcmds.js` (three commands in Task 15, four
   more in Task 17).
 - Conditional instructions remain only where the plan cannot know a fact. Each says what to check and what to do:
   - `DataPackage`'s required fields (Task 3);
@@ -5427,7 +5485,7 @@ git commit -m "docs(workbench): validate, edit tables, edit warnings and save a 
 - Store keys (`issues`, `issueFilter`, `issueFocus`, `fixTarget`, `edits`) are the same across `store.js`,
   `main.js`, `issues.js`, `editcmds.js`, `table.js` and `edits.js`.
 - Dock panel ids `issues`, `edits` (panes `#dock-issues`, `#dock-edits`); layer id `issues`; command ids
-  `run_validation`, `fix_issue`, `edit_record`, `delete_record`, `undo_edit`, `save_copy` (core's are bare, Part 2
+  `run_validation`, `fix_issue`, `fix_record`, `edit_record`, `delete_record`, `undo_edit`, `save_copy` (core's are bare, Part 2
   Decision 1).
 - Ids added to `index.html`: `dock-issues`, `dock-edits`, `iss-*`, `ed-*`. None were removed. The static tests
   enforce both directions.
@@ -5454,8 +5512,9 @@ git commit -m "docs(workbench): validate, edit tables, edit warnings and save a 
 - **A nested core edit inside a plugin Action** (`host.dispatch(EditCells(...))`) is a `"workbench"` pending edit,
   so the plugin's `host.undo` refuses it and core's Undo reverses it. A plugin that wants to own an edit uses
   `host.plan_*` + `host.mutate` instead; the authoring guide says so.
-- **Right-click now always opens a menu on features and keyed rows** (R8). Part 2's gesture guard keeps
-  right-drag rotate on the map; on a row the browser's own menu is one Escape away.
+- **Right-click opens a menu only on a record with an issue** (R8 as decided 2026-10-11). Everywhere else it stays
+  as it is today. Edit and delete are found through Details, the palette and cell editing, so a user who looks for
+  them on right-click finds nothing there: the docs say where they are.
 - **Snippets not run.** Tasks 5–17 were written against the Part 1/Part 2 code as built (see the honesty note) but
   not executed. Where a name or signature turns out different, adapt the snippet to the code, not the other way
   round.
