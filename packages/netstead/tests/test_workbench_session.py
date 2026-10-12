@@ -178,8 +178,9 @@ def test_add_network_from_python(session, rdu_source):
 
 def test_state_shape(opened):
     st = opened.state()
-    assert set(st) == {"networks", "active", "selection", "style", "plugins"}
+    assert set(st) == {"networks", "active", "selection", "style", "plugins", "edits"}
     assert st["networks"][0]["links"] == 178
+    assert st["edits"] == {}  # no pending edits until something mutates the network
 
 
 def test_settings_payload(opened):

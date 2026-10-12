@@ -3,8 +3,8 @@
 UI clicks (``POST /api/actions``), Python (``session.dispatch(...)``), and, in
 P3, the NL assistant all funnel through ``dispatch``. Each call is recorded as a
 :class:`HistoryEntry` carrying its ``to_python`` replay snippet, and publishes
-``history`` + ``state`` events for the browser. Network *edits* are not actions
-here yet: in P2 they become ProjectCard-shaped ``NetworkChange`` objects.
+``history`` + ``state`` events for the browser. Network edits are Actions too (``EditCells``,
+``DeleteRows``, ``AddRows``, ``UndoEdit``); each one's mutation is a pending edit (see :mod:`.ledger`).
 
 Actions marked ``runs_as_job`` (``OpenNetwork``, ``BuildNetwork``) do their slow
 work on a background job thread *without* the session lock. :meth:`Session.submit`
@@ -38,7 +38,7 @@ from pathlib import Path
 from typing import Any
 
 from corral.editing import Edit, EditResult
-from corral.editing.apply import apply_edit
+from corral.editing.apply import apply_edit, reverse_edit
 from corral.engines.ibis_engine import IbisEngine
 
 from netstead import Network
@@ -77,10 +77,13 @@ from .actions import (
     is_secret_name,
     to_python,
 )
+from .editcheck import CheckResult, check_rows, touched_keys
+from .editing import table_keys
 from .errors import ActionError, ApprovalRequired, JobCancelled, NotSupportedYet, PathNotAllowed
 from .estimate import Estimate, needs_approval
 from .events import EventBus
 from .jobs import Job, JobContext, JobRunner
+from .ledger import CORE_SOURCE, PYTHON_SOURCE, EditLedger, PendingEdit
 from .paths import allowed_roots, open_locator
 from .plugins.discovery import PluginStatus, discover
 from .plugins.host import Host, PluginSettingsError, validate_plugin_settings
@@ -191,6 +194,20 @@ class _Derived:
             session.registry.remove(self.net_id)
 
 
+@dataclass
+class _LedgerMark:
+    """Undo record for a change to one network's pending-edit ledger inside an Action: the ledger before it."""
+
+    net_id: str
+    before: EditLedger | None  # a snapshot (``EditLedger.copy``); ``None``: the network had no ledger
+
+    def undo(self, session: Session) -> None:
+        if self.before is None:
+            session.edits.pop(self.net_id, None)
+        else:
+            session.edits[self.net_id] = self.before
+
+
 class Session:
     """Live workbench state: open networks, selection, style, settings, history."""
 
@@ -236,6 +253,7 @@ class Session:
         self.selection: dict[str, Any] | None = None
         self.style: dict[str, Any] = copy.deepcopy(DEFAULT_STYLE)
         self.history: list[HistoryEntry] = []
+        self.edits: dict[str, EditLedger] = {}  # net_id -> its pending edits
         self._injected_parser = parser
         self._parser = parser
         #: The registry ``_parser`` was built from (an injected parser is paired with the current one):
@@ -249,7 +267,7 @@ class Session:
         #: holding the lock touches it, so "empty" means "not inside any Action" for that thread.
         self._running: list[_Running] = []
         #: What ``mutate``/``derive`` changed inside the running Actions, undone if one of them fails.
-        self._undo: list[_Mutated | _Derived] = []
+        self._undo: list[_Mutated | _Derived | _LedgerMark] = []
         #: The Actions this session understands: the core ones, plus any its plugins register.
         self.actions = ActionRegistry()
         #: ``type`` -> handler run under the lock. Core handlers are this class's ``_do_<type>`` methods
@@ -689,52 +707,157 @@ class Session:
         return handle
 
     def mutate(
-        self, net_id: str | None, edits: Sequence[Edit], *, note: str, origin: str | None = None
+        self,
+        net_id: str | None,
+        edits: Sequence[Edit],
+        *,
+        note: str,
+        origin: str | None = None,
+        recheck: Mapping[str, Iterable[Any]] | None = None,
     ) -> list[EditResult]:
         """Apply corral ``edits`` to a network's roadway, in order and all-or-nothing; return their results.
 
         The edits run on a copy-on-write draft of the roadway, so the network itself never holds a
         half-applied state: a failing edit discards the draft and re-raises, leaving the tables, their
-        sync stamps and the caches as they were. On success the changed tables are swapped in at once,
-        the ``version`` is bumped (dropping caches), ``note`` is appended to the lineage, and ``state``
-        is published. Inside an Action, the change is undone if that Action (or one it is nested in)
-        fails. Outside any Action (a job, a plugin route, Python) nothing would record it, so it gets a
-        history entry of its own, ``<origin>.mutate``, whose ``python`` is a comment: it is visible but
-        not replayable. ``origin`` (a plugin id; default ``"python"``) also prefixes the lineage note.
-        The returned :class:`~corral.editing.EditResult` objects carry the rollback data
-        :func:`corral.editing.apply.reverse_edit` needs, so a caller can undo them later.
+        sync stamps, the caches and the pending edits as they were. On success the changed tables are
+        swapped in at once, the ``version`` is bumped (dropping caches), ``note`` is appended to the
+        lineage, and the change becomes a :class:`~netstead.workbench.ledger.PendingEdit` whose source is
+        ``origin`` (a plugin id), ``"workbench"`` (inside a core Action) or ``"python"`` (outside any
+        Action). The live checks then re-run over every key the network's pending edits touched (``recheck``
+        adds keys beyond the rows these edits touched), and ``state`` is published. Inside an Action, all of
+        it is undone if that Action (or one it is nested in) fails. Outside any Action (a job, a plugin
+        route, Python) nothing would record it, so it gets a history entry of its own, ``<origin>.mutate``,
+        whose ``python`` is a comment: it is visible but not replayable. ``origin`` (default ``"python"``
+        there) also prefixes the lineage note. The returned :class:`~corral.editing.EditResult` objects carry
+        the rollback data :func:`corral.editing.apply.reverse_edit` needs; :meth:`revert` (or
+        :meth:`undo_last`) reverses the newest pending edit.
         """
         with self._lock:
             handle = self._handle(net_id)
-            roadway = handle.roadway
-            draft = derived_copy(roadway)  # shares the immutable table expressions; copies the wrappers
+            draft = derived_copy(handle.roadway)  # shares the immutable table expressions; copies the wrappers
             applied = [apply_edit(draft, edit) for edit in edits]
-            changed = {name: (draft.tables[name].expr, draft.tables[name].dirty) for name in {e.table for e in edits}}
-            if self._running:
-                tracker = roadway.dirty_tracker
-                self._undo.append(
-                    _Mutated(
-                        handle,
-                        tables={name: (roadway.tables[name].expr, roadway.tables[name].dirty) for name in changed},
-                        stamps={name: tracker.get_table_stamp(name) for name in changed} if tracker else {},
-                        version=handle.version,
-                        lineage=len(handle.lineage),
-                    )
-                )
-            handle.replace_tables(changed)
-            handle.lineage.append(f"{origin}: {note}" if origin else note)
-            if self._running:
-                self.events.publish({"type": "state", "state": self.state()})
-            else:
-                self._record_outside_action(handle.id, note, origin or "python")
+            self._swap(handle, draft, {e.table for e in edits}, note, origin)
+            touched = touched_keys(applied, table_keys(handle.roadway))
+            for table, keys in (recheck or {}).items():
+                touched.setdefault(table, set()).update(keys)
+            self._ledger_for(handle.id).add(self._source(origin), note, handle.version, applied, touched)
+            self._settle(handle, note, origin, kind="mutate")
         return applied
 
-    def _record_outside_action(self, net_id: str, note: str, origin: str) -> None:
-        """Record a ``mutate`` no Action covers, so nothing changes silently (not replayable: a comment)."""
+    def revert(
+        self, net_id: str | None, results: Sequence[EditResult], *, note: str, origin: str | None = None
+    ) -> None:
+        """Reverse the network's newest pending edit, given its ``results``: :meth:`mutate` run backwards.
+
+        The results are reversed newest first on a copy-on-write draft, which is swapped in the way a
+        mutation is: the version is bumped, ``note`` extends the lineage (prefixed with ``origin``), the
+        pending edit is dropped, the live checks re-run, and ``state`` is published. Inside an Action a
+        failure undoes it; outside one it is recorded as ``<origin>.revert`` (not replayable). Only the
+        newest pending edit can be reverted, since corral reverses an edit against the table that edit left
+        behind: anything else raises :class:`ActionError`.
+        """
+        with self._lock:
+            handle = self._handle(net_id)
+            ledger = self.edits.get(handle.id)
+            last = ledger.last() if ledger else None
+            if last is None or not _same_results(results, last.results):
+                raise ActionError(f"only the newest change to {handle.id} can be reverted")
+            draft = derived_copy(handle.roadway)
+            for result in reversed(last.results):
+                reverse_edit(draft, result)
+            self._swap(handle, draft, {r.edit.table for r in last.results}, note, origin)
+            self._ledger_for(handle.id).pop()
+            self._settle(handle, note, origin, kind="revert")
+
+    def undo_last(self, net_id: str | None, *, source: str = CORE_SOURCE) -> PendingEdit:
+        """Revert the network's newest pending edit, if ``source`` made it; return the entry undone.
+
+        Raises :class:`ActionError` when there is nothing to undo, or when the newest change came from
+        another source (core never undoes a plugin's change, nor a plugin core's).
+        """
+        with self._lock:
+            handle = self._handle(net_id)
+            ledger = self.edits.get(handle.id)
+            last = ledger.last() if ledger else None
+            if last is None:
+                raise ActionError(f"nothing to undo on {handle.id}")
+            if last.source != source:
+                who = "the Workbench" if last.source == CORE_SOURCE else last.source
+                raise ActionError(f"the last change to {handle.id} was made by {who} ({last.note}); undo it there")
+            origin = None if source in (CORE_SOURCE, PYTHON_SOURCE) else source
+            self.revert(handle.id, last.results, note=f"undo: {last.note}", origin=origin)
+        return last
+
+    def edit_check(self, net_id: str | None) -> CheckResult:
+        """The live edit warnings on a network now (empty before any edit)."""
+        with self._lock:
+            ledger = self.edits.get(self._handle(net_id).id)
+            return ledger.check if ledger else CheckResult()
+
+    def _swap(self, handle: NetworkHandle, draft: Network, names: Iterable[str], note: str, origin: str | None) -> None:
+        """Swap ``draft``'s tables ``names`` into ``handle`` in one step: bump the version, extend the lineage.
+
+        Inside an Action an undo record goes first, so a failing Action puts the tables, version, lineage and
+        sync stamps back (Part 1's rollback). Call with the lock held.
+        """
+        roadway = handle.roadway
+        changed = {name: (draft.tables[name].expr, draft.tables[name].dirty) for name in names}
+        if self._running:
+            tracker = roadway.dirty_tracker
+            self._undo.append(
+                _Mutated(
+                    handle,
+                    tables={name: (roadway.tables[name].expr, roadway.tables[name].dirty) for name in changed},
+                    stamps={name: tracker.get_table_stamp(name) for name in changed} if tracker else {},
+                    version=handle.version,
+                    lineage=len(handle.lineage),
+                )
+            )
+        handle.replace_tables(changed)
+        handle.lineage.append(f"{origin}: {note}" if origin else note)
+
+    def _ledger_for(self, net_id: str) -> EditLedger:
+        """``net_id``'s ledger, about to change: inside an Action its snapshot goes on the undo stack first."""
+        ledger = self.edits.get(net_id)
+        if self._running:
+            self._undo.append(_LedgerMark(net_id, ledger.copy() if ledger is not None else None))
+        if ledger is None:
+            ledger = self.edits[net_id] = EditLedger()
+        return ledger
+
+    def _source(self, origin: str | None) -> str:
+        """Who a mutation belongs to: its plugin, a core Action (``"workbench"``), or Python outside any Action."""
+        return origin or (CORE_SOURCE if self._running else PYTHON_SOURCE)
+
+    def _settle(self, handle: NetworkHandle, note: str, origin: str | None, *, kind: str) -> None:
+        """After a swap: re-run the live checks, then publish (inside an Action) or record (outside one)."""
+        self._recheck(handle)
+        if self._running:
+            self.events.publish({"type": "state", "state": self.state()})
+        else:
+            self._record_outside_action(handle.id, note, origin or PYTHON_SOURCE, kind=kind)
+
+    def _recheck(self, handle: NetworkHandle) -> None:
+        """Re-run the live checks over every key the network's ledger touched (call with the lock held).
+
+        It assigns ``ledger.check`` on the live ledger after :meth:`_ledger_for` snapshotted it, so a rollback
+        also restores the check that matched the old tables.
+        """
+        ledger = self.edits.get(handle.id)
+        if ledger is None:
+            return
+        try:
+            ledger.check = check_rows(handle.roadway, ledger.touched())
+        except Exception:  # boundary: a failing check must not undo a good edit; Run validation still works
+            logger.exception("live edit check on %s failed", handle.id)
+            ledger.check = CheckResult(truncated=True)
+
+    def _record_outside_action(self, net_id: str, note: str, origin: str, *, kind: str = "mutate") -> None:
+        """Record a ``mutate`` or ``revert`` no Action covers, so nothing changes silently (not replayable)."""
         text = " ".join(note.split())  # one line: it becomes a comment in a script
         entry = HistoryEntry(
             seq=len(self.history) + 1,
-            action={"type": f"{origin}.mutate", "net_id": net_id, "note": text},
+            action={"type": f"{origin}.{kind}", "net_id": net_id, "note": text},
             python=f"# {origin} changed {net_id} outside an Action: {text} (not replayable)",
             imports="",
             ok=True,
@@ -780,6 +903,7 @@ class Session:
                 "selection": copy.deepcopy(self.selection),
                 "style": copy.deepcopy(self.style),
                 "plugins": self._plugin_state(),
+                "edits": {nid: ledger.summary() for nid, ledger in self.edits.items()},
             }
 
     def action_catalog(self) -> list[dict[str, Any]]:
@@ -915,6 +1039,7 @@ class Session:
                 handle.derived_from = f"{action.net_id} (closed)"
         # Its few-shot examples go too: a later network may reuse the id.
         self._examples = deque((e for e in self._examples if e[0] != action.net_id), maxlen=_MAX_EXAMPLES)
+        self.edits.pop(action.net_id, None)
         if self.selection and self.selection["net_id"] == action.net_id:
             self.selection = None
         if self.active == action.net_id:
@@ -1195,6 +1320,11 @@ def _json_schema_or_none(model: type[BaseAction]) -> dict[str, Any] | None:
     except Exception:  # boundary: a plugin's model may raise anything; the catalog must still answer
         logger.exception("no JSON schema for workbench action %r", model.action_type())
         return None
+
+
+def _same_results(given: Sequence[EditResult], held: Sequence[EditResult]) -> bool:
+    """Whether ``given`` are exactly the ``EditResult`` objects a pending edit holds (identity, in order)."""
+    return len(given) == len(held) and all(a is b for a, b in zip(given, held, strict=True))
 
 
 def _mark_rolled_back(children: list[_Nested], parent_type: str) -> None:
