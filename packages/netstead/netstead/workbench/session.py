@@ -31,14 +31,12 @@ import functools
 import logging
 import threading
 import time
-import warnings
 from collections import deque
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
-from corral.dataset.package import OutOfSyncWarning
 from corral.editing import Edit, EditingError, EditResult, affected_rows
 from corral.editing.apply import apply_edit, reverse_edit
 from corral.engines.ibis_engine import IbisEngine
@@ -1254,16 +1252,13 @@ class Session:
         dest = build.output_path(action.output_dir, action.name, action.output_format, settings, what="saves")
         _refuse_inside_source(dest, handle.source)
         build.remove_stale_partials(dest.parent)
-        # Writing an edited network warns OutOfSyncWarning ("... stale table(s) ..."): keep the text for the
-        # result instead of letting the warning escape. (catch_warnings is process-global; jobs are few and
-        # short, and other warnings keep their configured behaviour.)
-        with build.staging(dest) as tmp, warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always", OutOfSyncWarning)
-            build.write_output(roadway, tmp, action.output_format, ctx)
+        with build.staging(dest) as tmp:
+            build.write_output(roadway, tmp, action.output_format, ctx)  # never warns OutOfSyncWarning
             ctx.stage("save", progress=0.95)  # last cancellation checkpoint
             build.promote(tmp, dest)
-        # The warning names the source, which may be a presigned URL: never keep its query string.
-        notes = [scrub(str(w.message), limit=None) for w in caught if issubclass(w.category, OutOfSyncWarning)]
+        # What corral's OutOfSyncWarning would have said, without the source (it may be a presigned URL).
+        stale = sorted(n for n, t in roadway.tables.items() if t.dirty)
+        notes = [f"{len(stale)} table(s) differ from the source: {', '.join(stale)}"] if stale else []
         return _Saved(handle, version, str(dest), notes, pending, len(open_warnings))
 
     def _do_close_network(self, action: CloseNetwork) -> None:

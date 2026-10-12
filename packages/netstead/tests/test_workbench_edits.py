@@ -333,7 +333,7 @@ def test_save_writes_a_new_copy_and_never_the_source(session, tmp_path):
     result = session.dispatch(SaveNetwork(output_dir=outdir(tmp_path), name="edited", output_format="parquet"))
     assert Path(result["output"]).parent == Path(outdir(tmp_path)) and result["edits_saved"] == 1
     assert result["edited_while_saving"] is False and result["accepted_warnings"] == 0
-    assert any("stale" in n for n in result["notes"])  # corral's OutOfSyncWarning: kept as text, not raised
+    assert result["notes"] == ["1 table(s) differ from the source: link"]  # never an OutOfSyncWarning
     assert session.state()["edits"]["leavenworth"]["dirty"] is False
     assert session.history[-1].imports == "from netstead.workbench import SaveNetwork"
     back = Network.from_source(result["output"]).tables["link"].to_pandas()
@@ -377,22 +377,38 @@ def test_save_refuses_the_source_folder(tmp_path, isolated_env):
     assert s.dispatch(SaveNetwork(output_dir=str(tmp_path), name="edited", output_format="parquet"))["output"]
 
 
-def test_save_scrubs_the_warning_text(session, tmp_path, monkeypatch):
+def test_the_save_note_names_the_edited_tables_never_the_source(session, tmp_path):
+    session.dispatch(EditCells(ids=[1], values={"free_speed": 30}))
+    result = session.dispatch(SaveNetwork(output_dir=outdir(tmp_path), name="edited", output_format="parquet"))
+    assert result["notes"] == ["1 table(s) differ from the source: link"]
+    assert not any(SRC in n for n in result["notes"])
+
+
+def test_concurrent_saves_keep_their_notes_and_never_swallow_other_threads_warnings(session, tmp_path, monkeypatch):
+    import threading
+
     from netstead.workbench import build
 
-    real = build.write_output
+    real, both_writing, warned = build.write_output, threading.Barrier(3), threading.Event()
 
-    def warn_then_write(net, tmp, output_format, ctx):
-        from corral.dataset.package import OutOfSyncWarning
-
-        text = "Package source 'https://h.example/n?X-Amz-Signature=s3cr3t' has 1 stale table"
-        warnings.warn(text, OutOfSyncWarning, stacklevel=2)
+    def slow_write(net, tmp, output_format, ctx):
+        both_writing.wait(timeout=10)  # both saves are mid-write when the main thread warns
+        assert warned.wait(timeout=10)
         real(net, tmp, output_format, ctx)
 
-    monkeypatch.setattr(build, "write_output", warn_then_write)
-    result = session.dispatch(SaveNetwork(output_dir=outdir(tmp_path), name="edited", output_format="parquet"))
-    assert any("https://h.example/n" in n for n in result["notes"])
-    assert not any("s3cr3t" in n for n in result["notes"])
+    monkeypatch.setattr(build, "write_output", slow_write)
+    session.dispatch(EditCells(ids=[1], values={"free_speed": 30}))
+    with warnings.catch_warnings(record=True) as seen:
+        warnings.simplefilter("always")
+        jobs = [session.submit(SaveNetwork(output_dir=outdir(tmp_path), name=n, output_format="parquet")) for n in "ab"]
+        both_writing.wait(timeout=10)
+        warnings.warn("raised on the main thread", UserWarning, stacklevel=1)
+        warned.set()
+        for job in jobs:
+            job.wait()
+    assert [str(w.message) for w in seen] == ["raised on the main thread"]
+    for job in jobs:
+        assert job.status == "done" and job.result["notes"] == ["1 table(s) differ from the source: link"]
 
 
 # ---------------------------------------------------------------------------- what the live check covers
