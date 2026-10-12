@@ -26,18 +26,23 @@ from .registry import Component, default_label
 
 __all__ = [
     "CORE_ACTIONS",
+    "MAX_EDIT_IDS",
     "Action",
     "ActionRegistry",
+    "AddRows",
     "BaseAction",
     "BuildNetwork",
     "ClearSelection",
     "CloseNetwork",
+    "DeleteRows",
+    "EditCells",
     "Navigate",
     "OpenNetwork",
     "Select",
     "SetActiveNetwork",
     "SetSetting",
     "Style",
+    "UndoEdit",
     "action_json_schema",
     "import_line",
     "is_secret_name",
@@ -284,6 +289,66 @@ class BuildNetwork(BaseAction):
         return f"build {self.name}"
 
 
+#: Ids one ``EditCells`` / ``DeleteRows`` takes, and rows one ``AddRows`` takes.
+MAX_EDIT_IDS = 10_000
+#: A cell value: ``None`` clears the cell. The session coerces it to the column's storage type.
+CellValue = bool | int | float | str | None
+
+
+class EditCells(BaseAction):
+    """Set cells on rows of one table, picked by primary key (``None`` clears a cell).
+
+    Each value is coerced to its column's storage type; one that does not fit is refused, as are key columns
+    and unknown columns. What the spec says about the new values (required, type, enum, foreign keys,
+    duplicate keys) comes back as ``warnings``: they warn, they never block.
+    """
+
+    type: Literal["edit_cells"] = "edit_cells"
+    mutates: ClassVar[bool] = True
+    net_id: str | None = None
+    component: Component = "roadway"
+    table: str = "link"
+    ids: list[int | str] = Field(min_length=1, max_length=MAX_EDIT_IDS)
+    values: dict[str, CellValue] = Field(min_length=1)
+    note: str | None = Field(default=None, max_length=500)
+
+
+class DeleteRows(BaseAction):
+    """Delete rows of one table by key, with every row that depends on them through the spec's foreign keys.
+
+    A link takes its lanes and time-of-day rows with it. A node that a link still uses is refused.
+    ``POST …/table/<table>/delete-plan`` shows what would go, without deleting anything.
+    """
+
+    type: Literal["delete_rows"] = "delete_rows"
+    mutates: ClassVar[bool] = True
+    net_id: str | None = None
+    component: Component = "roadway"
+    table: str = "link"
+    ids: list[int | str] = Field(min_length=1, max_length=MAX_EDIT_IDS)
+    note: str | None = Field(default=None, max_length=500)
+
+
+class AddRows(BaseAction):
+    """Append rows to one table (Python and the API; the app has no drawing tool). Each row needs its key."""
+
+    type: Literal["add_rows"] = "add_rows"
+    mutates: ClassVar[bool] = True
+    net_id: str | None = None
+    component: Component = "roadway"
+    table: str
+    rows: list[dict[str, CellValue]] = Field(min_length=1, max_length=MAX_EDIT_IDS)
+    note: str | None = Field(default=None, max_length=500)
+
+
+class UndoEdit(BaseAction):
+    """Revert the network's last edit, when the Workbench made it (a plugin undoes its own changes)."""
+
+    type: Literal["undo_edit"] = "undo_edit"
+    mutates: ClassVar[bool] = True
+    net_id: str | None = None
+
+
 Action = Annotated[
     OpenNetwork
     | BuildNetwork
@@ -293,10 +358,15 @@ Action = Annotated[
     | ClearSelection
     | Style
     | Navigate
-    | SetSetting,
+    | SetSetting
+    | EditCells
+    | DeleteRows
+    | AddRows
+    | UndoEdit,
     Field(discriminator="type"),
 ]
 #: The Actions every session understands, in registry order (``to_python`` imports them from ``netstead.workbench``).
+#: Append new core Actions at the end, here and in ``Action``; never reorder (``_SCRIPT_HEADER`` names the first nine).
 CORE_ACTIONS: tuple[type[BaseAction], ...] = (
     OpenNetwork,
     BuildNetwork,
@@ -307,6 +377,10 @@ CORE_ACTIONS: tuple[type[BaseAction], ...] = (
     Style,
     Navigate,
     SetSetting,
+    EditCells,
+    DeleteRows,
+    AddRows,
+    UndoEdit,
 )
 
 
@@ -417,18 +491,36 @@ def _import_line(cls: type[BaseAction]) -> str:
     return f"from {module} import {cls.__name__}"
 
 
+#: The core Actions on a replayed script's first line, exactly as before P2 added core Actions, so a script that
+#: uses only these keeps its header byte for byte. A later core Action gets its own line, like a plugin's.
+_SCRIPT_HEADER = (
+    "OpenNetwork",
+    "BuildNetwork",
+    "CloseNetwork",
+    "SetActiveNetwork",
+    "Select",
+    "ClearSelection",
+    "Style",
+    "Navigate",
+    "SetSetting",
+)
+
+
 def script_imports(lines: Iterable[str]) -> list[str]:
     """The import lines heading a replayed session script, given its entries' :func:`import_line` values.
 
-    The first line is always ``Session`` plus every core Action from ``netstead.workbench`` (so a
-    core-only script is unchanged from before plugins existed); each other line follows once, in order.
+    The first line is always ``Session`` plus the nine original core Actions from ``netstead.workbench`` (so
+    a script using only those is unchanged from before plugins and P2 existed); each other line (a later core
+    Action's, a plugin Action's) follows once, in order.
 
     >>> script_imports(["from netstead.workbench import Select", "from hello import Greet"])[1:]
     ['from hello import Greet']
+    >>> script_imports(["from netstead.workbench import EditCells"])[1:]
+    ['from netstead.workbench import EditCells']
     """
-    core = {_import_line(model) for model in CORE_ACTIONS}
-    head = ", ".join(["Session", *(model.__name__ for model in CORE_ACTIONS)])
-    return [f"from netstead.workbench import {head}", *dict.fromkeys(ln for ln in lines if ln and ln not in core)]
+    covered = {f"from netstead.workbench import {name}" for name in _SCRIPT_HEADER}
+    head = ", ".join(["Session", *_SCRIPT_HEADER])
+    return [f"from netstead.workbench import {head}", *dict.fromkeys(ln for ln in lines if ln and ln not in covered)]
 
 
 def to_python(action: BaseAction) -> str:

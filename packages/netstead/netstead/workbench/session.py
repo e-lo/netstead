@@ -37,7 +37,7 @@ from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
-from corral.editing import Edit, EditResult
+from corral.editing import Edit, EditingError, EditResult
 from corral.editing.apply import apply_edit, reverse_edit
 from corral.engines.ibis_engine import IbisEngine
 
@@ -64,22 +64,26 @@ from netstead.viz.styling import json_scalar, styleable_columns
 from . import build
 from .actions import (
     ActionRegistry,
+    AddRows,
     BaseAction,
     BuildNetwork,
     ClearSelection,
     CloseNetwork,
+    DeleteRows,
+    EditCells,
     Navigate,
     OpenNetwork,
     Select,
     SetActiveNetwork,
     SetSetting,
     Style,
+    UndoEdit,
     import_line,
     is_secret_name,
     to_python,
 )
 from .editcheck import CheckResult, check_rows, touched_keys
-from .editing import table_keys
+from .editing import EditPlan, EditRefused, plan_add, plan_delete, plan_update, table_keys
 from .errors import ActionError, ApprovalRequired, JobCancelled, NotSupportedYet, PathNotAllowed
 from .estimate import Estimate, needs_approval
 from .events import EventBus
@@ -1267,6 +1271,56 @@ class Session:
             self.reset_llm()  # parser and adapters rebuild from the new provider/model/endpoint on next use
         return {"key": action.key, "value": value, "source": loaded.sources.get(action.key)}
 
+    def _edit_target(self, action: EditCells | DeleteRows | AddRows) -> NetworkHandle:
+        if action.component != "roadway":
+            raise NotSupportedYet("transit edits arrive with the transit component (phase P6)")
+        return self._handle(action.net_id)
+
+    def _apply_plan(self, handle: NetworkHandle, plan: EditPlan, note: str | None) -> dict[str, Any]:
+        """Apply ``plan`` as one pending edit and describe it, with the live warnings on the rows it touched."""
+        text = f"{plan.summary} ({note})" if note else plan.summary
+        try:
+            self.mutate(handle.id, plan.edits, note=text, recheck=plan.recheck)
+        except EditingError as exc:  # corral refused the payload; the draft was discarded, nothing changed
+            raise ActionError(f"the edit failed: {exc}") from exc
+        ledger = self.edits[handle.id]
+        entry = ledger.last()
+        assert entry is not None  # mutate just added it
+        return {
+            "net_id": handle.id,
+            "version": handle.version,
+            "summary": plan.summary,
+            "rows": dict(plan.rows),
+            "keys": list(plan.keys),
+            "warnings": [w.to_dict() for w in ledger.check.for_rows(entry.touched)],
+            "open_warnings": len(ledger.check.warnings),
+        }
+
+    def _do_edit_cells(self, action: EditCells) -> dict[str, Any]:
+        handle = self._edit_target(action)
+        plan = _planned(lambda: plan_update(handle.roadway, action.table, action.ids, action.values))
+        return self._apply_plan(handle, plan, action.note)
+
+    def _do_delete_rows(self, action: DeleteRows) -> dict[str, Any]:
+        handle = self._edit_target(action)
+        plan = _planned(lambda: plan_delete(handle.roadway, action.table, action.ids))
+        return self._apply_plan(handle, plan, action.note)  # the selection follows in mutate (R4)
+
+    def _do_add_rows(self, action: AddRows) -> dict[str, Any]:
+        handle = self._edit_target(action)
+        plan = _planned(lambda: plan_add(handle.roadway, action.table, action.rows))
+        return self._apply_plan(handle, plan, action.note)
+
+    def _do_undo_edit(self, action: UndoEdit) -> dict[str, Any]:
+        entry = self.undo_last(action.net_id)
+        handle = self._handle(action.net_id)
+        return {
+            "net_id": handle.id,
+            "version": handle.version,
+            "undone": entry.view(),
+            "open_warnings": len(self.edit_check(handle.id).warnings),
+        }
+
 
 #: Settings the action API refuses at every scope. ``io.allowed_roots`` is the sandbox for every local
 #: read and write; if an action (a browser click, a replayed script, the NL assistant) could widen it,
@@ -1397,6 +1451,14 @@ def _value_or_unset(settings: Settings, key: str) -> Any:
         if key.strip().lower().split(".", 1)[0] == "plugins":
             return None
         raise
+
+
+def _planned(build: Callable[[], EditPlan]) -> EditPlan:
+    """Run an edit planner; its refusal becomes a recorded :class:`ActionError` (nothing changed)."""
+    try:
+        return build()
+    except EditRefused as exc:
+        raise ActionError(str(exc)) from exc
 
 
 def _follows_endpoint(mode: str, endpoint_local: bool) -> bool:

@@ -82,6 +82,11 @@ def test_script_imports_keep_the_core_line_and_add_each_plugin_line_once():
     greet = import_line(Greet(name="Ada"))
     assert script_imports([]) == [core]
     assert script_imports([import_line(OpenNetwork(source="/x")), greet, greet]) == [core, greet]
+    from netstead.workbench.actions import EditCells, UndoEdit
+
+    edit, undo = import_line(EditCells(ids=[1], values={"lanes": 2})), import_line(UndoEdit())
+    assert edit == "from netstead.workbench import EditCells"
+    assert script_imports([edit, greet, undo, edit]) == [core, edit, greet, undo]  # the header line is unchanged
 
 
 class StrType(BaseAction):

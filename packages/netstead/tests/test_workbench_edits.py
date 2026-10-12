@@ -7,9 +7,18 @@ from corral.editing import Edit, UnsupportedEditOp
 from netstead.fixtures import leavenworth
 from netstead.select.parse import StubParser
 from netstead.workbench import Session
-from netstead.workbench.actions import BaseAction, CloseNetwork, OpenNetwork, Select
+from netstead.workbench.actions import (
+    AddRows,
+    BaseAction,
+    CloseNetwork,
+    DeleteRows,
+    EditCells,
+    OpenNetwork,
+    Select,
+    UndoEdit,
+)
 from netstead.workbench.editing import plan_add, plan_delete, plan_update
-from netstead.workbench.errors import ActionError
+from netstead.workbench.errors import ActionError, NotSupportedYet
 from netstead.workbench.plugins import HOST_API, ActionSpec, WorkbenchPlugin
 
 SRC = str(leavenworth.parquet_dir())
@@ -200,3 +209,105 @@ def test_a_failed_action_keeps_the_old_selection(tmp_path, isolated_env):
     assert s.selection is before and s.selection["link_ids"] == [1, 2]  # Part 1's rollback restores the view
     assert 1 in set(s.network().links_df().link_id) and s.network().version == 0  # and the network
     assert "leavenworth" not in s.edits
+
+
+# ---------------------------------------------------------------------------- the edit Actions
+
+
+def test_a_cell_edit_is_one_recorded_action(session):
+    result = session.dispatch(EditCells(ids=[1], values={"free_speed": 30}, note="signed 30 mph"))
+    assert cell(session, 1) == [30.0] and result["version"] == 1 and result["warnings"] == []
+    assert result["summary"] == "link 1: free_speed = 30.0" and result["rows"] == {"link": 1} and result["keys"] == [1]
+    entry = session.history[-1]
+    assert entry.python == "app.do(EditCells(ids=[1], values={'free_speed': 30}, note='signed 30 mph'))"
+    assert entry.imports == "from netstead.workbench import EditCells"
+    assert handle(session).lineage == ["link 1: free_speed = 30.0 (signed 30 mph)"]
+    assert session.edits["leavenworth"].last().source == "workbench"
+    assert [e.action["type"] for e in session.history] == ["open_network", "edit_cells"]  # no python.mutate entry
+
+
+def test_an_edit_the_spec_disagrees_with_is_applied_and_warned(session):
+    result = session.dispatch(EditCells(table="node", ids=[1], values={"ctrl_type": "bogus"}))
+    assert [w["code"] for w in result["warnings"]] == ["edit.enum"] and result["open_warnings"] == 1
+    assert session.state()["edits"]["leavenworth"]["warnings"] == 1
+
+
+def test_what_storage_cannot_hold_is_refused_and_recorded(session):
+    with pytest.raises(ActionError, match="does not fit"):
+        session.dispatch(EditCells(ids=[1], values={"lanes": 1.5}))
+    assert not session.history[-1].ok and handle(session).version == 0 and "leavenworth" not in session.edits
+
+
+def test_delete_a_link_then_undo(session):
+    lanes = handle(session).roadway.tables["lane"].count()
+    result = session.dispatch(DeleteRows(ids=[1]))
+    assert result["rows"] == {"lane": 1, "link": 1} and 1 not in set(handle(session).links_df().link_id)
+    undone = session.dispatch(UndoEdit())
+    assert undone["undone"]["source"] == "workbench" and undone["version"] == 2
+    assert 1 in set(handle(session).links_df().link_id) and handle(session).roadway.tables["lane"].count() == lanes
+    assert [e.action["type"] for e in session.history[-2:]] == ["delete_rows", "undo_edit"]
+
+
+def test_deleting_a_node_a_link_uses_is_refused(session):
+    with pytest.raises(ActionError, match="still used by link"):
+        session.dispatch(DeleteRows(table="node", ids=[1]))
+
+
+def test_core_undo_refuses_a_python_change(session):
+    mutate(session, plan_update(handle(session).roadway, "link", [1], {"lanes": 2}))
+    with pytest.raises(ActionError, match="made by python"):
+        session.dispatch(UndoEdit())
+
+
+def test_add_rows_from_python(session):
+    node = {"node_id": 9001, "x_coord": -120.66, "y_coord": 47.6}
+    link = {"link_id": 9001, "from_node_id": 1, "to_node_id": 9001, "directed": False, "name": "New Street"}
+    session.dispatch(AddRows(table="node", rows=[node]))
+    result = session.dispatch(AddRows(table="link", rows=[link]))
+    assert result["warnings"] == [] and cell(session, 9001, "name") == ["New Street"]
+
+
+def test_undo_with_nothing_is_a_recorded_failure(session):
+    with pytest.raises(ActionError, match="nothing to undo"):
+        session.dispatch(UndoEdit())
+    assert not session.history[-1].ok
+
+
+def test_transit_edits_are_not_supported_yet(session):
+    with pytest.raises(NotSupportedYet):
+        session.dispatch(EditCells(component="transit", ids=[1], values={"lanes": 2}))
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"type": "edit_cells", "ids": [], "values": {"lanes": 2}},
+        {"type": "edit_cells", "ids": [1], "values": {}},
+        {"type": "add_rows", "table": "link", "rows": []},
+    ],
+)
+def test_empty_requests_fail_validation(session, bad):
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        session.actions.parse(bad)
+
+
+def test_a_replayed_history_reproduces_the_edits(session, tmp_path):
+    session.dispatch(EditCells(ids=[1], values={"free_speed": 30}))
+    session.dispatch(EditCells(ids=[2], values={"lanes": 2}))
+    session.dispatch(UndoEdit())
+    from fastapi.testclient import TestClient
+    from netstead.workbench import build_app
+
+    history = TestClient(build_app(session)).get("/api/history").json()
+    assert history["imports"][1:] == [
+        "from netstead.workbench import EditCells",
+        "from netstead.workbench import UndoEdit",
+    ]
+    script = "\n".join([*history["imports"], *(e["python"] for e in history["entries"])])
+    other = Session(project_dir=tmp_path, environ=session._environ, parser=StubParser(), plugins=[])
+    exec(script, {"app": other})  # replaying our own recorded snippets
+    df = other.network("leavenworth").links_df()
+    assert df.loc[df.link_id == 1, "free_speed"].tolist() == [30.0]
+    assert df.loc[df.link_id == 2, "lanes"].tolist() == [1]
