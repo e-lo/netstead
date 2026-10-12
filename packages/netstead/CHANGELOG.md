@@ -141,6 +141,14 @@ map with an **edit log** for triaging findings and replaying the fixes in Python
   emit a `DeprecationWarning`. `netstead.reports.write_findings_csv` /
   `write_findings_xlsx` stay put.
 
+### Security
+
+- **Map and validation report pages keep data values inside their JSON.** The
+  per-map payload is embedded in a `<script>` block; a finding message or a
+  street name holding `</script>` could end that block and run as markup. The
+  payload now escapes `<` and `>` (`netstead.map`, used by the offline report
+  and the Workbench's report download).
+
 ### Known limitations
 
 - `netstead app --host 0.0.0.0` with an empty `io.allowed_roots` lets anyone on
