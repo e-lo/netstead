@@ -112,5 +112,6 @@ class EditLedger:
             "dirty": bool(unsaved or self.diverged),
             "warnings": len(self.check.warnings),
             "truncated": self.check.truncated,
+            "check_failed": self.check.failed,
             "last_source": last.source if last else None,
         }

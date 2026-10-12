@@ -60,6 +60,7 @@ def test_a_mutation_is_a_pending_edit(session):
         "dirty": True,
         "warnings": 0,
         "truncated": False,
+        "check_failed": False,
         "last_source": "python",
     }
     assert session.history[-1].action["type"] == "python.mutate"  # Part 1: recorded outside an Action
@@ -392,3 +393,60 @@ def test_save_scrubs_the_warning_text(session, tmp_path, monkeypatch):
     result = session.dispatch(SaveNetwork(output_dir=outdir(tmp_path), name="edited", output_format="parquet"))
     assert any("https://h.example/n" in n for n in result["notes"])
     assert not any("s3cr3t" in n for n in result["notes"])
+
+
+# ---------------------------------------------------------------------------- what the live check covers
+
+
+def test_a_raw_delete_flags_the_rows_left_pointing_at_it(session):
+    lanes = handle(session).roadway.tables["lane"].to_pandas()
+    orphans = set(lanes.loc[lanes.link_id == 1, "lane_id"])
+    edit = Edit(op="delete_rows", table="link", payload={"predicate": lambda t: t.link_id == 1})
+    session.mutate("leavenworth", [edit], note="raw delete", origin="cards")  # no cascade: lanes stay behind
+    found = {(w.code, w.table, w.key) for w in session.edit_check("leavenworth").warnings}
+    assert found == {("edit.fk_missing", "lane", k) for k in orphans}
+    assert session.edits["leavenworth"].last().touched == {"lane": orphans}
+
+
+def test_rows_left_at_a_cycle_are_flagged(session, monkeypatch):
+    from netstead.workbench import editcheck, editing
+    from netstead.workbench.related import ForeignKey
+
+    extra = [
+        ForeignKey("link_tod", "link_tod_id", "lane", "lane_id"),
+        ForeignKey("lane", "lane_num", "link_tod", "link_tod_id"),
+    ]
+    for module in (editing, editcheck):
+        real = module.foreign_keys
+        monkeypatch.setattr(
+            module,
+            "foreign_keys",
+            lambda spec, cols, self_refs=False, real=real: [*real(spec, cols, self_refs=self_refs), *extra],
+        )
+    session.dispatch(DeleteRows(ids=[1]))
+    lanes = handle(session).roadway.tables["lane"].to_pandas()
+    pointing = set(lanes.loc[lanes.lane_num == 1, "lane_id"])
+    flagged = {w.key for w in session.edit_check("leavenworth").warnings if w.code == "edit.fk_missing"}
+    assert pointing and flagged == pointing
+
+
+def test_the_newest_edit_is_checked_before_older_ones(session, monkeypatch):
+    from netstead.workbench import editcheck
+
+    monkeypatch.setattr(editcheck, "MAX_CHECKED_KEYS", 1)
+    session.dispatch(EditCells(table="node", ids=[1], values={"ctrl_type": "bogus"}))
+    result = session.dispatch(EditCells(table="node", ids=[2], values={"ctrl_type": "bogus"}))
+    assert [(w["key"], w["code"]) for w in result["warnings"]] == [(2, "edit.enum")]  # node 1 sorts first
+    assert session.state()["edits"]["leavenworth"]["truncated"] is True
+
+
+def test_a_crashed_check_is_reported_as_failed_not_truncated(session, monkeypatch):
+    from netstead.workbench import session as session_module
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("check crashed")
+
+    monkeypatch.setattr(session_module, "check_rows", boom)
+    session.dispatch(EditCells(ids=[1], values={"free_speed": 30}))
+    summary = session.state()["edits"]["leavenworth"]
+    assert summary["check_failed"] is True and summary["truncated"] is False and cell(session, 1) == [30.0]

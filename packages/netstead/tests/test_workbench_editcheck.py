@@ -108,3 +108,10 @@ def test_warnings_for_some_rows(net):
     result = check_rows(net, {"node": [1, 2]})
     assert [w.key for w in result.for_rows({"node": {2}})] == [2]
     assert result.to_dict()["warnings"][0]["code"] == "edit.enum"
+
+
+def test_the_cap_checks_the_newest_keys_first(net, monkeypatch):
+    monkeypatch.setattr(editcheck, "MAX_CHECKED_KEYS", 1)
+    apply(net, plan_update(net, "node", [1, 2], {"ctrl_type": "bogus"}))
+    result = check_rows(net, {"node": [1, 2]}, first={"node": [2]})
+    assert result.truncated is True and [w.key for w in result.warnings] == [2]

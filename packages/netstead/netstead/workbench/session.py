@@ -86,7 +86,7 @@ from .actions import (
     is_secret_name,
     to_python,
 )
-from .editcheck import CheckResult, check_rows, touched_keys
+from .editcheck import CheckResult, check_rows, referencing_keys, touched_keys
 from .editing import EditPlan, EditRefused, plan_add, plan_delete, plan_update, table_keys
 from .errors import ActionError, ApprovalRequired, JobCancelled, NotSupportedYet, PathNotAllowed
 from .estimate import Estimate, needs_approval
@@ -808,10 +808,10 @@ class Session:
             applied = [apply_edit(draft, edit) for edit in edits]
             self._swap(handle, draft, {e.table for e in edits}, note, origin)
             touched = touched_keys(applied, table_keys(handle.roadway))
-            for table, keys in (recheck or {}).items():
+            for table, keys in [*(recheck or {}).items(), *self._referencing(handle, applied).items()]:
                 touched.setdefault(table, set()).update(keys)
             self._ledger_for(handle.id).add(self._source(origin), note, handle.version, applied, touched)
-            self._settle(handle, note, origin, kind="mutate")
+            self._settle(handle, note, origin, kind="mutate", first=touched)
         return applied
 
     def revert(
@@ -837,7 +837,7 @@ class Session:
                 reverse_edit(draft, result)
             self._swap(handle, draft, {r.edit.table for r in last.results}, note, origin)
             self._ledger_for(handle.id).pop()
-            self._settle(handle, note, origin, kind="revert")
+            self._settle(handle, note, origin, kind="revert", first=last.touched)
 
     def undo_last(self, net_id: str | None, *, source: str = CORE_SOURCE) -> PendingEdit:
         """Revert the network's newest pending edit, if ``source`` made it; return the entry undone.
@@ -922,29 +922,48 @@ class Session:
         """Who a mutation belongs to: its plugin, a core Action (``"workbench"``), or Python outside any Action."""
         return origin or (CORE_SOURCE if self._running else PYTHON_SOURCE)
 
-    def _settle(self, handle: NetworkHandle, note: str, origin: str | None, *, kind: str) -> None:
+    def _referencing(self, handle: NetworkHandle, applied: Sequence[EditResult]) -> dict[str, set[Any]]:
+        """Rows still pointing at rows ``applied`` deleted (to re-check); a failure only narrows the live check."""
+        if not any(r.edit.op == "delete_rows" for r in applied):
+            return {}
+        try:
+            return referencing_keys(handle.roadway, applied)
+        except Exception:  # boundary: a failing lookup must not undo a good edit; Run validation still works
+            logger.exception("finding rows that referenced deleted rows on %s failed", handle.id)
+            return {}
+
+    def _settle(
+        self,
+        handle: NetworkHandle,
+        note: str,
+        origin: str | None,
+        *,
+        kind: str,
+        first: Mapping[str, Iterable[Any]] | None = None,
+    ) -> None:
         """After a swap: re-run the live checks, then publish (inside an Action) or record (outside one)."""
-        self._recheck(handle)
+        self._recheck(handle, first)
         self._refresh_selection(handle)
         if self._running:
             self.events.publish({"type": "state", "state": self.state()})
         else:
             self._record_outside_action(handle.id, note, origin or PYTHON_SOURCE, kind=kind)
 
-    def _recheck(self, handle: NetworkHandle) -> None:
+    def _recheck(self, handle: NetworkHandle, first: Mapping[str, Iterable[Any]] | None = None) -> None:
         """Re-run the live checks over every key the network's ledger touched (call with the lock held).
 
-        It assigns ``ledger.check`` on the live ledger after :meth:`_ledger_for` snapshotted it, so a rollback
-        also restores the check that matched the old tables.
+        ``first`` (the newest change's keys) is checked before older ones, so the per-table cap never skips
+        it. It assigns ``ledger.check`` on the live ledger after :meth:`_ledger_for` snapshotted it, so a
+        rollback also restores the check that matched the old tables.
         """
         ledger = self.edits.get(handle.id)
         if ledger is None:
             return
         try:
-            ledger.check = check_rows(handle.roadway, ledger.touched())
+            ledger.check = check_rows(handle.roadway, ledger.touched(), first=first)
         except Exception:  # boundary: a failing check must not undo a good edit; Run validation still works
             logger.exception("live edit check on %s failed", handle.id)
-            ledger.check = CheckResult(truncated=True)
+            ledger.check = CheckResult(failed=True)
 
     def _refresh_selection(self, handle: NetworkHandle) -> None:
         """Keep the shared selection true to an edited network (call with the lock held, after a swap).

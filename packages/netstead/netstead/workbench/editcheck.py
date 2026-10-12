@@ -10,8 +10,9 @@ After every mutation the session re-checks the rows its pending edits have touch
 * ``edit.duplicate_key``: another row has the same primary key.
 
 Each check reads only the touched rows (an ibis ``IN`` filter) and the referenced keys it needs, so it is
-bounded by the edit, not by the network; at most :data:`MAX_CHECKED_KEYS` keys per table are checked. A
-whole row is checked, not just the edited cells: a row is what the spec constrains.
+bounded by the edit, not by the network; at most :data:`MAX_CHECKED_KEYS` keys per table are checked, the
+newest edit's keys first. A whole row is checked, not just the edited cells: a row is what the spec
+constrains. A deletion touches the rows that still point at what it deleted (:func:`referencing_keys`).
 """
 
 from __future__ import annotations
@@ -28,7 +29,15 @@ from netstead.viz.styling import json_scalar
 from .editing import table_keys
 from .related import _schemas, foreign_keys
 
-__all__ = ["MAX_CHECKED_KEYS", "CheckResult", "EditWarning", "check_rows", "fits_type", "touched_keys"]
+__all__ = [
+    "MAX_CHECKED_KEYS",
+    "CheckResult",
+    "EditWarning",
+    "check_rows",
+    "fits_type",
+    "referencing_keys",
+    "touched_keys",
+]
 
 #: Keys checked per table after one mutation; beyond this the result says ``truncated``.
 MAX_CHECKED_KEYS = 10_000
@@ -52,10 +61,11 @@ class EditWarning:
 
 @dataclass(frozen=True)
 class CheckResult:
-    """The warnings for a set of touched rows, and whether :data:`MAX_CHECKED_KEYS` cut the check short."""
+    """The warnings for a set of touched rows: whether :data:`MAX_CHECKED_KEYS` cut it short, or it crashed."""
 
     warnings: tuple[EditWarning, ...] = ()
     truncated: bool = False
+    failed: bool = False  # the check raised (logged); its warnings are unknown, not absent
 
     def for_rows(self, touched: Mapping[str, Iterable[Any]]) -> list[EditWarning]:
         """The warnings on the rows in ``touched`` (``{table: keys}``)."""
@@ -64,7 +74,11 @@ class CheckResult:
 
     def to_dict(self) -> dict[str, Any]:
         """JSON-safe copy."""
-        return {"warnings": [w.to_dict() for w in self.warnings], "truncated": self.truncated}
+        return {
+            "warnings": [w.to_dict() for w in self.warnings],
+            "truncated": self.truncated,
+            "failed": self.failed,
+        }
 
 
 def fits_type(value: Any, spec_type: str | None) -> bool:
@@ -98,19 +112,54 @@ def touched_keys(results: Sequence[EditResult], pks: Mapping[str, str | None]) -
     return out
 
 
-def check_rows(net: Any, touched: Mapping[str, Iterable[Any]]) -> CheckResult:
-    """Check the rows in ``touched`` (``{table: keys}``) that still exist; tables without a key are skipped."""
+def referencing_keys(net: Any, results: Sequence[EditResult]) -> dict[str, set[Any]]:
+    """``{table: keys}`` of the rows that still point, through the spec's foreign keys, at rows ``results`` deleted.
+
+    Read after the edits are applied: one ``IN`` read per foreign key into a table that lost rows. A plugin's
+    raw ``delete_rows`` on a link leaves its lanes behind; this is how their dangling ``link_id`` gets checked.
+    """
+    pks = table_keys(net)
+    fks = foreign_keys(net.spec, {n: t.columns() for n, t in net.tables.items()}, self_refs=True)
+    deleted: dict[str, list[dict[str, Any]]] = {}
+    for result in results:
+        if result.edit.op == "delete_rows":
+            deleted.setdefault(result.edit.table, []).extend(affected_rows(result))
+    out: dict[str, set[Any]] = {}
+    for fk in fks:
+        rows, pk = deleted.get(fk.ref_table), pks.get(fk.table)
+        src = net.tables.get(fk.table)
+        if not rows or pk is None or src is None:
+            continue
+        values = sorted({json_scalar(r[fk.ref_column]) for r in rows if r.get(fk.ref_column) is not None}, key=str)
+        if not values:
+            continue
+        frame = src.filter(_where(fk.column, values)).select(pk).to_pandas()
+        out.setdefault(fk.table, set()).update(json_scalar(v) for v in frame[pk] if v is not None)
+    return {t: keys for t, keys in out.items() if keys}
+
+
+def check_rows(
+    net: Any, touched: Mapping[str, Iterable[Any]], *, first: Mapping[str, Iterable[Any]] | None = None
+) -> CheckResult:
+    """Check the rows in ``touched`` (``{table: keys}``) that still exist; tables without a key are skipped.
+
+    ``first`` (a subset of ``touched``: the newest edit's keys) is checked before the rest, so
+    :data:`MAX_CHECKED_KEYS` never cuts the newest edit's rows in favour of older ones.
+    """
     pks = table_keys(net)
     schemas = _schemas(net.spec)
     fks = foreign_keys(net.spec, {n: t.columns() for n, t in net.tables.items()}, self_refs=True)
     found: list[EditWarning] = []
     truncated = False
+    first = first or {}
     for table, wanted in touched.items():
         src, pk = net.tables.get(table), pks.get(table)
-        keys = sorted(set(wanted), key=str)
+        everything = set(wanted)
+        newest = sorted(everything & set(first.get(table, ())), key=str)
+        keys = newest + sorted(everything - set(newest), key=str)
         if src is None or pk is None or not keys:
             continue
-        if len(keys) > MAX_CHECKED_KEYS:  # check the first ones; Run validation covers the rest
+        if len(keys) > MAX_CHECKED_KEYS:  # the newest first, then the oldest; Run validation covers the rest
             keys, truncated = keys[:MAX_CHECKED_KEYS], True
         frame = src.filter(_where(pk, keys)).to_pandas()
         if frame.empty:
