@@ -7,8 +7,8 @@ from corral.editing import Edit, UnsupportedEditOp
 from netstead.fixtures import leavenworth
 from netstead.select.parse import StubParser
 from netstead.workbench import Session
-from netstead.workbench.actions import BaseAction, CloseNetwork, OpenNetwork
-from netstead.workbench.editing import plan_add, plan_update
+from netstead.workbench.actions import BaseAction, CloseNetwork, OpenNetwork, Select
+from netstead.workbench.editing import plan_add, plan_delete, plan_update
 from netstead.workbench.errors import ActionError
 from netstead.workbench.plugins import HOST_API, ActionSpec, WorkbenchPlugin
 
@@ -146,3 +146,42 @@ def test_closing_the_network_drops_its_edits(session):
     mutate(session, plan_update(handle(session).roadway, "link", [1], {"lanes": 2}))
     session.dispatch(CloseNetwork(net_id="leavenworth"))
     assert session.edits == {} and "leavenworth" not in session.state()["edits"]
+
+
+def test_an_id_selection_drops_deleted_links(session):
+    session.dispatch(Select(link_ids=[1, 2]))
+    assert session.selection["intent"] is None  # made by ids
+    mutate(session, plan_delete(handle(session).roadway, "link", [1]))
+    assert session.selection["link_ids"] == [2] and session.selection["status"] == "resolved"
+    mutate(session, plan_delete(handle(session).roadway, "link", [2]))
+    assert session.selection is None  # nothing left to select
+
+
+def test_an_id_selection_survives_an_unrelated_edit_unchanged(session):
+    session.dispatch(Select(link_ids=[1, 2]))
+    before = session.selection
+    mutate(session, plan_update(handle(session).roadway, "link", [3], {"lanes": 2}))
+    assert session.selection is before
+
+
+def test_a_query_selection_is_resolved_again(session):
+    sel = session.dispatch(Select(utterance="Ski Hill Drive"))
+    assert sel["status"] == "resolved" and len(sel["link_ids"]) == 20 and sel["intent"] is not None
+    gone = sel["link_ids"][0]
+    mutate(session, plan_delete(handle(session).roadway, "link", [gone]))
+    assert len(session.selection["link_ids"]) == 19 and gone not in session.selection["link_ids"]
+    assert session.selection["utterance"] == "Ski Hill Drive"
+    session.undo_last("leavenworth", source="python")
+    assert len(session.selection["link_ids"]) == 20  # the revert brings the link back into the query's answer
+
+
+def test_a_failed_action_keeps_the_old_selection(tmp_path, isolated_env):
+    plugin = WorkbenchPlugin(
+        id="scribble", name="Scribble", version="0", requires_api=HOST_API, actions=(ActionSpec(Scribble, _scribble),)
+    )
+    s = Session(project_dir=tmp_path, environ=isolated_env, parser=StubParser(), plugins=[plugin])
+    s.dispatch(OpenNetwork(source=SRC))
+    s.dispatch(Select(link_ids=[1, 2]))
+    before = s.selection
+    assert not s.dispatch_recorded(Scribble(fail=True)).ok
+    assert s.selection is before  # Part 1's rollback restores the view

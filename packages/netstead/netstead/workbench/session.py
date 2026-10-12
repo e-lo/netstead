@@ -54,11 +54,12 @@ from netstead.config import (
 from netstead.llm import LLMError, MissingKey, ProviderRegistry, build_registry
 from netstead.llm.context import assistant_context, find_project_context, read_capped
 from netstead.llm.secrets import redact_settings
+from netstead.select.errors import IntentError
 from netstead.select.intent import SelectionIntent
-from netstead.select.parse import LLMParser, make_parser, payload_from_intent
+from netstead.select.parse import LLMParser, intent_from_payload, make_parser, payload_from_intent
 from netstead.select.prompt import PromptContext, close_match_hint, vocabulary_from_links
 from netstead.select.resolve import resolve_frames
-from netstead.viz.styling import styleable_columns
+from netstead.viz.styling import json_scalar, styleable_columns
 
 from . import build
 from .actions import (
@@ -832,6 +833,7 @@ class Session:
     def _settle(self, handle: NetworkHandle, note: str, origin: str | None, *, kind: str) -> None:
         """After a swap: re-run the live checks, then publish (inside an Action) or record (outside one)."""
         self._recheck(handle)
+        self._refresh_selection(handle)
         if self._running:
             self.events.publish({"type": "state", "state": self.state()})
         else:
@@ -851,6 +853,38 @@ class Session:
         except Exception:  # boundary: a failing check must not undo a good edit; Run validation still works
             logger.exception("live edit check on %s failed", handle.id)
             ledger.check = CheckResult(truncated=True)
+
+    def _refresh_selection(self, handle: NetworkHandle) -> None:
+        """Keep the shared selection true to an edited network (call with the lock held, after a swap).
+
+        A selection made by a query (its payload keeps the parsed ``intent``) is resolved again; one made
+        by ids keeps them, minus the links that no longer exist, and is cleared when none is left. It is
+        deterministic, so a replayed session agrees; a failed Action restores the old one (``_roll_back``).
+        """
+        sel = self.selection
+        if not sel or sel["net_id"] != handle.id or sel["component"] != "roadway":
+            return
+        links, nodes = handle.links_df(), handle.nodes_df()
+        if sel.get("intent") is not None:
+            try:
+                intent = intent_from_payload(sel["intent"], sel["utterance"] or "")
+            except IntentError:  # cannot happen for a payload we wrote; keep the ids rule rather than fail an edit
+                logger.exception("could not re-read the selection's intent on %s", handle.id)
+            else:
+                result = resolve_frames(intent, links, nodes)
+                self.selection = selection_payload(
+                    handle, result, utterance=sel["utterance"], parsed_by=sel["parsed_by"]
+                )
+                return
+        present = {json_scalar(v) for v in links["link_id"]}
+        kept = [i for i in sel["link_ids"] if i in present]
+        if kept == sel["link_ids"]:
+            return
+        if not kept:
+            self.selection = None
+            return
+        result = resolve_frames(SelectionIntent(link_ids=kept), links, nodes)
+        self.selection = selection_payload(handle, result)
 
     def _record_outside_action(self, net_id: str, note: str, origin: str, *, kind: str = "mutate") -> None:
         """Record a ``mutate`` or ``revert`` no Action covers, so nothing changes silently (not replayable)."""

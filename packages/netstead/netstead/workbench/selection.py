@@ -6,6 +6,7 @@ import json
 from typing import Any
 
 from netstead.select.emit import to_fragment, to_projectcard
+from netstead.select.parse import payload_from_intent
 from netstead.viz.styling import json_scalar
 
 from .registry import NetworkHandle
@@ -34,7 +35,9 @@ def selection_payload(
 
     ``parsed_by`` is the parser's ``describe()`` (provider/model/mode, never a key); ``None`` for a
     selection by explicit link ids. ``projectcard`` is the :func:`facility_forms` of a resolved selection
-    (``None`` otherwise).
+    (``None`` otherwise). ``intent`` is a query's parsed intent as tool arguments
+    (:func:`~netstead.select.parse.payload_from_intent`), so an edit can resolve it again; ``None`` for a selection
+    made by ids.
     """
     node_xy = handle.node_xy()
     anchors = []
@@ -56,6 +59,7 @@ def selection_payload(
         "component": "roadway",
         "status": result.status,
         "utterance": utterance,
+        "intent": payload_from_intent(result.intent) if utterance is not None else None,
         "link_ids": [json_scalar(i) for i in result.link_ids],
         "anchors": anchors,
         "fragment": to_fragment(result) if result.status == "resolved" else None,
@@ -74,6 +78,7 @@ def unparsed_payload(
         "component": "roadway",
         "status": "not_found",
         "utterance": utterance,
+        "intent": None,
         "link_ids": [],
         "anchors": [],
         "fragment": None,
