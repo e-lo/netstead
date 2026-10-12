@@ -502,3 +502,12 @@ def test_header_shows_located_vs_unlocated_split(tmp_path):
     html = render_validation_html(net, report)
     assert "1 on map" in html
     assert "1 unlocated" in html
+
+
+def test_a_data_value_cannot_close_the_payload_script(tmp_path):
+    """Messages quote data values (a street name): one holding ``</script>`` must stay inside the JSON blob."""
+    net = _osm_network(tmp_path)
+    evil = "</script><script>alert(1)</script>"
+    issue = Issue(Severity.WARNING, Category.SCHEMA, "schema.required", evil, table="link", row=0)
+    html = render_validation_html(net, ValidationReport(issues=[issue]))
+    assert "<script>alert(1)" not in html
