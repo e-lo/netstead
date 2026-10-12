@@ -103,6 +103,14 @@ def _concat_arrow(left: pa.Table, right: pa.Table) -> pa.Table:
     return pa.concat_tables([_aligned(left), _aligned(right)])
 
 
+def _null_safe(left: ibis.Table, right: ibis.Table, columns: list[str]) -> list[Any]:
+    """Join predicates that also match NULL to NULL (``=`` never does, so a row holding a null would never match).
+
+    ``right`` is cast to ``left``'s types: a column that is all null in the recorded rows arrives typed ``null``.
+    """
+    return [left[c].identical_to(right[c].cast(left[c].type())) for c in columns]
+
+
 # ---------------------------------------------------------------------------
 # Op handlers — each returns (new_arrow, rollback_data, diff_counts)
 # ---------------------------------------------------------------------------
@@ -193,7 +201,10 @@ APPLY_OPS = {
 
 
 def _reverse_add_rows(current: pa.Table, rollback_data: dict, engine: Engine) -> pa.Table:
-    """Anti-join ``current`` against the recorded added rows on every shared column."""
+    """Anti-join ``current`` against the recorded added rows on every shared column.
+
+    Columns are compared null-safely (NULL matches NULL).
+    """
     added_rows = rollback_data.get("added_rows") or []
     if not added_rows:
         return current
@@ -201,7 +212,8 @@ def _reverse_add_rows(current: pa.Table, rollback_data: dict, engine: Engine) ->
     join_cols = [c for c in current.column_names if c in added_arrow.column_names]
     if not join_cols:
         return current
-    return ibis.memtable(current).anti_join(ibis.memtable(added_arrow), predicates=join_cols).to_pyarrow()
+    left, right = ibis.memtable(current), ibis.memtable(added_arrow)
+    return left.anti_join(right, predicates=_null_safe(left, right, join_cols)).to_pyarrow()
 
 
 def _reverse_delete_rows(current: pa.Table, rollback_data: dict, engine: Engine) -> pa.Table:
@@ -215,7 +227,8 @@ def _reverse_delete_rows(current: pa.Table, rollback_data: dict, engine: Engine)
 def _reverse_update_rows(current: pa.Table, rollback_data: dict, engine: Engine) -> pa.Table:
     """Restore pre-update values by anti-joining on identity (non-touched) columns + concat originals.
 
-    Best-effort when no identity columns survive — restores the original snapshot wholesale.
+    Best-effort when no identity columns survive — restores the original snapshot wholesale. Columns are compared
+    null-safely (NULL matches NULL).
     """
     original_rows = rollback_data.get("original_rows") or []
     touched = rollback_data.get("predicate_fields") or []
@@ -227,7 +240,8 @@ def _reverse_update_rows(current: pa.Table, rollback_data: dict, engine: Engine)
     identity_cols = [c for c in current.column_names if c not in touched]
     if not identity_cols:
         return original_arrow
-    kept = ibis.memtable(current).anti_join(ibis.memtable(original_arrow), predicates=identity_cols).to_pyarrow()
+    left, right = ibis.memtable(current), ibis.memtable(original_arrow)
+    kept = left.anti_join(right, predicates=_null_safe(left, right, identity_cols)).to_pyarrow()
     return _concat_arrow(kept, original_arrow)
 
 
@@ -351,3 +365,25 @@ def reverse_edit(package: Package, result: EditResult) -> None:
     table.dirty = bool(result.rollback_data.get("_pre_edit_dirty", True))
     if package.dirty_tracker is not None:
         package.dirty_tracker.mark_dirty(result.edit.table)
+
+
+def affected_rows(result: EditResult) -> list[dict]:
+    """The rows an applied edit added, changed (as they were *before* the edit) or removed.
+
+    Read from the edit's rollback data, so callers never interpret that blob themselves. Empty for
+    ``replace_table`` (every row) and for an edit that matched nothing.
+
+    Examples:
+        >>> from corral.dataset import Package, Table
+        >>> from corral.editing import Edit
+        >>> from corral.engines.ibis_engine import IbisEngine
+        >>> e = IbisEngine()
+        >>> pkg = Package.from_tables({"x": Table(name="x", expr=e.from_records([{"a": 1}]), engine=e)})
+        >>> affected_rows(apply_edit(pkg, Edit(op="add_rows", table="x", payload={"rows": [{"a": 2}]})))
+        [{'a': 2}]
+    """
+    data = result.rollback_data or {}
+    for key in ("added_rows", "original_rows", "deleted_rows"):
+        if key in data:
+            return list(data[key] or [])
+    return []

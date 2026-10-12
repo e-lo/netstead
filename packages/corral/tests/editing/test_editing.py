@@ -33,7 +33,7 @@ from corral.editing import (
     UnsupportedEditOp,
     rollback,
 )
-from corral.editing.apply import apply_edit
+from corral.editing.apply import affected_rows, apply_edit, reverse_edit
 from corral.engines.ibis_engine import IbisEngine
 from corral.validation.sync_state import DirtyTracker
 
@@ -468,3 +468,43 @@ def test_reverse_edit_preserves_dirty_dirty_flag() -> None:
         s.add_edit(Edit(op="add_rows", table="t", payload={"rows": [{"id": 99}]}))
     rollback(pkg, log_path)
     assert pkg["t"].dirty is True, "rollback must preserve pre-edit dirty=True state"
+
+
+def _with_nulls() -> Package:
+    e = IbisEngine()
+    rows = [{"id": 1, "name": "a", "v": 1.0}, {"id": 2, "name": None, "v": 2.0}, {"id": 3, "name": "c", "v": 3.0}]
+    return Package.from_tables({"x": Table(name="x", expr=e.from_records(rows), engine=e)})
+
+
+def _rows(pkg: Package) -> list[dict]:
+    return sorted(pkg.tables["x"].expr.to_pyarrow().to_pylist(), key=lambda r: r["id"])
+
+
+def test_reverse_update_restores_a_row_whose_other_columns_hold_null() -> None:
+    pkg = _with_nulls()
+    before = _rows(pkg)
+    r = apply_edit(
+        pkg, Edit(op="update_rows", table="x", payload={"predicate": lambda t: t.id == 2, "set": {"v": 9.0}})
+    )
+    reverse_edit(pkg, r)
+    assert _rows(pkg) == before  # not two copies of id 2
+
+
+def test_reverse_add_removes_an_added_row_that_holds_null() -> None:
+    pkg = _with_nulls()
+    before = _rows(pkg)
+    r = apply_edit(pkg, Edit(op="add_rows", table="x", payload={"rows": [{"id": 4, "name": None, "v": 4.0}]}))
+    reverse_edit(pkg, r)
+    assert _rows(pkg) == before
+
+
+def test_affected_rows_reads_each_op() -> None:
+    pkg = _with_nulls()
+    added = apply_edit(pkg, Edit(op="add_rows", table="x", payload={"rows": [{"id": 4, "name": "d", "v": 4.0}]}))
+    changed = apply_edit(
+        pkg, Edit(op="update_rows", table="x", payload={"predicate": lambda t: t.id == 1, "set": {"v": 5.0}})
+    )
+    removed = apply_edit(pkg, Edit(op="delete_rows", table="x", payload={"predicate": lambda t: t.id == 3}))
+    assert [r["id"] for r in affected_rows(added)] == [4]
+    assert affected_rows(changed) == [{"id": 1, "name": "a", "v": 1.0}]  # the values before the edit
+    assert [r["id"] for r in affected_rows(removed)] == [3]

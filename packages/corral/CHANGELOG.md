@@ -6,7 +6,18 @@ This file is for the **corral** package only. `netstead` (which depends on corra
 
 ## [Unreleased]
 
-(Reserved for changes between the most recent release and the next.)
+### Fixed
+
+- **Undo restores rows that hold nulls.** `reverse_edit` of an `update_rows` or
+  `add_rows` edit found the touched rows with an `=` anti-join, which never
+  matches `NULL`; a row with any null was left behind as a duplicate (or, for
+  an added row, never removed). The reverse joins now compare null-safely.
+
+### Added
+
+- `corral.editing.affected_rows(result)`: the rows an applied edit added,
+  changed (as they were before the edit) or removed, read from its rollback
+  data. Additive; no existing signature changed.
 
 ## [1.0.0-beta.2] — TBD
 
