@@ -175,13 +175,28 @@ def test_a_query_selection_is_resolved_again(session):
     assert len(session.selection["link_ids"]) == 20  # the revert brings the link back into the query's answer
 
 
+class Snip(BaseAction):
+    type: Literal["snip.cut"] = "snip.cut"
+    mutates: ClassVar[bool] = True
+
+
+def _snip(host, action: Snip) -> None:
+    plan = plan_delete(host.network().roadway, "link", [1])
+    host.mutate(None, plan.edits, note=plan.summary)
+    assert host.selection["link_ids"] == [2]  # R4 moved the selection off the deleted link...
+    raise RuntimeError("after the delete")  # ...and this failure must put it back
+
+
 def test_a_failed_action_keeps_the_old_selection(tmp_path, isolated_env):
     plugin = WorkbenchPlugin(
-        id="scribble", name="Scribble", version="0", requires_api=HOST_API, actions=(ActionSpec(Scribble, _scribble),)
+        id="snip", name="Snip", version="0", requires_api=HOST_API, actions=(ActionSpec(Snip, _snip),)
     )
     s = Session(project_dir=tmp_path, environ=isolated_env, parser=StubParser(), plugins=[plugin])
     s.dispatch(OpenNetwork(source=SRC))
     s.dispatch(Select(link_ids=[1, 2]))
     before = s.selection
-    assert not s.dispatch_recorded(Scribble(fail=True)).ok
-    assert s.selection is before  # Part 1's rollback restores the view
+    entry = s.dispatch_recorded(Snip())
+    assert not entry.ok and "after the delete" in entry.error  # the handler got past its R4 assertion
+    assert s.selection is before and s.selection["link_ids"] == [1, 2]  # Part 1's rollback restores the view
+    assert 1 in set(s.network().links_df().link_id) and s.network().version == 0  # and the network
+    assert "leavenworth" not in s.edits
