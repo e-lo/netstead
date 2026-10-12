@@ -30,7 +30,7 @@ import time
 import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -318,12 +318,20 @@ def staging(dest: Path) -> Iterator[Path]:
 def write_output(net: Network, tmp: Path, output_format: str, ctx: JobContext) -> None:
     """Stage ``write``: persist ``net`` at the staging path ``tmp`` (from :func:`staging`).
 
+    The output is a new copy, never the source, so corral's :class:`~corral.OutOfSyncWarning` (an edited
+    table is "stale" against the source it was read from) does not apply: the write goes through a proxy
+    whose tables are flagged clean, and a caller that wants to say which tables were edited reads
+    ``Table.dirty`` itself. A filter or ``warnings.catch_warnings`` could not do this: corral attributes
+    the warning to :mod:`netstead.network`, and ``catch_warnings`` is process-global, so on a job thread
+    it would swallow other threads' warnings.
+
     Raises:
         ActionError: the write failed with an ``OSError`` (the caller's :func:`staging` cleans up).
     """
     ctx.stage("write", progress=0.75)
+    clean = replace(net, tables={name: replace(t, dirty=False) for name, t in net.tables.items()})
     try:
-        net.write(tmp, format=output_format)
+        clean.write(tmp, format=output_format)
     except OSError as exc:  # disk full, permissions: user-facing, not an internal error
         raise ActionError(f"could not write the {output_format} output: {exc}") from exc
 

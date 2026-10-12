@@ -105,6 +105,8 @@ def test_ids_arrive_as_text_or_numbers(net):
         ("nope", [1], {"x": 1}, "no nope table"),
         ("link", [], {"lanes": 2}, "at least one row"),
         ("link", [1], {}, "at least one column"),
+        ("geometry", [1], {"geometry": None}, "cannot be edited yet"),  # clearing a binary column is an edit too
+        ("geometry", [1], {"geometry": ""}, "cannot be edited yet"),
     ],
 )
 def test_bad_updates_are_refused(net, table, ids, values, message):
@@ -160,6 +162,11 @@ def test_adding_rows(net):
 def test_bad_additions_are_refused(net, rows, message):
     with pytest.raises(EditRefused, match=message):
         plan_add(net, "link", rows)
+
+
+def test_an_added_row_may_leave_a_geometry_empty(net):
+    plan = plan_add(net, "geometry", [{"geometry_id": 9001, "geometry": None}])
+    assert plan.edits[0].payload["rows"] == [{"geometry_id": 9001, "geometry": None}]
 
 
 def test_a_duplicate_key_is_added_not_refused(net):

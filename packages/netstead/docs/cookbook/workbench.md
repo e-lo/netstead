@@ -122,7 +122,7 @@ app.do(
 Without `approved=True`, a build over the threshold raises `netstead.workbench.ApprovalRequired`, and its
 `.estimate` holds the estimate.
 
-Two things to know before replaying a session's script:
+Three things to know before replaying a session's script:
 
 - **Folders trusted on the command line are not in the history.** `netstead app /data/net` allows `/data/net` for
   that session only, without recording an action. A replay in a new `Session()` only gets your configured
@@ -131,6 +131,10 @@ Two things to know before replaying a session's script:
   `Session(overrides={"io.allowed_roots": ["/data/net"]})`.
 - **Builds never overwrite.** Replaying a `BuildNetwork` whose output already exists fails with
   `… already exists`. Point the replay at a fresh `output_dir`, or move the earlier output away first.
+- **Saves never overwrite either.** A replayed `SaveNetwork` writes its copy again, so it fails with
+  `… already exists` while the earlier copy is still there; a second replay of the same script always does.
+  Its `accept_warnings=True` accepts the edit warnings the network has *when the replay runs*, which need
+  not be the ones you reviewed when you saved.
 
 ## Settings
 

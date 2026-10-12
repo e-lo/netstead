@@ -1176,3 +1176,21 @@ def test_host_undo_refuses_core_s_change(make_session):
     session.mutate(None, plan.edits, note=plan.summary)  # Python's change, not hello's
     with pytest.raises(ActionError, match="made by python"):
         session._hosts["hello"].undo()
+
+
+def test_a_plan_made_before_another_edit_is_refused(make_session):
+    from netstead.fixtures import leavenworth
+    from netstead.workbench.actions import EditCells, OpenNetwork
+
+    session = make_session(make_hello())
+    session.dispatch(OpenNetwork(source=str(leavenworth.parquet_dir())))
+    host = session._hosts["hello"]
+    plan = host.plan_update(None, "link", [1], {"lanes": 2})
+    assert plan.version == 0
+    session.dispatch(EditCells(ids=[1], values={"lanes": 3}))  # lands between the plan and its mutate
+    with pytest.raises(ActionError, match="changed since the edit was planned"):
+        host.mutate(None, plan.edits, note=plan.summary, expected_version=plan.version)
+    assert len(session.edits["leavenworth"].entries) == 1
+    fresh = host.plan_update(None, "link", [1], {"lanes": 2})
+    host.mutate(None, fresh.edits, note=fresh.summary, expected_version=fresh.version)
+    assert session.edits["leavenworth"].last().source == "hello"

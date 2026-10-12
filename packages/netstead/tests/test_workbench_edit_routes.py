@@ -102,6 +102,21 @@ def test_the_report_needs_a_current_validation(fresh):
     assert fresh.get(f"{BASE}/report.html").status_code == 409
 
 
+def test_the_report_draws_the_network_the_run_read(tmp_path, monkeypatch):
+    from netstead import map as netstead_map
+
+    s = _session(tmp_path)
+    s.dispatch({"type": "run_validation"})
+    drawn = []
+    monkeypatch.setattr(netstead_map, "render_validation_html", lambda net, report, title: drawn.append(net) or "")
+    c = TestClient(build_app(s))
+    assert c.get(f"{BASE}/report.html").status_code == 200
+    snapshot = s.issue_set("leavenworth").network
+    assert len(drawn) == 1 and drawn[0] is snapshot and snapshot is not s.network().roadway
+    s.dispatch({"type": "edit_cells", "ids": [1], "values": {"free_speed": 30}})
+    assert c.get(f"{BASE}/report.html").status_code == 409  # stale: refused, not drawn on the edited tables
+
+
 def test_the_report_and_issues_escape_data_values(tmp_path):
     # A validation message can quote a data value (a street name): the report must never let it out as markup.
     s = _session(tmp_path)
@@ -160,6 +175,7 @@ def test_the_delete_plan_is_a_dry_run(edited):
     j = c.post(f"{BASE}/table/link/delete-plan", json={"ids": [1]}).json()
     assert j == {
         "table": "link",
+        "version": s.network("leavenworth").version,
         "refused": None,
         "rows": {"lane": 1, "link": 1},
         "summary": "delete link 1 (and 1 lane rows that depend on it)",
@@ -167,6 +183,21 @@ def test_the_delete_plan_is_a_dry_run(edited):
     refused = c.post(f"{BASE}/table/node/delete-plan", json={"ids": [1]}).json()["refused"]
     assert refused.startswith("node 1 is still used")
     assert len(s.history) == before and len(s.registry.get("leavenworth").links_df()) == 339
+
+
+def test_the_delete_plan_reads_a_snapshot_without_the_lock(tmp_path, monkeypatch):
+    from netstead.workbench import session as session_module
+
+    s = _session(tmp_path)
+    real, held = session_module.plan_delete, []
+
+    def spy(net, *args, **kwargs):
+        held.append((s._lock._is_owned(), net is s.network().roadway))
+        return real(net, *args, **kwargs)
+
+    monkeypatch.setattr(session_module, "plan_delete", spy)
+    assert s.delete_preview(s.network(), "link", [1])["rows"] == {"lane": 1, "link": 1}
+    assert held == [(False, False)]  # not under the lock, and not on the live tables
 
 
 def test_bad_delete_plans(edited):

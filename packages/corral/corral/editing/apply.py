@@ -119,18 +119,31 @@ def _null_safe(left: ibis.Table, right: ibis.Table, columns: list[str]) -> list[
 def _rows_like(rows: list[dict], current: pa.Table, engine: Engine) -> pa.Table:
     """Recorded rows as arrow, typed like ``current``'s columns (a NULL-only column keeps its real type).
 
-    Inferring types from the rows instead made an all-NULL timestamp, decimal, binary or list column
-    ``null`` (then ``string``), which no cast turns back into a list. Rows with a column ``current`` lacks,
-    or values its type cannot take, fall back to inference.
+    Types are inferred from the rows, then each column ``current`` has is cast to its type with
+    ``safe=True``, so ``2.7`` in an integer column raises instead of landing as ``2``. A NULL-only
+    column (inferred ``null``) becomes typed nulls: inferring alone made an all-NULL timestamp,
+    decimal, binary or list column ``null`` (then ``string``), which no cast turns back into a list.
+    When a cast raises, the rows are read as the engine infers them, and a value the column's type
+    cannot take fails when the rows meet the table (a safe cast there too).
     """
     fields = {f.name: f for f in current.schema}
-    names = list(dict.fromkeys(k for r in rows for k in r))
-    if all(n in fields for n in names):
-        try:
-            return pa.Table.from_pylist(rows, schema=pa.schema([fields[n] for n in names]))
-        except (pa.ArrowInvalid, pa.ArrowTypeError, TypeError, ValueError):
-            pass
-    return _arrow_of(engine.from_records(rows))
+    try:
+        inferred = pa.Table.from_pylist(rows)
+    except (pa.ArrowException, TypeError, ValueError):
+        return _arrow_of(engine.from_records(rows))
+    columns: list[pa.ChunkedArray | pa.Array] = []
+    try:
+        for name, column in zip(inferred.column_names, inferred.columns, strict=True):
+            field = fields.get(name)
+            if field is None or column.type == field.type:
+                columns.append(column)
+            elif pa.types.is_null(column.type):
+                columns.append(pa.nulls(len(column), field.type))
+            else:
+                columns.append(column.cast(field.type, safe=True))
+    except pa.ArrowException:
+        return _arrow_of(engine.from_records(rows))
+    return pa.table(dict(zip(inferred.column_names, columns, strict=True)))
 
 
 # ---------------------------------------------------------------------------

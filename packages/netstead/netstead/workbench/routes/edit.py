@@ -113,7 +113,11 @@ def edit_router(session: Session) -> APIRouter:
 
     @router.get("/report.html")
     def report(net_id: str, component: str) -> HTMLResponse:
-        """The offline validation report (the ``render_validation_html`` page) for the last, still-current run."""
+        """The offline validation report (the ``render_validation_html`` page) for the last, still-current run.
+
+        The page is drawn from the network the run read (``IssueSet.network``); the version check only refuses a
+        report the network has moved on from.
+        """
         h = network_handle(session, net_id, component)
         s = session.issue_set(h.id)
         if s is None:
@@ -124,7 +128,10 @@ def edit_router(session: Session) -> APIRouter:
             render = optional_module("netstead.map", "reports").render_validation_html
         except ActionError as exc:
             raise HTTPException(501, str(exc)) from exc
-        html = render(h.roadway, s.report, title=f"validation: {h.label}")
+        # The snapshot the run validated, never the live tables: an edit since would mis-place the issues. (A set
+        # built without one, in Python, is current per the check above, so the live tables are the same version.)
+        net = s.network if s.network is not None else h.roadway
+        html = render(net, s.report, title=f"validation: {h.label}")
         headers = {  # network ids are slugs, so the filename needs no quoting
             "Content-Disposition": f'attachment; filename="{h.id}-validation.html"',
             "X-Content-Type-Options": "nosniff",

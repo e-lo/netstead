@@ -43,7 +43,11 @@ _POINTS_AT = (("link_id", "link"), ("node_id", "node"))
 
 @dataclass(frozen=True)
 class IssueSet:
-    """One validation run of one network version: the located issues, plus the report for the HTML export."""
+    """One validation run of one network version: the located issues, plus the report for the HTML export.
+
+    ``network`` is the copy-on-write snapshot the run read (``registry.derived_copy``): the HTML export draws
+    the issues on it, so an edit made after the run cannot move them.
+    """
 
     net_id: str
     version: int
@@ -51,6 +55,7 @@ class IssueSet:
     report: ValidationReport
     unknown_rules: tuple[str, ...] = ()
     ran_at: float = field(default_factory=time.time)
+    network: Any = field(default=None, repr=False, compare=False)
 
     def counts(self) -> dict[str, int]:
         """Issues per severity (every severity present, zeros included)."""
@@ -74,7 +79,10 @@ class IssueSet:
         located: bool | None = None,
         record: tuple[str, str] | None = None,
     ) -> list[dict[str, Any]]:
-        """The issues matching every given filter, in report order. ``record`` is ``(table, str(key))``."""
+        """The issues matching every given filter, in report order. ``record`` is ``(table, str(key))``.
+
+        A linear scan of every issue per call: fine at the issue counts a run produces (the routes page the result).
+        """
 
         def keep(i: dict[str, Any]) -> bool:
             return (

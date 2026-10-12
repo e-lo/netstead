@@ -285,12 +285,15 @@ def retag(host: Host, action: Retag) -> list[dict]:
         plan = host.plan_update(None, "link", [action.link_id], {"name": action.name})
     except EditRefused as exc:  # a value the column cannot hold, a key column, a missing row...
         raise ActionError(str(exc)) from exc
-    host.mutate(None, plan.edits, note=plan.summary)
+    host.mutate(None, plan.edits, note=plan.summary, expected_version=plan.version)
     return host.edit_warnings()  # read these before committing anything to disk
 ```
 
-- A plan reads the network as it is now, so apply it before anything else changes the network. Inside a
-  handler that holds (handlers run under the session lock); from a job, plan and `mutate` back to back.
+- A plan reads the network as it is now and records that version as `plan.version`. Pass it to
+  `host.mutate(..., expected_version=plan.version)`: if anything changed the network in between, the
+  mutation is refused with `ActionError` and nothing changes, so plan again. Inside a handler nothing can
+  come between them (handlers run under the session lock). From a job or a route, another edit can land
+  between the two calls even when they run back to back, so always pass `expected_version` there.
 - `host.plan_delete` cascades through the spec's foreign keys (a link takes its lanes with it) and refuses
   to delete a node a link still uses; `plan.rows` says what would go.
 - What the spec says about the new values (required, enum, type, foreign keys, duplicate keys) is never

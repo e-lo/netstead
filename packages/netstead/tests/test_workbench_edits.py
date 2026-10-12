@@ -333,7 +333,7 @@ def test_save_writes_a_new_copy_and_never_the_source(session, tmp_path):
     result = session.dispatch(SaveNetwork(output_dir=outdir(tmp_path), name="edited", output_format="parquet"))
     assert Path(result["output"]).parent == Path(outdir(tmp_path)) and result["edits_saved"] == 1
     assert result["edited_while_saving"] is False and result["accepted_warnings"] == 0
-    assert any("stale" in n for n in result["notes"])  # corral's OutOfSyncWarning: kept as text, not raised
+    assert result["notes"] == ["1 table(s) differ from the source: link"]  # never an OutOfSyncWarning
     assert session.state()["edits"]["leavenworth"]["dirty"] is False
     assert session.history[-1].imports == "from netstead.workbench import SaveNetwork"
     back = Network.from_source(result["output"]).tables["link"].to_pandas()
@@ -362,6 +362,42 @@ def test_save_stays_inside_the_allowed_roots(session):
         session.dispatch(SaveNetwork(output_dir="/etc", name="x", output_format="parquet"))
 
 
+@pytest.mark.parametrize(("output_format", "name"), [("csv", "edited"), ("zip", "edited.zip"), ("duckdb", "edited")])
+def test_save_writes_every_format(session, tmp_path, output_format, name):
+    session.dispatch(EditCells(ids=[1], values={"free_speed": 30}))
+    result = session.dispatch(SaveNetwork(output_dir=outdir(tmp_path), name=name, output_format=output_format))
+    assert Path(result["output"]).exists() and not list(Path(outdir(tmp_path)).glob(".partial-*"))
+    back = Network.from_source(result["output"]).tables["link"].to_pandas()
+    assert back.loc[back.link_id == 1, "free_speed"].tolist() == [30.0] and len(back) == 339
+
+
+def test_save_refuses_a_symlink_into_the_source_folder(tmp_path, isolated_env):
+    src = tmp_path / "src"
+    shutil.copytree(SRC, src)
+    (src / "sub").mkdir()
+    (tmp_path / "looks_elsewhere").symlink_to(src / "sub", target_is_directory=True)
+    s = Session(project_dir=tmp_path, environ=isolated_env, parser=StubParser(), plugins=[])
+    s.dispatch(OpenNetwork(source=str(src)))
+    s.dispatch(EditCells(ids=[1], values={"free_speed": 30}))
+    with pytest.raises(ActionError, match="own source folder"):
+        s.dispatch(SaveNetwork(output_dir=str(tmp_path / "looks_elsewhere"), name="edited", output_format="parquet"))
+    assert not any((src / "sub").iterdir())
+
+
+def test_save_beside_a_local_duckdb_source_leaves_it_alone(tmp_path, isolated_env):
+    source = tmp_path / "net.duckdb"
+    Network.from_source(SRC).write(source, format="duckdb")
+    before = source.read_bytes()
+    s = Session(project_dir=tmp_path, environ=isolated_env, parser=StubParser(), plugins=[])
+    s.dispatch(OpenNetwork(source=str(source)))
+    s.dispatch(EditCells(ids=[1], values={"free_speed": 30}))
+    result = s.dispatch(SaveNetwork(output_dir=str(tmp_path), name="edited", output_format="duckdb"))
+    assert Path(result["output"]) == tmp_path / "edited.duckdb"  # beside the source file is not inside it
+    back = Network.from_source(result["output"]).tables["link"].to_pandas()
+    assert back.loc[back.link_id == 1, "free_speed"].tolist() == [30.0]
+    assert source.read_bytes() == before
+
+
 def test_save_refuses_the_source_folder(tmp_path, isolated_env):
     src = tmp_path / "src"
     shutil.copytree(SRC, src)
@@ -377,22 +413,111 @@ def test_save_refuses_the_source_folder(tmp_path, isolated_env):
     assert s.dispatch(SaveNetwork(output_dir=str(tmp_path), name="edited", output_format="parquet"))["output"]
 
 
-def test_save_scrubs_the_warning_text(session, tmp_path, monkeypatch):
+def test_the_save_note_names_the_edited_tables_never_the_source(session, tmp_path):
+    session.dispatch(EditCells(ids=[1], values={"free_speed": 30}))
+    result = session.dispatch(SaveNetwork(output_dir=outdir(tmp_path), name="edited", output_format="parquet"))
+    assert result["notes"] == ["1 table(s) differ from the source: link"]
+    assert not any(SRC in n for n in result["notes"])
+
+
+def test_concurrent_saves_keep_their_notes_and_never_swallow_other_threads_warnings(session, tmp_path, monkeypatch):
+    import threading
+
     from netstead.workbench import build
 
-    real = build.write_output
+    real, both_writing, warned = build.write_output, threading.Barrier(3), threading.Event()
 
-    def warn_then_write(net, tmp, output_format, ctx):
-        from corral.dataset.package import OutOfSyncWarning
-
-        text = "Package source 'https://h.example/n?X-Amz-Signature=s3cr3t' has 1 stale table"
-        warnings.warn(text, OutOfSyncWarning, stacklevel=2)
+    def slow_write(net, tmp, output_format, ctx):
+        both_writing.wait(timeout=10)  # both saves are mid-write when the main thread warns
+        assert warned.wait(timeout=10)
         real(net, tmp, output_format, ctx)
 
-    monkeypatch.setattr(build, "write_output", warn_then_write)
-    result = session.dispatch(SaveNetwork(output_dir=outdir(tmp_path), name="edited", output_format="parquet"))
-    assert any("https://h.example/n" in n for n in result["notes"])
-    assert not any("s3cr3t" in n for n in result["notes"])
+    monkeypatch.setattr(build, "write_output", slow_write)
+    session.dispatch(EditCells(ids=[1], values={"free_speed": 30}))
+    with warnings.catch_warnings(record=True) as seen:
+        warnings.simplefilter("always")
+        jobs = [session.submit(SaveNetwork(output_dir=outdir(tmp_path), name=n, output_format="parquet")) for n in "ab"]
+        both_writing.wait(timeout=10)
+        warnings.warn("raised on the main thread", UserWarning, stacklevel=1)
+        warned.set()
+        for job in jobs:
+            job.wait()
+    assert [str(w.message) for w in seen] == ["raised on the main thread"]
+    for job in jobs:
+        assert job.status == "done" and job.result["notes"] == ["1 table(s) differ from the source: link"]
+
+
+def _paused_write(monkeypatch):
+    """Make the next save stop mid-write: returns ``(writing, release)`` events."""
+    import threading
+
+    from netstead.workbench import build
+
+    real, writing, release = build.write_output, threading.Event(), threading.Event()
+
+    def paused(net, tmp, output_format, ctx):
+        writing.set()
+        assert release.wait(timeout=10)
+        real(net, tmp, output_format, ctx)
+
+    monkeypatch.setattr(build, "write_output", paused)
+    return writing, release
+
+
+def test_a_network_closed_and_reopened_while_saving_is_not_marked_saved(session, tmp_path, monkeypatch):
+    session.dispatch(EditCells(ids=[1], values={"free_speed": 30}))
+    writing, release = _paused_write(monkeypatch)
+    job = session.submit(SaveNetwork(output_dir=outdir(tmp_path), name="edited", output_format="parquet"))
+    assert writing.wait(timeout=10)
+    session.dispatch(CloseNetwork(net_id="leavenworth"))
+    session.dispatch(OpenNetwork(source=SRC))  # the same id, a different network
+    session.dispatch(EditCells(ids=[2], values={"free_speed": 25}))
+    release.set()
+    job.wait()
+    assert job.status == "done" and job.result["closed_while_saving"] is True
+    assert session.state()["edits"]["leavenworth"]["unsaved"] == 1  # the reopened network's edit is not saved
+
+
+def test_an_edit_while_saving_leaves_the_edits_unsaved(session, tmp_path, monkeypatch):
+    session.dispatch(EditCells(ids=[1], values={"free_speed": 30}))
+    writing, release = _paused_write(monkeypatch)
+    job = session.submit(SaveNetwork(output_dir=outdir(tmp_path), name="edited", output_format="parquet"))
+    assert writing.wait(timeout=10)
+    session.dispatch(EditCells(ids=[2], values={"free_speed": 25}))
+    release.set()
+    job.wait()
+    assert job.result["edited_while_saving"] is True and job.result["closed_while_saving"] is False
+    assert session.state()["edits"]["leavenworth"]["unsaved"] == 2
+    back = Network.from_source(job.result["output"]).tables["link"].to_pandas()
+    assert back.loc[back.link_id.isin([1, 2]), "free_speed"].tolist() == [30.0, 40.23]  # the version it read
+
+
+def test_a_crashed_live_check_needs_confirmation_to_save(session, tmp_path, monkeypatch):
+    from netstead.workbench import session as session_module
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("check crashed")
+
+    monkeypatch.setattr(session_module, "check_rows", boom)
+    session.dispatch(EditCells(ids=[1], values={"free_speed": 30}))
+    assert not session.edit_check("leavenworth").warnings  # nothing to see, because nothing was checked
+    with pytest.raises(ActionError, match="live edit check failed"):
+        session.dispatch(SaveNetwork(output_dir=outdir(tmp_path), name="edited", output_format="parquet"))
+    assert session.history[-1].result["check_failed"] is True
+    assert not (tmp_path / "out" / "edited").exists()
+    action = SaveNetwork(output_dir=outdir(tmp_path), name="edited", output_format="parquet", accept_warnings=True)
+    assert session.dispatch(action)["output"]
+
+
+def test_a_truncated_live_check_needs_confirmation_to_save(session, tmp_path, monkeypatch):
+    from netstead.workbench import editcheck
+
+    monkeypatch.setattr(editcheck, "MAX_CHECKED_KEYS", 1)
+    session.dispatch(EditCells(ids=[1, 2], values={"free_speed": 30}))
+    assert session.state()["edits"]["leavenworth"]["truncated"] is True
+    with pytest.raises(ActionError, match="stopped early"):
+        session.dispatch(SaveNetwork(output_dir=outdir(tmp_path), name="edited", output_format="parquet"))
+    assert session.history[-1].result["truncated"] is True
 
 
 # ---------------------------------------------------------------------------- what the live check covers
@@ -460,11 +585,27 @@ def test_undo_refuses_after_a_change_the_ledger_did_not_see(session):
 
     h = handle(session)
     (result,) = mutate(session, plan_update(h.roadway, "link", [1], {"free_speed": 30}))
-    reverse_edit(h.roadway, result)  # in place, behind the ledger's back
-    h.bump()
+    reverse_edit(h.roadway, result)  # in place, behind the ledger's back, and no version bump
     with pytest.raises(ActionError, match="changed outside the Workbench since; undo is unavailable"):
         session.undo_last("leavenworth", source="python")
-    assert int((h.links_df().link_id == 1).sum()) == 1 and cell(session, 1) == [40.0]  # not reversed twice
+    links = h.roadway.tables["link"].to_pandas()  # not links_df: its cache is per version, which never moved
+    assert links.loc[links.link_id == 1, "free_speed"].tolist() == [40.0]  # reversed once, not twice
+    assert len(session.edits["leavenworth"].entries) == 1
+
+
+def test_undo_refuses_after_a_version_bump_the_ledger_did_not_see(session):
+    mutate(session, plan_update(handle(session).roadway, "link", [1], {"free_speed": 30}))
+    handle(session).bump()
+    with pytest.raises(ActionError, match="changed outside the Workbench since"):
+        session.undo_last("leavenworth", source="python")
+
+
+def test_undo_after_undo_still_works_with_the_recorded_tables(session):
+    session.dispatch(EditCells(ids=[1], values={"free_speed": 30}))
+    session.dispatch(EditCells(ids=[2], values={"free_speed": 25}))
+    session.dispatch(UndoEdit())
+    session.dispatch(UndoEdit())  # the first undo's own swap was recorded, so this one is not refused
+    assert cell(session, 1) == [40.0] and session.edits["leavenworth"].entries == []
 
 
 def test_core_undo_last_refuses_a_python_entry(session):

@@ -871,3 +871,31 @@ def test_an_unparsed_selection_has_no_facility(opened):
 
     sel = opened.dispatch(Select(utterance="zzzz not a road"))
     assert sel["status"] != "resolved" and payload_facility_forms(sel) is None
+
+
+def test_a_payload_the_forms_cannot_be_rebuilt_from_gives_none(caplog):
+    from netstead.workbench.selection import payload_facility_forms
+
+    assert payload_facility_forms({"status": "resolved", "intent": None}) is None  # no link_ids
+    assert "facility forms failed" in caplog.text
+
+
+def test_anchors_without_coordinates_keep_their_from_and_to(opened):
+    from netstead.select.intent import SelectionIntent
+    from netstead.select.result import AnchorMatch, SelectionResult
+    from netstead.workbench.selection import payload_facility_forms, selection_payload
+
+    handle = opened.registry.get("rdu-i40")
+    first = int(handle.links_df()["link_id"].iloc[0])
+    result = SelectionResult(
+        "resolved",
+        SelectionIntent(link_ids=[first]),
+        link_ids=[first],
+        from_match=AnchorMatch(anchor="a", node_id=987654321, kind="node", detail=""),  # not in node_xy
+        to_match=AnchorMatch(anchor="b", node_id=987654322, kind="node", detail=""),
+    )
+    sel = selection_payload(handle, result)
+    assert sel["anchors"] == [] and [a["node_id"] for a in sel["anchors_unplaced"]] == [987654321, 987654322]
+    forms = payload_facility_forms(sel)
+    assert forms["resolved"]["from"] == {"model_node_id": 987654321}
+    assert forms["resolved"]["to"] == {"model_node_id": 987654322}
