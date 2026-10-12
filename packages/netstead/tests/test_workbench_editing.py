@@ -174,3 +174,62 @@ def test_a_blank_text_key_is_refused(net):
         with pytest.raises(EditRefused, match="needs its key"):
             plan_add(net, "link", [{"link_id": blank}])
     assert plan_add(net, "link", [{"link_id": "a1"}]).keys == ["a1"]
+
+
+# ---------------------------------------------------------------- cascades through synthetic foreign keys
+
+
+def _with_fks(monkeypatch, *extra):
+    """Leavenworth's foreign keys plus ``extra`` ``(table, column, ref_table, ref_column)`` ones."""
+    from netstead.workbench import editing
+    from netstead.workbench.related import ForeignKey
+
+    real = editing.foreign_keys
+
+    def fks(spec, columns, self_refs=False):
+        return [*real(spec, columns, self_refs=self_refs), *(ForeignKey(*f) for f in extra)]
+
+    monkeypatch.setattr(editing, "foreign_keys", fks)
+
+
+def test_a_multi_level_cascade_goes_deepest_first(net, monkeypatch):
+    _with_fks(monkeypatch, ("link_tod", "link_tod_id", "lane", "lane_id"))  # link -> lane 1 -> link_tod 1
+    plan = plan_delete(net, "link", [1])
+    assert plan.rows == {"link_tod": 1, "lane": 1, "link": 1}
+    assert [e.table for e in plan.edits] == ["link_tod", "lane", "link"]
+    before = counts(net)
+    results = apply(net, plan)
+    assert counts(net)["link_tod"] == before["link_tod"] - 1
+    for result in reversed(results):
+        reverse_edit(net, result)
+    assert counts(net) == before
+
+
+def test_a_row_reached_through_two_foreign_keys_counts_once(net, monkeypatch):
+    _with_fks(monkeypatch, ("lane", "lane_id", "link", "link_id"))  # lane 1 points at link 1 twice
+    plan = plan_delete(net, "link", [1])
+    assert plan.rows == {"lane": 1, "link": 1} and plan.summary == "delete link 1 (and 1 lane rows that depend on it)"
+
+
+def test_a_diamond_counts_each_row_once(net, monkeypatch):
+    # link 1 and 3 -> lanes 1 and 3 -> link_tod 1 (by link_tod_id); and link 3 -> link_tod 1 (by link_id).
+    _with_fks(monkeypatch, ("link_tod", "link_tod_id", "lane", "lane_id"))
+    lanes = net.tables["lane"].to_pandas()
+    assert 1 in set(lanes.loc[lanes.link_id.isin([1, 3]), "lane_id"])  # so link_tod 1 is reached both ways
+    plan = plan_delete(net, "link", [1, 3])
+    assert plan.rows == {"link_tod": 1, "lane": int(lanes.link_id.isin([1, 3]).sum()), "link": 2}
+    before = counts(net)
+    apply(net, plan)
+    assert counts(net)["link_tod"] == before["link_tod"] - 1
+
+
+def test_rows_left_at_a_cycle_are_rechecked(net, monkeypatch):
+    # lane -> link_tod (link_tod_id = lane_id) -> lane (lane_num = link_tod_id): a cycle through lane.
+    _with_fks(
+        monkeypatch, ("link_tod", "link_tod_id", "lane", "lane_id"), ("lane", "lane_num", "link_tod", "link_tod_id")
+    )
+    plan = plan_delete(net, "link", [1])
+    assert plan.rows == {"link_tod": 1, "lane": 1, "link": 1}
+    lanes = net.tables["lane"].to_pandas()
+    pointing = set(lanes.loc[lanes.lane_num == 1, "lane_id"]) - {1}  # lanes whose lane_num named link_tod 1
+    assert pointing and set(plan.recheck["lane"]) == pointing and 1 not in plan.recheck["lane"]

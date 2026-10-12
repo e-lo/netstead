@@ -156,7 +156,8 @@ def plan_delete(net: Any, table: str, ids: Sequence[Any]) -> EditPlan:
 
     Dependents are found recursively (a link's lanes, then each lane's ``lane_tod`` rows), deepest first. A
     link or a node is never deleted as a dependent: deleting a node a link still uses is refused, naming the
-    links. Self-references are not followed; the rows that pointed at a deleted row go in ``recheck``.
+    links. Self-references and cycles through the spec's keys are not followed; the rows that pointed at a
+    deleted row there go in ``recheck``. A row reached through two foreign keys is counted once.
     """
     src, pk = _table(net, table)
     if not ids:
@@ -165,9 +166,13 @@ def plan_delete(net: Any, table: str, ids: Sequence[Any]) -> EditPlan:
     _require_present(src, pk, keys, table)
     plan = EditPlan([], "", keys=keys)
     fks = foreign_keys(net.spec, _columns(net), self_refs=True)
-    _cascade(net, fks, table_keys(net), table, pk, keys, plan, seen=frozenset({table}))
+    gone: dict[str, set[Any]] = {table: set(keys)}
+    keyless: dict[str, int] = {}
+    _cascade(net, fks, table_keys(net), table, pk, keys, plan, frozenset({table}), gone, keyless)
     plan.edits.append(Edit(op="delete_rows", table=table, payload={"predicate": _in(pk, keys)}))
-    plan.rows[table] = len(keys)
+    for edit in plan.edits:  # deepest first, the target last
+        plan.rows.setdefault(edit.table, len(gone[edit.table]) if edit.table in gone else keyless[edit.table])
+    plan.recheck = {t: list(dict.fromkeys(k for k in ks if k not in gone.get(t, ()))) for t, ks in plan.recheck.items()}
     deps = ", ".join(f"{n} {t}" for t, n in plan.rows.items() if t != table)
     plan.summary = f"delete {table} {_few(keys)}" + (f" (and {deps} rows that depend on it)" if deps else "")
     return plan
@@ -263,8 +268,15 @@ def _cascade(
     values: list[Any],
     plan: EditPlan,
     seen: frozenset[str],
+    gone: dict[str, set[Any]],
+    keyless: dict[str, int],
 ) -> None:
-    """Queue deletes (deepest first) for rows of other tables whose key points at ``table.column`` in ``values``."""
+    """Queue deletes (deepest first) for rows of other tables whose key points at ``table.column`` in ``values``.
+
+    ``seen`` is the path from the target (a table on it again is a cycle: not followed); ``gone`` collects
+    the keys each keyed table loses (so a row reached twice counts once), ``keyless`` the rows of tables
+    without a key.
+    """
     for fk in fks:
         if fk.ref_table != table or fk.ref_column != column:
             continue
@@ -272,18 +284,24 @@ def _cascade(
         hits = _values(net.tables[fk.table], fk.column, values, own_pk or fk.column)
         if not hits:
             continue
-        if fk.table == table:  # a self-reference: not followed; the rows that pointed here are re-checked
-            gone = set(values)
-            plan.recheck.setdefault(table, []).extend(h for h in hits if h not in gone)
+        if fk.table == table or fk.table in seen:
+            # A self-reference or a cycle: not followed. The rows that pointed here are re-checked, so a
+            # dangling reference left behind surfaces as edit.fk_missing.
+            if own_pk:
+                plan.recheck.setdefault(fk.table, []).extend(hits)
             continue
         if fk.table in _NETWORK_TABLES:
             raise EditRefused(
                 f"{table} {_few(values)} is still used by {fk.table}.{fk.column} ({fk.table} {_few(hits)}); "
                 f"delete those {fk.table}s first"
             )
-        if fk.table in seen:  # a cycle through the spec's keys: stop
-            continue
         if own_pk:
-            _cascade(net, fks, pks, fk.table, own_pk, hits, plan, seen | {fk.table})
+            taken = gone.setdefault(fk.table, set())
+            new = [h for h in hits if h not in taken]
+            if not new:  # every row is already deleted by an earlier edit in this plan
+                continue
+            taken.update(new)
+            _cascade(net, fks, pks, fk.table, own_pk, new, plan, seen | {fk.table}, gone, keyless)
+        else:
+            keyless[fk.table] = keyless.get(fk.table, 0) + len(hits)
         plan.edits.append(Edit(op="delete_rows", table=fk.table, payload={"predicate": _in(fk.column, values)}))
-        plan.rows[fk.table] = plan.rows.get(fk.table, 0) + len(hits)
