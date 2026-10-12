@@ -4,6 +4,7 @@
 import { getJSON, netPath, postJSON } from "./api.js";
 import { openContextMenu } from "./ctxmenu.js";
 import { $, esc, toast } from "./dom.js";
+import { recordIssues } from "./issuelist.js";
 import { clampOffset, coerceId, pageOffset, rowMarks, rowsRequest, scopeHint } from "./linking.js";
 import { resizeSoon } from "./map.js";
 import { renderRelatedBadges } from "./related.js";
@@ -178,10 +179,14 @@ function renderRows(cols, rows, vias) {
   const fks = new Map((TBL.schema.foreign_keys || []).map(f => [f.column, f]));
   const selection = activeSelection(s);
   const body = $("tbl-grid").tBodies[0];
+  const records = s.issues && s.issues.net_id === activeId() ? s.issues.records : null;
   body.innerHTML = rows.map((r, i) => {
     const pv = pkIdx >= 0 ? r[pkIdx] : null;
-    const marks = rowMarks({ table: TBL.name, id: pv, selection, highlights: s.highlights, focus: s.focus, via: vias[i] });
-    const title = vias[i] ? ` title="related via ${esc(vias[i])}"` : "";
+    const nIss = recordIssues(records, TBL.name, pv).length;
+    const marks = rowMarks({ table: TBL.name, id: pv, selection, highlights: s.highlights, focus: s.focus, via: vias[i],
+      issues: nIss });
+    const tip = [vias[i] ? `related via ${vias[i]}` : "", nIss ? `${nIss} issue${nIss === 1 ? "" : "s"}` : ""].filter(Boolean).join(" · ");
+    const title = tip ? ` title="${esc(tip)}"` : "";
     const tds = r.map((v, c) => `<td>${cellHTML(v, fks.get(cols[c]))}</td>`).join("");
     return `<tr class="data ${marks.join(" ")}" data-pk="${pv == null ? "" : esc(pv)}"${title}>${tds}</tr>`;
   }).join("");

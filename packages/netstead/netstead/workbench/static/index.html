@@ -119,7 +119,26 @@
     <div class="label">Diagnostics</div>
     <div id="diag"><span class="empty">—</span></div>
     </section>
-    <section class="dock-pane" id="dock-issues" data-panel="issues" role="tabpanel" aria-labelledby="dtab-issues" hidden></section>
+    <section class="dock-pane" id="dock-issues" data-panel="issues" role="tabpanel" aria-labelledby="dtab-issues" hidden>
+      <div id="iss-fixer"></div>
+      <div class="label">Edit warnings <span id="iss-edit-count" class="pcount">0</span></div>
+      <div id="iss-edit"><span class="empty">No edit warnings.</span></div>
+      <div class="label">Validation</div>
+      <div class="row wrap"><button class="mini" id="iss-run">Run validation</button>
+        <a class="btn mini ghost off" id="iss-report" href="#" aria-disabled="true" tabindex="-1">Export report</a></div>
+      <div id="iss-status" class="diag" role="status">Not validated yet.</div>
+      <div class="iss-filters">
+        <select id="iss-sev" aria-label="Severity"></select>
+        <select id="iss-table" aria-label="Table"></select>
+        <select id="iss-code" aria-label="Issue code"></select>
+        <label><input type="checkbox" id="iss-this"> This record</label>
+      </div>
+      <div id="iss-list"><span class="empty">Run validation to list issues.</span></div>
+      <div class="iss-pager"><button class="mini ghost" id="iss-prev" aria-label="Previous issues" disabled>&#8592;</button><span id="iss-range"></span>
+        <button class="mini ghost" id="iss-next" aria-label="Next issues" disabled>&#8594;</button></div>
+      <div class="label">Unlocated <span id="iss-unloc-count" class="pcount">0</span></div>
+      <div id="iss-unlocated"></div>
+    </section>
     <section class="dock-pane" id="dock-edits" data-panel="edits" role="tabpanel" aria-labelledby="dtab-edits" hidden></section>
   </aside>
   <footer id="history">

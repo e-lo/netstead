@@ -5,10 +5,12 @@ import { wirePalette } from "./cmdpalette.js";
 import { registerCoreCommands } from "./corecmds.js";
 import { openContextMenu, wireContextMenus } from "./ctxmenu.js";
 import { $, toast } from "./dom.js";
+import { registerEditCommands } from "./editcmds.js";
 import { onEditsState, registerEditPanels } from "./edits.js";
 import { rememberRecent, renderHeader, renderRecent, wireHeader } from "./header.js";
 import { showEntry, wireHistory } from "./history.js";
 import { hub } from "./hub.js";
+import { markFocusedIssue, onIssuesState, registerIssueLayer, reloadIssues, renderEditWarnings, wireIssues } from "./issues.js";
 import { loadJobs, onJob, wireJobs } from "./jobs.js";
 import { netChange } from "./linking.js";
 import { onHistoryEntry, onLLMEvent, onLLMJob, refreshLLM, renderLLMPanel, wireLLM } from "./llm.js";
@@ -116,7 +118,9 @@ function onNetKey(key) {
     else if (f) showDetails(f.table, f.id);
     return;
   }
-  cancelRelated(); onNetworkChanged(); store.set({ highlights: new Set(), focus: null, related: null }); clearDetails();
+  cancelRelated(); onNetworkChanged();
+  store.set({ highlights: new Set(), focus: null, related: null, fixTarget: null, issueFocus: null });
+  clearDetails(); $("iss-fixer").innerHTML = "";
 }
 
 // Whether a focused link or node is missing from the decoded network (other tables are not decoded: their
@@ -168,6 +172,13 @@ function wireStore() {
   store.subscribe(["focus", "highlights", "relHops"], () => scheduleRelated());
   store.subscribe(["related"], s => renderRelatedBadges(s.related));
   store.subscribe(["server"], s => onEditsState(s.server));
+  store.subscribe(["server"], s => onIssuesState(s));
+  store.subscribe(["issueFilter"], s => { $("iss-this").checked = s.issueFilter.thisRecord; reloadIssues({ restart: true }); });
+  store.subscribe(["focus"], s => { if (s.issueFilter.thisRecord) reloadIssues({ restart: true }); });
+  store.subscribe(["issueFocus"], () => markFocusedIssue());
+  store.subscribe(["issues", "issueFocus"], () => render());
+  store.subscribe(["issues"], () => refreshRows());
+  store.subscribe(["edits"], s => renderEditWarnings(s.edits));
   store.subscribe(["highlightMode"], s => { $("btn-highlight").classList.toggle("on", s.highlightMode); $("map").classList.toggle("highlighting", s.highlightMode); });
 }
 
@@ -180,9 +191,11 @@ async function boot() {
   wireWorkspaces({ onError: reportPluginError });
   wireContextMenus({ onError: whenError, onRunError: runError });
   registerCoreCommands();
+  registerEditCommands();
   wirePalette({ onError: whenError, onRunError: runError });
   wireActionForm();
-  wireStore(); wirePanels(); wireSide(); wireTable(); wireHeader(); wireHistory(); wireMapButtons(); wireJobs(); wireWizard(); wireLLM(); wireSettings();
+  wireStore(); wirePanels(); wireSide(); wireTable(); wireHeader(); wireHistory(); wireMapButtons(); wireJobs(); wireWizard(); wireLLM(); wireSettings(); wireIssues();
+  registerIssueLayer(); // after wireStore: the layerSeq subscription that renders Overlays is in place
   registerSection("llm", "Language models", "llm-panel", () => renderLLMPanel());
   registerSection("plugins", "Plugins", "plugins-panel", () => renderPluginsPanel());
   wirePluginsPanel();

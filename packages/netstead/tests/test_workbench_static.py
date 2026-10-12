@@ -370,3 +370,23 @@ def test_issues_and_edits_are_core_dock_panels():
     main = (JS_DIR / "main.js").read_text()
     assert main.index("registerCoreSlots()") < main.index("registerEditPanels()") < main.index("wireWorkspaces(")
     assert "drawerTab" not in (JS_DIR / "store.js").read_text()  # the dock's dockPanel holds the choice
+
+
+def test_issue_markers_and_validation_commands_use_the_slots():
+    issues = (JS_DIR / "issues.js").read_text()
+    assert 'addLayer(CORE, "roadway", "issues"' in issues and 'title: "Issues"' in issues
+    assert '"issues"' not in (JS_DIR / "map.js").read_text()  # the layer lives in issues.js, not in map.js
+    cmds = (JS_DIR / "editcmds.js").read_text()
+    for command in ("run_validation", "fix_issue", "fix_record"):
+        assert f'id: "{command}"' in cmds
+    # R8 (2026-10-11): Fix… is the only core feature / row command, and only on a record that has an issue.
+    assert cmds.count('contexts: ["feature", "row"]') == 1
+    assert 'id: "fix_record", title: "Fix…", contexts: ["feature", "row"], when: c => Boolean(recordFixTarget(' in cmds
+    assert 'runCore("fix_issue")' in issues  # an issue's Fix button goes through the commands registry
+    main = (JS_DIR / "main.js").read_text()
+    assert "registerIssueLayer()" in main and "registerEditCommands()" in main
+    html = (STATIC_DIR / "index.html").read_text()
+    pane = html[html.index('id="dock-issues"') : html.index('id="dock-edits"')]
+    for element_id in ("iss-edit", "iss-run", "iss-report", "iss-status", "iss-list", "iss-unlocated", "iss-fixer"):
+        assert f'id="{element_id}"' in pane
+    assert 'id="tg-issues"' not in html  # hidden through Layers → Overlays, not a toggle of its own

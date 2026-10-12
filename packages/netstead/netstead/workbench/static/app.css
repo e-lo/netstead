@@ -309,3 +309,15 @@
   a.btn { display:inline-block; text-decoration:none; padding:5px 10px; border-radius:8px; font-size:12px;
           border:1px solid var(--edge); color:var(--ink); }
   a.btn.off { opacity:.45; pointer-events:none; }
+  .iss-filters { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; font-size:12px; }
+  .iss-filters select { max-width:100%; background:#0c0e12; color:var(--ink); border:1px solid var(--edge); border-radius:6px; padding:3px 6px; }
+  #dock-issues .iss { display:flex; gap:8px; align-items:flex-start; padding:7px 6px; border-bottom:1px solid var(--edge);
+         cursor:pointer; font-size:12.5px; }
+  #dock-issues .iss:hover, #dock-issues .iss.on { background:#20242e; }
+  #dock-issues .iss .sev-dot { width:9px; height:9px; border-radius:50%; margin-top:4px; flex:none; }
+  .sev-error .sev-dot { background:rgb(224,82,77); } .sev-warning .sev-dot { background:rgb(240,170,60); }
+  .sev-info .sev-dot { background:rgb(90,150,220); }
+  .iss-body { flex:1; min-width:0; } .iss-msg { color:var(--muted); overflow-wrap:anywhere; }
+  .iss-pager { display:flex; align-items:center; gap:8px; margin:6px 0; font-size:12px; color:var(--muted); }
+  .row.wrap { flex-wrap:wrap; }
+  #tbl-grid tr.iss td:first-child { box-shadow:inset 3px 0 0 rgb(240,170,60); }
