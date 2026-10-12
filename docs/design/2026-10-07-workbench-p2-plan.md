@@ -54,8 +54,9 @@ ids are in the commit messages).
   column types with a safe cast, so `2.7` added to an integer column is refused rather than stored as `2`.
 - **Unplaced anchors.** The selection payload adds `anchors_unplaced` (from/to nodes with no coordinates), which
   the facility forms and Details use; a selection read never fails on the facility forms.
-- **Undo row order.** Undo of a delete appends the restored rows at the end of their table (corral's reverse is
-  an append). The cookbook says so.
+- **Undo row order.** Undo appends the rows it restores at the end of their table, for a delete and for a
+  changed row alike (corral's reverse removes the edited rows and appends the recorded ones); an edit itself keeps
+  row order. The cookbook says so.
 - **Right-click (R8, as decided).** Core's only feature / row menu command is **Fix…**, on a record with an
   issue or an edit warning; Edit record… and Delete record… are palette commands and Details buttons.
 

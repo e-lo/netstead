@@ -290,8 +290,9 @@ edits:
   says `The last change was made from Python; undo it there.` Undo it with
   `session.undo_last(net_id, source="python")`.
 - If a plugin made it, Undo names the plugin: undo it in that plugin.
-- Undo puts deleted rows back **at the end of their table**, not where they were. Row order carries no meaning
-  in GMNS, but a table sorted by position will show the restored rows last.
+- Undo puts the rows it restores **at the end of their table**, not where they were: a deleted row, and also the
+  earlier version of a row you changed. Row order carries no meaning in GMNS, but an unsorted table shows those
+  rows last. (An edit itself keeps the row where it is.)
 
 ### Live warnings
 
