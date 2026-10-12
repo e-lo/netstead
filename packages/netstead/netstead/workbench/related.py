@@ -109,8 +109,12 @@ def _schemas(spec: Any) -> dict[str, Any]:
     }
 
 
-def foreign_keys(spec: Any, columns: Mapping[str, Sequence[str]]) -> list[ForeignKey]:
-    """Single-column FKs between two different tables in ``columns``, both columns present."""
+def foreign_keys(spec: Any, columns: Mapping[str, Sequence[str]], *, self_refs: bool = False) -> list[ForeignKey]:
+    """Single-column FKs between tables in ``columns``, both columns present.
+
+    Same-table keys (``link.parent_link_id``) are skipped unless ``self_refs``: the related-records view
+    never follows them; edit planning and the live checks do.
+    """
     out: list[ForeignKey] = []
     for name, schema in _schemas(spec).items():
         if name not in columns:
@@ -118,7 +122,9 @@ def foreign_keys(spec: Any, columns: Mapping[str, Sequence[str]]) -> list[Foreig
         for fk in schema.foreign_keys:
             ref_table = fk.reference.resource or name
             column, ref_column = _single(fk.fields), _single(fk.reference.fields)
-            if ref_table == name or ref_table not in columns or column is None or ref_column is None:
+            if ref_table == name and not self_refs:
+                continue
+            if ref_table not in columns or column is None or ref_column is None:
                 continue
             if column in columns[name] and ref_column in columns[ref_table]:
                 out.append(ForeignKey(name, column, ref_table, ref_column))

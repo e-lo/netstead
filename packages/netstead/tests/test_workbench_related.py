@@ -141,3 +141,19 @@ def test_an_inbound_key_to_a_non_primary_column_follows_that_columns_values():
     rel = relate(g, {"zone": [1, 3]})
     assert rel["stop"].matches == [Match("zone_code", ("A",), "stop.zone_code → zone")]
     assert restrict(stop, rel["stop"].matches).stop_id.tolist() == [10, 13]
+
+
+def test_foreign_keys_can_keep_self_references():
+    from corral.spec.model import DataPackage, Field, ForeignKeyReference, Resource, Schema
+    from corral.spec.model import ForeignKey as SpecFK
+    from netstead.workbench.related import foreign_keys
+
+    schema = Schema(
+        fields=[Field(name="link_id"), Field(name="parent_link_id")],
+        primary_key="link_id",
+        foreign_keys=[SpecFK(fields="parent_link_id", reference=ForeignKeyReference(resource="", fields="link_id"))],
+    )
+    spec = DataPackage(name="x", resources=[Resource(name="link", path="link.csv", schema=schema)])
+    columns = {"link": ["link_id", "parent_link_id"]}
+    assert foreign_keys(spec, columns) == []
+    assert [fk.label for fk in foreign_keys(spec, columns, self_refs=True)] == ["link.parent_link_id → link"]

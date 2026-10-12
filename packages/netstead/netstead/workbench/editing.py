@@ -1,0 +1,279 @@
+"""Core table editing: turn a request (set cells, delete rows, add rows) into corral edits, checked first.
+
+Nothing here mutates. Each ``plan_*`` reads the network and returns an :class:`EditPlan` whose ``edits``
+:meth:`~netstead.workbench.session.Session.mutate` applies all-or-nothing. A plan refuses (raises
+:class:`EditRefused`) only what the network cannot hold:
+
+* a value its column's storage type cannot hold: ``"fast"`` in a float column, or ``1.5`` in an integer
+  column, which corral would otherwise silently widen to float;
+* a column the table does not have (corral would add it), a key column, or a column whose type P2 cannot
+  edit (geometry, binary, dates, times);
+* a missing row, and deleting a node that a link still starts or ends at.
+
+What the *spec* says about a value (required, enum, type, foreign keys, duplicate keys) is a warning, never
+a refusal: see :mod:`netstead.workbench.editcheck`. Two kinds of callable appear below: a corral ``Edit``
+predicate maps a table to a boolean column (:func:`_in`); a corral ``Table.filter`` argument maps a table
+expression to a filtered one (:func:`_where`).
+"""
+
+from __future__ import annotations
+
+import math
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, field
+from typing import Any
+
+from corral.editing import Edit
+
+from netstead.viz.styling import json_scalar
+
+from .related import ForeignKey, foreign_keys, primary_keys
+
+__all__ = [
+    "EditPlan",
+    "EditRefused",
+    "coerce_value",
+    "editable",
+    "plan_add",
+    "plan_delete",
+    "plan_update",
+    "table_keys",
+]
+
+#: A deletion never cascades into these: a link that still uses a deleted node is refused instead.
+_NETWORK_TABLES = ("link", "node")
+
+
+class EditRefused(ValueError):
+    """The edit cannot be applied as asked; the message says why (nothing was changed)."""
+
+
+@dataclass
+class EditPlan:
+    """The corral edits for one request, rows per table it adds, changes or removes, its keys, and a summary.
+
+    ``recheck`` lists keys the live checks should look at besides the rows the edits touch: the rows whose
+    self-reference pointed at a deleted row.
+    """
+
+    edits: list[Edit]
+    summary: str
+    rows: dict[str, int] = field(default_factory=dict)
+    keys: list[Any] = field(default_factory=list)  # the target table's keys, coerced to the key's type
+    recheck: dict[str, list[Any]] = field(default_factory=dict)
+
+
+def table_keys(net: Any) -> dict[str, str | None]:
+    """Each table's single-column primary key, from the spec (``None`` when it has none)."""
+    return primary_keys(net.spec, _columns(net))
+
+
+def editable(dtype: Any) -> bool:
+    """Whether P2 can edit a column of this ibis storage type (numbers, text, booleans).
+
+    >>> import ibis.expr.datatypes as dt
+    >>> editable(dt.float64), editable(dt.binary)
+    (True, False)
+    """
+    return bool(
+        dtype.is_boolean() or dtype.is_integer() or dtype.is_floating() or dtype.is_decimal() or dtype.is_string()
+    )
+
+
+def coerce_value(value: Any, dtype: Any, column: str) -> Any:
+    """``value`` as ``column``'s ibis storage ``dtype``, or :class:`EditRefused`.
+
+    ``None``, and empty text in a non-text column, clear the cell. Integers take integral numbers or text;
+    floats take numbers or numeric text; text takes any scalar; booleans take ``true/false/1/0/yes/no``.
+
+    >>> import ibis.expr.datatypes as dt
+    >>> coerce_value("45", dt.float64, "free_speed"), coerce_value(2.0, dt.int64, "lanes")
+    (45.0, 2)
+    >>> coerce_value("", dt.int64, "lanes") is None
+    True
+    """
+    if value is None or (isinstance(value, str) and not value.strip() and not dtype.is_string()):
+        return None
+    if not editable(dtype):
+        raise EditRefused(f"{column} ({dtype}) cannot be edited yet")
+    try:
+        if dtype.is_boolean():
+            text = str(value).strip().lower()
+            if text in ("true", "1", "yes"):
+                return True
+            if text in ("false", "0", "no"):
+                return False
+            raise ValueError(value)
+        if dtype.is_integer():
+            if isinstance(value, int):
+                return int(value)
+            number = float(value)
+            if not number.is_integer():
+                raise ValueError(value)
+            return int(number)
+        if dtype.is_floating() or dtype.is_decimal():
+            number = float(value)
+            if math.isnan(number):
+                raise ValueError(value)
+            return number
+        return str(value)
+    except (TypeError, ValueError):
+        raise EditRefused(f"{column} holds {dtype}; {value!r} does not fit it") from None
+
+
+def plan_update(net: Any, table: str, ids: Sequence[Any], values: Mapping[str, Any]) -> EditPlan:
+    """Set ``values`` (``{column: value}``; ``None`` clears) on the rows of ``table`` whose key is in ``ids``."""
+    src, pk = _table(net, table)
+    if not ids:
+        raise EditRefused("give at least one row to edit")
+    if not values:
+        raise EditRefused("give at least one column to set")
+    schema = src.expr.schema()
+    sets: dict[str, Any] = {}
+    for column, value in values.items():
+        if column == pk:
+            raise EditRefused(f"{column} is the {table} key; keys cannot be edited here (add a row with the new key)")
+        if column not in schema:
+            raise EditRefused(f"{table} has no column {column!r}")
+        sets[column] = coerce_value(value, schema[column], column)
+    keys = _keys(src, pk, ids)
+    _require_present(src, pk, keys, table)
+    edit = Edit(op="update_rows", table=table, payload={"predicate": _in(pk, keys), "set": sets})
+    what = ", ".join(f"{c} = {_show(v)}" for c, v in sets.items())
+    return EditPlan([edit], f"{table} {_few(keys)}: {what}", {table: len(keys)}, keys)
+
+
+def plan_delete(net: Any, table: str, ids: Sequence[Any]) -> EditPlan:
+    """Delete rows of ``table`` and, first, every row that depends on them through the spec's foreign keys.
+
+    Dependents are found recursively (a link's lanes, then each lane's ``lane_tod`` rows), deepest first. A
+    link or a node is never deleted as a dependent: deleting a node a link still uses is refused, naming the
+    links. Self-references are not followed; the rows that pointed at a deleted row go in ``recheck``.
+    """
+    src, pk = _table(net, table)
+    if not ids:
+        raise EditRefused("give at least one row to delete")
+    keys = _keys(src, pk, ids)
+    _require_present(src, pk, keys, table)
+    plan = EditPlan([], "", keys=keys)
+    fks = foreign_keys(net.spec, _columns(net), self_refs=True)
+    _cascade(net, fks, table_keys(net), table, pk, keys, plan, seen=frozenset({table}))
+    plan.edits.append(Edit(op="delete_rows", table=table, payload={"predicate": _in(pk, keys)}))
+    plan.rows[table] = len(keys)
+    deps = ", ".join(f"{n} {t}" for t, n in plan.rows.items() if t != table)
+    plan.summary = f"delete {table} {_few(keys)}" + (f" (and {deps} rows that depend on it)" if deps else "")
+    return plan
+
+
+def plan_add(net: Any, table: str, rows: Sequence[Mapping[str, Any]]) -> EditPlan:
+    """Append ``rows`` to ``table``: every row needs its key; columns left out are empty (null).
+
+    A key that is already taken is added anyway; the live checks report it as ``edit.duplicate_key``.
+    """
+    src, pk = _table(net, table)
+    if not rows:
+        raise EditRefused("give at least one row to add")
+    schema = src.expr.schema()
+    out = []
+    for i, row in enumerate(rows, start=1):
+        unknown = sorted(set(row) - set(schema))
+        if unknown:
+            raise EditRefused(f"row {i}: {table} has no column(s) {', '.join(unknown)}")
+        if row.get(pk) is None:
+            raise EditRefused(f"row {i}: every added {table} row needs its key, {pk}")
+        out.append({c: coerce_value(v, schema[c], c) for c, v in row.items()})
+    keys = [r[pk] for r in out]
+    edit = Edit(op="add_rows", table=table, payload={"rows": out})
+    return EditPlan([edit], f"add {table} {_few(keys)}", {table: len(out)}, keys)
+
+
+# ---------------------------------------------------------------- helpers
+
+
+def _columns(net: Any) -> dict[str, list[str]]:
+    return {name: t.columns() for name, t in net.tables.items()}
+
+
+def _few(ids: Sequence[Any], n: int = 5) -> str:
+    items = list(ids)
+    shown = ", ".join(str(i) for i in items[:n])
+    return shown + (f" (+{len(items) - n} more)" if len(items) > n else "")
+
+
+def _show(value: Any) -> str:
+    return "empty" if value is None else repr(value)
+
+
+def _in(column: str, values: Sequence[Any]) -> Callable[[Any], Any]:
+    """A corral ``Edit`` predicate: the rows whose ``column`` is in ``values``."""
+    frozen = list(values)
+    return lambda t: t[column].isin(frozen)
+
+
+def _where(column: str, values: Sequence[Any]) -> Callable[[Any], Any]:
+    """A corral ``Table.filter`` transform: the same rows, as a filtered expression."""
+    frozen = list(values)
+    return lambda expr: expr.filter(expr[column].isin(frozen))
+
+
+def _table(net: Any, name: str) -> tuple[Any, str]:
+    src = net.tables.get(name)
+    if src is None:
+        raise EditRefused(f"the network has no {name} table")
+    pk = table_keys(net).get(name)
+    if pk is None:
+        raise EditRefused(f"{name} has no single-column primary key, so its rows cannot be edited here")
+    return src, pk
+
+
+def _keys(src: Any, pk: str, ids: Sequence[Any]) -> list[Any]:
+    dtype = src.expr.schema()[pk]
+    return list(dict.fromkeys(coerce_value(i, dtype, pk) for i in ids))
+
+
+def _values(src: Any, column: str, values: Sequence[Any], out: str) -> list[Any]:
+    """``out`` of every row of ``src`` whose ``column`` is in ``values`` (one bounded DuckDB read)."""
+    frame = src.filter(_where(column, values)).select(out).to_pandas()
+    return [json_scalar(v) for v in frame[out]]
+
+
+def _require_present(src: Any, pk: str, keys: list[Any], name: str) -> None:
+    found = set(_values(src, pk, keys, pk))
+    missing = [k for k in keys if k not in found]
+    if missing:
+        raise EditRefused(f"{name} {_few(missing)} not found")
+
+
+def _cascade(
+    net: Any,
+    fks: list[ForeignKey],
+    pks: Mapping[str, str | None],
+    table: str,
+    column: str,
+    values: list[Any],
+    plan: EditPlan,
+    seen: frozenset[str],
+) -> None:
+    """Queue deletes (deepest first) for rows of other tables whose key points at ``table.column`` in ``values``."""
+    for fk in fks:
+        if fk.ref_table != table or fk.ref_column != column:
+            continue
+        own_pk = pks.get(fk.table)
+        hits = _values(net.tables[fk.table], fk.column, values, own_pk or fk.column)
+        if not hits:
+            continue
+        if fk.table == table:  # a self-reference: not followed; the rows that pointed here are re-checked
+            gone = set(values)
+            plan.recheck.setdefault(table, []).extend(h for h in hits if h not in gone)
+            continue
+        if fk.table in _NETWORK_TABLES:
+            raise EditRefused(
+                f"{table} {_few(values)} is still used by {fk.table}.{fk.column} ({fk.table} {_few(hits)}); "
+                f"delete those {fk.table}s first"
+            )
+        if fk.table in seen:  # a cycle through the spec's keys: stop
+            continue
+        if own_pk:
+            _cascade(net, fks, pks, fk.table, own_pk, hits, plan, seen | {fk.table})
+        plan.edits.append(Edit(op="delete_rows", table=fk.table, payload={"predicate": _in(fk.column, values)}))
+        plan.rows[fk.table] = plan.rows.get(fk.table, 0) + len(hits)
