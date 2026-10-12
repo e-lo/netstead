@@ -54,6 +54,25 @@ export function onNetworkChanged() {
   if (tableVisible()) loadTables().catch(fail);
 }
 
+// The same network at a new version (an edit or an undo): refresh the rail's row counts and the rows in place,
+// keeping the table, page, sort, filters and scope.
+export function onNetworkEdited() {
+  if (!TBL.loaded) return;
+  refreshRail().catch(fail);
+  refreshRows();
+}
+
+async function refreshRail() {
+  const id = activeId();
+  if (!id) return;
+  const j = await getJSON(netPath(id, "tables"));
+  const counts = new Map(j.tables.map(t => [t.name, t.rows]));
+  for (const el of document.querySelectorAll(".tbl-item")) {
+    const n = counts.get(el.dataset.name), rc = el.querySelector(".rc");
+    if (rc && n != null) rc.textContent = n.toLocaleString();
+  }
+}
+
 // Anything a page depends on changed (selection, highlights, focus, scope, hops, related): reload from the first page
 // when the set of rows may differ, else in place.
 export function refreshRows({ restart = false } = {}) {

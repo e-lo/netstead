@@ -305,3 +305,7 @@
   #plugins-list th { text-align:left; color:var(--muted); font-weight:600; font-size:11px; padding:4px 6px; }
   #plugins-list td { padding:6px; border-bottom:1px solid var(--edge); vertical-align:top; font-size:12.5px; }
   #plugins-list .err { font-size:12px; margin-top:2px; }
+  /* ---- P2: validation and edits ---- */
+  a.btn { display:inline-block; text-decoration:none; padding:5px 10px; border-radius:8px; font-size:12px;
+          border:1px solid var(--edge); color:var(--ink); }
+  a.btn.off { opacity:.45; pointer-events:none; }

@@ -5,10 +5,12 @@ import { wirePalette } from "./cmdpalette.js";
 import { registerCoreCommands } from "./corecmds.js";
 import { openContextMenu, wireContextMenus } from "./ctxmenu.js";
 import { $, toast } from "./dom.js";
+import { onEditsState, registerEditPanels } from "./edits.js";
 import { rememberRecent, renderHeader, renderRecent, wireHeader } from "./header.js";
 import { showEntry, wireHistory } from "./history.js";
 import { hub } from "./hub.js";
 import { loadJobs, onJob, wireJobs } from "./jobs.js";
+import { netChange } from "./linking.js";
 import { onHistoryEntry, onLLMEvent, onLLMJob, refreshLLM, renderLLMPanel, wireLLM } from "./llm.js";
 import { layerRegistry } from "./layers.js";
 import { fitBbox, fitLinks, fitNetwork, flyToNode, initMap, render, setBasemap } from "./map.js";
@@ -21,7 +23,7 @@ import { clearDetails, renderHighlights, renderSelection, showDetails, wireSide 
 import { cancelRelated, renderRelatedBadges, scheduleRelated } from "./related.js";
 import { onSettingsHistory, registerSection, wireSettings } from "./settings.js";
 import { activeSelection, store } from "./store.js";
-import { onFocusChanged, onNetworkChanged, refreshRows, restoreViewMode, syncScopeControls, tableVisible, wireTable } from "./table.js";
+import { onFocusChanged, onNetworkChanged, onNetworkEdited, refreshRows, restoreViewMode, syncScopeControls, tableVisible, wireTable } from "./table.js";
 import { onWizardJob, wireWizard } from "./wizard.js";
 import { registerCoreSlots, wireWorkspaces } from "./workspaces.js";
 
@@ -99,6 +101,29 @@ function onFocus(s) {
   onFocusChanged();
 }
 
+// A newly decoded network. Another network resets the view. The same network at a new version (an edit, an undo)
+// keeps focus, highlights, the table and its scope, and refreshes what depends on the data.
+let shownKey = null;
+function onNetKey(key) {
+  const kind = netChange(shownKey, key);
+  shownKey = key;
+  if (kind === "same") return;
+  if (kind === "edited") {
+    onNetworkEdited();
+    scheduleRelated();
+    const s = store.get(), f = s.focus;
+    if (f && focusGone(f, s.net)) store.set({ focus: null }); // the edit deleted it
+    else if (f) showDetails(f.table, f.id);
+    return;
+  }
+  cancelRelated(); onNetworkChanged(); store.set({ highlights: new Set(), focus: null, related: null }); clearDetails();
+}
+
+// Whether a focused link or node is missing from the decoded network (other tables are not decoded: their
+// Details say so when the record has gone).
+const focusGone = (f, net) => Boolean(net) && ((f.table === "link" && !net.id2idx.has(f.id)) ||
+  (f.table === "node" && !net.nodeId2idx.has(f.id)));
+
 // A viz.* setting (from the Settings dialog, Python, or the assistant) may change the basemap: swap it in place.
 async function onSettingChanged(entry) {
   const a = entry.action;
@@ -133,7 +158,7 @@ function wireStore() {
   });
   store.subscribe(["server", "prop"], s => renderLegend(s.server.style, s.prop));
   store.subscribe(["properties"], s => { populateColorby(s.properties); syncControls(s.server.style); });
-  store.subscribe(["netKey"], () => { cancelRelated(); onNetworkChanged(); store.set({ highlights: new Set(), focus: null, related: null }); clearDetails(); });
+  store.subscribe(["netKey"], s => onNetKey(s.netKey));
   store.subscribe(["focus"], s => onFocus(s));
   // New highlights change the rows of every scope but All (back to the first page); a focus only re-tints.
   store.subscribe(["highlights"], s => refreshRows({ restart: s.tableScope !== "all" }));
@@ -142,6 +167,7 @@ function wireStore() {
   store.subscribe(["highlights"], s => renderHighlights(s.highlights));
   store.subscribe(["focus", "highlights", "relHops"], () => scheduleRelated());
   store.subscribe(["related"], s => renderRelatedBadges(s.related));
+  store.subscribe(["server"], s => onEditsState(s.server));
   store.subscribe(["highlightMode"], s => { $("btn-highlight").classList.toggle("on", s.highlightMode); $("map").classList.toggle("highlighting", s.highlightMode); });
 }
 
@@ -150,6 +176,7 @@ async function boot() {
   // a layer, a `when`) once per message, a command the user ran every time.
   const { whenError, runError } = commandReporters(reportPluginError);
   registerCoreSlots();
+  registerEditPanels();
   wireWorkspaces({ onError: reportPluginError });
   wireContextMenus({ onError: whenError, onRunError: runError });
   registerCoreCommands();

@@ -355,3 +355,18 @@ def test_menus_and_tabs_name_their_groups_and_states():
     workspaces = (JS_DIR / "workspaces.js").read_text()
     assert "stripVisibility(" in workspaces and "setPanelRole(" in workspaces
     assert 'onStripKey(e, slots.workspaces.list(), showWorkspace, "wtab", { manual: true })' in workspaces
+
+
+def test_issues_and_edits_are_core_dock_panels():
+    html = (STATIC_DIR / "index.html").read_text()
+    side = html[html.index('<aside id="side">') : html.index("</aside>")]
+    order = [side.index(f'id="dock-{p}"') for p in ("details", "issues", "edits")]
+    assert order == sorted(order)
+    for panel in ("issues", "edits"):
+        assert f'data-panel="{panel}"' in side and f'aria-labelledby="dtab-{panel}" hidden' in side
+    edits = (JS_DIR / "edits.js").read_text()
+    assert 'addPanel(CORE, { id: "issues"' in edits and 'addPanel(CORE, { id: "edits"' in edits
+    assert "workspace: ALL_WORKSPACES" in edits
+    main = (JS_DIR / "main.js").read_text()
+    assert main.index("registerCoreSlots()") < main.index("registerEditPanels()") < main.index("wireWorkspaces(")
+    assert "drawerTab" not in (JS_DIR / "store.js").read_text()  # the dock's dockPanel holds the choice
