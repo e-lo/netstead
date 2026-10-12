@@ -11,12 +11,14 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse
+from pydantic import BaseModel, ConfigDict, Field
 
+from ..actions import MAX_EDIT_IDS
 from ..issues import MAX_MARKERS
 from ..session import Session
 from .common import network_handle
 
-__all__ = ["MAX_ISSUE_PAGE", "edit_router"]
+__all__ = ["MAX_ISSUE_PAGE", "DeletePlanQuery", "edit_router"]
 
 #: Issues returned in one page.
 MAX_ISSUE_PAGE = 500
@@ -30,6 +32,13 @@ def _record(text: str | None) -> tuple[str, str] | None:
     if not (sep and table and key):
         raise HTTPException(422, "record is <table>:<key>")
     return table, key
+
+
+class DeletePlanQuery(BaseModel):
+    """The keys a deletion would start from."""
+
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+    ids: list[int | str] = Field(min_length=1, max_length=MAX_EDIT_IDS)
 
 
 def edit_router(session: Session) -> APIRouter:
@@ -117,5 +126,15 @@ def edit_router(session: Session) -> APIRouter:
             "X-Content-Type-Options": "nosniff",
         }
         return HTMLResponse(html, headers=headers)
+
+    @router.get("/edits")
+    def edits(net_id: str, component: str) -> dict[str, Any]:
+        """Pending edits, undo and dirty state, and the live edit warnings (always current, never stale)."""
+        return session.edits_payload(network_handle(session, net_id, component))
+
+    @router.post("/table/{table_name}/delete-plan")
+    def delete_plan(net_id: str, component: str, table_name: str, q: DeletePlanQuery) -> dict[str, Any]:
+        """A dry run of ``DeleteRows``: rows per table that would go, or why the deletion is refused."""
+        return session.delete_preview(network_handle(session, net_id, component), table_name, q.ids)
 
     return router

@@ -115,3 +115,62 @@ def test_reads_are_not_recorded(validated, client):
 
 def test_routes_sit_behind_the_host_guard(client):
     assert client.get(f"{BASE}/issues", headers={"host": "evil.example"}).status_code == 400
+
+
+@pytest.fixture
+def edited(tmp_path):
+    s = _session(tmp_path)
+    s.dispatch({"type": "edit_cells", "table": "node", "ids": [1], "values": {"ctrl_type": "bogus"}, "note": "test"})
+    return s, TestClient(build_app(s))
+
+
+def test_the_edits_view(edited):
+    _, c = edited
+    j = c.get(f"{BASE}/edits").json()
+    (entry,) = j["entries"]
+    assert entry["source"] == "workbench" and entry["rows"] == {"node": 1} and entry["note"].endswith("(test)")
+    assert (j["version"], j["pending"], j["unsaved"], j["dirty"], j["can_undo"]) == (1, 1, 1, True, True)
+    found = [(w["code"], w["table"], w["key"], w["column"]) for w in j["warnings"]]
+    assert found == [("edit.enum", "node", 1, "ctrl_type")]
+
+
+def test_the_edits_view_before_any_edit(fresh):
+    j = fresh.get(f"{BASE}/edits").json()
+    assert j["entries"] == [] and j["warnings"] == [] and j["dirty"] is False and j["can_undo"] is False
+
+
+def test_the_delete_plan_is_a_dry_run(edited):
+    s, c = edited
+    before = len(s.history)
+    j = c.post(f"{BASE}/table/link/delete-plan", json={"ids": [1]}).json()
+    assert j == {
+        "table": "link",
+        "refused": None,
+        "rows": {"lane": 1, "link": 1},
+        "summary": "delete link 1 (and 1 lane rows that depend on it)",
+    }
+    refused = c.post(f"{BASE}/table/node/delete-plan", json={"ids": [1]}).json()["refused"]
+    assert refused.startswith("node 1 is still used")
+    assert len(s.history) == before and len(s.registry.get("leavenworth").links_df()) == 339
+
+
+def test_bad_delete_plans(edited):
+    _, c = edited
+    assert c.post(f"{BASE}/table/link/delete-plan", json={"ids": []}).status_code == 422
+    assert c.post(f"{BASE}/table/link/delete-plan", json={"ids": [1], "x": 1}).status_code == 422
+    assert c.post("/api/n/nope/roadway/table/link/delete-plan", json={"ids": [1]}).status_code == 404
+    assert c.post("/api/n/leavenworth/transit/table/link/delete-plan", json={"ids": [1]}).status_code == 501
+
+
+def test_the_delete_plan_sits_behind_the_origin_guard(edited):
+    _, c = edited
+    cross = c.post(f"{BASE}/table/link/delete-plan", json={"ids": [1]}, headers={"origin": "https://evil.example"})
+    assert cross.status_code == 403
+
+
+def test_edit_reads_are_not_recorded(edited):
+    s, c = edited
+    before = len(s.history)
+    c.get(f"{BASE}/edits")
+    c.post(f"{BASE}/table/link/delete-plan", json={"ids": [1]})
+    assert len(s.history) == before

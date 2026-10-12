@@ -864,6 +864,29 @@ class Session:
             ledger = self.edits.get(self._handle(net_id).id)
             return ledger.check if ledger else CheckResult()
 
+    def edits_payload(self, handle: NetworkHandle) -> dict[str, Any]:
+        """The Edits panel's data: pending edits (newest first), undo state, dirty state and the live warnings."""
+        with self._lock:
+            ledger = self.edits.get(handle.id) or EditLedger()
+            last = ledger.last()
+            return {
+                "net_id": handle.id,
+                "version": handle.version,
+                "entries": [e.view() for e in reversed(ledger.entries)],
+                **ledger.summary(),
+                "can_undo": bool(last and last.source == CORE_SOURCE),
+                "warnings": [w.to_dict() for w in ledger.check.warnings],  # the list, in place of the count
+            }
+
+    def delete_preview(self, handle: NetworkHandle, table: str, ids: Sequence[Any]) -> dict[str, Any]:
+        """What deleting ``ids`` from ``table`` would remove (rows per table), or why it is refused. Changes nothing."""
+        with self._lock:
+            try:
+                plan = plan_delete(handle.roadway, table, ids)
+            except EditRefused as exc:
+                return {"table": table, "refused": str(exc), "rows": {}, "summary": None}
+            return {"table": table, "refused": None, "rows": dict(plan.rows), "summary": plan.summary}
+
     def _swap(self, handle: NetworkHandle, draft: Network, names: Iterable[str], note: str, origin: str | None) -> None:
         """Swap ``draft``'s tables ``names`` into ``handle`` in one step: bump the version, extend the lineage.
 
