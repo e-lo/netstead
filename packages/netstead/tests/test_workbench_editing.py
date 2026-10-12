@@ -41,6 +41,8 @@ def counts(net):
         ("yes", dt.boolean, True),
         ("0", dt.boolean, False),
         (7, dt.string, "7"),
+        (127, dt.int8, 127),
+        (True, dt.string, "True"),
     ],
 )
 def test_coerce_value_fits_the_storage_type(value, dtype, want):
@@ -48,7 +50,21 @@ def test_coerce_value_fits_the_storage_type(value, dtype, want):
 
 
 @pytest.mark.parametrize(
-    ("value", "dtype"), [("fast", dt.float64), (1.5, dt.int64), ("maybe", dt.boolean), (float("nan"), dt.float64)]
+    ("value", "dtype"),
+    [
+        ("fast", dt.float64),
+        (1.5, dt.int64),
+        ("maybe", dt.boolean),
+        (float("nan"), dt.float64),
+        (float("inf"), dt.float64),
+        ("-inf", dt.float64),
+        (float("inf"), dt.int64),
+        (True, dt.int64),
+        (False, dt.float64),
+        (128, dt.int8),
+        ("-1", dt.uint16),
+        (2**63, dt.int64),
+    ],
 )
 def test_coerce_value_refuses_what_the_column_cannot_hold(value, dtype):
     with pytest.raises(EditRefused, match="does not fit"):
@@ -133,7 +149,13 @@ def test_adding_rows(net):
 
 @pytest.mark.parametrize(
     ("rows", "message"),
-    [([], "at least one row"), ([{"link_id": 9001, "colour": "red"}], "no column"), ([{"name": "x"}], "needs its key")],
+    [
+        ([], "at least one row"),
+        ([{"link_id": 9001, "colour": "red"}], "no column"),
+        ([{"name": "x"}], "needs its key"),
+        ([{"link_id": " ", "name": "x"}], "needs its key"),
+        ([{"link_id": "", "name": "x"}], "needs its key"),
+    ],
 )
 def test_bad_additions_are_refused(net, rows, message):
     with pytest.raises(EditRefused, match=message):
@@ -143,3 +165,12 @@ def test_bad_additions_are_refused(net, rows, message):
 def test_a_duplicate_key_is_added_not_refused(net):
     apply(net, plan_add(net, "link", [{"link_id": 1, "from_node_id": 1, "to_node_id": 2, "directed": False}]))
     assert net.tables["link"].count() == 340  # the live check reports edit.duplicate_key (Task 4)
+
+
+def test_a_blank_text_key_is_refused(net):
+    link = net.tables["link"]
+    link.expr = link.expr.mutate(link_id=link.expr.link_id.cast("string"))  # a text key keeps " " as text
+    for blank in (" ", ""):
+        with pytest.raises(EditRefused, match="needs its key"):
+            plan_add(net, "link", [{"link_id": blank}])
+    assert plan_add(net, "link", [{"link_id": "a1"}]).keys == ["a1"]

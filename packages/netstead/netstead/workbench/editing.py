@@ -83,8 +83,9 @@ def editable(dtype: Any) -> bool:
 def coerce_value(value: Any, dtype: Any, column: str) -> Any:
     """``value`` as ``column``'s ibis storage ``dtype``, or :class:`EditRefused`.
 
-    ``None``, and empty text in a non-text column, clear the cell. Integers take integral numbers or text;
-    floats take numbers or numeric text; text takes any scalar; booleans take ``true/false/1/0/yes/no``.
+    ``None``, and empty text in a non-text column, clear the cell. Integers take integral numbers or text
+    within the column's range; floats take finite numbers or numeric text; text takes any scalar; booleans
+    take ``true/false/1/0/yes/no``. A boolean is not a number: ``True`` in a number column is refused.
 
     >>> import ibis.expr.datatypes as dt
     >>> coerce_value("45", dt.float64, "free_speed"), coerce_value(2.0, dt.int64, "lanes")
@@ -104,16 +105,23 @@ def coerce_value(value: Any, dtype: Any, column: str) -> Any:
             if text in ("false", "0", "no"):
                 return False
             raise ValueError(value)
+        if isinstance(value, bool) and not dtype.is_string():
+            raise ValueError(value)  # bool is an int subclass: True would land as 1
         if dtype.is_integer():
             if isinstance(value, int):
-                return int(value)
-            number = float(value)
-            if not number.is_integer():
+                number = int(value)
+            else:
+                real = float(value)
+                if not real.is_integer():  # also refuses inf and nan
+                    raise ValueError(value)
+                number = int(real)
+            low, high = dtype.bounds
+            if not low <= number <= high:
                 raise ValueError(value)
-            return int(number)
+            return number
         if dtype.is_floating() or dtype.is_decimal():
             number = float(value)
-            if math.isnan(number):
+            if not math.isfinite(number):
                 raise ValueError(value)
             return number
         return str(value)
@@ -179,9 +187,11 @@ def plan_add(net: Any, table: str, rows: Sequence[Mapping[str, Any]]) -> EditPla
         unknown = sorted(set(row) - set(schema))
         if unknown:
             raise EditRefused(f"row {i}: {table} has no column(s) {', '.join(unknown)}")
-        if row.get(pk) is None:
+        coerced = {c: coerce_value(v, schema[c], c) for c, v in row.items()}
+        key = coerced.get(pk)  # coerced first: blank text in a number key column comes back as None
+        if key is None or (isinstance(key, str) and not key.strip()):
             raise EditRefused(f"row {i}: every added {table} row needs its key, {pk}")
-        out.append({c: coerce_value(v, schema[c], c) for c, v in row.items()})
+        out.append(coerced)
     keys = [r[pk] for r in out]
     edit = Edit(op="add_rows", table=table, payload={"rows": out})
     return EditPlan([edit], f"add {table} {_few(keys)}", {table: len(out)}, keys)
