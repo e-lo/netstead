@@ -93,15 +93,18 @@ class Host:
         """The handle for ``net_id`` (default: active). Read it; change it only via :meth:`mutate`."""
         return self._session.network(net_id)
 
-    def mutate(self, net_id: str | None, edits: Sequence[Edit], *, note: str) -> list[EditResult]:
+    def mutate(
+        self, net_id: str | None, edits: Sequence[Edit], *, note: str, expected_version: int | None = None
+    ) -> list[EditResult]:
         """Apply corral edits all-or-nothing and return their results; lineage gets ``"<plugin id>: <note>"``.
 
         Inside an Action handler, a failing handler undoes it. Anywhere else (a job, a route) it is
         recorded as a non-replayable ``<plugin id>.mutate`` history entry. It becomes a pending edit whose
         source is this plugin: core's Edits panel lists it with the plugin's id, and core's Undo never
-        reverses it (use :meth:`undo`).
+        reverses it (use :meth:`undo`). ``expected_version`` (a plan's ``version``) refuses the edits with
+        ``ActionError`` if the network changed since: plan again.
         """
-        return self._session.mutate(net_id, edits, note=note, origin=self.plugin_id)
+        return self._session.mutate(net_id, edits, note=note, origin=self.plugin_id, expected_version=expected_version)
 
     def derive(self, net_id: str | None, *, label: str, note: str) -> str:
         """Register a copy-on-write copy of a network (a preview or scenario) and return its id."""
@@ -124,17 +127,24 @@ class Host:
     def plan_update(self, net_id: str | None, table: str, ids: Sequence[Any], values: dict[str, Any]) -> EditPlan:
         """Core's plan for setting cells (raises ``EditRefused`` for what storage cannot hold).
 
-        Apply it with :meth:`mutate` before anything else changes the network: a plan reads the network as it is.
+        A plan reads the network as it is now and carries that version (``plan.version``): apply it with
+        ``mutate(..., expected_version=plan.version)``, which refuses it if anything changed the network since.
         """
-        return plan_update(self.network(net_id).roadway, table, ids, values)
+        h = self.network(net_id)
+        version = h.version  # read first: an edit while planning makes the plan look stale, never current
+        return plan_update(h.roadway, table, ids, values, version=version)
 
     def plan_delete(self, net_id: str | None, table: str, ids: Sequence[Any]) -> EditPlan:
         """Core's plan for deleting rows and every row that depends on them (``plan.rows`` says what goes)."""
-        return plan_delete(self.network(net_id).roadway, table, ids)
+        h = self.network(net_id)
+        version = h.version
+        return plan_delete(h.roadway, table, ids, version=version)
 
     def plan_add(self, net_id: str | None, table: str, rows: Sequence[dict[str, Any]]) -> EditPlan:
         """Core's plan for adding rows (each needs its key)."""
-        return plan_add(self.network(net_id).roadway, table, rows)
+        h = self.network(net_id)
+        version = h.version
+        return plan_add(h.roadway, table, rows, version=version)
 
     def has_action(self, action_type: str) -> bool:
         """Whether any installed plugin (or core) registered ``action_type``: soft cross-plugin dependencies."""

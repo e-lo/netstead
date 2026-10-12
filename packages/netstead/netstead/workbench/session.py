@@ -796,8 +796,13 @@ class Session:
         note: str,
         origin: str | None = None,
         recheck: Mapping[str, Iterable[Any]] | None = None,
+        expected_version: int | None = None,
     ) -> list[EditResult]:
         """Apply corral ``edits`` to a network's roadway, in order and all-or-nothing; return their results.
+
+        ``expected_version`` (an :class:`~netstead.workbench.editing.EditPlan`'s ``version``) makes it refuse,
+        with :class:`ActionError` and nothing changed, when the network is no longer at that version: the
+        edits were planned against tables that have changed since.
 
         The edits run on a copy-on-write draft of the roadway, so the network itself never holds a
         half-applied state: a failing edit discards the draft and re-raises, leaving the tables, their
@@ -818,6 +823,11 @@ class Session:
         """
         with self._lock:
             handle = self._handle(net_id)
+            if expected_version is not None and handle.version != expected_version:
+                raise ActionError(
+                    f"{handle.id} changed since the edit was planned (version {expected_version}, now "
+                    f"{handle.version}); plan it again"
+                )
             if not edits:  # nothing to apply: no version bump, no pending edit, nothing recorded
                 return []
             draft = derived_copy(handle.roadway)  # shares the immutable table expressions; copies the wrappers
@@ -1513,7 +1523,7 @@ class Session:
         """Apply ``plan`` as one pending edit and describe it, with the live warnings on the rows it touched."""
         text = f"{plan.summary} ({note})" if note else plan.summary
         try:
-            self.mutate(handle.id, plan.edits, note=text, recheck=plan.recheck)
+            self.mutate(handle.id, plan.edits, note=text, recheck=plan.recheck, expected_version=plan.version)
         except EditingError as exc:  # corral refused the payload; the draft was discarded, nothing changed
             raise ActionError(f"the edit failed: {exc}") from exc
         ledger = self.edits[handle.id]
@@ -1531,17 +1541,19 @@ class Session:
 
     def _do_edit_cells(self, action: EditCells) -> dict[str, Any]:
         handle = self._edit_target(action)
-        plan = _planned(lambda: plan_update(handle.roadway, action.table, action.ids, action.values))
+        plan = _planned(
+            lambda: plan_update(handle.roadway, action.table, action.ids, action.values, version=handle.version)
+        )
         return self._apply_plan(handle, plan, action.note)
 
     def _do_delete_rows(self, action: DeleteRows) -> dict[str, Any]:
         handle = self._edit_target(action)
-        plan = _planned(lambda: plan_delete(handle.roadway, action.table, action.ids))
+        plan = _planned(lambda: plan_delete(handle.roadway, action.table, action.ids, version=handle.version))
         return self._apply_plan(handle, plan, action.note)  # the selection follows in mutate (R4)
 
     def _do_add_rows(self, action: AddRows) -> dict[str, Any]:
         handle = self._edit_target(action)
-        plan = _planned(lambda: plan_add(handle.roadway, action.table, action.rows))
+        plan = _planned(lambda: plan_add(handle.roadway, action.table, action.rows, version=handle.version))
         return self._apply_plan(handle, plan, action.note)
 
     def _do_undo_edit(self, action: UndoEdit) -> dict[str, Any]:

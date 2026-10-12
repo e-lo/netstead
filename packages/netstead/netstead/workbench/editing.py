@@ -1,8 +1,9 @@
 """Core table editing: turn a request (set cells, delete rows, add rows) into corral edits, checked first.
 
 Nothing here mutates. Each ``plan_*`` reads the network and returns an :class:`EditPlan` whose ``edits``
-:meth:`~netstead.workbench.session.Session.mutate` applies all-or-nothing. A plan refuses (raises
-:class:`EditRefused`) only what the network cannot hold:
+:meth:`~netstead.workbench.session.Session.mutate` applies all-or-nothing. A caller that knows the network's
+version passes it (``version=``), so ``mutate(..., expected_version=plan.version)`` can refuse a stale plan.
+A plan refuses (raises :class:`EditRefused`) only what the network cannot hold:
 
 * a value its column's storage type cannot hold: ``"fast"`` in a float column, or ``1.5`` in an integer
   column, which corral would otherwise silently widen to float;
@@ -53,7 +54,9 @@ class EditPlan:
     """The corral edits for one request, rows per table it adds, changes or removes, its keys, and a summary.
 
     ``recheck`` lists keys the live checks should look at besides the rows the edits touch: the rows whose
-    self-reference pointed at a deleted row.
+    self-reference pointed at a deleted row. ``version`` is the network version the plan read (``None``: the
+    caller did not say); pass it to ``mutate(..., expected_version=plan.version)``, which refuses the plan if
+    the network has changed since.
     """
 
     edits: list[Edit]
@@ -61,6 +64,7 @@ class EditPlan:
     rows: dict[str, int] = field(default_factory=dict)
     keys: list[Any] = field(default_factory=list)  # the target table's keys, coerced to the key's type
     recheck: dict[str, list[Any]] = field(default_factory=dict)
+    version: int | None = None
 
 
 def table_keys(net: Any) -> dict[str, str | None]:
@@ -129,7 +133,9 @@ def coerce_value(value: Any, dtype: Any, column: str) -> Any:
         raise EditRefused(f"{column} holds {dtype}; {value!r} does not fit it") from None
 
 
-def plan_update(net: Any, table: str, ids: Sequence[Any], values: Mapping[str, Any]) -> EditPlan:
+def plan_update(
+    net: Any, table: str, ids: Sequence[Any], values: Mapping[str, Any], *, version: int | None = None
+) -> EditPlan:
     """Set ``values`` (``{column: value}``; ``None`` clears) on the rows of ``table`` whose key is in ``ids``."""
     src, pk = _table(net, table)
     if not ids:
@@ -148,10 +154,10 @@ def plan_update(net: Any, table: str, ids: Sequence[Any], values: Mapping[str, A
     _require_present(src, pk, keys, table)
     edit = Edit(op="update_rows", table=table, payload={"predicate": _in(pk, keys), "set": sets})
     what = ", ".join(f"{c} = {_show(v)}" for c, v in sets.items())
-    return EditPlan([edit], f"{table} {_few(keys)}: {what}", {table: len(keys)}, keys)
+    return EditPlan([edit], f"{table} {_few(keys)}: {what}", {table: len(keys)}, keys, version=version)
 
 
-def plan_delete(net: Any, table: str, ids: Sequence[Any]) -> EditPlan:
+def plan_delete(net: Any, table: str, ids: Sequence[Any], *, version: int | None = None) -> EditPlan:
     """Delete rows of ``table`` and, first, every row that depends on them through the spec's foreign keys.
 
     Dependents are found recursively (a link's lanes, then each lane's ``lane_tod`` rows), deepest first. A
@@ -164,7 +170,7 @@ def plan_delete(net: Any, table: str, ids: Sequence[Any]) -> EditPlan:
         raise EditRefused("give at least one row to delete")
     keys = _keys(src, pk, ids)
     _require_present(src, pk, keys, table)
-    plan = EditPlan([], "", keys=keys)
+    plan = EditPlan([], "", keys=keys, version=version)
     fks = foreign_keys(net.spec, _columns(net), self_refs=True)
     gone: dict[str, set[Any]] = {table: set(keys)}
     keyless: dict[str, int] = {}
@@ -178,7 +184,7 @@ def plan_delete(net: Any, table: str, ids: Sequence[Any]) -> EditPlan:
     return plan
 
 
-def plan_add(net: Any, table: str, rows: Sequence[Mapping[str, Any]]) -> EditPlan:
+def plan_add(net: Any, table: str, rows: Sequence[Mapping[str, Any]], *, version: int | None = None) -> EditPlan:
     """Append ``rows`` to ``table``: every row needs its key; columns left out are empty (null).
 
     A key that is already taken is added anyway; the live checks report it as ``edit.duplicate_key``.
@@ -199,7 +205,7 @@ def plan_add(net: Any, table: str, rows: Sequence[Mapping[str, Any]]) -> EditPla
         out.append(coerced)
     keys = [r[pk] for r in out]
     edit = Edit(op="add_rows", table=table, payload={"rows": out})
-    return EditPlan([edit], f"add {table} {_few(keys)}", {table: len(out)}, keys)
+    return EditPlan([edit], f"add {table} {_few(keys)}", {table: len(out)}, keys, version=version)
 
 
 # ---------------------------------------------------------------- helpers
