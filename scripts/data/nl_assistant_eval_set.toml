@@ -93,3 +93,12 @@ no_calls = true
 [[case]]
 utterance = "open my network from the desktop"
 no_calls = true
+
+[[case]]
+utterance = "select Ski Hill Drive and colour by lanes"
+[[case.expect]]
+type = "select"
+"query.facility.name" = "Ski Hill Drive"
+[[case.expect]]
+type = "style"
+color_by = "lanes"
