@@ -1236,3 +1236,10 @@ def test_registering_an_action_whose_replay_omits_names_no_field_is_refused():
     with pytest.raises(ValueError, match="replay_omits names no field: expected_versoin"):
         registry.register(TypoOmitAction)
     assert not registry.has("hello.typo")
+
+
+def test_the_plugin_guide_documents_assistant_exposure():
+    from pathlib import Path
+
+    text = (Path(__file__).resolve().parents[1] / "docs" / "cookbook" / "workbench-plugins.md").read_text()
+    assert "assistant: ClassVar[bool] = False" in text and "assistant.plugins" in text

@@ -1,6 +1,6 @@
 // Workbench boot: wire modules to the store and the server's SSE stream.
 import { wireActionForm } from "./actform.js";
-import { loadAssistant, registerAssistantPanel, renderAssistant, wireAssistant } from "./assistant.js";
+import { loadAssistant, registerAssistantPanel, registerAssistantSettings, renderAssistant, wireAssistant } from "./assistant.js";
 import { getBuffer, getJSON, netPath, subscribe } from "./api.js";
 import { wirePalette } from "./cmdpalette.js";
 import { registerCoreCommands } from "./corecmds.js";
@@ -252,6 +252,7 @@ async function boot() {
   wireStore(); wirePanels(); wireFilter(); wireSide(); wireTable(); wireHeader(); wireHistory(); wireMapButtons(); wireJobs(); wireWizard(); wireLLM(); wireSettings(); wireIssues(); wireEdits(); wireSelectionPanel(); wireAssistant();
   registerIssueLayer(); // after wireStore: the layerSeq subscription that renders Overlays is in place
   registerSection("llm", "Language models", "llm-panel", () => renderLLMPanel());
+  registerAssistantSettings();
   registerSection("plugins", "Plugins", "plugins-panel", () => renderPluginsPanel());
   wirePluginsPanel();
   renderRecent();

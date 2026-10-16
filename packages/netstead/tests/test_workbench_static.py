@@ -530,3 +530,11 @@ def test_the_history_strip_marks_the_assistants_entries_but_scripts_do_not():
     assert 'entry.via === "assistant"' in js
     script = js[js.index("export function sessionScript") : js.index("export function wireHistory")]
     assert "via ===" not in script  # "Session as Python" ignores how an Action arrived
+
+
+def test_the_assistant_settings_section_is_registered():
+    js = (JS_DIR / "assistant.js").read_text()
+    assert 'registerSection("assistant"' in js and '"assistant.plugins"' in js and '"assistant.actions"' in js
+    assert "status.warnings" in js  # unknown names in the allowlists are listed
+    assert 'id="assistant-panel"' in (STATIC_DIR / "index.html").read_text()
+    assert "registerAssistantSettings()" in (JS_DIR / "main.js").read_text()

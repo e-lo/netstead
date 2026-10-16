@@ -4,11 +4,12 @@
 // step's Edit… opens its Action form prefilled (running it there is an ordinary manual dispatch, which leaves the
 // draft pending; approving afterwards is refused as stale if the network moved).
 // Model text is set with textContent, never as markup; every other server string in markup goes through esc().
-import { getJSON, postJSON } from "./api.js";
+import { dispatch, getJSON, postJSON } from "./api.js";
 import { openActionForm } from "./actform.js";
 import { addCommandTo } from "./commands.js";
 import { $, esc, toast } from "./dom.js";
-import { assistBadge, budgetText, pendingDraft, stepRows } from "./assistmodel.js";
+import { assistBadge, budgetText, pendingDraft, stepRows, toggleList } from "./assistmodel.js";
+import { registerSection } from "./settings.js";
 import { ALL_WORKSPACES, CORE, slots } from "./slots.js";
 import { store } from "./store.js";
 import { addPanel, showPanel } from "./workspaces.js";
@@ -170,4 +171,55 @@ export function wireAssistant() {
 
 export async function loadAssistant() {
   try { store.set({ assistant: await getJSON("/api/assistant") }); } catch (e) { /* the panel keeps what it shows */ }
+}
+
+// ------------------------------------------------------------------ Settings → Assistant
+
+const NEVER = new Set(["open_network", "close_network"]); // never offered (tools.NEVER): not listed
+
+// A switch per core Action and per plugin, each saved to the user's file as a set_setting. Names the session doesn't
+// know (status.warnings: a typo, an uninstalled plugin) are listed; changing a switch drops them, since the server
+// refuses a list that still holds one.
+export function registerAssistantSettings() {
+  registerSection("assistant", "Assistant", "assistant-panel", () => renderAssistantSettings());
+}
+
+async function renderAssistantSettings(focusKey = null) {
+  const el = $("assistant-panel");
+  const [{ values }, { actions }, status] = await Promise.all([getJSON("/api/settings"), getJSON("/api/actions"),
+    getJSON("/api/assistant").then(p => p.status)]);
+  const allowed = values.assistant.actions, plugins = values.assistant.plugins;
+  const core = actions.filter(a => !a.plugin && !NEVER.has(a.type));
+  const known = store.get().pluginStatus || [];
+  const warnings = status.warnings || [];
+  const usage = status.provider === "stub" ? "The offline assistant uses no tokens." : budgetText(status);
+  el.innerHTML = '<p class="llm-note">What the assistant may call. Steps that change a network are always drafted ' +
+    "for you to approve; the rest run at once. It uses the provider and model chosen in the header.</p>" +
+    `<p class="llm-note" id="as-set-usage">${esc(usage)}</p>` +
+    (warnings.length ? '<div class="warnbox" role="alert"><p><b>Ignored names.</b> Changing a switch below removes them.</p>' +
+      warnings.map(w => `<p>${esc(w)}</p>`).join("") + "</div>" : "") +
+    "<h4>Actions</h4>" + core.map(a => `<label class="row"><input type="checkbox" data-act="${esc(a.type)}"` +
+      `${allowed.includes(a.type) ? " checked" : ""}> ${esc(a.name)} <code class="diag">${esc(a.type)}</code>` +
+      `${a.mutates ? ' <span class="diag">(drafted)</span>' : ""}</label>`).join("") +
+    "<h4>Plugins</h4>" + (known.length ? known.map(p => `<label class="row"><input type="checkbox" data-plugin="${esc(p.id)}"` +
+      `${plugins.includes(p.id) ? " checked" : ""}> ${esc(p.name || p.id)}` +
+      `${p.state === "loaded" ? "" : ` <span class="diag">(${esc(p.state)})</span>`}</label>`).join("")
+      : '<p class="empty">No plugins installed.</p>') +
+    "<p class=\"llm-note\">A plugin's Actions are offered only when you turn it on here; none are by default.</p>";
+  if (focusKey) {
+    const again = [...el.querySelectorAll("input")].find(b => (b.dataset.act || b.dataset.plugin) === focusKey);
+    if (again) again.focus();
+  }
+  el.onchange = e => {
+    const box = e.target;
+    const id = box.dataset.act || box.dataset.plugin;
+    if (!id) return;
+    const coreTypes = new Set(core.map(a => a.type)), pluginIds = new Set(known.map(p => p.id));
+    const [key, list] = box.dataset.act
+      ? ["assistant.actions", allowed.filter(t => coreTypes.has(t))]
+      : ["assistant.plugins", plugins.filter(p => pluginIds.has(p))];
+    dispatch({ type: "set_setting", key, value: toggleList(list, id, box.checked), scope: "user" })
+      .catch(err => toast(err.message))
+      .finally(() => renderAssistantSettings(id).catch(err => toast(err.message)));
+  };
 }
