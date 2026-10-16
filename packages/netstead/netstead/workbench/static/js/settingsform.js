@@ -1,5 +1,9 @@
 // Settings form model: /api/settings (JSON schema + values + sources + readonly/restart/notes) -> field
-// descriptors, and input parsing. Import-free and DOM-free: unit-tested under node (tests/test_workbench_js.py).
+// descriptors. Field kinds and input parsing live in schemaform.js (shared with wb.schemaForm). DOM-free: unit-tested
+// under node (tests/test_workbench_js.py).
+import { fieldKind, parseControl, parseInput, resolveRef } from "./schemaform.js";
+
+export { fieldKind, parseControl, parseInput }; // their old home: callers and tests import them from here too
 
 // Sections another Settings section owns, hidden from the generated form: the Language models panel
 // (llm, select) and the plugins' own tables (free-form; each plugin validates its own).
@@ -13,24 +17,6 @@ const TITLES = {
 const RANKS = ["default", "user", "project", "env", "session"];
 const rank = source => RANKS.indexOf(source);
 
-const resolve = (schema, node) => (node && node.$ref ? schema.$defs[node.$ref.split("/").pop()] : node);
-
-export function fieldKind(prop) {
-  const options = prop.anyOf ? prop.anyOf.filter(o => o.type !== "null") : [prop];
-  const nullable = Boolean(prop.anyOf && prop.anyOf.some(o => o.type === "null"));
-  const p = options.length === 1 ? options[0] : null;
-  if (!p) return { kind: "json", nullable };
-  if (p.enum) return { kind: "choice", options: p.enum, nullable };
-  if (p.type === "boolean") return { kind: "bool", nullable };
-  if (p.type === "integer" || p.type === "number") {
-    return { kind: p.type === "integer" ? "int" : "float", nullable,
-      min: p.minimum ?? p.exclusiveMinimum ?? null, max: p.maximum ?? p.exclusiveMaximum ?? null };
-  }
-  if (p.type === "string") return { kind: "text", nullable };
-  if (p.type === "array" && p.items && p.items.type === "string") return { kind: "list", nullable };
-  return { kind: "json", nullable };
-}
-
 // A key's source; for a JSON field (e.g. validation.rules), the highest layer among its nested keys.
 export function sourceOf(sources, key) {
   if (sources[key]) return sources[key];
@@ -41,7 +27,7 @@ export function sourceOf(sources, key) {
 export function sectionsFrom(payload) {
   const { schema, values, sources, readonly = {}, restart = [], notes = {} } = payload;
   return Object.entries(schema.properties).filter(([name]) => !FOLDED.has(name)).map(([name, ref]) => {
-    const def = resolve(schema, ref);
+    const def = resolveRef(schema, ref);
     const fields = Object.entries(def.properties || {}).map(([field, prop]) => {
       const key = `${name}.${field}`;
       return { key, label: prop.title || field, ...fieldKind(prop), value: (values[name] || {})[field],
@@ -51,22 +37,6 @@ export function sectionsFrom(payload) {
     return { name, title: TITLES[name] || name[0].toUpperCase() + name.slice(1), description: def.description || "",
       note: notes[name] || null, fields };
   });
-}
-
-// An input's raw value -> {ok, value} or {ok: false, error}. Empty means "reset": null removes the key from that layer.
-export function parseInput(field, raw) {
-  if (field.kind === "bool") return { ok: true, value: Boolean(raw) };
-  if (raw === "" || raw === null || raw === undefined) return { ok: true, value: null };
-  if (field.kind === "choice" || field.kind === "text") return { ok: true, value: String(raw) };
-  if (field.kind === "int" || field.kind === "float") {
-    const n = Number(raw);
-    if (!Number.isFinite(n) || (field.kind === "int" && !Number.isInteger(n))) {
-      return { ok: false, error: `${field.label}: enter a ${field.kind === "int" ? "whole " : ""}number` };
-    }
-    return { ok: true, value: n };
-  }
-  if (field.kind === "list") return { ok: true, value: String(raw).split(",").map(s => s.trim()).filter(Boolean) };
-  try { return { ok: true, value: JSON.parse(raw) }; } catch (e) { return { ok: false, error: `${field.label}: not valid JSON` }; }
 }
 
 // Reset removes the value from the layer it comes from; env and defaults can't be reset from the app.
@@ -82,13 +52,6 @@ export function scopeNote(field, scope) {
     return `Currently set by ${by}; a ${scope} value is saved but won't take effect while that is set.`;
   }
   return null;
-}
-
-// A form control's state ({type, value, checked, badInput}) -> parseInput's answer. A number input the browser
-// cannot parse ("-", "1e") reports an empty value; that must not read as "reset" and delete the saved value.
-export function parseControl(field, { type, value, checked, badInput }) {
-  if (badInput) return { ok: false, error: `${field.label}: enter a ${field.kind === "int" ? "whole " : ""}number` };
-  return parseInput(field, type === "checkbox" ? checked : value);
 }
 
 // Clearing a field resets it only in the "Save to" layer. When the value comes from another layer that

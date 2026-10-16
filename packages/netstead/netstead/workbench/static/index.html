@@ -15,6 +15,7 @@
   <header>
     <div class="hrow">
       <h1>Netstead Workbench</h1>
+      <nav id="ws-tabs" role="tablist" aria-label="Workspaces" hidden></nav>
       <select id="net-select" aria-label="Active network"></select>
       <button id="open-wizard" class="mini">Open / Import…</button>
       <select id="recent" aria-label="Recent networks"></select>
@@ -24,7 +25,7 @@
         <button data-mode="table">Table</button>
       </div>
       <span id="count"></span>
-      <span class="spacer"></span>
+      <span class="spacer" id="cmd-slot"><button id="cmd-btn" class="mini ghost" title="Command palette (Ctrl+K, ⌘K on a Mac)" aria-keyshortcuts="Control+K Meta+K">Commands…</button></span>
       <button id="jobs-btn" class="mini ghost" aria-label="Background jobs">Jobs <span id="jobs-count" class="pcount">0</span></button>
       <button id="settings-btn" class="mini ghost">Settings…</button>
     </div>
@@ -63,6 +64,7 @@
         <div class="row"><select id="colorby"><option value="none">None (single color)</option></select></div>
         <div class="row" id="ramp-row" style="display:none"><span class="lbl">Ramp</span>
           <select id="ramp"><option>YlOrRd</option><option>Blues</option><option>Viridis</option></select></div>
+        <div id="plugin-layers"></div>
       </div>
       <div class="panel" id="settings-panel">
         <h4>Map display</h4>
@@ -96,7 +98,10 @@
     </div>
   </div>
   <aside id="side">
+    <div id="dock-tabs" role="tablist" aria-label="Panels" hidden></div>
+    <section class="dock-pane" id="dock-details" data-panel="details" role="tabpanel" aria-labelledby="dtab-details">
     <div id="status-wrap"></div>
+    <div id="sel-cmds-wrap" hidden><button class="mini ghost" id="sel-cmds" aria-haspopup="menu" aria-expanded="false">Selection actions &#9662;</button></div>
     <div class="label">Highlighted links <span id="hl-count" class="pcount">0</span></div>
     <div id="hl-wrap">
       <span class="empty" id="hl-hint">Turn on <b>Highlight links</b> (&#9647;), then click links or shift-drag a box.</span>
@@ -113,6 +118,7 @@
     <pre id="fragment">—</pre>
     <div class="label">Diagnostics</div>
     <div id="diag"><span class="empty">—</span></div>
+    </section>
   </aside>
   <footer id="history">
     <span id="hist-seq">—</span>
@@ -240,11 +246,40 @@
           <table id="llm-catalog"></table>
           <p class="llm-note" id="llm-catalog-hint"></p>
         </section>
+        <section id="plugins-panel" aria-label="Plugins" hidden>
+          <p class="llm-note" id="plugins-host"></p>
+          <p class="set-note" id="plugins-note"></p>
+          <div id="plugins-list"></div>
+        </section>
       </div>
     </div>
   </div>
 </div>
 <!-- /settings -->
+<div id="cmdk" class="modal" role="dialog" aria-modal="true" aria-label="Command palette" hidden>
+  <div class="modal-card cmdk-card">
+    <input id="cmdk-input" role="combobox" aria-expanded="true" aria-controls="cmdk-list" aria-autocomplete="list"
+           aria-label="Command" placeholder="Type a command…" autocomplete="off" spellcheck="false" />
+    <ul id="cmdk-list" role="listbox" aria-label="Commands"></ul>
+  </div>
+</div>
+<!-- /cmdk -->
+<div id="actform" class="modal" role="dialog" aria-modal="true" aria-labelledby="actform-title" aria-describedby="actform-desc" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3 id="actform-title">Action</h3>
+      <button class="mini ghost" id="actform-close" aria-label="Close">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <p class="llm-note" id="actform-desc"></p>
+      <div id="actform-body"></div>
+      <p class="wz-note" id="actform-result" role="status"></p>
+    </div>
+    <div class="modal-foot"><span></span><button class="mini" id="actform-run">Run</button></div>
+  </div>
+</div>
+<!-- /actform -->
+<div id="ctxmenu" role="menu" aria-label="Commands" hidden></div>
 <div id="toast" role="status"></div>
 </body>
 </html>

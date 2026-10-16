@@ -52,6 +52,11 @@ def core_router(session: Session) -> APIRouter:
             "imports": script_imports(e.imports for e in entries if e.ok and e.parent_seq is None),
         }
 
+    @router.get("/actions")
+    def action_catalog() -> dict[str, Any]:
+        """Every Action this session accepts, with its owner and JSON schema. Read-only; nothing is recorded."""
+        return {"actions": session.action_catalog()}
+
     @router.post("/actions")
     def actions(body: dict = Body(...)) -> JSONResponse:  # noqa: B008  (FastAPI Body default)
         """Apply an action. A job action (open/build) answers 202 with its job; the outcome arrives over SSE."""

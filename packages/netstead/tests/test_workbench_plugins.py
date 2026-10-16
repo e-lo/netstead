@@ -957,6 +957,18 @@ def test_host_publish_sends_a_namespaced_plugin_event(host_of):
     ]
 
 
+@pytest.mark.parametrize("name", ["other.thing", "Greeted", "1st", "", "greeted!", "hello greeted", "_x"])
+def test_host_publish_refuses_a_name_wb_on_could_not_hear(host_of, name):
+    # wb.on("a.b") means another plugin's event "b", so a dotted (or otherwise odd) name would never arrive.
+    session, host = host_of
+    published: list[dict[str, Any]] = []
+    session.events.publish = published.append
+    with pytest.raises(ValueError, match=r"hello: host\.publish event names are lowercase .*\[a-z\]\[a-z0-9_\]\*"):
+        host.publish(name)
+    host.publish("greeted_2")
+    assert [e["name"] for e in published] == ["greeted_2"]
+
+
 def test_host_writable_stays_inside_the_allowed_roots(host_of, tmp_path):
     from netstead.workbench.errors import PathNotAllowed
 
@@ -1043,3 +1055,67 @@ def test_describe_error_redacts_bare_api_keys():
     text = describe_error(ValueError(f"upstream refused token {token}"))
     assert token not in text
     assert "[redacted]" in text
+
+
+# ---------------------------------------------------------------------------- JSON schemas (GET /api/actions)
+
+
+class Opaque:
+    """A field type pydantic can validate (``arbitrary_types_allowed``) but not describe in JSON Schema."""
+
+
+class OpaqueAction(BaseAction):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    type: Literal["hello.opaque"] = "hello.opaque"
+    thing: Opaque | None = None
+
+
+def test_problems_refuses_an_action_with_no_json_schema():
+    found = problems(make_hello(actions=(_spec(OpaqueAction),)), ActionRegistry(), taken=())
+    assert any(p.startswith("hello.opaque: its fields have no JSON schema") for p in found), found
+
+
+def test_a_plugin_whose_action_has_no_schema_is_refused_and_the_catalog_still_answers(make_session):
+    session = make_session(make_hello(actions=(_spec(OpaqueAction),)))
+    assert _status(session, "hello").state == "error" and "no JSON schema" in _status(session, "hello").error
+    types = {entry["type"] for entry in session.action_catalog()}
+    assert "hello.opaque" not in types and "open_network" in types
+
+
+def test_the_catalog_lists_a_schema_it_cannot_generate_as_none(make_session, monkeypatch, caplog):
+    """Defence in depth: install refuses such a model, but a failure later must not fail the whole catalog."""
+    session = make_session(make_hello())
+
+    def boom(cls, *args, **kwargs):
+        raise RuntimeError("schema exploded")
+
+    monkeypatch.setattr(Greet, "model_json_schema", classmethod(boom))
+    catalog = {entry["type"]: entry for entry in session.action_catalog()}
+    assert catalog["hello.greet"]["schema"] is None and catalog["open_network"]["schema"]["properties"]
+    assert "hello.greet" in caplog.text
+
+
+def test_the_plugin_id_core_is_reserved(make_session):
+    """The front end tags core's own registrations with the owner "core": a plugin may not take that id."""
+    assert any("reserved" in p for p in problems(make_hello(id="core", actions=()), ActionRegistry(), taken=()))
+    session = make_session(make_hello(id="core", actions=()))
+    assert _status(session, "core").state == "error" and "reserved" in _status(session, "core").error
+
+
+def test_a_plugin_built_for_api_1_0_installs_on_this_host(make_session):
+    """A minor bump only adds: a plugin that declares 1.0 still installs (and its Action registers) on 1.1."""
+    assert HOST_API == "1.1"
+    session = make_session(make_hello(requires_api="1.0"))
+    assert _status(session, "hello").state == "loaded" and session.actions.has("hello.greet")
+
+
+def test_the_action_catalog_drops_an_unloaded_plugins_actions(make_session):
+    from fastapi.testclient import TestClient
+    from netstead.workbench import build_app
+
+    session = make_session(make_hello())
+    client = TestClient(build_app(session))
+    assert "hello.greet" in {a["type"] for a in client.get("/api/actions").json()["actions"]}
+    session.unload_plugin("hello", "its mount failed")
+    types = {a["type"] for a in client.get("/api/actions").json()["actions"]}
+    assert "hello.greet" not in types and "open_network" in types

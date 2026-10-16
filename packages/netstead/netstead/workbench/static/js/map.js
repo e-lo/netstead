@@ -1,7 +1,11 @@
 // deck.gl-over-MapLibre network rendering, picking, and camera moves.
 import { $, esc } from "./dom.js";
+import { createClickGuard } from "./gesture.js";
+import { layerRegistry } from "./layers.js";
 import { widthForLanes } from "./netbuf.js";
 import { buildLinkColors } from "./palette.js";
+import { commandContext, frozenCopy } from "./commands.js";
+import { CORE } from "./slots.js";
 import { activeSelection, store } from "./store.js";
 
 const OFFSET_EXT = typeof deck.PathStyleExtension === "function" ? new deck.PathStyleExtension({ offset: true }) : null;
@@ -14,7 +18,8 @@ const ARROW_SVG = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(
 const TOOLTIP_STYLE = { background: "#11151a", color: "#e6e8ec", fontSize: "12px", padding: "6px 8px",
   borderRadius: "6px", border: "1px solid #2a2f3a" };
 
-let map = null, overlay = null, handlers = { onLinkClick() {}, onNodeClick() {}, onBoxSelect() {} };
+let map = null, overlay = null;
+let handlers = { onLinkClick() {}, onNodeClick() {}, onBoxSelect() {}, onContextMenu() {}, onLayerError(e) { console.error(e); } };
 let colorCache = { key: null, colors: null };
 let labelsShown = true;
 // Whether the current style's layers exist (style.load fired). Not map.isStyleLoaded(): that also waits for
@@ -29,6 +34,7 @@ export function initMap(style, hooks) {
   map.addControl(new maplibregl.NavigationControl(), "top-left");
   overlay = new deck.MapboxOverlay({ interleaved: false, layers: [], getTooltip });
   map.addControl(overlay);
+  wireContextMenu();
   new ResizeObserver(() => map.resize()).observe($("map"));
   map.on("zoomend", () => { const s = store.get(); if (s.server && s.server.style.show_direction) render(); });
   // Ready once the style is parsed, not on "load": that waits for every basemap tile of the opening
@@ -36,6 +42,21 @@ export function initMap(style, hooks) {
   map.on("style.load", () => { styleReady = true; });
   map.once("style.load", hooks.onReady);
   wireBoxSelect();
+}
+
+// A right-click (or Ctrl+click on a Mac) on a feature opens its menu, but never at the end of a right-drag rotate.
+function wireContextMenu() {
+  const guard = createClickGuard();
+  map.getCanvasContainer().addEventListener("mousedown", e => guard.down(e.clientX, e.clientY), true);
+  window.addEventListener("mousemove", e => guard.move(e.clientX, e.clientY), true);
+  window.addEventListener("mouseup", e => { const open = guard.up(e.clientX, e.clientY); if (open) open(); }, true);
+  map.on("contextmenu", e => {
+    const target = recordAt(e.point);
+    if (!target) return;
+    const at = { x: e.originalEvent.clientX, y: e.originalEvent.clientY };
+    const open = guard.menu(() => handlers.onContextMenu(target, at));
+    if (open) open();
+  });
 }
 
 export function resizeSoon() { if (map) setTimeout(() => map.resize(), 60); }
@@ -133,19 +154,52 @@ function setLabels(show) {
     if (l.type === "symbol" || l.id === "labels") map.setLayoutProperty(l.id, "visibility", show ? "visible" : "none");
 }
 
+// Core's layer groups, bottom to top (layers.js CORE_ORDER). Each returns what render() used to push, or nothing.
+function registerCoreLayers() {
+  const reg = (id, factory) => layerRegistry.register(CORE, "roadway", id, factory);
+  reg("base", c => baseLayers(c.net, c.style, linkColors(c.state)));
+  reg("selection", c => (c.style.show.selection && c.selection ? selectionLayers(c.net, c.style, c.selection) : null));
+  reg("related", c => (c.related ? relatedLayers(c.net, c.related) : null));
+  reg("highlighted", c => (c.highlights.size ? idPathLayer(c.net, "highlighted", c.highlights, [...HIGHLIGHT_COLOR, 255], 2.5) : null));
+  reg("focus", c => (c.focus && c.focus.table === "link" ? idPathLayer(c.net, "focus", [c.focus.id], FOCUS_COLOR, 4) : null));
+  reg("marker", c => (c.marker ? markerLayer(c.marker) : null));
+}
+
+// What core's layer factories see. `deck` is the global deck.gl.
+function layerContext(s) {
+  return { state: s, server: s.server, style: s.server.style, net: s.net, attrs: s.attrs, selection: activeSelection(s),
+    focus: s.focus, highlights: s.highlights, related: s.related, marker: s.marker, zoom: map.getZoom(), deck };
+}
+
+// What a plugin's layer factory sees (the cookbook's registerLayer): the command context's frozen copies, plus the
+// map's own parts. `highlights` is a copy (a Set); `net` and `attrs`, the decoded network, are too big to copy per
+// render and are shared: read them, never change them.
+function pluginLayerContext(s) {
+  const c = commandContext({ server: s.server, focus: s.focus, highlights: s.highlights, workspace: s.workspace });
+  return Object.freeze({ server: c.state, style: c.state.style, net: s.net, attrs: s.attrs, selection: c.selection,
+    focus: c.focus, highlights: new Set(s.highlights), related: frozenCopy(s.related), marker: frozenCopy(s.marker),
+    zoom: map.getZoom(), deck });
+}
+
+const isDeckLayer = layer => typeof deck.Layer !== "function" || layer instanceof deck.Layer;
+
 export function render() {
   if (!overlay) return;
   const s = store.get();
   if (!s.net || !s.server) { overlay.setProps({ layers: [] }); return; }
-  const style = s.server.style, sel = activeSelection(s);
-  const layers = baseLayers(s.net, style, linkColors(s));
-  if (style.show.selection && sel) layers.push(...selectionLayers(s.net, style, sel));
-  if (s.related) layers.push(...relatedLayers(s.net, s.related));
-  if (s.highlights.size) { const l = idPathLayer(s.net, "highlighted", s.highlights, [...HIGHLIGHT_COLOR, 255], 2.5); if (l) layers.push(l); }
-  if (s.focus && s.focus.table === "link") { const l = idPathLayer(s.net, "focus", [s.focus.id], FOCUS_COLOR, 4); if (l) layers.push(l); }
-  if (s.marker) layers.push(markerLayer(s.marker));
+  const { layers, errors } = layerRegistry.build("roadway", layerContext(s), s.hiddenLayers,
+    { isLayer: isDeckLayer, pluginCtx: () => pluginLayerContext(s) });
   overlay.setProps({ layers });
-  setLabels(style.show.labels);
+  setLabels(s.server.style.show.labels);
+  for (const e of errors) handlers.onLayerError(e);
+}
+
+// A plugin's layer (wb.registerLayer): drawn at once, and listed under Layers → Overlays when it has a title.
+export function addLayer(owner, component, id, factory, options) {
+  const dispose = layerRegistry.register(owner, component, id, factory, options);
+  const changed = () => store.set({ layerSeq: store.get().layerSeq + 1 });
+  changed();
+  return () => { if (dispose()) changed(); };
 }
 
 function getTooltip({ layer, index }) {
@@ -154,6 +208,16 @@ function getTooltip({ layer, index }) {
   const id = attrs.link_id[index], nm = attrs.name[index], rf = attrs.ref[index], ft = attrs.facility_type[index];
   return { html: `<b>link ${esc(id)}</b><br>${nm ? esc(nm) : "<i>unnamed</i>"}${rf ? " · " + esc(rf) : ""}` +
     `<br><span style="color:#8a93a3">${ft ? esc(ft) : ""}</span>`, style: TOOLTIP_STYLE };
+}
+
+// The record under a right-click: a link or node feature ({table, id}), or null.
+function recordAt(point) {
+  const s = store.get();
+  const info = overlay.pickObject({ x: point.x, y: point.y, radius: 4, layerIds: ["nodes", "links"] });
+  if (!info || info.index == null || info.index < 0 || !s.net) return null;
+  if (info.layer.id === "links") return { table: "link", id: s.attrs.link_id[info.index] };
+  if (info.layer.id === "nodes") return { table: "node", id: s.net.nodeIds[info.index] };
+  return null;
 }
 
 function fit(bounds, padding, retried, duration = 500) {
@@ -244,3 +308,5 @@ export function setBasemap(style) {
   map.once("style.load", () => render());
   map.setStyle(style, { diff: false });
 }
+
+registerCoreLayers();

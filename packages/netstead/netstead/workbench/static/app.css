@@ -85,7 +85,7 @@
   .hex { width:66px; background:#0c0e12; color:var(--ink); border:1px solid var(--edge); border-radius:6px;
          padding:3px 6px; font-size:12px; font-family:ui-monospace,monospace; }
   /* toggle switch */
-  .sw { position:relative; width:34px; height:18px; flex:none; }
+  .sw { position:relative; display:inline-block; vertical-align:middle; width:34px; height:18px; flex:none; }
   .sw input { opacity:0; width:0; height:0; }
   .sw span { position:absolute; inset:0; background:#3a4150; border-radius:999px; transition:.15s; cursor:pointer; }
   .sw span::before { content:""; position:absolute; width:14px; height:14px; left:2px; top:2px; background:#e6e8ec;
@@ -264,3 +264,44 @@
   #tbl-grid a.fk { color:var(--hl); text-decoration:none; border-bottom:1px dotted var(--hl); }
   .tbl-item .rel-badge { font-size:10.5px; color:var(--hl); margin-left:6px; }
   #tbl-hint { margin-left:10px; font-size:12px; }
+  /* ---- plugins part 2: workspace tabs and the dock (strips show with two or more tabs) ---- */
+  #ws-tabs, #dock-tabs { display:flex; gap:2px; flex-wrap:wrap; }
+  #ws-tabs button, #dock-tabs button { background:none; color:var(--muted); border:0; border-radius:6px 6px 0 0;
+    padding:6px 10px; font-size:12.5px; font-weight:600; }
+  #ws-tabs button.on, #dock-tabs button.on { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
+  #ws-tabs button:focus-visible, #dock-tabs button:focus-visible { outline:2px solid var(--hl); outline-offset:-2px; }
+  #dock-tabs { margin:-4px 0 12px; border-bottom:1px solid var(--edge); }
+  .dirty { color:var(--accent); font-size:10px; margin-left:3px; }
+  #sel-cmds-wrap { margin:8px 0 0; }
+  #ctxmenu { position:fixed; z-index:30; min-width:200px; max-width:320px; padding:4px; background:var(--panel);
+             border:1px solid var(--edge); border-radius:8px; box-shadow:0 6px 24px rgba(0,0,0,.45); }
+  #ctxmenu .ctx-head { padding:6px 10px 2px; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+  #ctxmenu button { display:block; width:100%; text-align:left; background:none; color:var(--ink); border:0; border-radius:6px;
+                    padding:6px 10px; font-weight:500; font-size:12.5px; }
+  #ctxmenu button:hover, #ctxmenu button:focus { background:#20242e; outline:none; }
+  /* ---- the command palette ---- */
+  .cmdk-card { width:min(560px, calc(100vw - 32px)); align-self:flex-start; margin-top:12vh; }
+  #cmdk-input { margin:12px; padding:9px 12px; font-size:14px; }
+  #cmdk-list { list-style:none; margin:0; padding:0 6px 8px; max-height:50vh; overflow:auto; }
+  #cmdk-list .cmdk-head { padding:8px 10px 2px; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+  #cmdk-list [role="option"] { padding:7px 10px; border-radius:6px; cursor:pointer; font-size:13px; }
+  #cmdk-list [role="option"].on { background:#20242e; color:var(--accent); }
+  #cmdk-list .empty { padding:7px 10px; }
+  #cmdk-list ul { list-style:none; margin:0; padding:0; }
+  /* "Commands…" lives in the header's spacer and shows only when the spacer has room for it, so it never makes the
+     header wrap (its layout is unchanged at every width); Ctrl+K still opens the palette when it is hidden. */
+  #cmd-slot { display:flex; justify-content:flex-end; min-width:0; container-type:inline-size; }
+  @container (max-width: 112px) { #cmd-btn { display:none; } }
+  @media (max-width: 640px) { #cmd-btn { display:none; } }
+  /* ---- schema forms (wb.schemaForm, Action forms) ---- */
+  .sf-field { display:grid; grid-template-columns:minmax(110px, 200px) 1fr; gap:4px 10px; align-items:center; padding:5px 0; }
+  .sf-field input:not([type=checkbox]), .sf-field select, .sf-field textarea { background:#0c0e12; color:var(--ink);
+    border:1px solid var(--edge); border-radius:6px; padding:5px 8px; min-width:0; font:inherit; }
+  .sf-field input[type=checkbox] { justify-self:start; }
+  .sf-help { grid-column:2; color:var(--muted); font-size:12px; }
+  .sf-group { margin:10px 0 2px; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+  .sf-req { color:var(--accent); }
+  #plugins-list table { width:100%; border-collapse:collapse; }
+  #plugins-list th { text-align:left; color:var(--muted); font-weight:600; font-size:11px; padding:4px 6px; }
+  #plugins-list td { padding:6px; border-bottom:1px solid var(--edge); vertical-align:top; font-size:12.5px; }
+  #plugins-list .err { font-size:12px; margin-top:2px; }

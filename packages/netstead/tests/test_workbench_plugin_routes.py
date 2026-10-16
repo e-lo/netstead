@@ -205,3 +205,16 @@ def test_plugin_routes_sit_behind_the_host_guard(client):
     assert client.get("/api/plugins/hello/whoami", headers={"Host": "evil.example"}).status_code == 400
     assert client.get("/plugins/hello/main.js", headers={"Host": "evil.example"}).status_code == 400
     assert client.post("/api/plugins/hello/echo", json={}, headers={"Host": "evil.example"}).status_code == 400
+
+
+def test_actions_lists_core_and_plugin_actions_with_owner_and_schema(client):
+    actions = {a["type"]: a for a in client.get("/api/actions").json()["actions"]}
+    core = actions["open_network"]
+    assert core["plugin"] is None and core["name"] == "OpenNetwork" and core["description"]
+    greet = actions["hello.greet"]
+    assert greet["plugin"] == "hello" and greet["name"] == "Greet" and greet["mutates"] is False
+    assert greet["schema"]["required"] == ["name"] and "name" in greet["schema"]["properties"]
+
+
+def test_plugins_report_host_api_1_1(client):
+    assert client.get("/api/plugins").json()["host_api"] == "1.1"

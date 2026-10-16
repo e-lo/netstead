@@ -7,6 +7,7 @@ its own id. Handlers run under the session lock, so ``Host`` methods are safe to
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -25,6 +26,9 @@ if TYPE_CHECKING:
     from .spec import WorkbenchPlugin
 
 __all__ = ["Host", "PluginSettingsError", "validate_plugin_settings"]
+
+#: A ``host.publish`` event name: no dot, since ``wb.on("a.b")`` in the browser means plugin ``a``'s event ``b``.
+_EVENT_NAME = re.compile(r"[a-z][a-z0-9_]*")
 
 
 class PluginSettingsError(ValueError):
@@ -106,7 +110,16 @@ class Host:
         return self._session.dispatch(action)
 
     def publish(self, name: str, payload: Any = None) -> None:
-        """Send the browser a ``plugin`` event ``{plugin, name, payload}`` over the session's SSE stream."""
+        """Send the browser a ``plugin`` event ``{plugin, name, payload}`` over the session's SSE stream.
+
+        ``name`` matches ``[a-z][a-z0-9_]*``: in the browser ``wb.on("a.b")`` means plugin ``a``'s event ``b``, so a
+        dotted name could never be listened for. Raises ``ValueError`` otherwise.
+        """
+        if not isinstance(name, str) or not _EVENT_NAME.fullmatch(name):
+            raise ValueError(
+                f"{self.plugin_id}: host.publish event names are lowercase letters, digits and underscores, "
+                f"starting with a letter ([a-z][a-z0-9_]*); got {name!r}"
+            )
         self._session.events.publish({"type": "plugin", "plugin": self.plugin_id, "name": name, "payload": payload})
 
     def submit_job(self, label: str, fn: Callable[[JobContext], Any]) -> str:

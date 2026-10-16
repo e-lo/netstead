@@ -1,6 +1,6 @@
 # Workbench plugins: design
 
-- **Status:** accepted (decisions recorded 2026-10-05). Part 1 implemented, PR pending; Part 1 plan: [`2026-10-05-workbench-plugins-p1-plan.md`](2026-10-05-workbench-plugins-p1-plan.md).
+- **Status:** accepted (decisions recorded 2026-10-05). Part 1 implemented (#222); Part 1 plan: [`2026-10-05-workbench-plugins-p1-plan.md`](2026-10-05-workbench-plugins-p1-plan.md). Part 2 (front-end slots) implemented, PR pending; Part 2 plan: [`2026-10-08-workbench-plugins-p2-plan.md`](2026-10-08-workbench-plugins-p2-plan.md).
 - **Amendment (Part 1 implementation):** two behaviour changes this spec didn't anticipate. A failed Action now rolls back every `mutate`/`derive` it (or an Action nested in it) made, not just the ones a plugin undoes itself. And a `mutate` called outside any Action is recorded in history as a non-replayable entry (it has no Action to attach a replayable `python` snippet to), rather than being silently applied.
 - **Date:** 2026-10-05.
 - **Depends on:** the Workbench (`netstead app`, package `netstead.workbench`), which lands with PR #211 (`feat/nl-providers`). Implementation stacks on that.

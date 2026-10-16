@@ -218,23 +218,61 @@ def run_node():
 WORKBENCH_JS = _FIXTURES_ROOT.resolve().parent / "workbench" / "static" / "js"
 
 
+#: A statement that names another module: ``import … from "…"`` (one line or several), ``export {…} from "…"`` /
+#: ``export * from "…"``, or a bare ``import "…"``. Group 1 or 2 is the specifier.
+_MODULE_REF = re.compile(
+    r'^[ \t]*(?:import\b|export\s*(?:\*|\{))[^;"]*?\bfrom\s*"([^"]*)"|^[ \t]*import\s*"([^"]*)"', re.M
+)
+#: Where every import statement starts: each must be one :data:`_MODULE_REF` could read.
+_IMPORT_START = re.compile(r"^[ \t]*import\b.*$", re.M)
+#: A sibling pure module's specifier (``"./x.js"``), as written in a ``from`` clause or a bare import.
+_SIBLING_SPEC = re.compile(r'(\bfrom\s*|\bimport\s*)"\./([\w-]+)\.js"')
+
+
+def _copy_pure(path: Path, dest: Path, copied: set[str]) -> str:
+    """Copy ``path`` into ``dest`` as ``.mjs`` with the sibling modules it imports (recursively); return its name.
+
+    Node then treats them as ES modules without a package.json. A pure module may import (or re-export from) only
+    other pure modules beside it, written with double quotes; any other import (a bare or remote one, or one this
+    scan can't read) fails loudly rather than leaving a module behind.
+    """
+    name = f"{path.stem}.mjs"
+    if name in copied:
+        return name
+    copied.add(name)
+    source = path.read_text(encoding="utf-8")
+    refs = list(_MODULE_REF.finditer(source))
+    readable = {m.start() for m in refs}
+    for start in _IMPORT_START.finditer(source):
+        assert start.start() in readable, (
+            f'{path.name}: can\'t read this import (use `import {{ a }} from "./b.js";`): {start.group(0).strip()}'
+        )
+    for ref in refs:
+        spec = ref.group(1) if ref.group(1) is not None else ref.group(2)
+        sibling = re.fullmatch(r"\./([\w-]+)\.js", spec)
+        assert sibling, f"{path.name}: a pure module may import only sibling pure modules, not: {spec!r}"
+        _copy_pure(path.with_name(f"{sibling.group(1)}.js"), dest, copied)
+    (dest / name).write_text(_SIBLING_SPEC.sub(r'\1"./\2.mjs"', source), encoding="utf-8")
+    return name
+
+
 @pytest.fixture
 def node_module(tmp_path: Path, run_node):
     """Evaluate a JS expression against a pure workbench module under node; return its JSON value.
 
-    ``node_module("linking.js", ["pageOffset"], "pageOffset(250, 100)")`` -> ``200``. Only
-    import-free modules qualify (they are copied alone, as ``.mjs``, so node treats them as ES
-    modules without a package.json); importing one with ``import`` statements fails loudly.
+    ``node_module("linking.js", ["pageOffset"], "pageOffset(250, 100)")`` -> ``200``. ``module`` is a file
+    in the workbench's ``static/js``, or an absolute path (a test's own harness). Pure modules may import
+    sibling pure modules, which are copied along; ``expr`` may use top-level ``await``.
     """
     counter = iter(range(1_000_000))
 
-    def run(module: str, names: list[str], expr: str) -> Any:
-        source = (WORKBENCH_JS / module).read_text(encoding="utf-8")
-        assert not re.search(r"^\s*import\s", source, re.M), f"{module} must stay import-free to be unit-tested"
-        n = next(counter)
-        (tmp_path / f"m{n}.mjs").write_text(source, encoding="utf-8")
-        script = tmp_path / f"probe{n}.mjs"
-        script.write_text(f'import {{ {", ".join(names)} }} from "./m{n}.mjs";\nconsole.log(JSON.stringify({expr}));\n')
+    def run(module: str | Path, names: list[str], expr: str) -> Any:
+        root = tmp_path / f"node{next(counter)}"
+        root.mkdir()
+        path = Path(module) if Path(module).is_absolute() else WORKBENCH_JS / module
+        entry = _copy_pure(path, root, set())
+        script = root / "__probe__.mjs"
+        script.write_text(f'import {{ {", ".join(names)} }} from "./{entry}";\nconsole.log(JSON.stringify({expr}));\n')
         proc = run_node([str(script)])
         assert proc.returncode == 0, proc.stderr
         return json.loads(proc.stdout)

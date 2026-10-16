@@ -3,6 +3,7 @@ import { dispatch } from "./api.js";
 import { $, esc, toast } from "./dom.js";
 import { hasOffset } from "./map.js";
 import { RAMPS, catColor, fmt, hex2rgb, rgb, rgb2hex } from "./palette.js";
+import { store } from "./store.js";
 
 const style = patch => dispatch({ type: "style", ...patch }).catch(e => toast(e.message));
 
@@ -31,6 +32,23 @@ export function wirePanels() {
   for (const [id, , patch] of SWITCHES) $(id).onchange = e => style(patch(e.target.checked));
   for (const [id, key] of COLORS) $(id).onchange = e => style({ colors: { [key]: hex2rgb(e.target.value) } });
   if (!hasOffset()) $("tg-offset").disabled = true;
+  $("plugin-layers").onchange = e => {
+    const el = e.target.closest("input[data-layer]");
+    if (!el) return;
+    const hidden = new Set(store.get().hiddenLayers);
+    if (el.checked) hidden.delete(el.dataset.layer); else hidden.add(el.dataset.layer);
+    store.set({ hiddenLayers: hidden });
+  };
+}
+
+// Layers → Overlays: each titled registry layer (a plugin's, or later core's issue markers) with a show/hide switch.
+// Hiding is view state, like the focus: it is per tab and never recorded. Nothing renders while there are none.
+export function renderPluginLayers(list, hidden) {
+  $("plugin-layers").innerHTML = list.length
+    ? '<h4 style="margin-top:14px">Overlays</h4>' + list.map(l => `<div class="row"><label class="sw">` +
+      `<input type="checkbox" data-layer="${esc(l.id)}" aria-label="${esc(l.title)}"${hidden.has(l.id) ? "" : " checked"}>` +
+      `<span></span></label><span class="lbl">${esc(l.title)}</span></div>`).join("")
+    : "";
 }
 
 export function populateColorby(props) {

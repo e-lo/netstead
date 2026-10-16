@@ -19,10 +19,14 @@ __all__ = ["HOST_API", "ActionSpec", "WorkbenchPlugin", "api_compatible", "probl
 
 #: The plugin API this netstead provides: ``major.minor``. A minor bump only adds; a major bump breaks.
 #: Provisional until netstead v1.0 (it may change without a major bump before then).
-HOST_API = "1.0"
+#: 1.1: the browser host object ``wb`` (workspaces, dock panels, commands, map layers, schema forms).
+HOST_API = "1.1"
 
 #: A plugin id: the namespace for its Action types, routes, state, settings and static files (``fullmatch``).
 _PLUGIN_ID = re.compile(r"[a-z][a-z0-9_]*")
+#: Plugin ids the front end uses for itself: ``"core"`` owns core's workspaces, panels, commands and layers
+#: (an owner tag that skips the id prefix check, and whose rollback would remove core's own registrations).
+_RESERVED_IDS = frozenset({"core"})
 #: Names a replayed script binds from ``netstead.workbench``: a plugin Action class must not rebind one.
 _RESERVED_NAMES = frozenset({"Session", *(model.__name__ for model in CORE_ACTIONS)})
 
@@ -82,6 +86,8 @@ def problems(plugin: WorkbenchPlugin, registry: ActionRegistry, taken: Collectio
     found: list[str] = []
     if not isinstance(plugin.id, str) or not _PLUGIN_ID.fullmatch(plugin.id):
         found.append(f"plugin id {plugin.id!r} must match [a-z][a-z0-9_]*")
+    if plugin.id in _RESERVED_IDS:
+        found.append(f"plugin id {plugin.id!r} is reserved for the Workbench itself")
     if plugin.id in taken:
         found.append(f"another plugin already uses the id {plugin.id!r}")
     names = _RESERVED_NAMES | {registry.model(t).__name__ for t in registry.types()}
@@ -104,9 +110,25 @@ def problems(plugin: WorkbenchPlugin, registry: ActionRegistry, taken: Collectio
         if action_type in seen_types:
             found.append(f"action type {action_type!r} is declared twice")
         seen_types.add(action_type)
+        found.extend(_schema_problems(model, action_type))
         found.extend(_replay_problems(model, names))
         names = names | {model.__name__}
     return found
+
+
+def _schema_problems(model: type[BaseAction], action_type: str) -> list[str]:
+    """Why ``model`` has no JSON schema (``GET /api/actions`` and the browser's generated forms need one).
+
+    A field pydantic can validate but not describe (an ``arbitrary_types_allowed`` class, say) fails here,
+    at install, rather than in every later request for the Action catalog.
+    """
+    try:
+        model.model_json_schema()
+    # boundary: a third-party model (or its custom ``__get_pydantic_json_schema__``) may raise anything
+    except Exception as exc:
+        reason = (str(exc).strip().splitlines() or [type(exc).__name__])[0][:200]
+        return [f"{action_type}: its fields have no JSON schema ({reason})"]
+    return []
 
 
 def _replay_problems(model: type[BaseAction], names: Collection[str]) -> list[str]:

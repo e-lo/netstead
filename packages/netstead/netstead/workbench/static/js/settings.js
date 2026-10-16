@@ -2,7 +2,9 @@
 // Other modules add their own sections with registerSection (the Language models panel is one).
 import { dispatch, getJSON } from "./api.js";
 import { $, esc, toast } from "./dom.js";
-import { clearHint, parseControl, resetScope, scopeNote, sectionsFrom } from "./settingsform.js";
+import { trapTab } from "./modal.js";
+import { clearHint, resetScope, scopeNote, sectionsFrom } from "./settingsform.js";
+import { inputHTML, parseControl } from "./schemaform.js";
 
 const extra = new Map(); // id -> {label, element, onShow}
 let payload = null, sections = [], current = null, opener = null, refused = null;
@@ -25,18 +27,6 @@ export async function openSettings(section) {
   showSection(section || current || (sections[0] && sections[0].name));
   const first = $("set-nav").querySelector("button.on") || $("set-close");
   if (!$("settings").contains(document.activeElement)) first.focus();
-}
-
-const focusables = () => [...$("settings").querySelectorAll("button, input, select, textarea, a[href], [tabindex]")]
-  .filter(el => !el.disabled && el.tabIndex >= 0 && el.getClientRects().length);
-
-function trapTab(e) {
-  if (e.key !== "Tab") return;
-  const els = focusables();
-  if (!els.length) return;
-  const first = els[0], last = els[els.length - 1];
-  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
 }
 
 export async function refreshSettings() {
@@ -70,25 +60,6 @@ function showSection(id) {
   for (const [key, e] of extra) $(e.element).hidden = key !== id;
   if (ext) Promise.resolve(ext.onShow()).catch(e => toast(e.message));
   else renderForm();
-}
-
-function inputHTML(f) {
-  const attrs = `id="set-${esc(f.key.replace(/\./g, "-"))}" data-key="${esc(f.key)}"${f.readonly ? " disabled" : ""}`;
-  if (f.kind === "bool") return `<input type="checkbox" ${attrs}${f.value ? " checked" : ""}>`;
-  if (f.kind === "choice") {
-    const opts = (f.nullable ? [""] : []).concat(f.options);
-    return `<select ${attrs}>${opts.map(o => `<option value="${esc(o)}"${o === (f.value ?? "") ? " selected" : ""}>` +
-      `${esc(o === "" ? "(default)" : o)}</option>`).join("")}</select>`;
-  }
-  if (f.kind === "int" || f.kind === "float") {
-    const bounds = (f.min != null ? ` min="${f.min}"` : "") + (f.max != null ? ` max="${f.max}"` : "");
-    return `<input type="number" ${attrs} step="${f.kind === "int" ? 1 : "any"}"${bounds} value="${esc(f.value ?? "")}" ` +
-      `placeholder="${esc(f.default ?? "default")}">`;
-  }
-  if (f.kind === "json") return `<textarea ${attrs} rows="3" spellcheck="false">${esc(JSON.stringify(f.value ?? null, null, 1))}</textarea>`;
-  const text = f.kind === "list" ? (f.value || []).join(", ") : f.value ?? "";
-  const hint = f.kind === "list" ? "comma-separated" : f.default ?? "default";
-  return `<input ${attrs} value="${esc(text)}" placeholder="${esc(hint)}" spellcheck="false">`;
 }
 
 function fieldHTML(f, scope) {
@@ -162,6 +133,6 @@ export function wireSettings() {
     const b = e.target.closest("button[data-reset]");
     if (b) save(b.dataset.reset, null, b.dataset.scope);
   };
-  $("settings").addEventListener("keydown", trapTab);
+  $("settings").addEventListener("keydown", e => trapTab($("settings"), e));
   document.addEventListener("keydown", e => { if (e.key === "Escape" && settingsOpen()) closeSettings(); });
 }

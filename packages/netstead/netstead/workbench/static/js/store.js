@@ -25,6 +25,14 @@ export const store = createStore({
   related: null,              // last /related answer for focus + highlights (related.js)
   tableScope: "all",          // all | selection | highlighted | related
   relHops: 1,                 // related-records depth ("Expand a hop" toggles 1 <-> 2)
+  hiddenLayers: new Set(),    // titled overlay layers switched off in Layers → Overlays (per tab, never recorded)
+  layerSeq: 0,                // bumped when a layer registers or goes, so Overlays and the map redraw
+  workspace: "inspect",       // the active workspace tab (per tab; remembered in localStorage)
+  dockPanel: {},              // workspace id -> the dock panel showing in it
+  commandSeq: 0,              // bumped when a command registers or goes, so menus re-check what applies
+  pluginStatus: [],           // GET /api/plugins: each plugin's startup outcome
+  hostApi: null,              // the plugin API this netstead provides ("1.1")
+  pluginErrors: {},           // plugin id -> [{phase, message}] from the browser (activate, panel, command, layer…)
 });
 
 export function activeSelection(s) {

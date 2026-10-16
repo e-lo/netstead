@@ -204,6 +204,21 @@ Focus is a view. Clicking never changes the selection.
   - **Expand a hop** follows keys one more step: from a node to its links, then to their lanes.
   - Related records are a read-only view. Nothing is recorded.
 
+## Workspaces, panels and commands
+
+- **Command palette.** Press **Ctrl+K** (**⌘K** on a Mac), or click **Commands…** in the header when it shows,
+  to search every command: open a network, Settings, zoom, the view modes. With a record focused it also lists
+  that record's commands ("For link 123"), and the selection's ("Selection (3 links)"). Arrow keys pick, Enter
+  runs, Escape closes.
+- **Right-click** a link or node on the map, or a table row, for its commands. With no command for it (as in a
+  Workbench with no plugins), the map keeps its right-drag rotate and the row the browser's own menu.
+- **Workspaces and the dock.** When a plugin adds a workspace, tabs for each appear in the header; each keeps the
+  map / split / table view you left it in. The right drawer is a dock: when it holds more than one panel (core's
+  **Details** plus a plugin's), tabs appear at its top.
+- **Settings → Plugins** lists the installed [Workbench plugins](workbench-plugins.md): version, the plugin API
+  each needs and whether it fits, and any error loading it. Its switch turns a plugin on or off; that applies the
+  next time `netstead app` starts.
+
 ## Language models (natural-language selection)
 
 The utterance box can be read by:

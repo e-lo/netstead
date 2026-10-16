@@ -782,6 +782,32 @@ class Session:
                 "plugins": self._plugin_state(),
             }
 
+    def action_catalog(self) -> list[dict[str, Any]]:
+        """Each registered Action, for the browser's generated forms and ``wb.hasAction``.
+
+        Each entry has ``type``, class ``name``, ``description`` (its docstring's first line), owning
+        ``plugin`` (``None`` for core), ``mutates`` and its JSON ``schema``. A schema that can't be generated
+        (install refuses such a plugin; this is defence in depth) is logged and listed as ``None``: one bad
+        model must not fail the catalog for every caller.
+        """
+        with self._lock:
+            owner = {spec.model.action_type(): pid for pid, plugin in self.plugins.items() for spec in plugin.actions}
+            models = [(t, self.actions.model(t)) for t in self.actions.types()]
+        catalog = []
+        for action_type, model in models:
+            doc = (model.__doc__ or "").strip().splitlines()
+            catalog.append(
+                {
+                    "type": action_type,
+                    "name": model.__name__,
+                    "description": doc[0] if doc else "",
+                    "plugin": owner.get(action_type),
+                    "mutates": model.mutates,
+                    "schema": _json_schema_or_none(model),
+                }
+            )
+        return catalog
+
     def settings_payload(self) -> dict[str, Any]:
         """Settings values, per-key sources, JSON schema, and file paths, for the Settings UI.
 
@@ -1160,6 +1186,15 @@ def _build_mount(plugin: WorkbenchPlugin, host: Host) -> tuple[Any, Path | None]
     if not isinstance(router, APIRouter):
         raise TypeError(f"router(host) returned {type(router).__name__}, not a fastapi APIRouter")
     return router, static_dir
+
+
+def _json_schema_or_none(model: type[BaseAction]) -> dict[str, Any] | None:
+    """``model``'s JSON schema, or ``None`` (logged) when pydantic can't describe one of its fields."""
+    try:
+        return model.model_json_schema()
+    except Exception:  # boundary: a plugin's model may raise anything; the catalog must still answer
+        logger.exception("no JSON schema for workbench action %r", model.action_type())
+        return None
 
 
 def _mark_rolled_back(children: list[_Nested], parent_type: str) -> None:
