@@ -105,6 +105,8 @@ def run_eval(
             assistant_provider=provider,
         )
         session.dispatch({"type": "open_network", "source": source})
+        if provider is None and session.settings.select.provider == "ollama":
+            _probe_ollama(session)
         for case in cases:
             ok = valid = 0
             seconds = 0.0
@@ -132,6 +134,17 @@ def run_eval(
             out.rows.append((case["utterance"], ok, valid, seconds / max(runs, 1)))
         out.dispatched = sum(1 for h in session.history if h.via == "assistant")
     return out
+
+
+def _probe_ollama(session: Session) -> None:
+    """Exit with a clear message, before any case runs, when the Ollama server can't be reached."""
+    from netstead.llm import LLMError
+
+    try:
+        session.llm.provider("ollama").list_models()
+    except LLMError as exc:
+        url = session.settings.llm.ollama.base_url
+        raise SystemExit(f"Ollama isn't reachable at {url} ({exc}); start it with `ollama serve`") from None
 
 
 def report(result: EvalResult) -> str:

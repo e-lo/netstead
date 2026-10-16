@@ -66,3 +66,10 @@ def test_the_eval_never_dispatches_a_plan(ev, tmp_path, isolated_env, monkeypatc
     )
     assert out.rows[0] == ("colour the links by lanes", 1, 1, pytest.approx(out.rows[0][3]))
     assert out.rows[1][1] == 0 and out.tokens == 24 and out.dispatched == 0
+
+
+def test_an_unreachable_ollama_stops_the_eval_before_any_case(ev, tmp_path, isolated_env):
+    """Nothing listens on port 9: the probe fails once, with a message, and no case is planned."""
+    overrides = {"select.provider": "ollama", "llm.ollama.base_url": "http://127.0.0.1:9", "llm.ollama.timeout_s": 2}
+    with pytest.raises(SystemExit, match=r"Ollama isn.t reachable at http://127\.0\.0\.1:9"):
+        ev.run_eval(ev.load_cases(ev.EVAL_SET), runs=1, overrides=overrides, environ=isolated_env, project_dir=tmp_path)
