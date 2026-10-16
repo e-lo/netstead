@@ -1104,8 +1104,8 @@ def test_the_plugin_id_core_is_reserved(make_session):
 
 
 def test_a_plugin_built_for_api_1_0_installs_on_this_host(make_session):
-    """A minor bump only adds: a plugin that declares 1.0 still installs (and its Action registers) on 1.3."""
-    assert HOST_API == "1.3"
+    """A minor bump only adds: a plugin that declares 1.0 still installs (and its Action registers) on 1.4."""
+    assert HOST_API == "1.4"
     session = make_session(make_hello(requires_api="1.0"))
     assert _status(session, "hello").state == "loaded" and session.actions.has("hello.greet")
 
@@ -1236,3 +1236,10 @@ def test_registering_an_action_whose_replay_omits_names_no_field_is_refused():
     with pytest.raises(ValueError, match="replay_omits names no field: expected_versoin"):
         registry.register(TypoOmitAction)
     assert not registry.has("hello.typo")
+
+
+def test_the_plugin_guide_documents_assistant_exposure():
+    from pathlib import Path
+
+    text = (Path(__file__).resolve().parents[1] / "docs" / "cookbook" / "workbench-plugins.md").read_text()
+    assert "assistant: ClassVar[bool] = False" in text and "assistant.plugins" in text

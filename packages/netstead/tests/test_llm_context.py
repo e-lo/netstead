@@ -240,3 +240,32 @@ def test_a_leading_byte_order_mark_does_not_hide_the_heading(tmp_path):
     roots = [tmp_path]
     assert find_project_context(str(tmp_path), tmp_path, roots) == notes
     assert "notes right after a BOM" in read_capped(notes, 10_000, roots)
+
+
+def test_the_guide_names_every_default_assistant_tool_and_its_examples_are_valid(tmp_path, isolated_env):
+    import re
+
+    from netstead.config import DEFAULT_ASSISTANT_ACTIONS
+    from netstead.fixtures import leavenworth
+    from netstead.llm.structured import _check_schema
+    from netstead.select.parse import StubParser
+    from netstead.workbench import Session
+    from netstead.workbench.assistant.tools import action_type_of, to_action, tool_specs
+
+    guide = assistant_context(100_000)
+    section = guide.split("## Actions you can call", 1)[1]
+    for action_type in DEFAULT_ASSISTANT_ACTIONS:
+        assert f"`{action_type}`" in section, action_type
+    s = Session(project_dir=tmp_path, environ=isolated_env, parser=StubParser(), plugins=[])
+    s.dispatch({"type": "open_network", "source": str(leavenworth.parquet_dir())})
+    s.dispatch({"type": "select", "link_ids": [1, 2]})
+    specs = {spec.tool.name: spec for spec in tool_specs(s)}
+    examples = re.findall(r"^Tool calls: (.+)$", section, flags=re.M)
+    assert len(examples) >= 5
+    for line in examples:
+        for call in line.split("; "):
+            name, _, args = call.partition(" ")
+            assert action_type_of(name) in DEFAULT_ASSISTANT_ACTIONS, name
+            _check_schema(json.loads(args), specs[name].tool.input_schema)  # the tool's schema, as a model's call
+            to_action(s, specs[name], json.loads(args))  # raises if the guide's example is not a valid call
+    assert len(guide) <= 16_000  # fits the default llm.quality.assistant_context_max_chars, uncut

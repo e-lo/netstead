@@ -371,6 +371,46 @@ you opened, local or remote, is never written to, and a copy inside the source f
   text or SQL: `contains` matches a plain substring, and each value is read as its column's type (`"2"` on `lanes` is 2; a value the column can't hold is refused).
 - `app.do(Navigate(record={"table": "link", "id": 170}))` flies the map to one link or node.
 
+## Ask the assistant
+
+- Type a request in the header box and press **Ask** (or Ctrl+Enter / ⌘Enter); Enter alone still selects. The
+  **Assistant** panel (every workspace, or **Ask the assistant…** in the palette) keeps the conversation, for this
+  session only: **Clear** empties it, and it is gone when the Workbench stops.
+- It uses the provider and model chosen in the header. With **Offline (pattern)** it understands a few fixed commands
+  (`colour by lanes`, `width by lanes`, `filter lanes >= 2`, `clear the filter`, `zoom to the selection`,
+  `zoom to link 170`, `select <street>`, `save the selection as <name>`, `set lanes to 3 on the selection`).
+- Steps that only change the view or the selection run at once, and each is listed with its `app.do(...)` line.
+  Steps that change a network or something you made (edits, deletions, undo, saving a copy, and, once you allow
+  them, changing a setting, building a network or deleting a saved selection) wait in one **draft**: **Approve** runs them all
+  in order and stops at the first failure, **Reject** drops them, and a step's **Edit…** opens its form prefilled
+  (running it from there is an ordinary action; the draft stays pending). A draft is refused once a network it
+  touches has changed, and a new question replaces it.
+- Everything it runs is in the session history (the strip shows `#12 · assistant`) and in "Session as Python", which
+  replays it with no model.
+- **What it sends** is listed at the top of the panel. To a remote provider: your question, the recent conversation
+  (your words, and its steps as action names and counts), the tool schemas, the networks' names and sizes, column
+  names, the selection's status and size, and validation counts, plus the shipped guide. Street names, selected ids,
+  issue counts by rule, column values and project notes go only to a local model unless you opt in
+  (`llm.quality.grounding`, `project_context`). Network tables and what actions return are never sent, and a local
+  model's answer that used them is not passed on to a remote one.
+- **Small local models** get help, and the panel says so. A read-only step with a field its tool doesn't have (or,
+  for a style, a malformed one) runs without it, and the answer lists what was left out ("Left out: …"); a step that
+  changes a network is never changed this way, it is asked for again. A field that belongs to another read-only tool
+  becomes a step of its own: "select Ski Hill Drive and colour by lanes" folded into one select is run as a select
+  and a style ("Split: …"); if the field could belong to more than one tool, or to one that changes a network, the
+  model is asked again. The model sees what each GMNS column means
+  (`free_speed` is the speed limit). With `assistant.compact_tools = "auto"` (the default) a model on this machine is
+  offered fewer tools: the read-only ones that apply now (no network switch with one network open, no saved selection
+  to reuse when none is saved) plus edit, delete and undo. `"on"` does this for any model, `"off"` never; it never
+  offers more than `assistant.actions` / `assistant.plugins` allow. Measured with `scripts/eval_nl_assistant.py` on
+  `qwen2.5:7b` (15 requests, 3 runs): 39/45 correct (87%), every answer valid. It still drops the second half of
+  "select …, then save it as …": ask in two steps.
+- **Limits:** `assistant.remote_token_budget` (200,000 tokens a session, shared by every remote provider and model;
+  a local model is counted, never stopped), `output_token_limit`, `context_max_chars`, `max_steps`.
+  **Settings → Assistant: actions & plugins** shows the use so far, chooses which actions it may call and which
+  plugins it may use (none by default), and lists names in those settings that this Workbench doesn't know; the
+  numbers are under **Settings → Assistant**.
+
 ## Language models (natural-language selection)
 
 The utterance box can be read by:

@@ -1,5 +1,6 @@
 // Workbench boot: wire modules to the store and the server's SSE stream.
 import { wireActionForm } from "./actform.js";
+import { loadAssistant, registerAssistantPanel, registerAssistantSettings, renderAssistant, wireAssistant } from "./assistant.js";
 import { getBuffer, getJSON, netPath, subscribe } from "./api.js";
 import { wirePalette } from "./cmdpalette.js";
 import { registerCoreCommands } from "./corecmds.js";
@@ -229,6 +230,7 @@ function wireStore() {
   store.subscribe(["edits"], s => renderEditWarnings(s.edits));
   store.subscribe(["edits"], () => refreshRows()); // the cell and row warning marks follow the live check
   store.subscribe(["edits"], s => renderEdits(s.edits));
+  store.subscribe(["assistant"], s => renderAssistant(s.assistant));
   store.subscribe(["server"], s => syncDetailsUndo(s.server));
   store.subscribe(["highlightMode"], s => { $("btn-highlight").classList.toggle("on", s.highlightMode); $("map").classList.toggle("highlighting", s.highlightMode); });
 }
@@ -240,15 +242,17 @@ async function boot() {
   registerCoreSlots();
   registerSelectionPanel();
   registerEditPanels();
+  registerAssistantPanel();
   wireWorkspaces({ onError: reportPluginError });
   wireContextMenus({ onError: whenError, onRunError: runError });
   registerCoreCommands();
   registerEditCommands();
   wirePalette({ onError: whenError, onRunError: runError });
   wireActionForm();
-  wireStore(); wirePanels(); wireFilter(); wireSide(); wireTable(); wireHeader(); wireHistory(); wireMapButtons(); wireJobs(); wireWizard(); wireLLM(); wireSettings(); wireIssues(); wireEdits(); wireSelectionPanel();
+  wireStore(); wirePanels(); wireFilter(); wireSide(); wireTable(); wireHeader(); wireHistory(); wireMapButtons(); wireJobs(); wireWizard(); wireLLM(); wireSettings(); wireIssues(); wireEdits(); wireSelectionPanel(); wireAssistant();
   registerIssueLayer(); // after wireStore: the layerSeq subscription that renders Overlays is in place
   registerSection("llm", "Language models", "llm-panel", () => renderLLMPanel());
+  registerAssistantSettings();
   registerSection("plugins", "Plugins", "plugins-panel", () => renderPluginsPanel());
   wirePluginsPanel();
   renderRecent();
@@ -258,6 +262,7 @@ async function boot() {
   restoreViewMode();
   loadPlugins().catch(e => toast(`Plugins: ${e.message}`)); // not awaited: a slow plugin never delays the map
   refreshLLM().catch(e => toast(e.message));
+  loadAssistant();
   if (history.entries.length) showEntry(history.entries[history.entries.length - 1]);
   // Subscribe now, not on map load, so job/history events are never missed. Until the map is ready a
   // `state` event is only stored (header, panels and table render from it; the map draws nothing, as no
@@ -273,6 +278,7 @@ async function boot() {
     job: e => { onJob(e.job); onEditJob(e.job); onWizardJob(e.job); onLLMJob(e.job); hub.emit("core.job", e.job); },
     plugin: e => hub.emit(`${e.plugin}.${e.name}`, e.payload),
     llm: onLLMEvent,
+    assistant: e => store.set({ assistant: e.assistant }),
   });
   initMap(cfg.style, {
     onLinkClick, onNodeClick, onBoxSelect,

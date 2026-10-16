@@ -74,6 +74,9 @@ class Completion:
     stop_reason: str | None = None
     input_tokens: int | None = None
     output_tokens: int | None = None
+    #: Tool calls whose arguments were not a JSON object, as ``(position in the reply, 1-based, tool name)``. They
+    #: are left out of ``tool_calls`` (and their raw arguments are in ``text``, for the single-tool path to salvage).
+    bad_tool_calls: tuple[tuple[int, str], ...] = ()
 
 
 @runtime_checkable

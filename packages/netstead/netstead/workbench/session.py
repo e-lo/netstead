@@ -33,7 +33,8 @@ import logging
 import threading
 import time
 from collections import OrderedDict, deque
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any
@@ -243,10 +244,17 @@ class HistoryEntry:
     #: Set on an Action dispatched from inside another Action's handler (``host.dispatch``): the ``seq``
     #: of the Action that dispatched it. Replaying the parent repeats it, so scripts show it as a comment.
     parent_seq: int | None = None
+    #: How the Action arrived when not by the UI, Python or a plugin: ``"assistant"``. Scripts ignore it.
+    via: str | None = None
+    #: Each open network's version just after this entry was recorded (read in the same critical section), so a
+    #: caller can tell its own change from one that landed after it. Not part of :meth:`to_dict`.
+    versions_after: dict[str, int] = field(default_factory=dict, repr=False)
 
     def to_dict(self) -> dict[str, Any]:
-        """JSON-safe copy."""
-        return asdict(self)
+        """JSON-safe copy (without ``versions_after``)."""
+        out = asdict(self)
+        del out["versions_after"]
+        return out
 
 
 @dataclass
@@ -276,6 +284,8 @@ class _Running:
     undo_mark: int  # ``len(Session._undo)`` when it started: a failure undoes everything after it
     view: _View  # the shared view state before it ran
     children: list[_Nested] = field(default_factory=list)
+    via: str | None = None  # how the outermost Action arrived (``"assistant"``)
+    refused: str | None = None  # set when something inside it was refused that must fail it as a whole
 
 
 @dataclass
@@ -333,6 +343,7 @@ class Session:
         llm_transport: Any = None,
         keyring: Any = "auto",
         plugins: Iterable[WorkbenchPlugin] | None = None,
+        assistant_provider: Any = None,
     ) -> None:
         """Load settings (raises :class:`~netstead.config.SettingsError` on bad config) and start empty.
 
@@ -342,7 +353,8 @@ class Session:
         the same for the LLM providers; the defaults use the network and the OS keyring.
         ``plugins``: plugins to install (default ``None``: discover the installed
         ``netstead.workbench.plugins`` entry points). A plugin that can't install is recorded in
-        :attr:`plugin_status`, never raised.
+        :attr:`plugin_status`, never raised. ``assistant_provider`` (tests, scripts) replaces the
+        assistant's provider, like ``parser`` does for selection.
         """
         self.project_dir = project_dir
         self._environ = environ
@@ -397,6 +409,13 @@ class Session:
         #: One status per plugin seen at startup: loaded, disabled, incompatible or error (with the reason).
         self.plugin_status: list[PluginStatus] = []
         self._install_plugins(plugins)
+        from .assistant.core import Assistant  # deferred: the assistant package imports this module
+        from .assistant.tools import warn_allowlist
+
+        warn_allowlist(self)  # an unknown name is warned about (a plugin may have been uninstalled), never fatal
+
+        #: The natural-language assistant: one conversation, one pending draft (never persisted).
+        self.assistant = Assistant(self, assistant_provider)
 
     # ------------------------------------------------------------------ public API
 
@@ -404,6 +423,17 @@ class Session:
     def settings(self) -> Settings:
         """The currently resolved settings."""
         return self.loaded.settings
+
+    @contextmanager
+    def consistent(self) -> Iterator[None]:
+        """Hold the session lock for a block of reads that must come from one moment (no Action runs meanwhile).
+
+        For front doors such as the assistant, which read several fields (the registry and the settings, the
+        networks' versions and the selection) together. Keep the block short: never call a model, read a key or
+        wait on a job inside it. Dispatching from inside it is allowed (the lock is re-entrant) but defeats the point.
+        """
+        with self._lock:
+            yield
 
     def parser(self) -> Any:
         """The NL parser for ``select.provider``/``select.model`` (built once and cached; an injected parser wins).
@@ -568,6 +598,21 @@ class Session:
                 out[plugin_id] = {"error": describe_error(exc)}
         return out
 
+    def assistant_setting_problems(self, settings: Settings | None = None) -> list[str]:
+        """Names in ``assistant.actions`` / ``assistant.plugins`` this session doesn't know (each would be ignored)."""
+        from .assistant.tools import allowlist_problems  # deferred: the assistant package imports this module
+
+        section = (settings or self.settings).assistant
+        return allowlist_problems(self, section.actions, section.plugins)
+
+    def _check_assistant_settings(self, key: str, settings: Settings) -> None:
+        """Raise :class:`ActionError` when setting ``key`` puts a name this session doesn't know in the allowlists."""
+        if key not in ("assistant", "assistant.actions", "assistant.plugins"):
+            return  # a bad value already in a file is warned about at load; it must not block other settings
+        problems = self.assistant_setting_problems(settings)
+        if problems:
+            raise ActionError("; ".join(problems))
+
     def _check_plugin_settings(self, settings: Settings) -> None:
         """Raise :class:`ActionError` if ``settings`` breaks any installed plugin's settings model."""
         for plugin_id, plugin in self.plugins.items():
@@ -593,10 +638,11 @@ class Session:
 
     do = dispatch
 
-    def dispatch_recorded(self, action: BaseAction | dict[str, Any]) -> HistoryEntry:
+    def dispatch_recorded(self, action: BaseAction | dict[str, Any], *, via: str | None = None) -> HistoryEntry:
         """Apply ``action``, record and publish it, and return the entry (never raises ``ActionError``).
 
-        A ``runs_as_job`` action is submitted as a background job and this call waits for it.
+        A ``runs_as_job`` action is submitted as a background job and this call waits for it. ``via`` marks how
+        it arrived (``"assistant"``) on the outermost entry; an Action nested in another keeps ``None``.
         """
         action = self._coerce(action)
         if action.runs_as_job:
@@ -608,7 +654,7 @@ class Session:
                     "(it would deadlock waiting for the session lock); a plugin does slow work with "
                     "host.submit_job instead"
                 )
-            job = self.submit(action)
+            job = self.submit(action, via=via)
             # Wait OUTSIDE the session lock: the job thread takes it in ``_commit`` and ``_finish``,
             # so waiting while holding it would deadlock. Never call this with the lock held.
             job.wait()
@@ -630,12 +676,17 @@ class Session:
                 failure = exc
         with self._lock:
             view = _View(self.active, self.selection, dict(self.style), dict(self.saved), dict(self.filters))
-            running = _Running(action, len(self._undo), view)
+            running = _Running(action, len(self._undo), view, via=None if self._running else via)
             self._running.append(running)
             try:
                 if failure is not None:
                     raise failure
+                self._refuse_unapproved(running)
                 result = handler(action, prepared) if prepare is not None else handler(action)
+                if running is self._running[0] and running.refused is None:
+                    running.refused = self._unapproved_change(running)
+                if running.refused is not None and running is self._running[0]:
+                    raise ActionError(running.refused)  # fails (and rolls back) the whole Action
                 ok, error, error_type = True, None, None
             except ActionError as exc:  # includes NotSupportedYet
                 result, ok, error, error_type = exc.payload, False, str(exc), type(exc).__name__
@@ -658,12 +709,52 @@ class Session:
                 self._roll_back(running)
             elif not self._running:
                 self._undo.clear()  # the outermost Action succeeded: nothing left to undo
-            entry = self._entry(action, ok=ok, result=result, error=error, error_type=error_type)
-            if self._running:  # nested: recorded when the outermost Action is, pointing at its parent
+            nested = bool(self._running)
+            entry = self._entry(
+                action, ok=ok, result=result, error=error, error_type=error_type, via=None if nested else via
+            )
+            if nested:  # nested: recorded when the outermost Action is, pointing at its parent
                 self._running[-1].children.append(_Nested(entry, running.children))
                 return entry
             self._record_tree(entry, running.children, state=ok or changed)
             return entry
+
+    def _refuse_unapproved(self, running: _Running) -> None:
+        """Refuse a mutating Action nested in a read-only one the assistant ran (it was never approved).
+
+        The assistant runs a read-only Action at once and drafts a mutating one; a plugin's read-only handler that
+        dispatches a mutating Action through ``host.dispatch`` would skip that approval. The refusal is an
+        :class:`ActionError` for the nested Action, and it fails the outermost one too, so everything rolls back.
+        """
+        outer = self._running[0]
+        if running is outer or outer.via != "assistant" or outer.action.mutates or not running.action.mutates:
+            return
+        outer.refused = (
+            f"{outer.action.type} ran from the assistant without approval, so it can't dispatch "
+            f"{running.action.type}, which changes a network (mark {outer.action.type} as mutates)"
+        )
+        raise ActionError(outer.refused)
+
+    def _unapproved_change(self, running: _Running) -> str | None:
+        """Why a read-only Action the assistant ran must fail, or ``None``.
+
+        It changed a network (``host.mutate``, or ``host.undo``, which reverts through the same path), or it opened
+        a derived copy of one (``host.derive``): each needs the user's approval, so the Action must be ``mutates``.
+        """
+        if running.via != "assistant" or running.action.mutates:
+            return None
+        done = self._undo[running.undo_mark :]
+        if any(isinstance(u, _Mutated) for u in done):
+            return (
+                f"{running.action.type} ran from the assistant without approval, so it can't change a network "
+                f"(mark {running.action.type} as mutates)"
+            )
+        if any(isinstance(u, _Derived) for u in done):
+            return (
+                f"{running.action.type} ran from the assistant without approval, so it can't derive a network "
+                f"(mark {running.action.type} as mutates)"
+            )
+        return None
 
     def _roll_back(self, running: _Running) -> None:
         """Undo what ``running`` (and every Action nested in it) changed; mark its nested entries rolled back.
@@ -684,10 +775,14 @@ class Session:
         self.filters = {nid: f for nid, f in view.filters.items() if nid in ids}
         _mark_rolled_back(running.children, running.action.type)
 
+    def action_owner(self, action_type: str) -> str | None:
+        """The plugin id that registered ``action_type`` (``None`` for a core Action)."""
+        plugin_id, _, rest = action_type.partition(".")
+        return plugin_id if rest and plugin_id in self.plugins else None
+
     def _is_plugin_action(self, action_type: str) -> bool:
         """Whether ``action_type`` belongs to an installed plugin (``"<plugin id>.<name>"``), not core."""
-        plugin_id, _, rest = action_type.partition(".")
-        return bool(rest) and plugin_id in self.plugins
+        return self.action_owner(action_type) is not None
 
     def _core_handler(self, action_type: str) -> Callable[..., Any]:
         """The handler-table entry for a core Action: calls ``_do_<type>``, looked up at call time.
@@ -705,10 +800,10 @@ class Session:
             raise ValueError(f"action type {action.type!r} is not registered in this session")
         return action
 
-    def submit(self, action: BaseAction | dict[str, Any]) -> Job:
+    def submit(self, action: BaseAction | dict[str, Any], *, via: str | None = None) -> Job:
         """Start a ``runs_as_job`` action on a background job and return the :class:`Job` at once.
 
-        The history entry is recorded when the job finishes (so ``seq`` follows completion order).
+        The history entry is recorded when the job finishes (so ``seq`` follows completion order), with ``via``.
         """
         action = self._coerce(action)
         if not action.runs_as_job:
@@ -717,11 +812,13 @@ class Session:
         return self.jobs.submit(
             action.type,
             action.job_label(),
-            lambda ctx: self._commit(action, ctx, run(action, ctx)),
-            on_finish=lambda job: self._finish(action, job),
+            lambda ctx: self._commit(action, ctx, run(action, ctx), via=via),
+            on_finish=lambda job: self._finish(action, job, via=via),
         )
 
-    def _commit(self, action: BaseAction, ctx: JobContext, outcome: _Outcome) -> dict[str, Any]:
+    def _commit(
+        self, action: BaseAction, ctx: JobContext, outcome: _Outcome, *, via: str | None = None
+    ) -> dict[str, Any]:
         """Commit ``outcome`` and record the success entry in ONE critical section; return the job result.
 
         The outcome's ``commit`` registers a network, stores issues, or marks edits saved. Doing that and
@@ -732,11 +829,11 @@ class Session:
         """
         with self._lock:
             result = outcome.commit(self)
-            entry = self._record(action, ok=True, result=result, error=None, error_type=None)
+            entry = self._record(action, ok=True, result=result, error=None, error_type=None, via=via)
             self._committed[ctx.job_id] = entry.seq
         return result
 
-    def _finish(self, action: BaseAction, job: Job) -> None:
+    def _finish(self, action: BaseAction, job: Job, *, via: str | None = None) -> None:
         """Job callback: link the committed entry to the job, or record a failure/cancellation entry."""
         with self._lock:
             seq = self._committed.pop(job.id, None)
@@ -748,20 +845,36 @@ class Session:
                     result=job.result if ok else job.payload,
                     error=job.error,
                     error_type=job.error_type,
+                    via=via,
                 ).seq
         self.jobs.update(job, history_seq=seq)
 
     def _record(
-        self, action: BaseAction, *, ok: bool, result: Any, error: str | None, error_type: str | None
+        self,
+        action: BaseAction,
+        *,
+        ok: bool,
+        result: Any,
+        error: str | None,
+        error_type: str | None,
+        via: str | None = None,
     ) -> HistoryEntry:
         """Append and publish a history entry (then a ``state`` event on success). Call with the lock held."""
-        entry = self._entry(action, ok=ok, result=result, error=error, error_type=error_type)
+        entry = self._entry(action, ok=ok, result=result, error=error, error_type=error_type, via=via)
         entry.seq = len(self.history) + 1
         self._append(entry, state=ok)
         return entry
 
     @staticmethod
-    def _entry(action: BaseAction, *, ok: bool, result: Any, error: str | None, error_type: str | None) -> HistoryEntry:
+    def _entry(
+        action: BaseAction,
+        *,
+        ok: bool,
+        result: Any,
+        error: str | None,
+        error_type: str | None,
+        via: str | None = None,
+    ) -> HistoryEntry:
         """A history entry for ``action``, not yet numbered or appended."""
         return HistoryEntry(
             seq=0,
@@ -773,6 +886,7 @@ class Session:
             error_type=error_type,
             result=copy.deepcopy(result),
             ts=time.time(),
+            via=via,
         )
 
     def _record_tree(self, entry: HistoryEntry, children: list[_Nested], *, state: bool) -> None:
@@ -804,6 +918,7 @@ class Session:
         publish (or ``state()``) is logged, never raised. Raising here would make a job's
         ``_finish`` record the same action a second time.
         """
+        entry.versions_after = {h.id: h.version for h in self.registry}
         self.history.append(entry)
         try:
             self.events.publish({"type": "history", "entry": entry.to_dict()})
@@ -1176,11 +1291,14 @@ class Session:
     def action_catalog(self) -> list[dict[str, Any]]:
         """Each registered Action, for the browser's generated forms and ``wb.hasAction``.
 
-        Each entry has ``type``, class ``name``, ``description`` (its docstring's first line), owning
-        ``plugin`` (``None`` for core), ``mutates`` and its JSON ``schema``. A schema that can't be generated
-        (install refuses such a plugin; this is defence in depth) is logged and listed as ``None``: one bad
-        model must not fail the catalog for every caller.
+        Each entry has ``type``, class ``name``, ``description`` (its docstring's first line), owning ``plugin``
+        (``None`` for core), ``mutates``, ``assistant`` (whether it may ever be offered to the assistant: never
+        ``open_network``/``close_network``, nor an Action with ``assistant = False``) and its JSON ``schema``. A
+        schema that can't be generated (install refuses such a plugin; this is defence in depth) is logged and
+        listed as ``None``: one bad model must not fail the catalog for every caller.
         """
+        from .assistant.tools import offerable  # deferred: the assistant package imports this module
+
         with self._lock:
             owner = {spec.model.action_type(): pid for pid, plugin in self.plugins.items() for spec in plugin.actions}
             models = [(t, self.actions.model(t)) for t in self.actions.types()]
@@ -1194,6 +1312,7 @@ class Session:
                     "description": doc[0] if doc else "",
                     "plugin": owner.get(action_type),
                     "mutates": model.mutates,
+                    "assistant": offerable(action_type, model),
                     "schema": _json_schema_or_none(model),
                 }
             )
@@ -1391,10 +1510,10 @@ class Session:
         """Parse and resolve an utterance WITHOUT the session lock (an LLM call can take seconds).
 
         Takes the lock only to snapshot the network, parser, provider registry, settings and
-        examples. ``None`` (nothing to prepare) for link-id and non-roadway selections, which
-        :meth:`_do_select` handles under the lock. Provider failures raise :class:`ActionError`.
+        examples. ``None`` (nothing to prepare) for link-id, already-parsed (``query``) and non-roadway selections,
+        which :meth:`_do_select` handles under the lock. Provider failures raise :class:`ActionError`.
         """
-        if action.component != "roadway" or action.utterance is None:
+        if action.component != "roadway" or action.utterance is None or action.query is not None:
             return None
         with self._lock:
             self._handle(action.net_id)  # fail fast (no network open) before touching the keyring
@@ -1424,6 +1543,18 @@ class Session:
             intent = SelectionIntent(link_ids=list(action.link_ids or []))
             result = resolve_frames(intent, handle.links_df(), handle.nodes_df())
             self.selection = selection_payload(handle, result)
+            return self.selection
+        if action.query is not None:  # already parsed (the assistant, or a replay of it): no parser, exact
+            handle = self._handle(action.net_id)
+            try:
+                intent = intent_from_payload(action.query, action.utterance)
+            except IntentError as exc:
+                raise ActionError(f"the query is not a valid selection: {exc}") from None
+            except (AttributeError, TypeError):  # a field of the wrong shape (``facility`` not an object)
+                raise ActionError("the query is not a valid selection: a field has the wrong shape") from None
+            result = resolve_frames(intent, handle.links_df(), handle.nodes_df())
+            parsed_by = {"provider": None, "model": None, "mode": "query"}
+            self.selection = selection_payload(handle, result, utterance=action.utterance, parsed_by=parsed_by)
             return self.selection
         if prepared is None:  # called directly rather than through dispatch: parse here, under the lock
             prepared = self._prepare_select(action)
@@ -1474,14 +1605,14 @@ class Session:
         # ``match_retry`` is auto/on/off: always resolve it through the registry, never by truthiness.
         # Checked on the *current* registry, so turning it off while the first call ran still counts.
         current = self.llm
-        retry_on = current.match_retry_on(provider) and _follows_endpoint(
+        retry_on = current.match_retry_on(provider) and follows_endpoint(
             current.settings.quality.match_retry, endpoint_local
         )
         if result.status == "not_found" and retry_on:
             # With grounding off the vocabulary is built here but NOT sent: only the few close names
             # in the hint leave the machine, which is what makes the retry a narrow opt-in.
-            vocabulary = context.vocabulary or _vocabulary(handle, quality.grounding_max_names)
-            hint = close_match_hint(intent, vocabulary, quality.match_candidates)
+            names = context.vocabulary or vocabulary(handle, quality.grounding_max_names)
+            hint = close_match_hint(intent, names, quality.match_candidates)
             if hint:
                 try:
                     retry, mode = _parse(parser, utterance, replace(context, hint=hint))
@@ -1510,14 +1641,14 @@ class Session:
         quality = settings.llm.quality
         assistant = assistant_context(quality.assistant_context_max_chars) if quality.assistant_context else ""
         project = ""
-        if registry.project_context_on(provider) and _follows_endpoint(quality.project_context, endpoint_local):
+        if registry.project_context_on(provider) and follows_endpoint(quality.project_context, endpoint_local):
             roots = allowed_roots(settings)  # notes are only read from inside io.allowed_roots
             path = find_project_context(handle.source, self.project_dir, roots)
             project = read_capped(path, quality.project_context_max_chars, roots) if path else ""
-        grounding = registry.grounding_on(provider) and _follows_endpoint(quality.grounding, endpoint_local)
-        vocabulary = _vocabulary(handle, quality.grounding_max_names) if grounding else ()
+        grounding = registry.grounding_on(provider) and follows_endpoint(quality.grounding, endpoint_local)
+        names = vocabulary(handle, quality.grounding_max_names) if grounding else ()
         shots = examples[-quality.few_shot_max :] if quality.few_shot else ()
-        return PromptContext(assistant=assistant, project=project, vocabulary=vocabulary, examples=shots)
+        return PromptContext(assistant=assistant, project=project, vocabulary=names, examples=shots)
 
     def _do_clear_selection(self, action: ClearSelection) -> None:
         self.selection = None
@@ -1729,15 +1860,17 @@ class Session:
                 overrides = {**self._overrides, action.key: action.value}
                 loaded = load_settings(project_dir=self.project_dir, overrides=overrides, environ=self._environ)
                 self._check_plugin_settings(loaded.settings)
+                self._check_assistant_settings(key, loaded.settings)
                 self._overrides = overrides
             else:
-                if key.split(".", 1)[0] == "plugins":  # check first: a saved file a plugin rejects breaks startup
+                if key.split(".", 1)[0] in ("plugins", "assistant"):  # check first: never save what is refused
                     preview = load_settings(
                         project_dir=self.project_dir,
                         overrides={**self._overrides, action.key: action.value},
                         environ=self._environ,
                     )
                     self._check_plugin_settings(preview.settings)
+                    self._check_assistant_settings(key, preview.settings)
                 save_setting(
                     action.key, action.value, scope=action.scope, project_dir=self.project_dir, environ=self._environ
                 )
@@ -1777,6 +1910,7 @@ class Session:
 
     def _do_edit_cells(self, action: EditCells) -> dict[str, Any]:
         handle = self._edit_target(action)
+        _check_version(handle, action.expected_version)  # an approved draft's version (None: no check)
         plan = _planned(
             lambda: plan_update(handle.roadway, action.table, action.ids, action.values, version=handle.version)
         )
@@ -2089,14 +2223,25 @@ def _planned(planner: Callable[[], EditPlan]) -> EditPlan:
         raise ActionError(str(exc)) from exc
 
 
-def _follows_endpoint(mode: str, endpoint_local: bool) -> bool:
-    """An ``auto`` quality setting also needs the called endpoint to be local; ``on`` is the user's explicit opt-in."""
+def follows_endpoint(mode: str, endpoint_local: bool) -> bool:
+    """An ``auto`` quality setting also needs the called endpoint to be local; ``on`` is the user's explicit opt-in.
+
+    Package-internal (not in ``__all__``): the assistant's grounding applies the same gate.
+    """
     return mode == "on" or endpoint_local
 
 
-def _vocabulary(handle: NetworkHandle, limit: int) -> tuple[str, ...]:
-    """The network's ``limit`` most common names and route numbers (cached per network version)."""
+def vocabulary(handle: NetworkHandle, limit: int) -> tuple[str, ...]:
+    """The network's ``limit`` most common names and route numbers (cached per network version).
+
+    Package-internal (not in ``__all__``): the assistant's grounding sends the same vocabulary.
+    """
     return handle.cached(f"vocabulary:{limit}", lambda: vocabulary_from_links(handle.links_df(), limit))
+
+
+#: The old private names, kept for one release.
+_follows_endpoint = follows_endpoint
+_vocabulary = vocabulary
 
 
 def _parser_info(parser: Any) -> dict[str, Any]:

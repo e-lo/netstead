@@ -317,12 +317,35 @@ def retag(host: Host, action: Retag) -> list[dict]:
   made it.
 - A plugin that uses these declares `requires_api="1.2"` (or `HOST_API`).
 
-### Exposing Actions to the NL assistant
+## Your Actions in the assistant
 
-Build the assistant's tool vocabulary from the **session's** registry, `session.actions.json_schema()`.
-It holds the core Actions plus every loaded plugin's. The module-level
-`netstead.workbench.actions.action_json_schema` covers core Actions only, so a tool list built from
-it would silently leave out every plugin.
+A plugin's Actions are offered to the natural-language assistant only when the user turns the plugin on in
+**Settings → Assistant: actions & plugins** (`assistant.plugins = ["<your id>"]`). Then each of your Actions is a
+tool, named `<id>__<name>` (a dot is not allowed in a tool name), with its JSON schema, and the first paragraph of its
+docstring as the description: write it for a model as well as a person. Actions with `mutates = True` are drafted for the user
+to approve; the others run at once, recorded with `via: "assistant"`.
+
+To keep an Action out even when the plugin is on (it needs a file path, or it only makes sense from your panel):
+
+<!-- doctest: skip -->
+```python
+class Rebuild(BaseAction):
+    type: Literal["cards.rebuild"] = "cards.rebuild"
+    assistant: ClassVar[bool] = False
+```
+
+`assistant` needs Host API 1.4. Your browser commands are not offered to the assistant.
+
+Declare `mutates` honestly. An Action the assistant runs at once (one without `mutates = True`) can't change a
+network: if its handler dispatches a mutating Action through `host.dispatch`, or calls `host.mutate`, `host.undo` (which
+reverts through the same path) or `host.derive`, the Action fails with an `ActionError` ("ran from the assistant without
+approval") and everything it did is rolled back. The same
+Action dispatched by the user, Python or a script is unaffected. `host.submit_job` is not checked this way: a job runs
+after the handler has returned, so a plugin that starts one from a read-only Action is trusted not to change a
+network in it.
+
+The tools are built from the **session's** registry (`session.actions`), which holds the core Actions plus every
+loaded plugin's. The module-level `netstead.workbench.actions.action_json_schema` covers core Actions only.
 
 ## The front end: `activate(wb)`
 

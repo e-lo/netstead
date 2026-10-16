@@ -7,7 +7,10 @@ async function copy(text) {
 }
 
 export function showEntry(entry) {
-  $("hist-seq").textContent = `#${entry.seq}`;
+  // How the Action arrived is shown beside its number only: the Python (and "Session as Python") stays the same.
+  const viaAssistant = entry.via === "assistant";
+  $("hist-seq").textContent = viaAssistant ? `#${entry.seq} · assistant` : `#${entry.seq}`;
+  $("hist-seq").title = viaAssistant ? "Run by the assistant" : "";
   const py = $("hist-py");
   const python = entry.parent_seq != null ? `# via #${entry.parent_seq}: ${entry.python}` : entry.python;
   py.textContent = entry.ok ? python : `${python}  # failed: ${entry.error}`;

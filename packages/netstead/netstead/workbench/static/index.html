@@ -39,6 +39,7 @@
         <button id="nl-manage" class="mini ghost" aria-label="Manage language models">Models…</button>
       </span>
       <button id="go">Select</button>
+      <button id="ask" class="ghost" title="Ask the assistant (Ctrl+Enter, ⌘Enter on a Mac)" aria-keyshortcuts="Control+Enter Meta+Enter">Ask</button>
     </div>
   </header>
   <div id="stage" data-mode="map">
@@ -179,6 +180,14 @@
         <button class="mini ghost" id="ed-save" aria-expanded="false" aria-controls="ed-save-fb">Choose folder…</button></div>
       <div class="fb" id="ed-save-fb" hidden></div>
     </section>
+    <section class="dock-pane" id="dock-assistant" data-panel="assistant" role="tabpanel" aria-labelledby="dtab-assistant" hidden>
+      <div id="as-note" class="diag"></div>
+      <div id="as-log" role="log" aria-live="polite"><span class="empty">Ask for what you want done, e.g. “colour by lanes and zoom to the selection”.</span></div>
+      <div id="as-draft"></div>
+      <div class="row"><textarea id="as-input" rows="2" aria-label="Ask the assistant" placeholder="e.g. colour by lanes and zoom to the selection"></textarea></div>
+      <div class="row wrap"><button class="mini" id="as-send">Ask</button><button class="mini ghost" id="as-clear">Clear</button>
+        <span id="as-usage" class="diag"></span></div>
+    </section>
   </aside>
   <footer id="history">
     <span id="hist-seq">—</span>
@@ -306,6 +315,7 @@
           <table id="llm-catalog"></table>
           <p class="llm-note" id="llm-catalog-hint"></p>
         </section>
+        <section id="assistant-panel" aria-label="Assistant" hidden></section>
         <section id="plugins-panel" aria-label="Plugins" hidden>
           <p class="llm-note" id="plugins-host"></p>
           <p class="set-note" id="plugins-note"></p>

@@ -199,3 +199,19 @@ def test_context_leads_the_system_turn_and_temperature_is_sent(fake_api):
     _provider(fake_api).complete(replace(REQUEST, context="GUIDE", temperature=0.2))
     body = fake_api.body()
     assert body["messages"][0] == {"role": "system", "content": "GUIDE\n\nsys"} and body["temperature"] == 0.2
+
+
+def test_unforced_tools_send_no_tool_choice_and_every_call_comes_back(fake_api):
+    other = Tool("name", "Name it.", {"type": "object", "properties": {"s": {"type": "string"}}})
+    calls = [
+        {"id": "c1", "type": "function", "function": {"name": "emit", "arguments": '{"x": 1}'}},
+        {"id": "c2", "type": "function", "function": {"name": "name", "arguments": '{"s": "a"}'}},
+    ]
+    message = {"role": "assistant", "content": "Done.", "tool_calls": calls}
+    fake_api.add(
+        "POST", "/v1/chat/completions", body={"choices": [{"finish_reason": "tool_calls", "message": message}]}
+    )
+    done = _provider(fake_api).complete(replace(REQUEST, tools=(TOOL, other), force_tool=None))
+    body = fake_api.body()
+    assert "tool_choice" not in body and [t["function"]["name"] for t in body["tools"]] == ["emit", "name"]
+    assert [c.name for c in done.tool_calls] == ["emit", "name"] and done.text == "Done."

@@ -155,7 +155,7 @@ class OllamaProvider(HTTPProvider):
         data = self._call("POST", "/api/chat", body)
         try:
             message = data["message"]
-            calls, leftover = parse_function_calls(message.get("tool_calls"))
+            calls, leftover, bad = parse_function_calls(message.get("tool_calls"))
         except (KeyError, TypeError, AttributeError) as exc:
             raise self._bad_shape(exc) from None
         text = "\n".join(part for part in (message.get("content") or "", leftover) if part)
@@ -165,6 +165,7 @@ class OllamaProvider(HTTPProvider):
             stop_reason=data.get("done_reason"),
             input_tokens=data.get("prompt_eval_count"),
             output_tokens=data.get("eval_count"),
+            bad_tool_calls=bad,
         )
 
     def list_models(self) -> list[str]:

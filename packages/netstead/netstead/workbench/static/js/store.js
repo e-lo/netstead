@@ -40,6 +40,7 @@ export const store = createStore({
   issueFocus: null,           // the issue number last picked in the list or on the map
   fixTarget: null,            // {table, id, column, note}: what "Fix the picked issue…" edits (an issue or a warning)
   edits: null,                // GET /edits for the active network: pending edits and live edit warnings
+  assistant: null,            // GET /api/assistant: the conversation, the pending draft, the status (session-only)
 });
 
 export function activeSelection(s) {

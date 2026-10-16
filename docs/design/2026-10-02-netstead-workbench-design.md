@@ -1,6 +1,6 @@
 # Netstead Workbench — unified front-end UX design
 
-Status: **accepted; P0, P1a, P1b, P2 implemented** (#211, #212, #225); P3a implemented (PR pending); P3b next · Date: 2026-10-02 · Owner: netstead
+Status: **accepted; P0, P1a, P1b, P2 implemented** (#211, #212, #225); P3a implemented (#226); P3b implemented (PR pending); next: P4 · Date: 2026-10-02 · Owner: netstead
 
 > **Amended by the [Workbench plugins design](2026-10-05-workbench-plugins-design.md) (PR #217):**
 > P2's `netstead.changes` package (NetworkChange, DraftCard, ProjectCard export) moves out of core into
@@ -340,7 +340,7 @@ This also fixes the stale `NETSTEAD_AUTO_APPROVE` vs `CORRAL_AUTO_APPROVE` docst
 | P1a | Open/Import wizard | Wizard (local browser, URL check, OSM/Overture by draw/coords/place, local .osm/Overture files), estimate + approval, background jobs, always-save builds |
 | P1b | Inspect + settings |  map↔table linking both ways, FK navigation, Settings UI |
 | P2 | Validate + fix + change log | Issues triad; `netstead.changes` (NetworkChange, `apply_change`, DraftCard, ProjectCard export and schema validation); editor built on it; undo; export report |
-| P3 | Selection verification + NL assistant | Pinning ambiguous anchors; Style/Filter/Navigate actions |
+| P3 | Selection verification + NL assistant | Pinning ambiguous anchors; Style/Filter/Navigate actions; the Assistant panel and command bar (drafts you approve). Implemented: P3a #226, P3b PR pending |
 | P4 | Python live session | `netstead.app()` handle, `show`, history `to_python`, `--console` |
 | P5 | Compare | `diff_networks` + Compare workspace |
 | P6 | Transit | corral GTFS spec, `TransitFeed` component, transit layers, selection, validation, changes, compare |
@@ -352,8 +352,8 @@ P2 plan: [2026-10-07-workbench-p2-plan.md](2026-10-07-workbench-p2-plan.md): val
 (live warnings, cascading deletes, undo, Save a copy), built on plugins Parts 1 and 2. ProjectCard editing is the cards
 plugin's ([scope](2026-10-07-cards-plugin-scope.md)).
 
-P3 plan: [2026-10-16-workbench-p3-plan.md](2026-10-16-workbench-p3-plan.md): P3a selection verification and map Actions;
-P3b the NL assistant.
+P3 plan: [2026-10-16-workbench-p3-plan.md](2026-10-16-workbench-p3-plan.md): P3a selection verification and map Actions (#226);
+P3b the NL assistant (PR pending). Next: P4.
 
 ## Verification
 - **Unit tests:**

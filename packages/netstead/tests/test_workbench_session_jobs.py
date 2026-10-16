@@ -249,9 +249,9 @@ def test_cancel_after_last_checkpoint_is_done(make_session, rdu_source, monkeypa
     session = make_session()
     real_commit = Session._commit
 
-    def cancel_then_commit(self, action, ctx, loaded):
+    def cancel_then_commit(self, action, ctx, loaded, **kwargs):
         self.jobs.cancel(ctx.job_id)  # too late: the last checkpoint has passed
-        return real_commit(self, action, ctx, loaded)
+        return real_commit(self, action, ctx, loaded, **kwargs)
 
     monkeypatch.setattr(Session, "_commit", cancel_then_commit)
     job = session.submit(OpenNetwork(source=rdu_source))
