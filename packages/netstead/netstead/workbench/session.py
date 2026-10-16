@@ -1515,14 +1515,14 @@ class Session:
         # ``match_retry`` is auto/on/off: always resolve it through the registry, never by truthiness.
         # Checked on the *current* registry, so turning it off while the first call ran still counts.
         current = self.llm
-        retry_on = current.match_retry_on(provider) and _follows_endpoint(
+        retry_on = current.match_retry_on(provider) and follows_endpoint(
             current.settings.quality.match_retry, endpoint_local
         )
         if result.status == "not_found" and retry_on:
             # With grounding off the vocabulary is built here but NOT sent: only the few close names
             # in the hint leave the machine, which is what makes the retry a narrow opt-in.
-            vocabulary = context.vocabulary or _vocabulary(handle, quality.grounding_max_names)
-            hint = close_match_hint(intent, vocabulary, quality.match_candidates)
+            names = context.vocabulary or vocabulary(handle, quality.grounding_max_names)
+            hint = close_match_hint(intent, names, quality.match_candidates)
             if hint:
                 try:
                     retry, mode = _parse(parser, utterance, replace(context, hint=hint))
@@ -1551,14 +1551,14 @@ class Session:
         quality = settings.llm.quality
         assistant = assistant_context(quality.assistant_context_max_chars) if quality.assistant_context else ""
         project = ""
-        if registry.project_context_on(provider) and _follows_endpoint(quality.project_context, endpoint_local):
+        if registry.project_context_on(provider) and follows_endpoint(quality.project_context, endpoint_local):
             roots = allowed_roots(settings)  # notes are only read from inside io.allowed_roots
             path = find_project_context(handle.source, self.project_dir, roots)
             project = read_capped(path, quality.project_context_max_chars, roots) if path else ""
-        grounding = registry.grounding_on(provider) and _follows_endpoint(quality.grounding, endpoint_local)
-        vocabulary = _vocabulary(handle, quality.grounding_max_names) if grounding else ()
+        grounding = registry.grounding_on(provider) and follows_endpoint(quality.grounding, endpoint_local)
+        names = vocabulary(handle, quality.grounding_max_names) if grounding else ()
         shots = examples[-quality.few_shot_max :] if quality.few_shot else ()
-        return PromptContext(assistant=assistant, project=project, vocabulary=vocabulary, examples=shots)
+        return PromptContext(assistant=assistant, project=project, vocabulary=names, examples=shots)
 
     def _do_clear_selection(self, action: ClearSelection) -> None:
         self.selection = None
@@ -2130,14 +2130,25 @@ def _planned(planner: Callable[[], EditPlan]) -> EditPlan:
         raise ActionError(str(exc)) from exc
 
 
-def _follows_endpoint(mode: str, endpoint_local: bool) -> bool:
-    """An ``auto`` quality setting also needs the called endpoint to be local; ``on`` is the user's explicit opt-in."""
+def follows_endpoint(mode: str, endpoint_local: bool) -> bool:
+    """An ``auto`` quality setting also needs the called endpoint to be local; ``on`` is the user's explicit opt-in.
+
+    Package-internal (not in ``__all__``): the assistant's grounding applies the same gate.
+    """
     return mode == "on" or endpoint_local
 
 
-def _vocabulary(handle: NetworkHandle, limit: int) -> tuple[str, ...]:
-    """The network's ``limit`` most common names and route numbers (cached per network version)."""
+def vocabulary(handle: NetworkHandle, limit: int) -> tuple[str, ...]:
+    """The network's ``limit`` most common names and route numbers (cached per network version).
+
+    Package-internal (not in ``__all__``): the assistant's grounding sends the same vocabulary.
+    """
     return handle.cached(f"vocabulary:{limit}", lambda: vocabulary_from_links(handle.links_df(), limit))
+
+
+#: The old private names, kept for one release.
+_follows_endpoint = follows_endpoint
+_vocabulary = vocabulary
 
 
 def _parser_info(parser: Any) -> dict[str, Any]:
