@@ -66,3 +66,13 @@ def test_query_form_needs_a_query_selection(setup):
 def test_unknown_saved_name_is_404(setup):
     _, client = setup
     assert client.get(EXPORT, params={"name": "nope"}).status_code == 404
+
+
+def test_a_saved_pinned_selection_exports_its_from_and_to_nodes(setup):
+    s, client = setup
+    s.dispatch({"type": "select", "utterance": CHERRY})
+    s.dispatch({"type": "pin_anchor", "role": "to", "node_id": 60})
+    s.dispatch({"type": "save_selection", "name": "cherry"})
+    s.dispatch({"type": "clear_selection"})
+    j = client.get(EXPORT, params={"name": "cherry"}).json()
+    assert j["content"]["from"] == {"node_id": 53} and j["content"]["to"] == {"node_id": 60} and j["valid"] is True

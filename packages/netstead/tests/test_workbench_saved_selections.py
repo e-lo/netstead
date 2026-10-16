@@ -1,5 +1,6 @@
 """Named, saved selections: recorded, re-resolved on use, rolled back with a failed Action."""
 
+import re
 from typing import Literal
 
 import pytest
@@ -72,8 +73,10 @@ def test_names_are_unique_checked_and_deletable(session):
     session.dispatch(SaveSelection(name="a"))
     with pytest.raises(ActionError, match="already saved"):
         session.dispatch(SaveSelection(name="a"))
-    with pytest.raises(ValueError):
-        SaveSelection(name="../evil")
+    for bad in ("../evil", " lead", "trail ", "", "x" * 65):
+        with pytest.raises(ValueError):
+            SaveSelection(name=bad)
+    assert SaveSelection(name="a b.c_d-1").name == "a b.c_d-1" and SaveSelection(name="x" * 64)
     session.dispatch(DeleteSelection(name="a"))
     with pytest.raises(ActionError, match="no saved selection named 'a'"):
         session.dispatch(UseSelection(name="a"))
@@ -85,8 +88,44 @@ def test_save_needs_a_selection_and_use_needs_its_network(session):
     session.dispatch(Select(link_ids=[1]))
     session.dispatch(SaveSelection(name="x"))
     session.dispatch(CloseNetwork(net_id="leavenworth"))
-    with pytest.raises(ActionError, match="'leavenworth' is not open"):
+    with pytest.raises(ActionError, match=re.escape(f"'leavenworth' is not open; open {SRC} to use 'x'")):
         session.dispatch(UseSelection(name="x"))
+
+
+def test_a_save_belongs_to_its_source_not_just_its_network_id(session, rdu_source):
+    session.dispatch(Select(link_ids=[1, 2]))
+    session.dispatch(SaveSelection(name="two"))
+    session.dispatch(CloseNetwork(net_id="leavenworth"))
+    session.dispatch(OpenNetwork(source=rdu_source, net_id="leavenworth"))  # another file, the same id
+    assert session.active == "leavenworth"
+    with pytest.raises(
+        ActionError,
+        match=r"'two' was saved on 'leavenworth' from .*leavenworth.*, but the open 'leavenworth' comes from .*rdu",
+    ):
+        session.dispatch(UseSelection(name="two"))
+    session.dispatch(CloseNetwork(net_id="leavenworth"))
+    session.dispatch(OpenNetwork(source=SRC))  # the same file again: the save is useful again
+    assert session.dispatch(UseSelection(name="two"))["link_ids"] == [1, 2]
+
+
+def test_a_save_keeps_what_using_and_exporting_need_not_the_whole_payload(session):
+    sel = session.dispatch(Select(utterance="Ski Hill Drive"))
+    session.dispatch(SaveSelection(name="ski"))
+    saved = session.saved_selection("ski")
+    assert set(saved) == {"net_id", "source", "status", "utterance", "intent", "parsed_by", "link_ids", "anchors"}
+    assert saved["source"] == SRC and saved["intent"] == sel["intent"] and saved["link_ids"] == sel["link_ids"]
+
+
+def test_saved_selections_are_capped(session):
+    from netstead.workbench.session import MAX_SAVED_SELECTIONS
+
+    session.dispatch(Select(link_ids=[1]))
+    for i in range(MAX_SAVED_SELECTIONS):
+        session.dispatch(SaveSelection(name=f"s{i}"))
+    with pytest.raises(ActionError, match=f"{MAX_SAVED_SELECTIONS} selections are saved already; delete one"):
+        session.dispatch(SaveSelection(name="one more"))
+    session.dispatch(DeleteSelection(name="s0"))
+    session.dispatch(SaveSelection(name="one more"))
 
 
 class Hoard(BaseAction):

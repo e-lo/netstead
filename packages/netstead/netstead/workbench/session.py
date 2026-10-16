@@ -119,6 +119,9 @@ __all__ = [
 
 logger = logging.getLogger(__name__)
 
+#: Selections one session keeps saved (``SaveSelection`` refuses another: delete one first).
+MAX_SAVED_SELECTIONS = 50
+
 DEFAULT_STYLE: dict[str, Any] = {
     "color_by": "none",
     "width_by": "none",
@@ -1544,14 +1547,26 @@ class Session:
             raise ActionError("nothing is selected")
         if action.name in self.saved:
             raise ActionError(f"a selection is already saved as {action.name!r}; delete it first")
-        self.saved = {**self.saved, action.name: copy.deepcopy(self.selection)}
-        return _saved_summary(action.name, self.saved[action.name])
+        if len(self.saved) >= MAX_SAVED_SELECTIONS:
+            raise ActionError(f"{MAX_SAVED_SELECTIONS} selections are saved already; delete one to save another")
+        entry = _saved_entry(self._handle(self.selection["net_id"]), self.selection)
+        self.saved = {**self.saved, action.name: entry}
+        return _saved_summary(action.name, entry)
 
     def _do_use_selection(self, action: UseSelection) -> dict[str, Any]:
         saved = self._saved(action.name)
-        if saved["net_id"] not in self.registry.ids():
-            raise ActionError(f"the network {saved['net_id']!r} is not open; open it to use {action.name!r}")
-        payload = self._resolve_again(self.registry.get(saved["net_id"]), saved)
+        net_id, source = saved["net_id"], saved["source"]
+        if net_id not in self.registry.ids():
+            raise ActionError(
+                f"the network {net_id!r} is not open; open {scrub(source, limit=None)} to use {action.name!r}"
+            )
+        handle = self.registry.get(net_id)
+        if handle.source != source:  # ids are label slugs: another file can be open under the same id
+            raise ActionError(
+                f"{action.name!r} was saved on {net_id!r} from {scrub(source, limit=None)}, but the open {net_id!r} "
+                f"comes from {scrub(handle.source, limit=None)}"
+            )
+        payload = self._resolve_again(handle, saved)
         if payload is None:
             raise ActionError(f"none of the links saved as {action.name!r} exist any more")
         self.selection = payload
@@ -1567,7 +1582,11 @@ class Session:
             return [_saved_summary(name, sel) for name, sel in self.saved.items()]
 
     def saved_selection(self, name: str) -> dict[str, Any] | None:
-        """A deep copy of the payload saved as ``name`` (``None`` if there is none), as it was when saved."""
+        """A deep copy of the selection saved as ``name`` (``None`` if there is none), as it was when saved.
+
+        It holds ``net_id``, ``source``, ``status``, ``utterance``, ``intent`` (with any pins), ``parsed_by``,
+        ``link_ids`` and the ``anchors``' nodes: what using or exporting it needs, not the whole payload.
+        """
         with self._lock:
             sel = self.saved.get(name)
             return copy.deepcopy(sel) if sel is not None else None
@@ -1867,6 +1886,27 @@ def _network_node(handle: NetworkHandle, node_id: Any) -> Any:
     if key is None or not keys.isin([key]).any():
         raise ActionError(f"no node {node_id!r} in {handle.id}")
     return json_scalar(key)
+
+
+def _saved_entry(handle: NetworkHandle, sel: dict[str, Any]) -> dict[str, Any]:
+    """What ``SaveSelection`` keeps of a selection payload: enough to resolve it again and export it.
+
+    ``source`` ties it to the file it was made on, since a network id is a label slug that another file can reuse.
+    ``anchors`` keeps only each anchor's node, so an export of the resolved form still names its from/to nodes.
+    """
+    anchor_keys = ("role", "node_id", "kind", "anchor", "pinned")
+    return {
+        "net_id": sel["net_id"],
+        "source": handle.source,
+        "status": sel["status"],
+        "utterance": sel["utterance"],
+        "intent": copy.deepcopy(sel["intent"]),
+        "parsed_by": copy.deepcopy(sel["parsed_by"]),
+        "link_ids": list(sel["link_ids"]),
+        "anchors": [
+            {k: a[k] for k in anchor_keys if k in a} for a in [*sel["anchors"], *sel.get("anchors_unplaced", [])]
+        ],
+    }
 
 
 def _saved_summary(name: str, sel: dict[str, Any]) -> dict[str, Any]:

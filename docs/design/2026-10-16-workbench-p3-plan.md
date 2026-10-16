@@ -259,12 +259,17 @@ bar, sharing one conversation.
 3. **Up to `MAX_CANDIDATES = 10` candidates per anchor** go on the payload, each `{node_id, lon, lat}` (without
    `lon`/`lat` when the node has no coordinates). `anchor`, `confidence` and `pinned` are added to each anchor too.
 4. **Saved selections are session state, changed only by Actions.**
-   - `SaveSelection(name)` stores a deep copy of the current payload, and refuses a name already taken (delete it
-     first: no silent overwrite).
+   - `SaveSelection(name)` stores what using and exporting need (`net_id`, the network's `source`, `status`,
+     `utterance`, `intent` with its pins, `parsed_by`, `link_ids`, and each anchor's node), not the whole payload.
+     It refuses a name already taken (delete it first: no silent overwrite), and a 51st save
+     (`MAX_SAVED_SELECTIONS = 50`). *(Amended 2026-10-16 after review: compact entries, the cap, and `source`.)*
    - `UseSelection(name)` makes it current again, resolved against the network **as it is now**, by P2 R4's rules
-     (a query re-resolves; ids keep those still present). It refuses when the network is closed or nothing is left.
+     (a query re-resolves; ids keep those still present). It refuses when the network is closed or nothing is left,
+     and when the open network with that id comes from a different `source`: network ids are label slugs, so another
+     file can reuse one. A save survives closing and reopening the same source.
    - `DeleteSelection(name)` removes one.
-   - They are not written to disk: the history replays them. Names match `^[A-Za-z0-9][A-Za-z0-9 _.-]{0,63}$`.
+   - They are not written to disk: the history replays them. Names match
+     `^[A-Za-z0-9](?:[A-Za-z0-9 _.-]{0,62}[A-Za-z0-9_.-])?$` (no trailing space).
 5. **Export is read-only** (`GET /api/selection/export`, never recorded).
    - Only a `resolved` selection exports (409 otherwise: "pin its ambiguous anchors first").
    - The query form needs a query selection.

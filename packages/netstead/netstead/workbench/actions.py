@@ -454,8 +454,8 @@ class PinAnchor(BaseAction):
     node_id: NodeId | None = None
 
 
-#: A saved selection's name: letters, digits, space ``_ . -``; starts with a letter or digit.
-_SELECTION_NAME = r"^[A-Za-z0-9][A-Za-z0-9 _.-]{0,63}$"
+#: A saved selection's name: letters, digits, space ``_ . -``; starts with a letter or digit, never ends in a space.
+_SELECTION_NAME = r"^[A-Za-z0-9](?:[A-Za-z0-9 _.-]{0,62}[A-Za-z0-9_.-])?$"
 
 
 class SaveSelection(BaseAction):
