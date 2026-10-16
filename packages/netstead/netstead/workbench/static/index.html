@@ -100,8 +100,6 @@
   <aside id="side">
     <div id="dock-tabs" role="tablist" aria-label="Panels" hidden></div>
     <section class="dock-pane" id="dock-details" data-panel="details" role="tabpanel" aria-labelledby="dtab-details">
-    <div id="status-wrap"></div>
-    <div id="sel-cmds-wrap" hidden><button class="mini ghost" id="sel-cmds" aria-haspopup="menu" aria-expanded="false">Selection actions &#9662;</button></div>
     <div class="label">Highlighted links <span id="hl-count" class="pcount">0</span></div>
     <div id="hl-wrap">
       <span class="empty" id="hl-hint">Turn on <b>Highlight links</b> (&#9647;), then click links or shift-drag a box.</span>
@@ -112,12 +110,25 @@
     </div>
     <div class="label">Details</div>
     <div id="details"><span class="empty">Click a link or node on the map, or a row in the table.</span></div>
+    </section>
+    <section class="dock-pane" id="dock-selection" data-panel="selection" role="tabpanel" aria-labelledby="dtab-selection" hidden>
+    <div id="status-wrap"></div>
+    <div id="sel-cmds-wrap" hidden><button class="mini ghost" id="sel-cmds" aria-haspopup="menu" aria-expanded="false">Selection actions &#9662;</button></div>
     <div class="label">Anchors</div>
     <div id="anchors"><span class="empty">—</span></div>
-    <div class="label">Fragment</div>
-    <pre id="fragment">—</pre>
     <div class="label">Diagnostics</div>
     <div id="diag"><span class="empty">—</span></div>
+    <div class="label">Export</div>
+    <div id="sel-export" class="row">
+      <select id="sel-export-what" aria-label="Export as"><option value="fragment">GMNS fragment</option><option value="projectcard">ProjectCard facility</option></select>
+      <select id="sel-export-form" aria-label="Form"><option value="resolved">Resolved (link ids)</option><option value="query">Query (re-resolvable)</option></select>
+      <button class="mini" id="sel-export-go">Download</button>
+    </div>
+    <div id="sel-export-note" class="diag" role="status"></div>
+    <div class="label">Fragment</div>
+    <pre id="fragment">—</pre>
+    <div class="label">Saved selections <button class="mini ghost" id="sel-save">Save selection…</button></div>
+    <div id="sel-saved"><span class="empty">None saved.</span></div>
     </section>
     <section class="dock-pane" id="dock-issues" data-panel="issues" role="tabpanel" aria-labelledby="dtab-issues" hidden>
       <div id="iss-fixer"></div>

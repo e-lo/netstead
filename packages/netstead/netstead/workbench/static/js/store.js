@@ -16,7 +16,7 @@ export function createStore(initial) {
 }
 
 export const store = createStore({
-  server: null,               // {networks, active, selection, style, plugins, edits, issues}
+  server: null,               // {networks, active, selection, style, plugins, edits, issues, saved_selections, filters}
   basemap: null,              // MapLibre style URL from /api/config (shared with the wizard's area map)
   netKey: null,               // "<id>@<version>" of the decoded active network
   net: null, attrs: null, properties: [], prop: null,
