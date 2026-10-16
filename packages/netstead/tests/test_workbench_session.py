@@ -916,3 +916,37 @@ def test_an_old_style_snippet_is_unchanged():
     from netstead.workbench.actions import to_python
 
     assert to_python(Style(color_by="lanes")) == "app.do(Style(color_by='lanes'))"
+
+
+def test_navigate_to_a_record(opened):
+    published = []
+    opened.events.publish = published.append
+    link_id = int(opened.network().links_df()["link_id"].iloc[0])
+    opened.dispatch(Navigate(record={"table": "link", "id": link_id}))
+    assert published[0] == {
+        "type": "navigate",
+        "bbox": None,
+        "to_network": False,
+        "to_selection": False,
+        "record": {"table": "link", "id": link_id},
+    }
+    node_id = int(opened.network().nodes_df()["node_id"].iloc[0])
+    opened.dispatch(Navigate(record={"table": "node", "id": node_id}))
+    with pytest.raises(ActionError, match="no link 999999999"):
+        opened.dispatch(Navigate(record={"table": "link", "id": 999_999_999}))
+    with pytest.raises(ActionError, match="no node 'x'"):
+        opened.dispatch(Navigate(record={"table": "node", "id": "x"}))
+
+
+def test_navigate_needs_exactly_one_target():
+    with pytest.raises(ValueError, match="exactly one of bbox, to_network, to_selection, record"):
+        Navigate(to_network=True, record={"table": "node", "id": 1})
+    with pytest.raises(ValueError):
+        Navigate(record={"table": "lane", "id": 1})  # links and nodes only
+
+
+def test_navigate_record_replays():
+    from netstead.workbench.actions import to_python
+
+    snippet = to_python(Navigate(record={"table": "node", "id": 7}))
+    assert snippet == "app.do(Navigate(record={'table': 'node', 'id': 7}))"

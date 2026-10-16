@@ -41,6 +41,7 @@ __all__ = [
     "Navigate",
     "OpenNetwork",
     "PinAnchor",
+    "RecordRef",
     "RunValidation",
     "SaveNetwork",
     "SaveSelection",
@@ -174,18 +175,27 @@ class Style(BaseAction):
     show_legend: bool | None = None
 
 
+class RecordRef(BaseModel):
+    """One record of the active network, by table and primary key (``link`` or ``node``)."""
+
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+    table: Literal["link", "node"]
+    id: int | str
+
+
 class Navigate(BaseAction):
-    """Move the map camera to a bbox, the active network, or the selection."""
+    """Move the map camera to a bbox, the active network, the selection, or one link or node."""
 
     type: Literal["navigate"] = "navigate"
     bbox: tuple[float, float, float, float] | None = None
     to_network: bool = False
     to_selection: bool = False
+    record: RecordRef | None = None
 
     @model_validator(mode="after")
     def _one_target(self) -> Navigate:
-        if sum([self.bbox is not None, self.to_network, self.to_selection]) != 1:
-            raise ValueError("give exactly one of bbox, to_network, to_selection")
+        if sum([self.bbox is not None, self.to_network, self.to_selection, self.record is not None]) != 1:
+            raise ValueError("give exactly one of bbox, to_network, to_selection, record")
         return self
 
 

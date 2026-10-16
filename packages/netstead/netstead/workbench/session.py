@@ -1575,7 +1575,14 @@ class Session:
     def _do_navigate(self, action: Navigate) -> None:
         if action.to_selection and not self.selection:
             raise ActionError("nothing is selected")
-        self.events.publish({"type": "navigate", **action.model_dump(mode="json", exclude={"type"})})
+        if action.record is not None:
+            handle = self._handle(None)
+            table, key = action.record.table, f"{action.record.table}_id"
+            frame = handle.links_df() if table == "link" else handle.nodes_df()
+            if not frame[key].isin([action.record.id]).any():  # a str id on an int key is simply not found
+                raise ActionError(f"no {table} {action.record.id!r} in {handle.id}")
+        omit = {"type"} if action.record is not None else {"type", "record"}  # an event without one is unchanged
+        self.events.publish({"type": "navigate", **action.model_dump(mode="json", exclude=omit)})
 
     def _do_set_setting(self, action: SetSetting) -> dict[str, Any]:
         key = action.key.strip().lower()
