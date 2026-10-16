@@ -39,6 +39,7 @@ __all__ = [
     "EditCells",
     "Navigate",
     "OpenNetwork",
+    "PinAnchor",
     "RunValidation",
     "SaveNetwork",
     "Select",
@@ -415,6 +416,22 @@ class SaveNetwork(BaseAction):
         return f"save {self.name}"
 
 
+#: A node id as the Actions take it (GMNS keys are integers or strings).
+NodeId = int | str
+
+
+class PinAnchor(BaseAction):
+    """Pin the current selection's ``from`` or ``to`` anchor to one node, then resolve it again (``None`` unpins).
+
+    For an ambiguous selection made by a query: pick one of the anchor's ``candidates`` (or any node on the
+    facility). The pin is kept in the selection's ``intent``, so it survives an edit and a saved selection's reuse.
+    """
+
+    type: Literal["pin_anchor"] = "pin_anchor"
+    role: Literal["from", "to"]
+    node_id: NodeId | None = None
+
+
 Action = Annotated[
     OpenNetwork
     | BuildNetwork
@@ -430,7 +447,8 @@ Action = Annotated[
     | AddRows
     | UndoEdit
     | RunValidation
-    | SaveNetwork,
+    | SaveNetwork
+    | PinAnchor,
     Field(discriminator="type"),
 ]
 #: The Actions every session understands, in registry order (``to_python`` imports them from ``netstead.workbench``).
@@ -451,6 +469,7 @@ CORE_ACTIONS: tuple[type[BaseAction], ...] = (
     UndoEdit,
     RunValidation,
     SaveNetwork,
+    PinAnchor,
 )
 
 

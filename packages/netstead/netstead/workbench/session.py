@@ -54,6 +54,7 @@ from netstead.config import (
 from netstead.llm import LLMError, MissingKey, ProviderRegistry, build_registry
 from netstead.llm.context import assistant_context, find_project_context, read_capped
 from netstead.llm.secrets import redact_settings
+from netstead.select.errors import IntentError
 from netstead.select.intent import SelectionIntent
 from netstead.select.parse import LLMParser, intent_from_payload, make_parser, payload_from_intent
 from netstead.select.prompt import PromptContext, close_match_hint, vocabulary_from_links
@@ -72,6 +73,7 @@ from .actions import (
     EditCells,
     Navigate,
     OpenNetwork,
+    PinAnchor,
     RunValidation,
     SaveNetwork,
     Select,
@@ -1465,6 +1467,26 @@ class Session:
 
     def _do_clear_selection(self, action: ClearSelection) -> None:
         self.selection = None
+
+    def _do_pin_anchor(self, action: PinAnchor) -> dict[str, Any]:
+        sel = self.selection
+        if not sel or sel.get("intent") is None:
+            raise ActionError("only a selection made by a query has anchors to pin; select with an utterance first")
+        if not sel["intent"].get(f"{action.role}_anchor"):
+            raise ActionError(f"the selection has no {action.role} anchor to pin")
+        args = dict(sel["intent"])
+        if action.node_id is None:
+            args.pop(f"{action.role}_node", None)
+        else:
+            args[f"{action.role}_node"] = action.node_id
+        handle = self._handle(sel["net_id"])
+        try:
+            intent = intent_from_payload(args, sel["utterance"] or "")
+        except IntentError as exc:
+            raise ActionError(str(exc)) from None
+        result = resolve_frames(intent, handle.links_df(), handle.nodes_df())
+        self.selection = selection_payload(handle, result, utterance=sel["utterance"], parsed_by=sel["parsed_by"])
+        return self.selection
 
     def _do_style(self, action: Style) -> dict[str, Any]:
         patch = action.model_dump(exclude_none=True, exclude={"type"})
