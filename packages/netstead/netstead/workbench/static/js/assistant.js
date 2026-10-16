@@ -112,7 +112,10 @@ function noteText(st) {
     return "Offline assistant (a few fixed commands). Choose a language model in the header for more.";
   }
   const sends = (st.sends || []).length ? st.sends.join("; ") : "nothing beyond your question";
-  return `${st.provider}${st.model ? ` (${st.model})` : ""}${st.local ? ", on this machine," : ""} receives: ${sends}.`;
+  const compact = st.compact ? ` It is offered a compact tool set (${(st.tools || []).length} tools: ` +
+    "the read-only ones that apply now, plus edit, delete and undo; assistant.compact_tools)." : "";
+  return `${st.provider}${st.model ? ` (${st.model})` : ""}${st.local ? ", on this machine," : ""} receives: ${sends}.` +
+    compact;
 }
 
 export function renderAssistant(payload) {

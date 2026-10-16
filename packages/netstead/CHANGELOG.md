@@ -39,7 +39,15 @@ This file is for the **netstead** package only. The underlying generic engine `c
     step after it form one **draft** (Approve / Reject / Edit…), re-checked
     against each network's version when approved, with each edit pinned to the
     version the step before left. A read-only Action the assistant runs can't
-    change a network through `host.dispatch` or `host.mutate`.
+    change a network through `host.dispatch`, `host.mutate` or `host.undo`, nor
+    open one with `host.derive`.
+  - **Small local models:** a read-only call's invented or (on `style`)
+    malformed keys are left out instead of failing the answer, and listed under
+    it; mutating calls are never changed. The grounding carries the GMNS meaning
+    of each link column (`free_speed` = the speed limit). With
+    `assistant.compact_tools` (`auto`: on for a local endpoint) a model is
+    offered only the read-only tools that apply now plus edit, delete and undo.
+    qwen2.5:7b on the eval: 27/45 (60%) -> 36/45 (80%).
   - **Privacy tiers** follow the existing gates: structure always; street names,
     selected ids, issue counts by rule and column values only where grounding is
     on (by default a local model); never table rows or Action results. The panel
@@ -55,7 +63,8 @@ This file is for the **netstead** package only. The underlying generic engine `c
 - **`Select(query=…)`:** a selection intent given directly, replayed exactly with
   no model.
 - **`assistant.*` settings:** `actions`, `plugins`, `max_steps`, `history_turns`,
-  `max_turns`, `output_token_limit`, `context_max_chars`, `remote_token_budget`;
+  `max_turns`, `output_token_limit`, `context_max_chars`, `remote_token_budget`,
+  `compact_tools`;
   **Settings → Assistant: actions & plugins** switches each Action and plugin.
 - **`EditCells.expected_version`** (left out of copied scripts, like
   `DeleteRows`'s).

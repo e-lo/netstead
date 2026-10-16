@@ -305,7 +305,9 @@ class AssistantSettings(_Section):
     """The natural-language assistant: what it may call, what it remembers, what it may spend.
 
     It uses the selection provider and model (``select.provider`` / ``select.model``) and the same ``llm.quality``
-    privacy gates. ``plugins`` lists plugin ids whose Actions it may call (none by default).
+    privacy gates. ``plugins`` lists plugin ids whose Actions it may call (none by default). ``compact_tools`` offers
+    a small model fewer tools per question (``auto``: on for a local endpoint): the read-only ones that apply right
+    now, plus edit, delete and undo. It never allows more than ``actions`` / ``plugins`` do.
     """
 
     actions: list[str] = Field(default_factory=lambda: list(DEFAULT_ASSISTANT_ACTIONS))
@@ -316,6 +318,7 @@ class AssistantSettings(_Section):
     output_token_limit: int = Field(default=1024, ge=128, le=8192)  # per call ("…_tokens" reads as a secret name)
     context_max_chars: int = Field(default=12000, ge=1000, le=100_000)
     remote_token_budget: int = Field(default=200_000, ge=0, le=10_000_000)
+    compact_tools: Literal["auto", "on", "off"] = "auto"
 
 
 class Settings(_Section):

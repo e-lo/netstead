@@ -246,3 +246,45 @@ def test_leniency_applies_to_a_read_only_plugin_action_and_never_to_a_mutating_o
     specs = _by_type(session)
     assert lenient_arguments(specs["loud.shout"], {"text": "hi", "volume": 11})[0] == {"text": "hi"}
     assert lenient_arguments(specs["loud.wipe"], {"volume": 11}) == ({"volume": 11}, [])
+
+
+# ---------------------------------------------------------------------- the compact tool set (assistant.compact_tools)
+
+
+def test_a_compact_tool_set_keeps_the_read_only_tools_that_apply_and_the_everyday_edits(session):
+    _allow(session, "add_rows", "set_setting", "build_network", "delete_selection")
+    full = {s.action_type for s in tool_specs(session)}
+    compact = {s.action_type for s in tool_specs(session, compact=True)}
+    assert compact < full
+    assert full - compact == {
+        "set_active_network",  # one network open
+        "use_selection",  # nothing saved
+        "pin_anchor",  # nothing selected
+        "save_network",  # drafted, and not an everyday edit
+        "add_rows",
+        "set_setting",
+        "build_network",
+        "delete_selection",
+    }
+    assert {"edit_cells", "delete_rows", "undo_edit", "select", "style", "filter", "navigate"} <= compact
+
+
+def test_the_compact_set_offers_a_tool_again_once_it_applies(session):
+    session.dispatch(OpenNetwork(source=SRC))
+    session.dispatch(Select(utterance="Ski Hill Drive"))
+    session.dispatch({"type": "save_selection", "name": "ski"})
+    compact = {s.action_type for s in tool_specs(session, compact=True)}
+    assert {"set_active_network", "use_selection", "pin_anchor"} <= compact
+
+
+def test_the_compact_set_never_offers_more_than_the_allowlist(session):
+    session.dispatch({"type": "set_setting", "key": "assistant.actions", "value": ["style", "set_active_network"]})
+    session.dispatch({"type": "set_setting", "key": "assistant.plugins", "value": ["loud"]})
+    assert {s.action_type for s in tool_specs(session, compact=True)} == {"style", "loud.shout"}  # wipe: mutates
+
+
+def test_the_tools_small_models_get_wrong_carry_one_example(session):
+    specs = _by_type(session)
+    assert '{"record": {"table": "link", "id": 170}}' in specs["navigate"].tool.description
+    assert '{"color_by": "lanes"}' in specs["style"].tool.description
+    assert "then save it as" in specs["save_selection"].tool.description

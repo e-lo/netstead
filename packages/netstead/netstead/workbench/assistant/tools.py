@@ -30,6 +30,7 @@ __all__ = [
     "ToolView",
     "action_type_of",
     "allowlist_problems",
+    "compact_drops",
     "lenient_arguments",
     "offerable",
     "to_action",
@@ -66,6 +67,19 @@ _ON_SELECTION = {
     "description": "Act on the links of the current selection (table link) instead of listing ids.",
 }
 _DRAFTED = " (drafted for the user to approve)"
+#: The drafted tools a compact tool set keeps (``assistant.compact_tools``): the everyday edits. The rest (saving a
+#: copy, the opt-ins, a plugin's mutating Actions) need a path or a judgement a small model rarely gets right.
+_COMPACT_DRAFTED = frozenset({"edit_cells", "delete_rows", "undo_edit"})
+#: One example for the tools small models call with the wrong shape (measured: ``navigate(link=170)``,
+#: ``style(show=…)``, a request's second part dropped), appended to the tool's description.
+_EXAMPLES = {
+    "navigate": ' Give exactly one target, e.g. {"record": {"table": "link", "id": 170}} or {"to_selection": true}.',
+    "style": ' E.g. {"color_by": "lanes"} or {"width_by": "lanes"}.',
+    "save_selection": ' Call it after select when the user also names the selection ("select X, then save it as Y").',
+    "edit_cells": (
+        ' E.g. "set the speed limit to 25 on the selection" is {"on_selection": true, "values": {"free_speed": 25}}.'
+    ),
+}
 #: Read-only tools whose every field means "unchanged" when left out (a partial update), so a malformed optional field
 #: may be dropped as well as an unknown one (:func:`lenient_arguments`).
 _PARTIAL_UPDATE = frozenset({"style"})
@@ -135,22 +149,26 @@ def warn_allowlist(session: Session) -> list[str]:
     return problems
 
 
-def tool_specs(session: Session, *, warn: bool = True) -> list[ToolSpec]:
+def tool_specs(session: Session, *, warn: bool = True, compact: bool = False) -> list[ToolSpec]:
     """The tools this session's assistant may call, in registry order (settings ``assistant.actions`` / ``plugins``).
 
     A core Action is offered when ``assistant.actions`` lists it; a plugin's when ``assistant.plugins`` lists the
     plugin. Neither ever offers :data:`NEVER`, nor an Action that sets ``assistant = False``. ``warn=False`` skips
-    the allowlist check, for a caller that has just made it (:func:`warn_allowlist`).
+    the allowlist check, for a caller that has just made it (:func:`warn_allowlist`). ``compact`` offers fewer of
+    the allowed tools (:func:`compact_drops`); it never adds one.
     """
     settings = session.settings.assistant
     if warn:
         warn_allowlist(session)
+    dropped = compact_drops(session) if compact else frozenset()
     specs = []
     for action_type in session.actions.types():
         model = session.actions.model(action_type)
         owner = session.action_owner(action_type)
         allowed = owner in settings.plugins if owner else action_type in settings.actions
         if not offerable(action_type, model) or not allowed:
+            continue
+        if action_type in dropped or (compact and model.mutates and action_type not in _COMPACT_DRAFTED):
             continue
         try:
             tool = _tool(action_type, model)
@@ -159,6 +177,24 @@ def tool_specs(session: Session, *, warn: bool = True) -> list[ToolSpec]:
             continue
         specs.append(ToolSpec(tool, action_type, model.mutates, owner))
     return specs
+
+
+def compact_drops(session: Session) -> frozenset[str]:
+    """The read-only tools a compact tool set leaves out because they can't apply now.
+
+    Switching networks with one open, reusing a saved selection with none saved, pinning an anchor with nothing
+    selected: a small model offered them calls them anyway (measured: "open my network from the desktop" became
+    ``set_active_network`` with no id).
+    """
+    with session.consistent():
+        out = set()
+        if len(session.registry.ids()) < 2:
+            out.add("set_active_network")
+        if not session.saved:
+            out.add("use_selection")
+        if not session.selection:
+            out.add("pin_anchor")
+    return frozenset(out)
 
 
 def offerable(action_type: str, model: type[BaseAction]) -> bool:
@@ -173,7 +209,7 @@ def _tool(action_type: str, model: type[BaseAction]) -> Tool:
         schema["required"] = ["utterance"]
         return Tool("select", INTENT_TOOL["description"] + " Also give a short utterance naming it.", schema)
     doc = (model.__doc__ or action_type).strip().split("\n\n", 1)[0].replace("\n", " ")
-    description = doc + (_DRAFTED if model.mutates else "")
+    description = doc + (_DRAFTED if model.mutates else "") + _EXAMPLES.get(action_type, "")
     schema = _flat(model.model_json_schema())
     hidden = {"type", *model.replay_omits, *_HIDDEN.get(action_type, ())}
     schema["properties"] = {k: v for k, v in schema.get("properties", {}).items() if k not in hidden}

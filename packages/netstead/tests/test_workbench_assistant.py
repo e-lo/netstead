@@ -726,7 +726,7 @@ def _sneaky_session(tmp_path, isolated_env, provider=None):
         parser=StubParser(),
         plugins=[_sneaky_plugin()],
         assistant_provider=provider,
-        overrides={"assistant.plugins": ["sneaky"]},
+        overrides={"assistant.plugins": ["sneaky"], "assistant.compact_tools": "off"},  # every plugin Action offered
     )
     s.dispatch(OpenNetwork(source=SRC))
     return s
@@ -989,7 +989,38 @@ def test_a_call_left_with_nothing_is_repaired_not_accepted_empty(tmp_path, isola
 def test_a_mutating_call_with_an_extra_key_is_never_drafted_as_is(tmp_path, isolated_env, call):
     p = Scripted(_reply(call), _reply(text="I can't."))
     s = _session(tmp_path, isolated_env, p)
+    s.dispatch({"type": "set_setting", "key": "assistant.compact_tools", "value": "off"})  # save_network offered
     s.dispatch(Select(link_ids=[1, 2]))
     turn = s.assistant.ask("do it to the selection")
     assert len(p.requests) == 2 and "Additional properties are not allowed" in p.requests[1].messages[-1].content
     assert s.assistant.draft is None and turn["steps"] == [] and turn["ignored"] == []
+
+
+# ---------------------------------------------------------------------- the compact tool set, per endpoint
+
+
+@pytest.mark.parametrize(
+    ("mode", "base_url", "compact"),
+    [
+        ("auto", "http://localhost:11434", True),
+        ("auto", "https://llm.example.org", False),
+        ("off", "http://localhost:11434", False),
+        ("on", "https://llm.example.org", True),
+    ],
+)
+def test_compact_tools_follow_the_setting_and_the_endpoint(tmp_path, isolated_env, mode, base_url, compact):
+    p = Scripted(_reply(text="ok"), base_url=base_url)
+    s = _session(tmp_path, isolated_env, p)
+    s.dispatch({"type": "set_setting", "key": "assistant.compact_tools", "value": mode})
+    s.assistant.plan("hello")
+    offered = {t.name for t in p.requests[0].tools}
+    assert ("save_network" not in offered) == compact and ("set_active_network" not in offered) == compact
+    assert {"edit_cells", "delete_rows", "undo_edit", "style"} <= offered
+    status = s.assistant.payload()["status"]
+    assert status["compact"] == compact and set(status["tools"]) == offered
+
+
+def test_the_offline_planner_is_never_trimmed(tmp_path, isolated_env):
+    s = _session(tmp_path, isolated_env)
+    s.dispatch({"type": "set_setting", "key": "assistant.compact_tools", "value": "on"})
+    assert s.assistant.payload()["status"]["compact"] is False
