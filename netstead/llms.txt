@@ -1,0 +1,26 @@
+# corral + netstead documentation
+
+Generated from the mkdocs nav for AI-agent consumption. Each link below points at the canonical rendered page.
+
+## netstead docs
+
+- [Home](https://e-lo.github.io/netstead/netstead/index.md): netstead overview + install.
+- [Quickstart](https://e-lo.github.io/netstead/netstead/quickstart.md): Load the bundled Leavenworth fixture and run validation in 5 minutes.
+- [What is GMNS?](https://e-lo.github.io/netstead/netstead/what-is-gmns.md): Plain-English intro to the spec.
+- [Visual tour](https://e-lo.github.io/netstead/netstead/visual-tour.md): Leavenworth rendered as map + validation + edit + scope.
+
+## Cookbook
+
+- [Cookbook](https://e-lo.github.io/netstead/netstead/cookbook/index.md): GMNS-specific recipes — validate, scope, edit, host, drive from AI.
+
+## Reference
+
+- [API](https://e-lo.github.io/netstead/netstead/reference/api.md): Public netstead API symbols (Network, scope, clean, quality).
+- [Schema](https://e-lo.github.io/netstead/netstead/reference/spec.md): GMNS field-level reference per table.
+- [Table of tables](https://e-lo.github.io/netstead/netstead/reference/table-of-tables.md): Every GMNS table with purpose + FK diagram.
+- [Glossary](https://e-lo.github.io/netstead/netstead/reference/glossary.md): GMNS terms + project conventions.
+
+## Migration + AI
+
+- [Migration v0.3 → v1.0](https://e-lo.github.io/netstead/netstead/migration/v0.3-to-v1.0.md): Side-by-side API mapping for v0.3 users.
+- [MCP tools reference](https://e-lo.github.io/netstead/netstead/ai/mcp-tools.md): MCP server tools shipped with netstead.

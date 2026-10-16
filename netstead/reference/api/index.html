@@ -1,0 +1,4110 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="Python toolkit for the General Modeling Network Specification — load, validate, scope, edit GMNS networks at regional scale, with CLI / notebook / HTTP / MCP surfaces." name="description"/>
+<link href="https://e-lo.github.io/netstead/netstead/reference/api/" rel="canonical"/>
+<link href="../../cookbook/serve-mcp/" rel="prev"/>
+<link href="../spec/" rel="next"/>
+<link href="../../assets/images/favicon.png" rel="icon"/>
+<meta content="mkdocs-1.6.1, mkdocs-material-9.7.7" name="generator"/>
+<title>netstead API reference - netstead documentation</title>
+<link href="../../assets/stylesheets/main.ec1eaa64.min.css" rel="stylesheet"/>
+<link href="../../assets/stylesheets/palette.ab4e12ef.min.css" rel="stylesheet"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&amp;display=fallback" rel="stylesheet"/>
+<style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+<link href="../../assets/_mkdocstrings.css" rel="stylesheet"/>
+<link href="../../assets/stylesheets/extra.css" rel="stylesheet"/>
+<script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+<link href="../../assets/stylesheets/glightbox.min.css" rel="stylesheet"/><script src="../../assets/javascripts/glightbox.min.js"></script><style id="glightbox-style">
+            html.glightbox-open { overflow: initial; height: 100%; }
+            .gslide-title { margin-top: 0px; user-select: text; }
+            .gslide-desc { color: #666; user-select: text; }
+            .gslide-image img { background: white; }
+            .gscrollbar-fixer { padding-right: 15px; }
+            .gdesc-inner { font-size: 0.75rem; }
+            body[data-md-color-scheme="slate"] .gdesc-inner { background: var(--md-default-bg-color); }
+            body[data-md-color-scheme="slate"] .gslide-title { color: var(--md-default-fg-color); }
+            body[data-md-color-scheme="slate"] .gslide-desc { color: var(--md-default-fg-color); }
+        </style></head>
+<body data-md-color-accent="green" data-md-color-primary="green" data-md-color-scheme="default" dir="ltr">
+<input autocomplete="off" class="md-toggle" data-md-toggle="drawer" id="__drawer" type="checkbox"/>
+<input autocomplete="off" class="md-toggle" data-md-toggle="search" id="__search" type="checkbox"/>
+<label class="md-overlay" for="__drawer"></label>
+<div data-md-component="skip">
+<a class="md-skip" href="#netstead-api-reference">
+          Skip to content
+        </a>
+</div>
+<div data-md-component="announce">
+</div>
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+<nav aria-label="Header" class="md-header__inner md-grid">
+<a aria-label="netstead documentation" class="md-header__button md-logo" data-md-component="logo" href="../.." title="netstead documentation">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"></path></svg>
+</a>
+<label class="md-header__button md-icon" for="__drawer">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"></path></svg>
+</label>
+<div class="md-header__title" data-md-component="header-title">
+<div class="md-header__ellipsis">
+<div class="md-header__topic">
+<span class="md-ellipsis">
+            netstead documentation
+          </span>
+</div>
+<div class="md-header__topic" data-md-component="header-topic">
+<span class="md-ellipsis">
+            
+              netstead API reference
+            
+          </span>
+</div>
+</div>
+</div>
+<form class="md-header__option" data-md-component="palette">
+<input aria-label="Switch to dark mode" class="md-option" data-md-color-accent="green" data-md-color-media="(prefers-color-scheme: light)" data-md-color-primary="green" data-md-color-scheme="default" id="__palette_0" name="__palette" type="radio"/>
+<label class="md-header__button md-icon" for="__palette_1" hidden="" title="Switch to dark mode">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M17 6H7c-3.31 0-6 2.69-6 6s2.69 6 6 6h10c3.31 0 6-2.69 6-6s-2.69-6-6-6m0 10H7c-2.21 0-4-1.79-4-4s1.79-4 4-4h10c2.21 0 4 1.79 4 4s-1.79 4-4 4M7 9c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3"></path></svg>
+</label>
+<input aria-label="Switch to light mode" class="md-option" data-md-color-accent="green" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-primary="green" data-md-color-scheme="slate" id="__palette_1" name="__palette" type="radio"/>
+<label class="md-header__button md-icon" for="__palette_0" hidden="" title="Switch to light mode">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M17 7H7a5 5 0 0 0-5 5 5 5 0 0 0 5 5h10a5 5 0 0 0 5-5 5 5 0 0 0-5-5m0 8a3 3 0 0 1-3-3 3 3 0 0 1 3-3 3 3 0 0 1 3 3 3 3 0 0 1-3 3"></path></svg>
+</label>
+</form>
+<script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+<label class="md-header__button md-icon" for="__search">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+</label>
+<div class="md-search" data-md-component="search" role="dialog">
+<label class="md-search__overlay" for="__search"></label>
+<div class="md-search__inner" role="search">
+<form class="md-search__form" name="search">
+<input aria-label="Search" autocapitalize="off" autocomplete="off" autocorrect="off" class="md-search__input" data-md-component="search-query" name="query" placeholder="Search" required="" spellcheck="false" type="text"/>
+<label class="md-search__icon md-icon" for="__search">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"></path></svg>
+</label>
+<nav aria-label="Search" class="md-search__options">
+<a aria-label="Share" class="md-search__icon md-icon" data-clipboard="" data-clipboard-text="" data-md-component="search-share" href="javascript:void(0)" tabindex="-1" title="Share">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"></path></svg>
+</a>
+<button aria-label="Clear" class="md-search__icon md-icon" tabindex="-1" title="Clear" type="reset">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>
+</button>
+</nav>
+<div class="md-search__suggest" data-md-component="search-suggest"></div>
+</form>
+<div class="md-search__output">
+<div class="md-search__scrollwrap" data-md-scrollfix="" tabindex="0">
+<div class="md-search-result" data-md-component="search-result">
+<div class="md-search-result__meta">
+            Initializing search
+          </div>
+<ol class="md-search-result__list" role="presentation"></ol>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="md-header__source">
+<a class="md-source" data-md-component="source" href="https://github.com/e-lo/netstead" title="Go to repository">
+<div class="md-source__icon md-icon">
+<svg viewbox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"></path></svg>
+</div>
+<div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+</div>
+</nav>
+<nav aria-label="Tabs" class="md-tabs" data-md-component="tabs">
+<div class="md-grid">
+<ul class="md-tabs__list">
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../..">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../quickstart/">
+        
+  
+  
+    
+  
+  Quickstart
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../what-is-gmns/">
+        
+  
+  
+    
+  
+  What is GMNS?
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../visual-tour/">
+        
+  
+  
+    
+  
+  Visual tour
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../cookbook/">
+        
+  
+  
+    
+  
+  Cookbook
+
+      </a>
+</li>
+<li class="md-tabs__item md-tabs__item--active">
+<a class="md-tabs__link" href="./">
+          
+  
+  
+    
+  
+  Reference
+
+        </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../migration/v0.3-to-v1.0/">
+        
+  
+  
+    
+  
+  Migration v0.3 → v1.0
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../ai/mcp-tools/">
+        
+  
+  
+    
+  
+  MCP tools reference
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../gmns-data-model/">
+        
+  
+  
+    
+  
+  GMNS data model
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="https://e-lo.github.io/netstead/">
+        
+  
+  
+    
+  
+  « Netstead umbrella
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="https://e-lo.github.io/netstead/corral/">
+        
+  
+  
+    
+  
+  corral site »
+
+      </a>
+</li>
+</ul>
+</div>
+</nav>
+</header>
+<div class="md-container" data-md-component="container">
+<main class="md-main" data-md-component="main">
+<div class="md-main__inner md-grid">
+<div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation">
+<div class="md-sidebar__scrollwrap">
+<div class="md-sidebar__inner">
+<nav aria-label="Navigation" class="md-nav md-nav--primary md-nav--lifted" data-md-level="0">
+<label class="md-nav__title" for="__drawer">
+<a aria-label="netstead documentation" class="md-nav__button md-logo" data-md-component="logo" href="../.." title="netstead documentation">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"></path></svg>
+</a>
+    netstead documentation
+  </label>
+<div class="md-nav__source">
+<a class="md-source" data-md-component="source" href="https://github.com/e-lo/netstead" title="Go to repository">
+<div class="md-source__icon md-icon">
+<svg viewbox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"></path></svg>
+</div>
+<div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+</div>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../..">
+<span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../quickstart/">
+<span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../what-is-gmns/">
+<span class="md-ellipsis">
+    
+  
+    What is GMNS?
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../visual-tour/">
+<span class="md-ellipsis">
+    
+  
+    Visual tour
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item md-nav__item--nested">
+<input class="md-nav__toggle md-toggle" id="__nav_5" type="checkbox"/>
+<div class="md-nav__link md-nav__container">
+<a class="md-nav__link" href="../../cookbook/">
+<span class="md-ellipsis">
+    
+  
+    Cookbook
+  
+
+    
+  </span>
+</a>
+<label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+<span class="md-nav__icon md-icon"></span>
+</label>
+</div>
+<nav aria-expanded="false" aria-labelledby="__nav_5_label" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_5">
+<span class="md-nav__icon md-icon"></span>
+            
+  
+    Cookbook
+  
+
+          </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../cookbook/validate-network/">
+<span class="md-ellipsis">
+    
+  
+    Validate a network
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../cookbook/build-from-osm/">
+<span class="md-ellipsis">
+    
+  
+    Build from OpenStreetMap
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../cookbook/view-your-network/">
+<span class="md-ellipsis">
+    
+  
+    View a network on a map
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../cookbook/workbench/">
+<span class="md-ellipsis">
+    
+  
+    Explore in the Workbench
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../cookbook/workbench-plugins/">
+<span class="md-ellipsis">
+    
+  
+    Write a Workbench plugin
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../cookbook/local-llm-ollama/">
+<span class="md-ellipsis">
+    
+  
+    Local language models (Ollama)
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../cookbook/fix-findings/">
+<span class="md-ellipsis">
+    
+  
+    Triage and fix findings
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../cookbook/query-and-update/">
+<span class="md-ellipsis">
+    
+  
+    Query and update linked tables
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../cookbook/customise-quality/">
+<span class="md-ellipsis">
+    
+  
+    Customise quality rules
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../cookbook/scope-from-nodes/">
+<span class="md-ellipsis">
+    
+  
+    Scope from seed nodes
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../cookbook/edit-with-rollback/">
+<span class="md-ellipsis">
+    
+  
+    Edit with rollback
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../cookbook/run-bench/">
+<span class="md-ellipsis">
+    
+  
+    Run the bench
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../cookbook/serve-http/">
+<span class="md-ellipsis">
+    
+  
+    Self-host the HTTP server
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../cookbook/serve-mcp/">
+<span class="md-ellipsis">
+    
+  
+    Wire up the MCP server
+  
+
+    
+  </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+<input checked="" class="md-nav__toggle md-toggle" id="__nav_6" type="checkbox"/>
+<label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+<span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+<span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-expanded="true" aria-labelledby="__nav_6_label" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_6">
+<span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item md-nav__item--active">
+<input class="md-nav__toggle md-toggle" id="__toc" type="checkbox"/>
+<label class="md-nav__link md-nav__link--active" for="__toc">
+<span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+<span class="md-nav__icon md-icon"></span>
+</label>
+<a class="md-nav__link md-nav__link--active" href="./">
+<span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+</a>
+<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
+<label class="md-nav__title" for="__toc">
+<span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#network-the-gmns-aware-package">
+<span class="md-ellipsis">
+      
+        Network — the GMNS-aware Package
+      
+    </span>
+</a>
+<nav aria-label="Network — the GMNS-aware Package" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.Network">
+<span class="md-ellipsis">
+      
+        Network
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.NetworkError">
+<span class="md-ellipsis">
+      
+        NetworkError
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#spec">
+<span class="md-ellipsis">
+      
+        Spec
+      
+    </span>
+</a>
+<nav aria-label="Spec" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.spec.SUPPORTED_SPECS">
+<span class="md-ellipsis">
+      
+        SUPPORTED_SPECS
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.spec.DEFAULT_SPEC">
+<span class="md-ellipsis">
+      
+        DEFAULT_SPEC
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.spec.load_gmns_spec">
+<span class="md-ellipsis">
+      
+        load_gmns_spec
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#semantics">
+<span class="md-ellipsis">
+      
+        Semantics
+      
+    </span>
+</a>
+<nav aria-label="Semantics" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.semantics.is_connected">
+<span class="md-ellipsis">
+      
+        is_connected
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.semantics.connected_components">
+<span class="md-ellipsis">
+      
+        connected_components
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.semantics.assemble_link_geometry">
+<span class="md-ellipsis">
+      
+        assemble_link_geometry
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.semantics.resolve_link_attrs_at">
+<span class="md-ellipsis">
+      
+        resolve_link_attrs_at
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#scope">
+<span class="md-ellipsis">
+      
+        Scope
+      
+    </span>
+</a>
+<nav aria-label="Scope" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.scope.NetworkScope">
+<span class="md-ellipsis">
+      
+        NetworkScope
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.scope.from_nodes">
+<span class="md-ellipsis">
+      
+        from_nodes
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.scope.from_node">
+<span class="md-ellipsis">
+      
+        from_node
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.scope.from_link">
+<span class="md-ellipsis">
+      
+        from_link
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.scope.from_point">
+<span class="md-ellipsis">
+      
+        from_point
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.scope.connected_component">
+<span class="md-ellipsis">
+      
+        connected_component
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.scope.from_zone">
+<span class="md-ellipsis">
+      
+        from_zone
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#quality-gmns-rule-pack">
+<span class="md-ellipsis">
+      
+        Quality (GMNS rule pack)
+      
+    </span>
+</a>
+<nav aria-label="Quality (GMNS rule pack)" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.quality.register_all">
+<span class="md-ellipsis">
+      
+        register_all
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.quality.HighSpeedResidentialRule">
+<span class="md-ellipsis">
+      
+        HighSpeedResidentialRule
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.quality.DisconnectedComponentsRule">
+<span class="md-ellipsis">
+      
+        DisconnectedComponentsRule
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.quality.LaneCountMismatchRule">
+<span class="md-ellipsis">
+      
+        LaneCountMismatchRule
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.quality.DuplicateNearNodesRule">
+<span class="md-ellipsis">
+      
+        DuplicateNearNodesRule
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.quality.SharpAngleBendsRule">
+<span class="md-ellipsis">
+      
+        SharpAngleBendsRule
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.quality.ImplausibleVcRule">
+<span class="md-ellipsis">
+      
+        ImplausibleVcRule
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.quality.MissingCriticalFieldsRule">
+<span class="md-ellipsis">
+      
+        MissingCriticalFieldsRule
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#indexes-optional-clean-extra">
+<span class="md-ellipsis">
+      
+        Indexes (optional [clean] extra)
+      
+    </span>
+</a>
+<nav aria-label="Indexes (optional [clean] extra)" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.indexes.SpatialIndex">
+<span class="md-ellipsis">
+      
+        SpatialIndex
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.indexes.build_indexes">
+<span class="md-ellipsis">
+      
+        build_indexes
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#graph-routing-optional-graph-extra">
+<span class="md-ellipsis">
+      
+        Graph / routing (optional [graph] extra)
+      
+    </span>
+</a>
+<nav aria-label="Graph / routing (optional [graph] extra)" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.graph.GMNSGraph">
+<span class="md-ellipsis">
+      
+        GMNSGraph
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#clean-optional-clean-extra">
+<span class="md-ellipsis">
+      
+        Clean (optional [clean] extra)
+      
+    </span>
+</a>
+<nav aria-label="Clean (optional [clean] extra)" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.clean.simplify_geometry">
+<span class="md-ellipsis">
+      
+        simplify_geometry
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.clean.merge_close_nodes">
+<span class="md-ellipsis">
+      
+        merge_close_nodes
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.clean.remove_orphans">
+<span class="md-ellipsis">
+      
+        remove_orphans
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.clean.recompute_lengths">
+<span class="md-ellipsis">
+      
+        recompute_lengths
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#see-also">
+<span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../spec/">
+<span class="md-ellipsis">
+    
+  
+    Schema
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../table-of-tables/">
+<span class="md-ellipsis">
+    
+  
+    Table of tables
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../glossary/">
+<span class="md-ellipsis">
+    
+  
+    Glossary
+  
+
+    
+  </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../migration/v0.3-to-v1.0/">
+<span class="md-ellipsis">
+    
+  
+    Migration v0.3 → v1.0
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../ai/mcp-tools/">
+<span class="md-ellipsis">
+    
+  
+    MCP tools reference
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../gmns-data-model/">
+<span class="md-ellipsis">
+    
+  
+    GMNS data model
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="https://e-lo.github.io/netstead/">
+<span class="md-ellipsis">
+    
+  
+    « Netstead umbrella
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="https://e-lo.github.io/netstead/corral/">
+<span class="md-ellipsis">
+    
+  
+    corral site »
+  
+
+    
+  </span>
+</a>
+</li>
+</ul>
+</nav>
+</div>
+</div>
+</div>
+<div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc">
+<div class="md-sidebar__scrollwrap">
+<div class="md-sidebar__inner">
+<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
+<label class="md-nav__title" for="__toc">
+<span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#network-the-gmns-aware-package">
+<span class="md-ellipsis">
+      
+        Network — the GMNS-aware Package
+      
+    </span>
+</a>
+<nav aria-label="Network — the GMNS-aware Package" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.Network">
+<span class="md-ellipsis">
+      
+        Network
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.NetworkError">
+<span class="md-ellipsis">
+      
+        NetworkError
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#spec">
+<span class="md-ellipsis">
+      
+        Spec
+      
+    </span>
+</a>
+<nav aria-label="Spec" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.spec.SUPPORTED_SPECS">
+<span class="md-ellipsis">
+      
+        SUPPORTED_SPECS
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.spec.DEFAULT_SPEC">
+<span class="md-ellipsis">
+      
+        DEFAULT_SPEC
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.spec.load_gmns_spec">
+<span class="md-ellipsis">
+      
+        load_gmns_spec
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#semantics">
+<span class="md-ellipsis">
+      
+        Semantics
+      
+    </span>
+</a>
+<nav aria-label="Semantics" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.semantics.is_connected">
+<span class="md-ellipsis">
+      
+        is_connected
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.semantics.connected_components">
+<span class="md-ellipsis">
+      
+        connected_components
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.semantics.assemble_link_geometry">
+<span class="md-ellipsis">
+      
+        assemble_link_geometry
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.semantics.resolve_link_attrs_at">
+<span class="md-ellipsis">
+      
+        resolve_link_attrs_at
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#scope">
+<span class="md-ellipsis">
+      
+        Scope
+      
+    </span>
+</a>
+<nav aria-label="Scope" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.scope.NetworkScope">
+<span class="md-ellipsis">
+      
+        NetworkScope
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.scope.from_nodes">
+<span class="md-ellipsis">
+      
+        from_nodes
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.scope.from_node">
+<span class="md-ellipsis">
+      
+        from_node
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.scope.from_link">
+<span class="md-ellipsis">
+      
+        from_link
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.scope.from_point">
+<span class="md-ellipsis">
+      
+        from_point
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.scope.connected_component">
+<span class="md-ellipsis">
+      
+        connected_component
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.scope.from_zone">
+<span class="md-ellipsis">
+      
+        from_zone
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#quality-gmns-rule-pack">
+<span class="md-ellipsis">
+      
+        Quality (GMNS rule pack)
+      
+    </span>
+</a>
+<nav aria-label="Quality (GMNS rule pack)" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.quality.register_all">
+<span class="md-ellipsis">
+      
+        register_all
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.quality.HighSpeedResidentialRule">
+<span class="md-ellipsis">
+      
+        HighSpeedResidentialRule
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.quality.DisconnectedComponentsRule">
+<span class="md-ellipsis">
+      
+        DisconnectedComponentsRule
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.quality.LaneCountMismatchRule">
+<span class="md-ellipsis">
+      
+        LaneCountMismatchRule
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.quality.DuplicateNearNodesRule">
+<span class="md-ellipsis">
+      
+        DuplicateNearNodesRule
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.quality.SharpAngleBendsRule">
+<span class="md-ellipsis">
+      
+        SharpAngleBendsRule
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.quality.ImplausibleVcRule">
+<span class="md-ellipsis">
+      
+        ImplausibleVcRule
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.quality.MissingCriticalFieldsRule">
+<span class="md-ellipsis">
+      
+        MissingCriticalFieldsRule
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#indexes-optional-clean-extra">
+<span class="md-ellipsis">
+      
+        Indexes (optional [clean] extra)
+      
+    </span>
+</a>
+<nav aria-label="Indexes (optional [clean] extra)" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.indexes.SpatialIndex">
+<span class="md-ellipsis">
+      
+        SpatialIndex
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.indexes.build_indexes">
+<span class="md-ellipsis">
+      
+        build_indexes
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#graph-routing-optional-graph-extra">
+<span class="md-ellipsis">
+      
+        Graph / routing (optional [graph] extra)
+      
+    </span>
+</a>
+<nav aria-label="Graph / routing (optional [graph] extra)" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.graph.GMNSGraph">
+<span class="md-ellipsis">
+      
+        GMNSGraph
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#clean-optional-clean-extra">
+<span class="md-ellipsis">
+      
+        Clean (optional [clean] extra)
+      
+    </span>
+</a>
+<nav aria-label="Clean (optional [clean] extra)" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.clean.simplify_geometry">
+<span class="md-ellipsis">
+      
+        simplify_geometry
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.clean.merge_close_nodes">
+<span class="md-ellipsis">
+      
+        merge_close_nodes
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.clean.remove_orphans">
+<span class="md-ellipsis">
+      
+        remove_orphans
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#netstead.clean.recompute_lengths">
+<span class="md-ellipsis">
+      
+        recompute_lengths
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#see-also">
+<span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</div>
+</div>
+</div>
+<div class="md-content" data-md-component="content">
+<article class="md-content__inner md-typeset">
+<a class="md-content__button md-icon" href="https://github.com/e-lo/netstead/edit/main/packages/netstead/docs/reference/api.md" rel="edit" title="Edit this page">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75z"></path></svg>
+</a>
+<a class="md-content__button md-icon" href="https://github.com/e-lo/netstead/raw/main/packages/netstead/docs/reference/api.md" title="View source of this page">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0 8a5 5 0 0 1-5-5 5 5 0 0 1 5-5 5 5 0 0 1 5 5 5 5 0 0 1-5 5m0-12.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5"></path></svg>
+</a>
+<h1 id="netstead-api-reference">netstead API reference<a class="headerlink" href="#netstead-api-reference" title="Permanent link"> ¶</a></h1>
+<p>GMNS-specific surface. For the generic Frictionless data-package primitives (<code>Package</code>, <code>Table</code>, validation, editing framework, HTTP + MCP factories) see the <a href="https://e-lo.github.io/netstead/corral/reference/api/">corral API reference</a>.</p>
+<p>Auto-generated from package docstrings via <a href="https://mkdocstrings.github.io/">mkdocstrings</a>. Stable anchors match the codes in <a href="https://e-lo.github.io/netstead/corral/ai/"><code>ai/api-index.json</code></a>.</p>
+<h2 id="network-the-gmns-aware-package">Network — the GMNS-aware Package<a class="headerlink" href="#network-the-gmns-aware-package" title="Permanent link"> ¶</a></h2>
+<div class="doc doc-object doc-class">
+<h3 class="doc doc-heading" id="netstead.Network">
+<code class="highlight language-python"><span class="n">netstead</span><span class="o">.</span><span class="n">Network</span><span class="p">(</span><span class="n">spec_version</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+<span class="doc doc-labels">
+<small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+</span>
+<a class="headerlink" href="#netstead.Network" title="Permanent link"> ¶</a></h3>
+<div class="doc doc-contents first">
+<p class="doc doc-class-bases">
+              Bases: <code><span title="corral.dataset.Package">Package</span></code></p>
+<p>GMNS-aware :class:<code>~corral.dataset.Package</code>.</p>
+<p>Subclass of :class:<code>~corral.dataset.Package</code> that defaults to the
+bundled GMNS spec (see :mod:<code>netstead.spec</code>) and exposes named
+accessors for the canonical GMNS resources (<code>link</code>, <code>node</code>,
+<code>segment</code>, <code>lane</code>, <code>geometry</code>, <code>link_tod</code>,
+<code>signal_controller</code>, …). Validation reports produced by
+:meth:<code>validate</code> carry the active :attr:<code>spec_version</code> so saved
+JSON / HTML reports are self-describing.</p>
+<p><span class="doc-section-title">Attributes:</span></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td><code><a class="autorefs autorefs-internal" href="#netstead.Network.spec_version" title='&lt;code class="highlight language-python"&gt;&lt;span class="n"&gt;spec_version&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;field&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;default&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="kc"&gt;None&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;/code&gt;
+
+  &lt;span class="doc doc-labels"&gt;
+      &lt;small class="doc doc-label doc-label-class-attribute"&gt;&lt;code&gt;class-attribute&lt;/code&gt;&lt;/small&gt;
+      &lt;small class="doc doc-label doc-label-instance-attribute"&gt;&lt;code&gt;instance-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;netstead.Network.spec_version&lt;/code&gt;)'>spec_version</a></code></td>
+<td>
+<code><span title="str">str</span> | None</code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>GMNS spec version this network was loaded
+against — one of :data:<code>netstead.spec.SUPPORTED_SPECS</code>.
+Populated by :meth:<code>from_source</code>; defaults to <code>""</code> when
+the dataclass is constructed directly (the structural
+check still works, but :meth:<code>validate</code>’s stamp will be
+empty until the caller sets it).</p>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<p><span class="doc-section-title">Examples:</span></p>
+<p>Load the bundled Leavenworth fixture, hit the named accessors,
+and run validation::</p>
+<div class="language-text highlight"><pre><span></span><code>&gt;&gt;&gt; from netstead import Network
+&gt;&gt;&gt; from netstead.fixtures import leavenworth
+&gt;&gt;&gt; from corral.engines.ibis_engine import IbisEngine
+&gt;&gt;&gt; net = Network.from_source(leavenworth.csv_dir(), engine=IbisEngine())
+&gt;&gt;&gt; net.links.name
+'link'
+&gt;&gt;&gt; net.nodes.name
+'node'
+&gt;&gt;&gt; net.segments is None  # Leavenworth has no segment table
+True
+&gt;&gt;&gt; report = net.validate()
+&gt;&gt;&gt; report.spec_version == net.spec_version
+True
+</code></pre></div>
+<div class="doc doc-children">
+<div class="doc doc-object doc-attribute">
+<h4 class="doc doc-heading" id="netstead.Network.links">
+<code class="highlight language-python"><span class="n">links</span></code>
+<span class="doc doc-labels">
+<small class="doc doc-label doc-label-property"><code>property</code></small>
+</span>
+<a class="headerlink" href="#netstead.Network.links" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>The <code>link</code> table (required by GMNS).</p>
+<p><span class="doc-section-title">Raises:</span></p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td>
+<code><a class="autorefs autorefs-internal" href="#netstead.NetworkError" title="&lt;code&gt;netstead.NetworkError&lt;/code&gt; (&lt;code&gt;netstead.network.NetworkError&lt;/code&gt;)">NetworkError</a></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>If the <code>link</code> resource is absent from the
+loaded package.</p>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<p><span class="doc-section-title">Examples:</span></p>
+<div class="language-pycon highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">netstead</span><span class="w"> </span><span class="kn">import</span> <span class="n">Network</span>
+</span><span id="__span-0-2"><a href="#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">netstead.fixtures</span><span class="w"> </span><span class="kn">import</span> <span class="n">leavenworth</span>
+</span><span id="__span-0-3"><a href="#__codelineno-0-3" id="__codelineno-0-3" name="__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">corral.engines.ibis_engine</span><span class="w"> </span><span class="kn">import</span> <span class="n">IbisEngine</span>
+</span><span id="__span-0-4"><a href="#__codelineno-0-4" id="__codelineno-0-4" name="__codelineno-0-4"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">Network</span><span class="o">.</span><span class="n">from_source</span><span class="p">(</span><span class="n">leavenworth</span><span class="o">.</span><span class="n">csv_dir</span><span class="p">(),</span> <span class="n">engine</span><span class="o">=</span><span class="n">IbisEngine</span><span class="p">())</span><span class="o">.</span><span class="n">links</span><span class="o">.</span><span class="n">name</span>
+</span><span id="__span-0-5"><a href="#__codelineno-0-5" id="__codelineno-0-5" name="__codelineno-0-5"></a><span class="go">'link'</span>
+</span></code></pre></div>
+</div>
+</div>
+<div class="doc doc-object doc-attribute">
+<h4 class="doc doc-heading" id="netstead.Network.nodes">
+<code class="highlight language-python"><span class="n">nodes</span></code>
+<span class="doc doc-labels">
+<small class="doc doc-label doc-label-property"><code>property</code></small>
+</span>
+<a class="headerlink" href="#netstead.Network.nodes" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>The <code>node</code> table (required by GMNS).</p>
+<p><span class="doc-section-title">Raises:</span></p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td>
+<code><a class="autorefs autorefs-internal" href="#netstead.NetworkError" title="&lt;code&gt;netstead.NetworkError&lt;/code&gt; (&lt;code&gt;netstead.network.NetworkError&lt;/code&gt;)">NetworkError</a></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>If the <code>node</code> resource is absent from the
+loaded package.</p>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="doc doc-object doc-attribute">
+<h4 class="doc doc-heading" id="netstead.Network.geometry">
+<code class="highlight language-python"><span class="n">geometry</span></code>
+<span class="doc doc-labels">
+<small class="doc doc-label doc-label-property"><code>property</code></small>
+</span>
+<a class="headerlink" href="#netstead.Network.geometry" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>The <code>geometry</code> table or <code>None</code> when absent.</p>
+</div>
+</div>
+<div class="doc doc-object doc-attribute">
+<h4 class="doc doc-heading" id="netstead.Network.lanes">
+<code class="highlight language-python"><span class="n">lanes</span></code>
+<span class="doc doc-labels">
+<small class="doc doc-label doc-label-property"><code>property</code></small>
+</span>
+<a class="headerlink" href="#netstead.Network.lanes" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>The <code>lane</code> table or <code>None</code> when absent.</p>
+</div>
+</div>
+<div class="doc doc-object doc-attribute">
+<h4 class="doc doc-heading" id="netstead.Network.link_tod">
+<code class="highlight language-python"><span class="n">link_tod</span></code>
+<span class="doc doc-labels">
+<small class="doc doc-label doc-label-property"><code>property</code></small>
+</span>
+<a class="headerlink" href="#netstead.Network.link_tod" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>The <code>link_tod</code> table or <code>None</code> when absent.</p>
+</div>
+</div>
+<div class="doc doc-object doc-attribute">
+<h4 class="doc doc-heading" id="netstead.Network.segments">
+<code class="highlight language-python"><span class="n">segments</span></code>
+<span class="doc doc-labels">
+<small class="doc doc-label doc-label-property"><code>property</code></small>
+</span>
+<a class="headerlink" href="#netstead.Network.segments" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>The <code>segment</code> table or <code>None</code> when absent.</p>
+</div>
+</div>
+<div class="doc doc-object doc-attribute">
+<h4 class="doc doc-heading" id="netstead.Network.spec_version">
+<code class="highlight language-python"><span class="n">spec_version</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+<span class="doc doc-labels">
+<small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+<small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+</span>
+<a class="headerlink" href="#netstead.Network.spec_version" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.Network.from_source">
+<code class="highlight language-python"><span class="n">from_source</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">engine</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">spec_version</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">tables</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+<span class="doc doc-labels">
+<small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+</span>
+<a class="headerlink" href="#netstead.Network.from_source" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Load a GMNS network from <code>source</code>, defaulting the spec to gmns@spec_version.</p>
+<p>Resolves <code>spec_version</code> (caller-provided or
+:data:<code>netstead.spec.DEFAULT_SPEC</code>), validates it against
+:data:<code>netstead.spec.SUPPORTED_SPECS</code>, loads the matching
+vendored spec via :func:<code>netstead.spec.load_gmns_spec</code>, then
+delegates to :meth:<code>Package.from_source</code> for the actual I/O.
+The returned :class:<code>Network</code> carries the resolved version on
+:attr:<code>spec_version</code>.</p>
+<p><span class="doc-section-title">Parameters:</span></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td>
+<code>source</code>
+</td>
+<td>
+<code><span title="str">str</span> | <span title="pathlib.Path">Path</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>Path / URL / directory pointing at the GMNS package
+— anything :meth:<code>Package.from_source</code> accepts.</p>
+</div>
+</td>
+<td>
+<em>required</em>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td>
+<code>engine</code>
+</td>
+<td>
+<code><span title="corral.engines.base.Engine">Engine</span> | None</code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>Engine to materialise through. Defaults to the
+corral default (typically
+:class:<code>~corral.engines.ibis_engine.IbisEngine</code>).</p>
+</div>
+</td>
+<td>
+<code>None</code>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td>
+<code>spec_version</code>
+</td>
+<td>
+<code><span title="str">str</span> | None</code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>GMNS spec version to validate against.
+Defaults to :data:<code>netstead.spec.DEFAULT_SPEC</code>. Must be a
+member of :data:<code>netstead.spec.SUPPORTED_SPECS</code>.</p>
+</div>
+</td>
+<td>
+<code>None</code>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td>
+<code>tables</code>
+</td>
+<td>
+<code><span title="collections.abc.Iterable">Iterable</span>[<span title="str">str</span>] | None</code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>Optional subset of resource names to load. Useful
+for memory-efficient partial loads (e.g. <code>["link",
+"node"]</code>).</p>
+</div>
+</td>
+<td>
+<code>None</code>
+</td>
+</tr>
+</tbody>
+</table>
+<p><span class="doc-section-title">Returns:</span></p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td>
+<code><a class="autorefs autorefs-internal" href="#netstead.Network" title='&lt;code class="highlight language-python"&gt;&lt;span class="n"&gt;netstead&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;Network&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;spec_version&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="kc"&gt;None&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;/code&gt;
+
+  &lt;span class="doc doc-labels"&gt;
+      &lt;small class="doc doc-label doc-label-dataclass"&gt;&lt;code&gt;dataclass&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;netstead.network.Network&lt;/code&gt;)'>Network</a></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>A populated :class:<code>Network</code> with lazy</p>
+</div>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td>
+<code><a class="autorefs autorefs-internal" href="#netstead.Network" title='&lt;code class="highlight language-python"&gt;&lt;span class="n"&gt;netstead&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;Network&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;spec_version&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="kc"&gt;None&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;/code&gt;
+
+  &lt;span class="doc doc-labels"&gt;
+      &lt;small class="doc doc-label doc-label-dataclass"&gt;&lt;code&gt;dataclass&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;netstead.network.Network&lt;/code&gt;)'>Network</a></code>
+</td>
+<td>
+<div class="doc-md-description">
+</div>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td>
+<code><a class="autorefs autorefs-internal" href="#netstead.Network" title='&lt;code class="highlight language-python"&gt;&lt;span class="n"&gt;netstead&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;Network&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;spec_version&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="kc"&gt;None&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;/code&gt;
+
+  &lt;span class="doc doc-labels"&gt;
+      &lt;small class="doc doc-label doc-label-dataclass"&gt;&lt;code&gt;dataclass&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;netstead.network.Network&lt;/code&gt;)'>Network</a></code>
+</td>
+<td>
+<div class="doc-md-description">
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<p><span class="doc-section-title">Raises:</span></p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td>
+<code><span title="InvalidSpecVersionError">InvalidSpecVersionError</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>If <code>spec_version</code> is not in
+:data:<code>netstead.spec.SUPPORTED_SPECS</code> (subclass of
+:class:<code>~corral.spec.errors.SpecLoadError</code>).</p>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<p><span class="doc-section-title">Examples:</span></p>
+<div class="language-pycon highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">netstead</span><span class="w"> </span><span class="kn">import</span> <span class="n">Network</span>
+</span><span id="__span-0-2"><a href="#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">netstead.fixtures</span><span class="w"> </span><span class="kn">import</span> <span class="n">leavenworth</span>
+</span><span id="__span-0-3"><a href="#__codelineno-0-3" id="__codelineno-0-3" name="__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">corral.engines.ibis_engine</span><span class="w"> </span><span class="kn">import</span> <span class="n">IbisEngine</span>
+</span><span id="__span-0-4"><a href="#__codelineno-0-4" id="__codelineno-0-4" name="__codelineno-0-4"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">net</span> <span class="o">=</span> <span class="n">Network</span><span class="o">.</span><span class="n">from_source</span><span class="p">(</span><span class="n">leavenworth</span><span class="o">.</span><span class="n">csv_dir</span><span class="p">(),</span> <span class="n">engine</span><span class="o">=</span><span class="n">IbisEngine</span><span class="p">())</span>
+</span><span id="__span-0-5"><a href="#__codelineno-0-5" id="__codelineno-0-5" name="__codelineno-0-5"></a><span class="gp">&gt;&gt;&gt; </span><span class="s2">"link"</span> <span class="ow">in</span> <span class="n">net</span>
+</span><span id="__span-0-6"><a href="#__codelineno-0-6" id="__codelineno-0-6" name="__codelineno-0-6"></a><span class="go">True</span>
+</span><span id="__span-0-7"><a href="#__codelineno-0-7" id="__codelineno-0-7" name="__codelineno-0-7"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">net</span><span class="o">.</span><span class="n">spec_version</span>
+</span><span id="__span-0-8"><a href="#__codelineno-0-8" id="__codelineno-0-8" name="__codelineno-0-8"></a><span class="go">'0.97'</span>
+</span></code></pre></div>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.Network.validate">
+<code class="highlight language-python"><span class="n">validate</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.Network.validate" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Run the inherited :meth:<code>Package.validate</code> and stamp :attr:<code>spec_version</code> on the report.</p>
+<p>Pure composition — the orchestration (structural / schema / FK /
+sync-state passes) lives in :class:<code>~corral.dataset.Package</code>
+and is not duplicated here. The override exists solely so the
+returned :class:<code>~corral.reports.ValidationReport</code> advertises
+which GMNS spec version the data was checked against (renderers
+and saved JSON / HTML reports surface this in the header).</p>
+<p><span class="doc-section-title">Parameters:</span></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td>
+<code>**kwargs</code>
+</td>
+<td>
+</td>
+<td>
+<div class="doc-md-description">
+<p>Forwarded verbatim to :meth:<code>Package.validate</code>.</p>
+</div>
+</td>
+<td>
+<code>{}</code>
+</td>
+</tr>
+</tbody>
+</table>
+<p><span class="doc-section-title">Returns:</span></p>
+<table>
+<thead>
+<tr>
+<th>Name</th> <th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td><code>A</code></td> <td>
+<code><span title="corral.reports.ValidationReport">ValidationReport</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+</div>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td></td> <td>
+<code><span title="corral.reports.ValidationReport">ValidationReport</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p><code>spec_version</code> set to :attr:<code>self.spec_version</code>.</p>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<p><span class="doc-section-title">Examples:</span></p>
+<div class="language-pycon highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">netstead</span><span class="w"> </span><span class="kn">import</span> <span class="n">Network</span>
+</span><span id="__span-0-2"><a href="#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">netstead.fixtures</span><span class="w"> </span><span class="kn">import</span> <span class="n">leavenworth</span>
+</span><span id="__span-0-3"><a href="#__codelineno-0-3" id="__codelineno-0-3" name="__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">corral.engines.ibis_engine</span><span class="w"> </span><span class="kn">import</span> <span class="n">IbisEngine</span>
+</span><span id="__span-0-4"><a href="#__codelineno-0-4" id="__codelineno-0-4" name="__codelineno-0-4"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">net</span> <span class="o">=</span> <span class="n">Network</span><span class="o">.</span><span class="n">from_source</span><span class="p">(</span><span class="n">leavenworth</span><span class="o">.</span><span class="n">csv_dir</span><span class="p">(),</span> <span class="n">engine</span><span class="o">=</span><span class="n">IbisEngine</span><span class="p">())</span>
+</span><span id="__span-0-5"><a href="#__codelineno-0-5" id="__codelineno-0-5" name="__codelineno-0-5"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">report</span> <span class="o">=</span> <span class="n">net</span><span class="o">.</span><span class="n">validate</span><span class="p">(</span><span class="n">foreign_keys</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">sync_state</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</span><span id="__span-0-6"><a href="#__codelineno-0-6" id="__codelineno-0-6" name="__codelineno-0-6"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">report</span><span class="o">.</span><span class="n">spec_version</span> <span class="o">==</span> <span class="n">net</span><span class="o">.</span><span class="n">spec_version</span>
+</span><span id="__span-0-7"><a href="#__codelineno-0-7" id="__codelineno-0-7" name="__codelineno-0-7"></a><span class="go">True</span>
+</span></code></pre></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="doc doc-object doc-class">
+<h3 class="doc doc-heading" id="netstead.NetworkError">
+<code>netstead.NetworkError</code>
+<a class="headerlink" href="#netstead.NetworkError" title="Permanent link"> ¶</a></h3>
+<div class="doc doc-contents first">
+<p class="doc doc-class-bases">
+              Bases: <code><span title="corral.dataset.PackageError">PackageError</span></code></p>
+<p>A GMNS-required resource is missing or violates GMNS semantics.</p>
+<p>Specialises :class:<code>~corral.dataset.PackageError</code> so generic
+package-error handlers still catch it, while GMNS-aware callers can
+branch on the more specific type. Raised today by
+:attr:<code>Network.links</code> / :attr:<code>Network.nodes</code> when the underlying
+resource is absent from the loaded package; task 3.8 will reuse it
+for GMNS-semantics violations (broken connectivity, missing TOD
+references, …).</p>
+</div>
+</div><h2 id="spec">Spec<a class="headerlink" href="#spec" title="Permanent link"> ¶</a></h2>
+<div class="doc doc-object doc-attribute">
+<h3 class="doc doc-heading" id="netstead.spec.SUPPORTED_SPECS">
+<code class="highlight language-python"><span class="n">netstead</span><span class="o">.</span><span class="n">spec</span><span class="o">.</span><span class="n">SUPPORTED_SPECS</span> <span class="o">=</span> <span class="p">(</span><span class="s1">'0.95'</span><span class="p">,</span> <span class="s1">'0.96'</span><span class="p">,</span> <span class="s1">'0.97'</span><span class="p">)</span></code>
+<span class="doc doc-labels">
+<small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+</span>
+<a class="headerlink" href="#netstead.spec.SUPPORTED_SPECS" title="Permanent link"> ¶</a></h3>
+<div class="doc doc-contents first">
+<p>GMNS spec versions vendored in this wheel, oldest to newest.</p>
+</div>
+</div>
+<div class="doc doc-object doc-attribute">
+<h3 class="doc doc-heading" id="netstead.spec.DEFAULT_SPEC">
+<code class="highlight language-python"><span class="n">netstead</span><span class="o">.</span><span class="n">spec</span><span class="o">.</span><span class="n">DEFAULT_SPEC</span> <span class="o">=</span> <span class="s1">'0.97'</span></code>
+<span class="doc doc-labels">
+<small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+</span>
+<a class="headerlink" href="#netstead.spec.DEFAULT_SPEC" title="Permanent link"> ¶</a></h3>
+<div class="doc doc-contents first">
+<p>Default GMNS spec version used when callers do not specify one.</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h3 class="doc doc-heading" id="netstead.spec.load_gmns_spec">
+<code class="highlight language-python"><span class="n">netstead</span><span class="o">.</span><span class="n">spec</span><span class="o">.</span><span class="n">load_gmns_spec</span><span class="p">(</span><span class="n">version</span><span class="o">=</span><span class="n">DEFAULT_SPEC</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.spec.load_gmns_spec" title="Permanent link"> ¶</a></h3>
+<div class="doc doc-contents first">
+<p>Load the vendored GMNS data package for one spec version.</p>
+<p>Delegates parsing to :func:<code>corral.spec.load_package</code>, which
+resolves each resource’s <code>schema</code> reference, follows <code>$ref</code>
+pointers (including into <code>shared_categories.json</code> when present
+— that file ships only in 0.97), and inlines the resolved enum
+values onto each field’s <code>constraints.enum</code>.</p>
+<p><span class="doc-section-title">Parameters:</span></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td>
+<code>version</code>
+</td>
+<td>
+<code><span title="str">str</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>One of :data:<code>SUPPORTED_SPECS</code> (default
+:data:<code>DEFAULT_SPEC</code>).</p>
+</div>
+</td>
+<td>
+<code><a class="autorefs autorefs-internal" href="#netstead.spec.DEFAULT_SPEC" title='&lt;code class="highlight language-python"&gt;&lt;span class="n"&gt;netstead&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;spec&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;DEFAULT_SPEC&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;0.97&amp;#39;&lt;/span&gt;&lt;/code&gt;
+
+  &lt;span class="doc doc-labels"&gt;
+      &lt;small class="doc doc-label doc-label-module-attribute"&gt;&lt;code&gt;module-attribute&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;netstead.spec.DEFAULT_SPEC&lt;/code&gt;)'>DEFAULT_SPEC</a></code>
+</td>
+</tr>
+</tbody>
+</table>
+<p><span class="doc-section-title">Returns:</span></p>
+<table>
+<thead>
+<tr>
+<th>Name</th> <th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td><code>Parsed</code></td> <td>
+<code><span title="corral.spec.DataPackage">DataPackage</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+</div>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td></td> <td>
+<code><span title="corral.spec.DataPackage">DataPackage</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>resource’s <code>table_schema</code> populated.</p>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<p><span class="doc-section-title">Raises:</span></p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td>
+<code><span title="ValueError">ValueError</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>If <code>version</code> is not in :data:<code>SUPPORTED_SPECS</code>.</p>
+</div>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td>
+<code><span title="SpecLoadError">SpecLoadError</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>If the vendored descriptor is missing or
+malformed. This should not happen in a released wheel;
+it indicates the package data was corrupted at build
+time.</p>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<p><span class="doc-section-title">Examples:</span></p>
+<div class="language-pycon highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">netstead.spec</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_gmns_spec</span>
+</span><span id="__span-0-2"><a href="#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">pkg</span> <span class="o">=</span> <span class="n">load_gmns_spec</span><span class="p">()</span>
+</span><span id="__span-0-3"><a href="#__codelineno-0-3" id="__codelineno-0-3" name="__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">pkg</span><span class="o">.</span><span class="n">name</span>
+</span><span id="__span-0-4"><a href="#__codelineno-0-4" id="__codelineno-0-4" name="__codelineno-0-4"></a><span class="go">'gmns'</span>
+</span><span id="__span-0-5"><a href="#__codelineno-0-5" id="__codelineno-0-5" name="__codelineno-0-5"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">pkg</span><span class="o">.</span><span class="n">version</span>                       <span class="c1"># we trust the dir name</span>
+</span><span id="__span-0-6"><a href="#__codelineno-0-6" id="__codelineno-0-6" name="__codelineno-0-6"></a><span class="go">'0.97'</span>
+</span><span id="__span-0-7"><a href="#__codelineno-0-7" id="__codelineno-0-7" name="__codelineno-0-7"></a><span class="gp">&gt;&gt;&gt; </span><span class="p">{</span><span class="n">r</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">pkg</span><span class="o">.</span><span class="n">resources</span><span class="p">}</span> <span class="o">&gt;=</span> <span class="p">{</span><span class="s2">"link"</span><span class="p">,</span> <span class="s2">"node"</span><span class="p">}</span>
+</span><span id="__span-0-8"><a href="#__codelineno-0-8" id="__codelineno-0-8" name="__codelineno-0-8"></a><span class="go">True</span>
+</span></code></pre></div>
+</div>
+</div><h2 id="semantics">Semantics<a class="headerlink" href="#semantics" title="Permanent link"> ¶</a></h2>
+<div class="doc doc-object doc-function">
+<h3 class="doc doc-heading" id="netstead.semantics.is_connected">
+<code class="highlight language-python"><span class="n">netstead</span><span class="o">.</span><span class="n">semantics</span><span class="o">.</span><span class="n">is_connected</span><span class="p">(</span><span class="n">net</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.semantics.is_connected" title="Permanent link"> ¶</a></h3>
+<div class="doc doc-contents first">
+<p>Return <code>True</code> iff the network has exactly one weakly-connected component.</p>
+<p>“Weakly connected” means we ignore link direction — a one-way pair
+of streets between two nodes counts as connected.</p>
+<p><span class="doc-section-title">Examples:</span></p>
+<div class="language-pycon highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">netstead</span><span class="w"> </span><span class="kn">import</span> <span class="n">Network</span>
+</span><span id="__span-0-2"><a href="#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">netstead.fixtures</span><span class="w"> </span><span class="kn">import</span> <span class="n">leavenworth</span>
+</span><span id="__span-0-3"><a href="#__codelineno-0-3" id="__codelineno-0-3" name="__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">corral.engines.ibis_engine</span><span class="w"> </span><span class="kn">import</span> <span class="n">IbisEngine</span>
+</span><span id="__span-0-4"><a href="#__codelineno-0-4" id="__codelineno-0-4" name="__codelineno-0-4"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">net</span> <span class="o">=</span> <span class="n">Network</span><span class="o">.</span><span class="n">from_source</span><span class="p">(</span><span class="n">leavenworth</span><span class="o">.</span><span class="n">csv_dir</span><span class="p">(),</span> <span class="n">engine</span><span class="o">=</span><span class="n">IbisEngine</span><span class="p">())</span>
+</span><span id="__span-0-5"><a href="#__codelineno-0-5" id="__codelineno-0-5" name="__codelineno-0-5"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">is_connected</span><span class="p">(</span><span class="n">net</span><span class="p">)</span>
+</span><span id="__span-0-6"><a href="#__codelineno-0-6" id="__codelineno-0-6" name="__codelineno-0-6"></a><span class="go">True</span>
+</span></code></pre></div>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h3 class="doc doc-heading" id="netstead.semantics.connected_components">
+<code class="highlight language-python"><span class="n">netstead</span><span class="o">.</span><span class="n">semantics</span><span class="o">.</span><span class="n">connected_components</span><span class="p">(</span><span class="n">net</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.semantics.connected_components" title="Permanent link"> ¶</a></h3>
+<div class="doc doc-contents first">
+<p>Return the network’s weakly-connected components, largest first.</p>
+<p>Each component is a set of node_ids. Sorted by <code>len</code> descending
+so <code>connected_components(net)[0]</code> is always the largest. Empty
+networks return <code>[]</code>.</p>
+<p><span class="doc-section-title">Examples:</span></p>
+<div class="language-pycon highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">netstead</span><span class="w"> </span><span class="kn">import</span> <span class="n">Network</span>
+</span><span id="__span-0-2"><a href="#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">netstead.fixtures</span><span class="w"> </span><span class="kn">import</span> <span class="n">leavenworth</span>
+</span><span id="__span-0-3"><a href="#__codelineno-0-3" id="__codelineno-0-3" name="__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">corral.engines.ibis_engine</span><span class="w"> </span><span class="kn">import</span> <span class="n">IbisEngine</span>
+</span><span id="__span-0-4"><a href="#__codelineno-0-4" id="__codelineno-0-4" name="__codelineno-0-4"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">net</span> <span class="o">=</span> <span class="n">Network</span><span class="o">.</span><span class="n">from_source</span><span class="p">(</span><span class="n">leavenworth</span><span class="o">.</span><span class="n">csv_dir</span><span class="p">(),</span> <span class="n">engine</span><span class="o">=</span><span class="n">IbisEngine</span><span class="p">())</span>
+</span><span id="__span-0-5"><a href="#__codelineno-0-5" id="__codelineno-0-5" name="__codelineno-0-5"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">comps</span> <span class="o">=</span> <span class="n">connected_components</span><span class="p">(</span><span class="n">net</span><span class="p">)</span>
+</span><span id="__span-0-6"><a href="#__codelineno-0-6" id="__codelineno-0-6" name="__codelineno-0-6"></a><span class="gp">&gt;&gt;&gt; </span><span class="nb">len</span><span class="p">(</span><span class="n">comps</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">1</span>
+</span><span id="__span-0-7"><a href="#__codelineno-0-7" id="__codelineno-0-7" name="__codelineno-0-7"></a><span class="go">True</span>
+</span><span id="__span-0-8"><a href="#__codelineno-0-8" id="__codelineno-0-8" name="__codelineno-0-8"></a><span class="gp">&gt;&gt;&gt; </span><span class="nb">all</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">comps</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">comps</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">comps</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
+</span><span id="__span-0-9"><a href="#__codelineno-0-9" id="__codelineno-0-9" name="__codelineno-0-9"></a><span class="go">True</span>
+</span></code></pre></div>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h3 class="doc doc-heading" id="netstead.semantics.assemble_link_geometry">
+<code class="highlight language-python"><span class="n">netstead</span><span class="o">.</span><span class="n">semantics</span><span class="o">.</span><span class="n">assemble_link_geometry</span><span class="p">(</span><span class="n">net</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.semantics.assemble_link_geometry" title="Permanent link"> ¶</a></h3>
+<div class="doc doc-contents first">
+<p>Return <code>(link_id, geometry, source)</code> for every link in <code>net</code>.</p>
+<p><code>geometry</code> is <strong>WKB bytes</strong> (the canonical in-memory encoding; geometry
+ADR) or null. Resolution order per link row:</p>
+<ol>
+<li>Inline <code>link.geometry</code> (non-null) — <code>source = "inline"</code>.</li>
+<li><code>link.geometry_id</code> resolving in <code>net.geometry</code> — <code>source = "geometry_table"</code>.</li>
+<li>Straight segment from <code>from_node_id</code> / <code>to_node_id</code> node coords,
+   encoded as a WKB <code>LINESTRING</code> — <code>source = "node_endpoints"</code>.</li>
+<li>None of the above (geometry column absent + geometry_id absent +
+   endpoint nodes missing coords) — <code>geometry = None</code>,
+   <code>source = "missing"</code>.</li>
+</ol>
+<p>Inline/table cells are pass-through when already WKB; a legacy WKT string is
+re-encoded, so the function is correct whether or not the network’s geometry
+was canonicalised on load.</p>
+<p><span class="doc-section-title">Parameters:</span></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td>
+<code>net</code>
+</td>
+<td>
+<code><a class="autorefs autorefs-internal" href="#netstead.Network" title='&lt;code class="highlight language-python"&gt;&lt;span class="n"&gt;netstead&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;Network&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;spec_version&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="kc"&gt;None&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;/code&gt;
+
+  &lt;span class="doc doc-labels"&gt;
+      &lt;small class="doc doc-label doc-label-dataclass"&gt;&lt;code&gt;dataclass&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;netstead.network.Network&lt;/code&gt;)'>Network</a></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>A loaded :class:<code>netstead.Network</code>.</p>
+</div>
+</td>
+<td>
+<em>required</em>
+</td>
+</tr>
+</tbody>
+</table>
+<p><span class="doc-section-title">Returns:</span></p>
+<table>
+<thead>
+<tr>
+<th>Name</th> <th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td><code>A</code></td> <td>
+<code><span title="pyarrow.Table">Table</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+</div>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td></td> <td>
+<code><span title="pyarrow.Table">Table</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>the link table’s id type), <code>geometry</code> (WKB bytes or null),</p>
+</div>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td></td> <td>
+<code><span title="pyarrow.Table">Table</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>and <code>source</code> (string from :class:<code>GeometrySource</code>).</p>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<p><span class="doc-section-title">Examples:</span></p>
+<div class="language-pycon highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">netstead</span><span class="w"> </span><span class="kn">import</span> <span class="n">Network</span>
+</span><span id="__span-0-2"><a href="#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">netstead.fixtures</span><span class="w"> </span><span class="kn">import</span> <span class="n">leavenworth</span>
+</span><span id="__span-0-3"><a href="#__codelineno-0-3" id="__codelineno-0-3" name="__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">corral.engines.ibis_engine</span><span class="w"> </span><span class="kn">import</span> <span class="n">IbisEngine</span>
+</span><span id="__span-0-4"><a href="#__codelineno-0-4" id="__codelineno-0-4" name="__codelineno-0-4"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">netstead.semantics</span><span class="w"> </span><span class="kn">import</span> <span class="n">assemble_link_geometry</span>
+</span><span id="__span-0-5"><a href="#__codelineno-0-5" id="__codelineno-0-5" name="__codelineno-0-5"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">net</span> <span class="o">=</span> <span class="n">Network</span><span class="o">.</span><span class="n">from_source</span><span class="p">(</span><span class="n">leavenworth</span><span class="o">.</span><span class="n">csv_dir</span><span class="p">(),</span> <span class="n">engine</span><span class="o">=</span><span class="n">IbisEngine</span><span class="p">())</span>
+</span><span id="__span-0-6"><a href="#__codelineno-0-6" id="__codelineno-0-6" name="__codelineno-0-6"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">tbl</span> <span class="o">=</span> <span class="n">assemble_link_geometry</span><span class="p">(</span><span class="n">net</span><span class="p">)</span>
+</span><span id="__span-0-7"><a href="#__codelineno-0-7" id="__codelineno-0-7" name="__codelineno-0-7"></a><span class="gp">&gt;&gt;&gt; </span><span class="nb">set</span><span class="p">(</span><span class="n">tbl</span><span class="o">.</span><span class="n">column_names</span><span class="p">)</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"link_id"</span><span class="p">,</span> <span class="s2">"geometry"</span><span class="p">,</span> <span class="s2">"source"</span><span class="p">}</span>
+</span><span id="__span-0-8"><a href="#__codelineno-0-8" id="__codelineno-0-8" name="__codelineno-0-8"></a><span class="go">True</span>
+</span><span id="__span-0-9"><a href="#__codelineno-0-9" id="__codelineno-0-9" name="__codelineno-0-9"></a><span class="gp">&gt;&gt;&gt; </span><span class="c1"># Leavenworth carries geometry via geometry_id, so all rows</span>
+</span><span id="__span-0-10"><a href="#__codelineno-0-10" id="__codelineno-0-10" name="__codelineno-0-10"></a><span class="gp">&gt;&gt;&gt; </span><span class="c1"># should resolve through the geometry table.</span>
+</span><span id="__span-0-11"><a href="#__codelineno-0-11" id="__codelineno-0-11" name="__codelineno-0-11"></a><span class="gp">&gt;&gt;&gt; </span><span class="nb">set</span><span class="p">(</span><span class="n">tbl</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="s2">"source"</span><span class="p">)</span><span class="o">.</span><span class="n">to_pylist</span><span class="p">())</span> <span class="o">&lt;=</span> <span class="p">{</span><span class="s2">"inline"</span><span class="p">,</span> <span class="s2">"geometry_table"</span><span class="p">,</span> <span class="s2">"node_endpoints"</span><span class="p">,</span> <span class="s2">"missing"</span><span class="p">}</span>
+</span><span id="__span-0-12"><a href="#__codelineno-0-12" id="__codelineno-0-12" name="__codelineno-0-12"></a><span class="go">True</span>
+</span></code></pre></div>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h3 class="doc doc-heading" id="netstead.semantics.resolve_link_attrs_at">
+<code class="highlight language-python"><span class="n">netstead</span><span class="o">.</span><span class="n">semantics</span><span class="o">.</span><span class="n">resolve_link_attrs_at</span><span class="p">(</span><span class="n">net</span><span class="p">,</span> <span class="n">time_set_id</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.semantics.resolve_link_attrs_at" title="Permanent link"> ¶</a></h3>
+<div class="doc doc-contents first">
+<p>Return the link table with TOD overrides applied for <code>time_set_id</code>.</p>
+<p><span class="doc-section-title">Parameters:</span></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td>
+<code>net</code>
+</td>
+<td>
+<code><a class="autorefs autorefs-internal" href="#netstead.Network" title='&lt;code class="highlight language-python"&gt;&lt;span class="n"&gt;netstead&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;Network&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;spec_version&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="kc"&gt;None&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;/code&gt;
+
+  &lt;span class="doc doc-labels"&gt;
+      &lt;small class="doc doc-label doc-label-dataclass"&gt;&lt;code&gt;dataclass&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;netstead.network.Network&lt;/code&gt;)'>Network</a></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>A loaded :class:<code>netstead.Network</code>.</p>
+</div>
+</td>
+<td>
+<em>required</em>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td>
+<code>time_set_id</code>
+</td>
+<td>
+<code><span title="str">str</span> | <span title="int">int</span> | None</code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>The <code>timeday_id</code> to look up in <code>link_tod</code>.
+<code>None</code> returns the base link table unmodified.</p>
+</div>
+</td>
+<td>
+<code>None</code>
+</td>
+</tr>
+</tbody>
+</table>
+<p><span class="doc-section-title">Returns:</span></p>
+<table>
+<thead>
+<tr>
+<th>Name</th> <th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td><code>A</code></td> <td>
+<code><span title="pyarrow.Table">Table</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+</div>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td></td> <td>
+<code><span title="pyarrow.Table">Table</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>Where a <code>link_tod</code> row exists for the given <code>time_set_id</code></p>
+</div>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td></td> <td>
+<code><span title="pyarrow.Table">Table</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>and a column, the override value replaces the base value;</p>
+</div>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td></td> <td>
+<code><span title="pyarrow.Table">Table</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>otherwise the base value passes through.</p>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<p>The returned table is always materialised — callers downstream of
+TOD resolution typically need to consume the values immediately
+(e.g. for assignment, scoring, or report rendering).</p>
+<p><span class="doc-section-title">Examples:</span></p>
+<div class="language-pycon highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">netstead</span><span class="w"> </span><span class="kn">import</span> <span class="n">Network</span>
+</span><span id="__span-0-2"><a href="#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">netstead.fixtures</span><span class="w"> </span><span class="kn">import</span> <span class="n">leavenworth</span>
+</span><span id="__span-0-3"><a href="#__codelineno-0-3" id="__codelineno-0-3" name="__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">corral.engines.ibis_engine</span><span class="w"> </span><span class="kn">import</span> <span class="n">IbisEngine</span>
+</span><span id="__span-0-4"><a href="#__codelineno-0-4" id="__codelineno-0-4" name="__codelineno-0-4"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">netstead.semantics</span><span class="w"> </span><span class="kn">import</span> <span class="n">resolve_link_attrs_at</span>
+</span><span id="__span-0-5"><a href="#__codelineno-0-5" id="__codelineno-0-5" name="__codelineno-0-5"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">net</span> <span class="o">=</span> <span class="n">Network</span><span class="o">.</span><span class="n">from_source</span><span class="p">(</span><span class="n">leavenworth</span><span class="o">.</span><span class="n">csv_dir</span><span class="p">(),</span> <span class="n">engine</span><span class="o">=</span><span class="n">IbisEngine</span><span class="p">())</span>
+</span><span id="__span-0-6"><a href="#__codelineno-0-6" id="__codelineno-0-6" name="__codelineno-0-6"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">base</span> <span class="o">=</span> <span class="n">resolve_link_attrs_at</span><span class="p">(</span><span class="n">net</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+</span><span id="__span-0-7"><a href="#__codelineno-0-7" id="__codelineno-0-7" name="__codelineno-0-7"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">base</span><span class="o">.</span><span class="n">column_names</span> <span class="o">==</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">net</span><span class="o">.</span><span class="n">links</span><span class="o">.</span><span class="n">columns</span><span class="p">()]</span>
+</span><span id="__span-0-8"><a href="#__codelineno-0-8" id="__codelineno-0-8" name="__codelineno-0-8"></a><span class="go">True</span>
+</span></code></pre></div>
+</div>
+</div><h2 id="scope">Scope<a class="headerlink" href="#scope" title="Permanent link"> ¶</a></h2>
+<div class="doc doc-object doc-class">
+<h3 class="doc doc-heading" id="netstead.scope.NetworkScope">
+<code class="highlight language-python"><span class="n">netstead</span><span class="o">.</span><span class="n">scope</span><span class="o">.</span><span class="n">NetworkScope</span><span class="p">(</span><span class="n">node_ids</span><span class="p">,</span> <span class="n">link_ids</span><span class="p">,</span> <span class="n">network</span><span class="p">,</span> <span class="n">provenance</span><span class="o">=</span><span class="s1">''</span><span class="p">)</span></code>
+<span class="doc doc-labels">
+<small class="doc doc-label doc-label-dataclass"><code>dataclass</code></small>
+</span>
+<a class="headerlink" href="#netstead.scope.NetworkScope" title="Permanent link"> ¶</a></h3>
+<div class="doc doc-contents first">
+<p>An immutable subset of a :class:<code>Network</code>’s links + nodes.</p>
+<p>Built by the module-level constructors (:func:<code>from_nodes</code>,
+:func:<code>from_node</code>, :func:<code>from_link</code>, :func:<code>from_point</code>,
+:func:<code>connected_component</code>, :func:<code>from_zone</code>) and composed via
+:meth:<code>union</code> / :meth:<code>intersect</code> / :meth:<code>subtract</code> /
+:meth:<code>buffer_network</code> / :meth:<code>buffer_spatial</code>. :meth:<code>apply</code>
+materialises the scope as a fresh :class:<code>Network</code> with all
+FK-related tables pre-filtered.</p>
+<p><span class="doc-section-title">Attributes:</span></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td><code><span title="netstead.scope.NetworkScope.node_ids">node_ids</span></code></td>
+<td>
+<code><span title="frozenset">frozenset</span>[<span title="int">int</span>]</code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>frozenset of node ids in the scope.</p>
+</div>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td><code><span title="netstead.scope.NetworkScope.link_ids">link_ids</span></code></td>
+<td>
+<code><span title="frozenset">frozenset</span>[<span title="int">int</span>]</code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>frozenset of link ids in the scope.</p>
+</div>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td><code><span title="netstead.scope.NetworkScope.network">network</span></code></td>
+<td>
+<code><a class="autorefs autorefs-internal" href="#netstead.Network" title='&lt;code class="highlight language-python"&gt;&lt;span class="n"&gt;netstead&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;Network&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;spec_version&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="kc"&gt;None&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;/code&gt;
+
+  &lt;span class="doc doc-labels"&gt;
+      &lt;small class="doc doc-label doc-label-dataclass"&gt;&lt;code&gt;dataclass&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;netstead.network.Network&lt;/code&gt;)'>Network</a></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>the source :class:<code>Network</code> (used by composition ops
+to access the cached indexes; not re-validated on the
+return path of :meth:<code>apply</code>).</p>
+</div>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td><code><span title="netstead.scope.NetworkScope.provenance">provenance</span></code></td>
+<td>
+<code><span title="str">str</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>short human-readable trail of how this scope was
+built (e.g. <code>"from_nodes([1,2,3], path_between=True)"</code>).
+Used in error messages and scope.<strong>repr</strong>.</p>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<p><span class="doc-section-title">Examples:</span></p>
+<div class="language-pycon highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+</span><span id="__span-0-2"><a href="#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">_</span> <span class="o">=</span> <span class="n">pytest</span><span class="o">.</span><span class="n">importorskip</span><span class="p">(</span><span class="s2">"scipy"</span><span class="p">)</span>
+</span><span id="__span-0-3"><a href="#__codelineno-0-3" id="__codelineno-0-3" name="__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">netstead</span><span class="w"> </span><span class="kn">import</span> <span class="n">Network</span>
+</span><span id="__span-0-4"><a href="#__codelineno-0-4" id="__codelineno-0-4" name="__codelineno-0-4"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">netstead.fixtures</span><span class="w"> </span><span class="kn">import</span> <span class="n">leavenworth</span>
+</span><span id="__span-0-5"><a href="#__codelineno-0-5" id="__codelineno-0-5" name="__codelineno-0-5"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">corral.engines.ibis_engine</span><span class="w"> </span><span class="kn">import</span> <span class="n">IbisEngine</span>
+</span><span id="__span-0-6"><a href="#__codelineno-0-6" id="__codelineno-0-6" name="__codelineno-0-6"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">netstead.scope</span><span class="w"> </span><span class="kn">import</span> <span class="n">from_nodes</span>
+</span><span id="__span-0-7"><a href="#__codelineno-0-7" id="__codelineno-0-7" name="__codelineno-0-7"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">net</span> <span class="o">=</span> <span class="n">Network</span><span class="o">.</span><span class="n">from_source</span><span class="p">(</span><span class="n">leavenworth</span><span class="o">.</span><span class="n">csv_dir</span><span class="p">(),</span> <span class="n">engine</span><span class="o">=</span><span class="n">IbisEngine</span><span class="p">())</span>
+</span><span id="__span-0-8"><a href="#__codelineno-0-8" id="__codelineno-0-8" name="__codelineno-0-8"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">scope</span> <span class="o">=</span> <span class="n">from_nodes</span><span class="p">(</span><span class="n">net</span><span class="p">,</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="n">path_between</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</span><span id="__span-0-9"><a href="#__codelineno-0-9" id="__codelineno-0-9" name="__codelineno-0-9"></a><span class="gp">&gt;&gt;&gt; </span><span class="nb">isinstance</span><span class="p">(</span><span class="n">scope</span><span class="p">,</span> <span class="n">NetworkScope</span><span class="p">)</span>
+</span><span id="__span-0-10"><a href="#__codelineno-0-10" id="__codelineno-0-10" name="__codelineno-0-10"></a><span class="go">True</span>
+</span><span id="__span-0-11"><a href="#__codelineno-0-11" id="__codelineno-0-11" name="__codelineno-0-11"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">sub</span> <span class="o">=</span> <span class="n">scope</span><span class="o">.</span><span class="n">apply</span><span class="p">()</span>
+</span><span id="__span-0-12"><a href="#__codelineno-0-12" id="__codelineno-0-12" name="__codelineno-0-12"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">sub</span><span class="o">.</span><span class="n">links</span><span class="o">.</span><span class="n">count</span><span class="p">()</span> <span class="o">&lt;=</span> <span class="n">net</span><span class="o">.</span><span class="n">links</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>
+</span><span id="__span-0-13"><a href="#__codelineno-0-13" id="__codelineno-0-13" name="__codelineno-0-13"></a><span class="go">True</span>
+</span></code></pre></div>
+<div class="doc doc-children">
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.scope.NetworkScope.apply">
+<code class="highlight language-python"><span class="n">apply</span><span class="p">()</span></code>
+<a class="headerlink" href="#netstead.scope.NetworkScope.apply" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Return a new :class:<code>Network</code> whose tables are filtered to the scope.</p>
+<p>Pushdown rules:</p>
+<ul>
+<li><code>link</code> -&gt; rows where <code>link_id</code> is in :attr:<code>link_ids</code>.</li>
+<li><code>node</code> -&gt; rows where <code>node_id</code> is in :attr:<code>node_ids</code>.</li>
+<li><code>geometry</code> -&gt; rows whose <code>geometry_id</code> is referenced by
+  any surviving link.</li>
+<li>Other tables in :data:<code>_FK_PUSHDOWN</code> -&gt; rows where any of
+  their FK columns match the scope’s id sets.</li>
+<li>Tables outside :data:<code>_FK_PUSHDOWN</code> (e.g. <code>time_set_definitions</code>,
+  <code>use_definition</code>) pass through unfiltered — they are
+  dimension tables, not network-keyed.</li>
+</ul>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.scope.NetworkScope.union">
+<code class="highlight language-python"><span class="n">union</span><span class="p">(</span><span class="n">other</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.scope.NetworkScope.union" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Return the union of two scopes (same network).</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.scope.NetworkScope.intersect">
+<code class="highlight language-python"><span class="n">intersect</span><span class="p">(</span><span class="n">other</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.scope.NetworkScope.intersect" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Return the intersection of two scopes (same network).</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.scope.NetworkScope.subtract">
+<code class="highlight language-python"><span class="n">subtract</span><span class="p">(</span><span class="n">other</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.scope.NetworkScope.subtract" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Return the set-difference (self minus other) of two scopes (same network).</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.scope.NetworkScope.buffer_network">
+<code class="highlight language-python"><span class="n">buffer_network</span><span class="p">(</span><span class="n">distance</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.scope.NetworkScope.buffer_network" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Extend the scope by all nodes within <code>distance</code> network-distance of any current node.</p>
+<p>Adds the induced links (any link whose endpoints are both in
+the expanded node set) so the result remains a proper subgraph.</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.scope.NetworkScope.buffer_spatial">
+<code class="highlight language-python"><span class="n">buffer_spatial</span><span class="p">(</span><span class="n">distance_m</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.scope.NetworkScope.buffer_spatial" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Extend the scope by all links within <code>distance_m</code> of any current link’s geometry.</p>
+<p>Implementation note: builds a shapely union of the current
+scope’s link geometries, then queries the SpatialIndex with
+<code>distance_m</code> as a buffer. Endpoint nodes of any newly added
+links are folded in too.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h3 class="doc doc-heading" id="netstead.scope.from_nodes">
+<code class="highlight language-python"><span class="n">netstead</span><span class="o">.</span><span class="n">scope</span><span class="o">.</span><span class="n">from_nodes</span><span class="p">(</span><span class="n">net</span><span class="p">,</span> <span class="n">node_ids</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">path_between</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.scope.from_nodes" title="Permanent link"> ¶</a></h3>
+<div class="doc doc-contents first">
+<p>Scope built from a set of seed nodes.</p>
+<p><span class="doc-section-title">Parameters:</span></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td>
+<code>net</code>
+</td>
+<td>
+<code><a class="autorefs autorefs-internal" href="#netstead.Network" title='&lt;code class="highlight language-python"&gt;&lt;span class="n"&gt;netstead&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;Network&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;spec_version&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="kc"&gt;None&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;/code&gt;
+
+  &lt;span class="doc doc-labels"&gt;
+      &lt;small class="doc doc-label doc-label-dataclass"&gt;&lt;code&gt;dataclass&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;netstead.network.Network&lt;/code&gt;)'>Network</a></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>The source :class:<code>Network</code>.</p>
+</div>
+</td>
+<td>
+<em>required</em>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td>
+<code>node_ids</code>
+</td>
+<td>
+<code><span title="collections.abc.Iterable">Iterable</span>[<span title="int">int</span>]</code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>Seed node ids. Unknown ids are silently dropped (the
+scope just gets smaller) so callers can pass loose lists
+without pre-validating.</p>
+</div>
+</td>
+<td>
+<em>required</em>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td>
+<code>path_between</code>
+</td>
+<td>
+<code><span title="bool">bool</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>If <code>True</code> (default), expand the scope to
+include nodes + links on the shortest path between every
+pair of seeds (BFS-equivalent on uniformly weighted
+graphs; weighted by <code>link.length</code> on GMNS networks). If
+<code>False</code>, the scope is just the seed nodes plus the
+links directly incident on them.</p>
+</div>
+</td>
+<td>
+<code>True</code>
+</td>
+</tr>
+</tbody>
+</table>
+<p><span class="doc-section-title">Returns:</span></p>
+<table>
+<thead>
+<tr>
+<th>Name</th> <th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td><code>A</code></td> <td>
+<code><a class="autorefs autorefs-internal" href="#netstead.scope.NetworkScope" title='&lt;code class="highlight language-python"&gt;&lt;span class="n"&gt;netstead&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;scope&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;NetworkScope&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;node_ids&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;link_ids&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;network&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;provenance&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;&amp;#39;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;/code&gt;
+
+  &lt;span class="doc doc-labels"&gt;
+      &lt;small class="doc doc-label doc-label-dataclass"&gt;&lt;code&gt;dataclass&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;netstead.scope.scope.NetworkScope&lt;/code&gt;)'>NetworkScope</a></code>
+</td>
+<td>
+<div class="doc-md-description">
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<p><span class="doc-section-title">Examples:</span></p>
+<div class="language-pycon highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+</span><span id="__span-0-2"><a href="#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">_</span> <span class="o">=</span> <span class="n">pytest</span><span class="o">.</span><span class="n">importorskip</span><span class="p">(</span><span class="s2">"scipy"</span><span class="p">)</span>
+</span><span id="__span-0-3"><a href="#__codelineno-0-3" id="__codelineno-0-3" name="__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">netstead</span><span class="w"> </span><span class="kn">import</span> <span class="n">Network</span>
+</span><span id="__span-0-4"><a href="#__codelineno-0-4" id="__codelineno-0-4" name="__codelineno-0-4"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">netstead.fixtures</span><span class="w"> </span><span class="kn">import</span> <span class="n">leavenworth</span>
+</span><span id="__span-0-5"><a href="#__codelineno-0-5" id="__codelineno-0-5" name="__codelineno-0-5"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">corral.engines.ibis_engine</span><span class="w"> </span><span class="kn">import</span> <span class="n">IbisEngine</span>
+</span><span id="__span-0-6"><a href="#__codelineno-0-6" id="__codelineno-0-6" name="__codelineno-0-6"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">net</span> <span class="o">=</span> <span class="n">Network</span><span class="o">.</span><span class="n">from_source</span><span class="p">(</span><span class="n">leavenworth</span><span class="o">.</span><span class="n">csv_dir</span><span class="p">(),</span> <span class="n">engine</span><span class="o">=</span><span class="n">IbisEngine</span><span class="p">())</span>
+</span><span id="__span-0-7"><a href="#__codelineno-0-7" id="__codelineno-0-7" name="__codelineno-0-7"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">scope</span> <span class="o">=</span> <span class="n">from_nodes</span><span class="p">(</span><span class="n">net</span><span class="p">,</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span> <span class="n">path_between</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</span><span id="__span-0-8"><a href="#__codelineno-0-8" id="__codelineno-0-8" name="__codelineno-0-8"></a><span class="gp">&gt;&gt;&gt; </span><span class="mi">1</span> <span class="ow">in</span> <span class="n">scope</span><span class="o">.</span><span class="n">node_ids</span>
+</span><span id="__span-0-9"><a href="#__codelineno-0-9" id="__codelineno-0-9" name="__codelineno-0-9"></a><span class="go">True</span>
+</span></code></pre></div>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h3 class="doc doc-heading" id="netstead.scope.from_node">
+<code class="highlight language-python"><span class="n">netstead</span><span class="o">.</span><span class="n">scope</span><span class="o">.</span><span class="n">from_node</span><span class="p">(</span><span class="n">net</span><span class="p">,</span> <span class="n">node_id</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">network_buffer</span><span class="o">=</span><span class="s1">'0.5mi'</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.scope.from_node" title="Permanent link"> ¶</a></h3>
+<div class="doc doc-contents first">
+<p>Scope = all nodes within <code>network_buffer</code> network-distance of <code>node_id</code>.</p>
+<p>Dijkstra-bounded on the underlying :class:<code>GMNSGraph</code>; the result
+includes the seed node, all reachable nodes within distance, and
+every link whose endpoints are both in the resulting node set.</p>
+<p><span class="doc-section-title">Examples:</span></p>
+<div class="language-pycon highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+</span><span id="__span-0-2"><a href="#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">_</span> <span class="o">=</span> <span class="n">pytest</span><span class="o">.</span><span class="n">importorskip</span><span class="p">(</span><span class="s2">"scipy"</span><span class="p">)</span>
+</span><span id="__span-0-3"><a href="#__codelineno-0-3" id="__codelineno-0-3" name="__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">netstead</span><span class="w"> </span><span class="kn">import</span> <span class="n">Network</span>
+</span><span id="__span-0-4"><a href="#__codelineno-0-4" id="__codelineno-0-4" name="__codelineno-0-4"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">netstead.fixtures</span><span class="w"> </span><span class="kn">import</span> <span class="n">leavenworth</span>
+</span><span id="__span-0-5"><a href="#__codelineno-0-5" id="__codelineno-0-5" name="__codelineno-0-5"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">corral.engines.ibis_engine</span><span class="w"> </span><span class="kn">import</span> <span class="n">IbisEngine</span>
+</span><span id="__span-0-6"><a href="#__codelineno-0-6" id="__codelineno-0-6" name="__codelineno-0-6"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">net</span> <span class="o">=</span> <span class="n">Network</span><span class="o">.</span><span class="n">from_source</span><span class="p">(</span><span class="n">leavenworth</span><span class="o">.</span><span class="n">csv_dir</span><span class="p">(),</span> <span class="n">engine</span><span class="o">=</span><span class="n">IbisEngine</span><span class="p">())</span>
+</span><span id="__span-0-7"><a href="#__codelineno-0-7" id="__codelineno-0-7" name="__codelineno-0-7"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">scope</span> <span class="o">=</span> <span class="n">from_node</span><span class="p">(</span><span class="n">net</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">network_buffer</span><span class="o">=</span><span class="s2">"200m"</span><span class="p">)</span>
+</span><span id="__span-0-8"><a href="#__codelineno-0-8" id="__codelineno-0-8" name="__codelineno-0-8"></a><span class="gp">&gt;&gt;&gt; </span><span class="mi">1</span> <span class="ow">in</span> <span class="n">scope</span><span class="o">.</span><span class="n">node_ids</span>
+</span><span id="__span-0-9"><a href="#__codelineno-0-9" id="__codelineno-0-9" name="__codelineno-0-9"></a><span class="go">True</span>
+</span></code></pre></div>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h3 class="doc doc-heading" id="netstead.scope.from_link">
+<code class="highlight language-python"><span class="n">netstead</span><span class="o">.</span><span class="n">scope</span><span class="o">.</span><span class="n">from_link</span><span class="p">(</span><span class="n">net</span><span class="p">,</span> <span class="n">link_id</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">spatial_buffer_m</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">network_buffer</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.scope.from_link" title="Permanent link"> ¶</a></h3>
+<div class="doc doc-contents first">
+<p>Scope seeded by one link, expanded by either a spatial or network buffer.</p>
+<p>Exactly one of <code>spatial_buffer_m</code> / <code>network_buffer</code> must be
+provided. The seed link is always included regardless.</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h3 class="doc doc-heading" id="netstead.scope.from_point">
+<code class="highlight language-python"><span class="n">netstead</span><span class="o">.</span><span class="n">scope</span><span class="o">.</span><span class="n">from_point</span><span class="p">(</span><span class="n">net</span><span class="p">,</span> <span class="n">xy</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">spatial_buffer_m</span><span class="o">=</span><span class="mf">100.0</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.scope.from_point" title="Permanent link"> ¶</a></h3>
+<div class="doc doc-contents first">
+<p>Scope = links within <code>spatial_buffer_m</code> of <code>(x, y)</code> (CRS of the geometry column).</p>
+<p>Snaps to the nearest link via :class:<code>SpatialIndex</code> first (which
+needs no actual snapping — STRtree handles the point-buffer query
+directly), then includes endpoint nodes of every matching link.</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h3 class="doc doc-heading" id="netstead.scope.connected_component">
+<code class="highlight language-python"><span class="n">netstead</span><span class="o">.</span><span class="n">scope</span><span class="o">.</span><span class="n">connected_component</span><span class="p">(</span><span class="n">net</span><span class="p">,</span> <span class="n">seed_node_id</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.scope.connected_component" title="Permanent link"> ¶</a></h3>
+<div class="doc doc-contents first">
+<p>Scope = the entire weakly-connected component containing <code>seed_node_id</code>.</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h3 class="doc doc-heading" id="netstead.scope.from_zone">
+<code class="highlight language-python"><span class="n">netstead</span><span class="o">.</span><span class="n">scope</span><span class="o">.</span><span class="n">from_zone</span><span class="p">(</span><span class="n">net</span><span class="p">,</span> <span class="n">zone_ids</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.scope.from_zone" title="Permanent link"> ¶</a></h3>
+<div class="doc doc-contents first">
+<p>Scope = all nodes (and their incident links) whose <code>zone_id</code> is in <code>zone_ids</code>.</p>
+<p>Requires <code>net.nodes</code> to carry a <code>zone_id</code> column; raises
+:class:<code>ScopeError</code> otherwise.</p>
+</div>
+</div><h2 id="quality-gmns-rule-pack">Quality (GMNS rule pack)<a class="headerlink" href="#quality-gmns-rule-pack" title="Permanent link"> ¶</a></h2>
+<div class="doc doc-object doc-function">
+<h3 class="doc doc-heading" id="netstead.quality.register_all">
+<code class="highlight language-python"><span class="n">netstead</span><span class="o">.</span><span class="n">quality</span><span class="o">.</span><span class="n">register_all</span><span class="p">()</span></code>
+<a class="headerlink" href="#netstead.quality.register_all" title="Permanent link"> ¶</a></h3>
+<div class="doc doc-contents first">
+<p>Construct + register every rule in this module.</p>
+<p>Wired as the <code>corral.quality.rules</code> entry point for the
+<code>netstead</code> distribution (see <code>packages/netstead/pyproject.toml</code>).
+Also callable directly from tests / ad-hoc scripts: <code>register_all()</code>
+returns the list of registered rule instances.</p>
+</div>
+</div><p>The 7 rule classes:</p>
+<div class="doc doc-object doc-class">
+<h3 class="doc doc-heading" id="netstead.quality.HighSpeedResidentialRule">
+<code>netstead.quality.HighSpeedResidentialRule</code>
+<a class="headerlink" href="#netstead.quality.HighSpeedResidentialRule" title="Permanent link"> ¶</a></h3>
+<div class="doc doc-contents first">
+<p>Flag residential links with implausibly high <code>free_speed</code>.</p>
+<p>Threshold keys:</p>
+<ul>
+<li><code>speed_limit_mph</code> (default <code>35</code>) — anything above is flagged.</li>
+</ul>
+<p>Looks at <code>link.facility_type</code> (matched against <code>residential</code> /
+<code>local</code> case-insensitively) and <code>link.free_speed</code>. Skips links
+with null facility type or null free_speed (those belong to the
+<code>MissingCriticalFieldsRule</code>).</p>
+<p>The <code>free_speed</code> unit is whatever the spec’s
+<code>long_distance_units</code> field declares — GMNS defaults to mph, so
+the threshold key is named <code>speed_limit_mph</code> for clarity. If your
+network uses km/h, set <code>speed_limit_mph</code> to your km/h threshold;
+the comparison is unit-agnostic from the rule’s point of view.</p>
+<div class="doc doc-children">
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.quality.HighSpeedResidentialRule.applies_to">
+<code class="highlight language-python"><span class="n">applies_to</span><span class="p">(</span><span class="n">package</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.quality.HighSpeedResidentialRule.applies_to" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>We need both the link table AND its facility_type + free_speed columns.</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.quality.HighSpeedResidentialRule.run">
+<code class="highlight language-python"><span class="n">run</span><span class="p">(</span><span class="n">package</span><span class="p">,</span> <span class="n">report</span><span class="p">,</span> <span class="n">rc</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.quality.HighSpeedResidentialRule.run" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Walk the link table; emit one issue per offending row.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="doc doc-object doc-class">
+<h3 class="doc doc-heading" id="netstead.quality.DisconnectedComponentsRule">
+<code>netstead.quality.DisconnectedComponentsRule</code>
+<a class="headerlink" href="#netstead.quality.DisconnectedComponentsRule" title="Permanent link"> ¶</a></h3>
+<div class="doc doc-contents first">
+<p>Flag networks with more than one weakly-connected component.</p>
+<p>Threshold keys: none (the presence of any extra component is the
+quality concern).</p>
+<p>Emits a single <code>Severity.INFO</code> issue (not per-component) listing
+the component count + sizes. <code>connected_components</code> is delegated
+to :mod:<code>netstead.semantics.connectivity</code> so the same GMNSGraph (scipy)
+build is shared with any other connectivity caller in the session.</p>
+<div class="doc doc-children">
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.quality.DisconnectedComponentsRule.applies_to">
+<code class="highlight language-python"><span class="n">applies_to</span><span class="p">(</span><span class="n">package</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.quality.DisconnectedComponentsRule.applies_to" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>We need link + node tables AND the columns GMNSGraph.build needs.</p>
+<p>Skips silently on non-Network packages (no GMNS accessors) and on
+networks missing <code>length</code> on the link table — the upstream
+:class:<code>~netstead.graph.GMNSGraph</code> (built with <code>cost="length"</code>)
+needs it and we’d rather no-op than blow up.</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.quality.DisconnectedComponentsRule.run">
+<code class="highlight language-python"><span class="n">run</span><span class="p">(</span><span class="n">package</span><span class="p">,</span> <span class="n">report</span><span class="p">,</span> <span class="n">rc</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.quality.DisconnectedComponentsRule.run" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Build (or reuse) the GMNSGraph, count components.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="doc doc-object doc-class">
+<h3 class="doc doc-heading" id="netstead.quality.LaneCountMismatchRule">
+<code>netstead.quality.LaneCountMismatchRule</code>
+<a class="headerlink" href="#netstead.quality.LaneCountMismatchRule" title="Permanent link"> ¶</a></h3>
+<div class="doc doc-contents first">
+<p>Flag links where <code>link.lanes</code> disagrees with the <code>lane</code> table row count.</p>
+<p>Threshold keys: none — any non-zero mismatch is flagged.</p>
+<p>Skips links where either <code>link.lanes</code> is null OR the <code>lane</code>
+table has zero rows for that link (those cases are
+“underspecified”, not “wrong” — caught by :class:<code>MissingCriticalFieldsRule</code>).</p>
+<div class="doc doc-children">
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.quality.LaneCountMismatchRule.applies_to">
+<code class="highlight language-python"><span class="n">applies_to</span><span class="p">(</span><span class="n">package</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.quality.LaneCountMismatchRule.applies_to" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Needs both the link table AND a lane table.</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.quality.LaneCountMismatchRule.run">
+<code class="highlight language-python"><span class="n">run</span><span class="p">(</span><span class="n">package</span><span class="p">,</span> <span class="n">report</span><span class="p">,</span> <span class="n">rc</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.quality.LaneCountMismatchRule.run" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Compare declared link.lanes against actual lane row counts; flag mismatches.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="doc doc-object doc-class">
+<h3 class="doc doc-heading" id="netstead.quality.DuplicateNearNodesRule">
+<code>netstead.quality.DuplicateNearNodesRule</code>
+<a class="headerlink" href="#netstead.quality.DuplicateNearNodesRule" title="Permanent link"> ¶</a></h3>
+<div class="doc doc-contents first">
+<p>Flag pairs of nodes within <code>epsilon_units</code> of each other.</p>
+<p>Threshold keys:</p>
+<ul>
+<li><code>epsilon_units</code> (default <code>1e-5</code>) — distance threshold in the
+  node coordinate CRS units. The default is deliberately tiny so
+  it means “effectively duplicate” in any CRS: ~1m for WGS84 at
+  mid-latitudes; a hair’s breadth for projected coords. <strong>Tune it
+  for your CRS.</strong> For projected networks (UTM, state plane) where
+  coordinates are meters, <code>5.0</code> is a reasonable “near-duplicate”
+  threshold. For WGS84 degrees, <code>0.0001</code> is roughly 10m.</li>
+</ul>
+<p>Implementation: quadratic O(n²) scan — fine for typical GMNS
+networks (&lt;100k nodes). For regional-scale we’d swap in a node-
+points STRtree; tracked as future work.</p>
+<div class="doc doc-children">
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.quality.DuplicateNearNodesRule.applies_to">
+<code class="highlight language-python"><span class="n">applies_to</span><span class="p">(</span><span class="n">package</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.quality.DuplicateNearNodesRule.applies_to" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Needs a node table with node_id + x_coord + y_coord columns.</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.quality.DuplicateNearNodesRule.run">
+<code class="highlight language-python"><span class="n">run</span><span class="p">(</span><span class="n">package</span><span class="p">,</span> <span class="n">report</span><span class="p">,</span> <span class="n">rc</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.quality.DuplicateNearNodesRule.run" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>O(n^2) scan over node points; flag every pair within epsilon.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="doc doc-object doc-class">
+<h3 class="doc doc-heading" id="netstead.quality.SharpAngleBendsRule">
+<code>netstead.quality.SharpAngleBendsRule</code>
+<a class="headerlink" href="#netstead.quality.SharpAngleBendsRule" title="Permanent link"> ¶</a></h3>
+<div class="doc doc-contents first">
+<p>Flag links whose geometry contains an interior turn angle below threshold.</p>
+<p>Threshold keys:</p>
+<ul>
+<li><code>min_angle_degrees</code> (default <code>30.0</code>) — any interior vertex
+  with a turn angle below this is flagged.</li>
+</ul>
+<p>Skips links without inline <code>geometry</code> (the geometry-table case is
+handled by :func:<code>netstead.semantics.assemble_link_geometry</code> callers
+who run this rule after assembly).</p>
+<p>Requires shapely (clean extra).</p>
+<div class="doc doc-children">
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.quality.SharpAngleBendsRule.applies_to">
+<code class="highlight language-python"><span class="n">applies_to</span><span class="p">(</span><span class="n">package</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.quality.SharpAngleBendsRule.applies_to" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Needs a link table with an inline <code>geometry</code> column.</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.quality.SharpAngleBendsRule.run">
+<code class="highlight language-python"><span class="n">run</span><span class="p">(</span><span class="n">package</span><span class="p">,</span> <span class="n">report</span><span class="p">,</span> <span class="n">rc</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.quality.SharpAngleBendsRule.run" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Parse each link’s geometry (WKT or WKB), compute interior turn angles, flag sharp ones.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="doc doc-object doc-class">
+<h3 class="doc doc-heading" id="netstead.quality.ImplausibleVcRule">
+<code>netstead.quality.ImplausibleVcRule</code>
+<a class="headerlink" href="#netstead.quality.ImplausibleVcRule" title="Permanent link"> ¶</a></h3>
+<div class="doc doc-contents first">
+<p>Flag links with <code>volume / capacity &gt; threshold</code>.</p>
+<p>Threshold keys:</p>
+<ul>
+<li><code>vc_max</code> (default <code>1.5</code>) — anything above is flagged.</li>
+<li><code>volume_column</code> (default <code>"volume"</code>) — column name to read
+  for volume. The base spec doesn’t define one; loaded networks
+  often add it as an extension. The rule skips silently if the
+  column is absent.</li>
+</ul>
+<p>Skips rows where either <code>capacity</code> is null or zero (would be a
+divide-by-zero) — those should surface via the schema validator,
+not here.</p>
+<div class="doc doc-children">
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.quality.ImplausibleVcRule.applies_to">
+<code class="highlight language-python"><span class="n">applies_to</span><span class="p">(</span><span class="n">package</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.quality.ImplausibleVcRule.applies_to" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Needs a link table with a <code>capacity</code> column (volume column is configurable).</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.quality.ImplausibleVcRule.run">
+<code class="highlight language-python"><span class="n">run</span><span class="p">(</span><span class="n">package</span><span class="p">,</span> <span class="n">report</span><span class="p">,</span> <span class="n">rc</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.quality.ImplausibleVcRule.run" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Compute volume / capacity per link; flag rows above <code>vc_max</code>.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="doc doc-object doc-class">
+<h3 class="doc doc-heading" id="netstead.quality.MissingCriticalFieldsRule">
+<code>netstead.quality.MissingCriticalFieldsRule</code>
+<a class="headerlink" href="#netstead.quality.MissingCriticalFieldsRule" title="Permanent link"> ¶</a></h3>
+<div class="doc doc-contents first">
+<p>Flag tables where a “should have” but spec-optional column is mostly null.</p>
+<p>Threshold keys:</p>
+<ul>
+<li><code>coverage_min</code> (default <code>0.90</code>) — minimum fraction of
+  non-null rows required to NOT flag the column.</li>
+</ul>
+<p>Emits one <code>Severity.INFO</code> issue per affected (table, column)
+pair. Targets the columns the GMNS community treats as effectively
+required even when the spec marks them optional —
+<code>link.length</code>, <code>link.free_speed</code>, <code>link.capacity</code>,
+<code>link.lanes</code>.</p>
+<div class="doc doc-children">
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.quality.MissingCriticalFieldsRule.applies_to">
+<code class="highlight language-python"><span class="n">applies_to</span><span class="p">(</span><span class="n">package</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.quality.MissingCriticalFieldsRule.applies_to" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Needs a link table (we check the critical columns inside :meth:<code>run</code>).</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.quality.MissingCriticalFieldsRule.run">
+<code class="highlight language-python"><span class="n">run</span><span class="p">(</span><span class="n">package</span><span class="p">,</span> <span class="n">report</span><span class="p">,</span> <span class="n">rc</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.quality.MissingCriticalFieldsRule.run" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>For each critical column present, emit an Info issue if non-null coverage &lt; threshold.</p>
+</div>
+</div>
+</div>
+</div>
+</div><h2 id="indexes-optional-clean-extra">Indexes (optional <code>[clean]</code> extra)<a class="headerlink" href="#indexes-optional-clean-extra" title="Permanent link"> ¶</a></h2>
+<div class="doc doc-object doc-class">
+<h3 class="doc doc-heading" id="netstead.indexes.SpatialIndex">
+<code class="highlight language-python"><span class="n">netstead</span><span class="o">.</span><span class="n">indexes</span><span class="o">.</span><span class="n">SpatialIndex</span><span class="p">(</span><span class="n">link_ids</span><span class="p">,</span> <span class="n">geometries</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.indexes.SpatialIndex" title="Permanent link"> ¶</a></h3>
+<div class="doc doc-contents first">
+<p>STRtree over the link geometry column, with WKT decode + bbox extract.</p>
+<p>Built lazily via :meth:<code>build</code>; cached to sidecar parquet keyed on
+the content hash of the source link table (see
+:func:<code>netstead.indexes.cache.cache_path</code>). Self-contained once built
+— no reference to the source :class:<code>~corral.dataset.Table</code>.</p>
+<p><span class="doc-section-title">Examples:</span></p>
+<div class="language-pycon highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+</span><span id="__span-0-2"><a href="#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">_</span> <span class="o">=</span> <span class="n">pytest</span><span class="o">.</span><span class="n">importorskip</span><span class="p">(</span><span class="s2">"shapely"</span><span class="p">)</span>
+</span><span id="__span-0-3"><a href="#__codelineno-0-3" id="__codelineno-0-3" name="__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">netstead.indexes</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpatialIndex</span>
+</span><span id="__span-0-4"><a href="#__codelineno-0-4" id="__codelineno-0-4" name="__codelineno-0-4"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">SpatialIndex</span><span class="o">.</span><span class="vm">__name__</span>
+</span><span id="__span-0-5"><a href="#__codelineno-0-5" id="__codelineno-0-5" name="__codelineno-0-5"></a><span class="go">'SpatialIndex'</span>
+</span></code></pre></div>
+<p>Hold parallel link-id + geometry arrays and build an STRtree over them.</p>
+<div class="doc doc-children">
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.indexes.SpatialIndex.__len__">
+<code class="highlight language-python"><span class="fm">__len__</span><span class="p">()</span></code>
+<a class="headerlink" href="#netstead.indexes.SpatialIndex.__len__" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Number of indexed geometries.</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.indexes.SpatialIndex.build">
+<code class="highlight language-python"><span class="n">build</span><span class="p">(</span><span class="n">links_table</span><span class="p">)</span></code>
+<span class="doc doc-labels">
+<small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+</span>
+<a class="headerlink" href="#netstead.indexes.SpatialIndex.build" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Build a :class:<code>SpatialIndex</code> over a link table.</p>
+<p>The link table must carry <code>link_id</code> + <code>geometry</code> (WKT)
+columns. Caller is responsible for joining the GMNS <code>geometry</code>
+table onto <code>link</code> first. Rows whose geometry is null or
+unparseable are silently dropped — run corral validation
+first for hard errors.</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.indexes.SpatialIndex.query_bbox">
+<code class="highlight language-python"><span class="n">query_bbox</span><span class="p">(</span><span class="n">minx</span><span class="p">,</span> <span class="n">miny</span><span class="p">,</span> <span class="n">maxx</span><span class="p">,</span> <span class="n">maxy</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.indexes.SpatialIndex.query_bbox" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Return link_ids whose geometries intersect the (minx, miny, maxx, maxy) bbox.</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.indexes.SpatialIndex.query_point">
+<code class="highlight language-python"><span class="n">query_point</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">distance_m</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.indexes.SpatialIndex.query_point" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Return link_ids within <code>distance_m</code> of <code>(x, y)</code> in the geometry CRS.</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.indexes.SpatialIndex.query_geometry">
+<code class="highlight language-python"><span class="n">query_geometry</span><span class="p">(</span><span class="n">geom</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">distance_m</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.indexes.SpatialIndex.query_geometry" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Return link_ids whose geometries intersect <code>geom</code> (optionally buffered).</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.indexes.SpatialIndex.__getstate__">
+<code class="highlight language-python"><span class="n">__getstate__</span><span class="p">()</span></code>
+<a class="headerlink" href="#netstead.indexes.SpatialIndex.__getstate__" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Serialize geometries as WKB (portable across shapely minor versions).</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.indexes.SpatialIndex.__setstate__">
+<code class="highlight language-python"><span class="n">__setstate__</span><span class="p">(</span><span class="n">state</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.indexes.SpatialIndex.__setstate__" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Reconstruct from the WKB payload emitted by :meth:<code>__getstate__</code>.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h3 class="doc doc-heading" id="netstead.indexes.build_indexes">
+<code class="highlight language-python"><span class="n">netstead</span><span class="o">.</span><span class="n">indexes</span><span class="o">.</span><span class="n">build_indexes</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">links</span><span class="p">,</span> <span class="n">nodes</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">spatial</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">graph</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.indexes.build_indexes" title="Permanent link"> ¶</a></h3>
+<div class="doc doc-contents first">
+<p>Build both indexes from a links + nodes pair, returning <code>(spatial, graph)</code>.</p>
+<p>Either flag can be <code>False</code> to skip the corresponding build. The graph
+slot returns a :class:<code>netstead.graph.GMNSGraph</code> (scipy CSR) suitable for
+network-aware scope + connectivity ops. <code>graph=True</code> requires <code>nodes</code>.</p>
+<p><span class="doc-section-title">Raises:</span></p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td>
+<code><span title="ValueError">ValueError</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>If <code>graph=True</code> but <code>nodes</code> is <code>None</code>.</p>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<p><span class="doc-section-title">Examples:</span></p>
+<div class="language-pycon highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+</span><span id="__span-0-2"><a href="#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">_</span> <span class="o">=</span> <span class="n">pytest</span><span class="o">.</span><span class="n">importorskip</span><span class="p">(</span><span class="s2">"shapely"</span><span class="p">)</span>
+</span><span id="__span-0-3"><a href="#__codelineno-0-3" id="__codelineno-0-3" name="__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">_</span> <span class="o">=</span> <span class="n">pytest</span><span class="o">.</span><span class="n">importorskip</span><span class="p">(</span><span class="s2">"scipy"</span><span class="p">)</span>
+</span><span id="__span-0-4"><a href="#__codelineno-0-4" id="__codelineno-0-4" name="__codelineno-0-4"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">build_indexes</span>
+</span><span id="__span-0-5"><a href="#__codelineno-0-5" id="__codelineno-0-5" name="__codelineno-0-5"></a><span class="go">&lt;function build_indexes at ...&gt;</span>
+</span></code></pre></div>
+</div>
+</div><h2 id="graph-routing-optional-graph-extra">Graph / routing (optional <code>[graph]</code> extra)<a class="headerlink" href="#graph-routing-optional-graph-extra" title="Permanent link"> ¶</a></h2>
+<div class="doc doc-object doc-class">
+<h3 class="doc doc-heading" id="netstead.graph.GMNSGraph">
+<code class="highlight language-python"><span class="n">netstead</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">GMNSGraph</span><span class="p">(</span><span class="o">*</span><span class="p">,</span> <span class="n">node_index</span><span class="p">,</span> <span class="n">coords</span><span class="p">,</span> <span class="n">csr</span><span class="p">,</span> <span class="n">edge_link_id</span><span class="p">,</span> <span class="n">meta</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.graph.GMNSGraph" title="Permanent link"> ¶</a></h3>
+<div class="doc doc-contents first">
+<p>An in-memory CSR routing graph derived from a GMNS network.</p>
+<p>Wrap the assembled CSR + node/edge mappings.</p>
+<p>Construct via :meth:<code>build</code> or :meth:<code>from_network</code>; this constructor
+takes the already-built arrays and is not intended for direct use.</p>
+<div class="doc doc-children">
+<div class="doc doc-object doc-attribute">
+<h4 class="doc doc-heading" id="netstead.graph.GMNSGraph.reverse_csr">
+<code class="highlight language-python"><span class="n">reverse_csr</span></code>
+<span class="doc doc-labels">
+<small class="doc doc-label doc-label-property"><code>property</code></small>
+</span>
+<a class="headerlink" href="#netstead.graph.GMNSGraph.reverse_csr" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Cached transpose of :attr:<code>csr</code> (built lazily on first access).</p>
+</div>
+</div>
+<div class="doc doc-object doc-attribute">
+<h4 class="doc doc-heading" id="netstead.graph.GMNSGraph.nbytes">
+<code class="highlight language-python"><span class="n">nbytes</span></code>
+<span class="doc doc-labels">
+<small class="doc doc-label doc-label-property"><code>property</code></small>
+</span>
+<a class="headerlink" href="#netstead.graph.GMNSGraph.nbytes" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Exact in-memory size of the graph’s backing arrays, in bytes.</p>
+<p>Covers the CSR (<code>data</code>/<code>indices</code>/<code>indptr</code>), the edge-&gt;link_id map,
+node coordinates, and the node-id array. This is deterministic and
+independent of process noise, so it is the preferred memory metric for
+benchmarking how the graph scales.</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.graph.GMNSGraph.build">
+<code class="highlight language-python"><span class="n">build</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">cost</span><span class="p">,</span> <span class="n">barrier</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">directed</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">node_id_col</span><span class="o">=</span><span class="s1">'node_id'</span><span class="p">,</span> <span class="n">from_col</span><span class="o">=</span><span class="s1">'from_node_id'</span><span class="p">,</span> <span class="n">to_col</span><span class="o">=</span><span class="s1">'to_node_id'</span><span class="p">,</span> <span class="n">link_id_col</span><span class="o">=</span><span class="s1">'link_id'</span><span class="p">,</span> <span class="n">x_col</span><span class="o">=</span><span class="s1">'x_coord'</span><span class="p">,</span> <span class="n">y_col</span><span class="o">=</span><span class="s1">'y_coord'</span><span class="p">,</span> <span class="n">keep_missing_cost</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+<span class="doc doc-labels">
+<small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+</span>
+<a class="headerlink" href="#netstead.graph.GMNSGraph.build" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Build a routing graph.</p>
+<p><span class="doc-section-title">Parameters:</span></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td>
+<code>source</code>
+</td>
+<td>
+<code><span title="netstead.graph.source.NetworkSource">NetworkSource</span> | <span title="dict">dict</span> | <span title="str">str</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>A NetworkSource, a <code>{table: DataFrame}</code> dict, a DuckDB
+connection, or a path (<code>.duckdb</code> file or directory of
+Parquet/CSV).</p>
+</div>
+</td>
+<td>
+<em>required</em>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td>
+<code>cost</code>
+</td>
+<td>
+<code><span title="str">str</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>Build-time expression over link columns giving the generalized
+cost / edge weight (e.g. <code>"length / free_speed"</code>). May also be a
+bare column name.</p>
+</div>
+</td>
+<td>
+<em>required</em>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td>
+<code>barrier</code>
+</td>
+<td>
+<code><span title="str">str</span> | None</code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>Optional boolean expression over link columns; matching links
+are removed from the graph (e.g. <code>"lts &gt; 2"</code>).</p>
+</div>
+</td>
+<td>
+<code>None</code>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td>
+<code>directed</code>
+</td>
+<td>
+<code>None | <span title="bool">bool</span> | <span title="str">str</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p><code>None</code> uses a per-link <code>directed</code> column if present else
+treats every link row as a one-way edge; <code>True</code>/<code>False</code> forces
+all links one-way/two-way; a string names a boolean column.</p>
+</div>
+</td>
+<td>
+<code>None</code>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td>
+<code>node_id_col</code>
+</td>
+<td>
+<code><span title="str">str</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>Column name on the node table holding the node id.</p>
+</div>
+</td>
+<td>
+<code>'node_id'</code>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td>
+<code>from_col</code>
+</td>
+<td>
+<code><span title="str">str</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>Column name on the link table holding the from-node id.</p>
+</div>
+</td>
+<td>
+<code>'from_node_id'</code>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td>
+<code>to_col</code>
+</td>
+<td>
+<code><span title="str">str</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>Column name on the link table holding the to-node id.</p>
+</div>
+</td>
+<td>
+<code>'to_node_id'</code>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td>
+<code>link_id_col</code>
+</td>
+<td>
+<code><span title="str">str</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>Column name on the link table holding the link id.</p>
+</div>
+</td>
+<td>
+<code>'link_id'</code>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td>
+<code>x_col</code>
+</td>
+<td>
+<code><span title="str">str</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>Column name on the node table holding the x coordinate.</p>
+</div>
+</td>
+<td>
+<code>'x_coord'</code>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td>
+<code>y_col</code>
+</td>
+<td>
+<code><span title="str">str</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>Column name on the node table holding the y coordinate.</p>
+</div>
+</td>
+<td>
+<code>'y_coord'</code>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td>
+<code>keep_missing_cost</code>
+</td>
+<td>
+<code><span title="bool">bool</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>When <code>True</code>, give links with a non-finite cost
+a unit weight instead of dropping them — for connectivity /
+scope analysis where the topology matters even if length is
+missing. Routing callers should leave this <code>False</code>.</p>
+</div>
+</td>
+<td>
+<code>False</code>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.graph.GMNSGraph.from_network">
+<code class="highlight language-python"><span class="n">from_network</span><span class="p">(</span><span class="n">net</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">cost</span><span class="o">=</span><span class="s1">'length'</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+<span class="doc doc-labels">
+<small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+</span>
+<a class="headerlink" href="#netstead.graph.GMNSGraph.from_network" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Build a graph from a :class:<code>netstead.network.Network</code> (corral package).</p>
+<p>Materialises the <code>node</code> and <code>link</code> tables to pandas and delegates to
+:meth:<code>build</code>. <code>cost</code> defaults to <code>"length"</code> so distance-based ops
+(:meth:<code>network_buffer</code>) and connectivity work without extra arguments.</p>
+<p><span class="doc-section-title">Parameters:</span></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td>
+<code>net</code>
+</td>
+<td>
+</td>
+<td>
+<div class="doc-md-description">
+<p>A :class:<code>~netstead.network.Network</code>.</p>
+</div>
+</td>
+<td>
+<em>required</em>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td>
+<code>cost</code>
+</td>
+<td>
+<code><span title="str">str</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>Build-time cost expression / column (default <code>"length"</code>).</p>
+</div>
+</td>
+<td>
+<code>'length'</code>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td>
+<code>**kwargs</code>
+</td>
+<td>
+</td>
+<td>
+<div class="doc-md-description">
+<p>Forwarded to :meth:<code>build</code> (<code>barrier</code>, <code>directed</code>, …).</p>
+</div>
+</td>
+<td>
+<code>{}</code>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.graph.GMNSGraph.index_of">
+<code class="highlight language-python"><span class="n">index_of</span><span class="p">(</span><span class="n">node_id</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.graph.GMNSGraph.index_of" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Return the graph (matrix-row) index for <code>node_id</code>, or raise :class:<code>KeyError</code>.</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.graph.GMNSGraph.node_at">
+<code class="highlight language-python"><span class="n">node_at</span><span class="p">(</span><span class="n">index</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.graph.GMNSGraph.node_at" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Return the source node id at graph (matrix-row) <code>index</code>.</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.graph.GMNSGraph.link_between">
+<code class="highlight language-python"><span class="n">link_between</span><span class="p">(</span><span class="n">u_idx</span><span class="p">,</span> <span class="n">v_idx</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.graph.GMNSGraph.link_between" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>The (min-cost) link_id of the edge from graph index <code>u_idx</code> to <code>v_idx</code>.</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.graph.GMNSGraph.neighbors">
+<code class="highlight language-python"><span class="n">neighbors</span><span class="p">(</span><span class="n">node_id</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">hops</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.graph.GMNSGraph.neighbors" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Return node_ids within <code>hops</code> graph-distance of <code>node_id</code> (undirected, excludes seed).</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.graph.GMNSGraph.network_buffer">
+<code class="highlight language-python"><span class="n">network_buffer</span><span class="p">(</span><span class="n">seed_node_ids</span><span class="p">,</span> <span class="n">distance</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.graph.GMNSGraph.network_buffer" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Return node_ids reachable within <code>distance</code> (cost units) of any seed (directed; includes seeds).</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.graph.GMNSGraph.connected_component">
+<code class="highlight language-python"><span class="n">connected_component</span><span class="p">(</span><span class="n">seed_node_id</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.graph.GMNSGraph.connected_component" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Return node_ids in the same weakly-connected component as <code>seed_node_id</code>.</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.graph.GMNSGraph.reachable_from">
+<code class="highlight language-python"><span class="n">reachable_from</span><span class="p">(</span><span class="n">node_id</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.graph.GMNSGraph.reachable_from" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Return node_ids reachable from <code>node_id</code> by directed traversal (includes the seed).</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.graph.GMNSGraph.connectivity">
+<code class="highlight language-python"><span class="n">connectivity</span><span class="p">(</span><span class="n">connection</span><span class="o">=</span><span class="s1">'weak'</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.graph.GMNSGraph.connectivity" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Return per-node component labels — see :func:<code>netstead.graph.connectivity.connectivity</code>.</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.graph.GMNSGraph.isochrone">
+<code class="highlight language-python"><span class="n">isochrone</span><span class="p">(</span><span class="n">source_node</span><span class="p">,</span> <span class="n">cutoff</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.graph.GMNSGraph.isochrone" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Return the isochrone from <code>source_node</code> — see :func:<code>netstead.graph.paths.isochrone</code>.</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.graph.GMNSGraph.shortest_path">
+<code class="highlight language-python"><span class="n">shortest_path</span><span class="p">(</span><span class="n">source_node</span><span class="p">,</span> <span class="n">target_node</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.graph.GMNSGraph.shortest_path" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Return the least-cost path — see :func:<code>netstead.graph.paths.shortest_path</code>.</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.graph.GMNSGraph.snap">
+<code class="highlight language-python"><span class="n">snap</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.graph.GMNSGraph.snap" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Return the node id nearest to <code>(x, y)</code> — see :func:<code>netstead.graph.paths.snap</code>.</p>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.graph.GMNSGraph.to_geodataframe">
+<code class="highlight language-python"><span class="n">to_geodataframe</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.graph.GMNSGraph.to_geodataframe" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Return the graph as a geopandas GeoDataFrame (lazy-imports the viz module).</p>
+<p><span class="doc-section-title">Parameters:</span></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td>
+<code>**kwargs</code>
+</td>
+<td>
+</td>
+<td>
+<div class="doc-md-description">
+<p>Forwarded to :func:<code>netstead.graph.viz.to_geodataframe</code>.</p>
+</div>
+</td>
+<td>
+<code>{}</code>
+</td>
+</tr>
+</tbody>
+</table>
+<p><span class="doc-section-title">Raises:</span></p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td>
+<code><span title="ImportError">ImportError</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>If <code>geopandas</code>/<code>shapely</code> are not installed
+(install <code>netstead[clean]</code> to pick them up).</p>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h4 class="doc doc-heading" id="netstead.graph.GMNSGraph.__repr__">
+<code class="highlight language-python"><span class="fm">__repr__</span><span class="p">()</span></code>
+<a class="headerlink" href="#netstead.graph.GMNSGraph.__repr__" title="Permanent link"> ¶</a></h4>
+<div class="doc doc-contents">
+<p>Return a compact representation for shell + log output.</p>
+</div>
+</div>
+</div>
+</div>
+</div><h2 id="clean-optional-clean-extra">Clean (optional <code>[clean]</code> extra)<a class="headerlink" href="#clean-optional-clean-extra" title="Permanent link"> ¶</a></h2>
+<div class="doc doc-object doc-function">
+<h3 class="doc doc-heading" id="netstead.clean.simplify_geometry">
+<code class="highlight language-python"><span class="n">netstead</span><span class="o">.</span><span class="n">clean</span><span class="o">.</span><span class="n">simplify_geometry</span><span class="p">(</span><span class="n">net</span><span class="p">,</span> <span class="n">session</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">'redundant_only'</span><span class="p">,</span> <span class="n">tolerance</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.clean.simplify_geometry" title="Permanent link"> ¶</a></h3>
+<div class="doc doc-contents first">
+<p>Drop redundant interior vertices on every link geometry.</p>
+<p><span class="doc-section-title">Parameters:</span></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td>
+<code>net</code>
+</td>
+<td>
+<code><a class="autorefs autorefs-internal" href="#netstead.Network" title='&lt;code class="highlight language-python"&gt;&lt;span class="n"&gt;netstead&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;Network&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;spec_version&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="kc"&gt;None&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;/code&gt;
+
+  &lt;span class="doc doc-labels"&gt;
+      &lt;small class="doc doc-label doc-label-dataclass"&gt;&lt;code&gt;dataclass&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;netstead.network.Network&lt;/code&gt;)'>Network</a></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>The source :class:<code>Network</code>. Must have a <code>link.geometry</code>
+column (inline WKT). If geometry is carried via
+<code>geometry_id</code>, assemble it first with
+:func:<code>netstead.semantics.assemble_link_geometry</code> then push the
+result onto a column named <code>geometry</code> before calling.</p>
+</div>
+</td>
+<td>
+<em>required</em>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td>
+<code>session</code>
+</td>
+<td>
+<code><span title="corral.editing.Session">Session</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>An open :class:<code>corral.editing.Session</code> bound to
+<code>net</code>. The returned :class:<code>EditResult</code> is appended to
+the session’s log so :meth:<code>Session.rollback</code> can undo it.</p>
+</div>
+</td>
+<td>
+<em>required</em>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td>
+<code>mode</code>
+</td>
+<td>
+<code><span title="str">str</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p><code>"redundant_only"</code> (default) drops vertices that are
+collinear with their neighbours within <code>tolerance</code>. No
+spatial accuracy is lost when <code>tolerance == 0.0</code>.
+<code>"douglas_peucker"</code> runs shapely’s
+:meth:<code>shapely.geometry.LineString.simplify</code> with the given
+<code>tolerance</code> (CRS units).</p>
+</div>
+</td>
+<td>
+<code>'redundant_only'</code>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td>
+<code>tolerance</code>
+</td>
+<td>
+<code><span title="float">float</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>Threshold in CRS units. For <code>redundant_only</code> this
+is the maximum perpendicular distance a vertex can sit
+from the chord through its neighbours before it is
+considered non-redundant. For <code>douglas_peucker</code> it is
+the shapely tolerance.</p>
+</div>
+</td>
+<td>
+<code>0.0</code>
+</td>
+</tr>
+</tbody>
+</table>
+<p><span class="doc-section-title">Returns:</span></p>
+<table>
+<thead>
+<tr>
+<th>Name</th> <th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td><code>An</code></td> <td>
+<code><span title="corral.editing.EditResult">EditResult</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+</div>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td></td> <td>
+<code><span title="corral.editing.EditResult">EditResult</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>edit on <code>link</code>.</p>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<p><span class="doc-section-title">Raises:</span></p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td>
+<code><span title="netstead.clean.errors.CleanError">CleanError</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>If <code>net.links</code> lacks an inline <code>geometry</code> column
+or <code>mode</code> is unrecognised.</p>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<p><span class="doc-section-title">Examples:</span></p>
+<div class="language-pycon highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+</span><span id="__span-0-2"><a href="#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">_</span> <span class="o">=</span> <span class="n">pytest</span><span class="o">.</span><span class="n">importorskip</span><span class="p">(</span><span class="s2">"shapely"</span><span class="p">)</span>
+</span><span id="__span-0-3"><a href="#__codelineno-0-3" id="__codelineno-0-3" name="__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">netstead</span><span class="w"> </span><span class="kn">import</span> <span class="n">Network</span>
+</span><span id="__span-0-4"><a href="#__codelineno-0-4" id="__codelineno-0-4" name="__codelineno-0-4"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">corral.editing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Session</span>
+</span><span id="__span-0-5"><a href="#__codelineno-0-5" id="__codelineno-0-5" name="__codelineno-0-5"></a><span class="gp">&gt;&gt;&gt; </span><span class="c1"># (See packages/netstead/tests/test_clean.py for runnable examples.)</span>
+</span><span id="__span-0-6"><a href="#__codelineno-0-6" id="__codelineno-0-6" name="__codelineno-0-6"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">simplify_geometry</span>
+</span><span id="__span-0-7"><a href="#__codelineno-0-7" id="__codelineno-0-7" name="__codelineno-0-7"></a><span class="go">&lt;function simplify_geometry at ...&gt;</span>
+</span></code></pre></div>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h3 class="doc doc-heading" id="netstead.clean.merge_close_nodes">
+<code class="highlight language-python"><span class="n">netstead</span><span class="o">.</span><span class="n">clean</span><span class="o">.</span><span class="n">merge_close_nodes</span><span class="p">(</span><span class="n">net</span><span class="p">,</span> <span class="n">session</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">threshold_m</span><span class="o">=</span><span class="mf">5.0</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.clean.merge_close_nodes" title="Permanent link"> ¶</a></h3>
+<div class="doc doc-contents first">
+<p>Merge pairs of nodes within <code>threshold_m</code> of each other.</p>
+<p>Survivor selection: lowest <code>node_id</code> per cluster. All incident
+links have their <code>from_node_id</code> / <code>to_node_id</code> rewritten to
+the survivor. Merged nodes are dropped from the node table.</p>
+<p><span class="doc-section-title">Parameters:</span></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td>
+<code>net</code>
+</td>
+<td>
+<code><a class="autorefs autorefs-internal" href="#netstead.Network" title='&lt;code class="highlight language-python"&gt;&lt;span class="n"&gt;netstead&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;Network&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;spec_version&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="kc"&gt;None&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;/code&gt;
+
+  &lt;span class="doc doc-labels"&gt;
+      &lt;small class="doc doc-label doc-label-dataclass"&gt;&lt;code&gt;dataclass&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;netstead.network.Network&lt;/code&gt;)'>Network</a></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>Source :class:<code>Network</code>.</p>
+</div>
+</td>
+<td>
+<em>required</em>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td>
+<code>session</code>
+</td>
+<td>
+<code><span title="corral.editing.Session">Session</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>Open :class:<code>Session</code>.</p>
+</div>
+</td>
+<td>
+<em>required</em>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td>
+<code>threshold_m</code>
+</td>
+<td>
+<code><span title="float">float</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>Distance threshold in node CRS units (meters for
+projected coords; degrees for WGS84 — tune accordingly).</p>
+</div>
+</td>
+<td>
+<code>5.0</code>
+</td>
+</tr>
+</tbody>
+</table>
+<p><span class="doc-section-title">Returns:</span></p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td>
+<code><span title="list">list</span>[<span title="corral.editing.EditResult">EditResult</span>]</code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>A list of :class:<code>EditResult</code> — one for the <code>node</code> replace</p>
+</div>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td>
+<code><span title="list">list</span>[<span title="corral.editing.EditResult">EditResult</span>]</code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>and one for the <code>link</code> replace.</p>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<p><span class="doc-section-title">Examples:</span></p>
+<div class="language-pycon highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+</span><span id="__span-0-2"><a href="#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">_</span> <span class="o">=</span> <span class="n">pytest</span><span class="o">.</span><span class="n">importorskip</span><span class="p">(</span><span class="s2">"shapely"</span><span class="p">)</span>
+</span><span id="__span-0-3"><a href="#__codelineno-0-3" id="__codelineno-0-3" name="__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">merge_close_nodes</span>
+</span><span id="__span-0-4"><a href="#__codelineno-0-4" id="__codelineno-0-4" name="__codelineno-0-4"></a><span class="go">&lt;function merge_close_nodes at ...&gt;</span>
+</span></code></pre></div>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h3 class="doc doc-heading" id="netstead.clean.remove_orphans">
+<code class="highlight language-python"><span class="n">netstead</span><span class="o">.</span><span class="n">clean</span><span class="o">.</span><span class="n">remove_orphans</span><span class="p">(</span><span class="n">net</span><span class="p">,</span> <span class="n">session</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.clean.remove_orphans" title="Permanent link"> ¶</a></h3>
+<div class="doc doc-contents first">
+<p>Drop nodes with no incident links.</p>
+<p><span class="doc-section-title">Parameters:</span></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td>
+<code>net</code>
+</td>
+<td>
+<code><a class="autorefs autorefs-internal" href="#netstead.Network" title='&lt;code class="highlight language-python"&gt;&lt;span class="n"&gt;netstead&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;Network&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;spec_version&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="kc"&gt;None&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;/code&gt;
+
+  &lt;span class="doc doc-labels"&gt;
+      &lt;small class="doc doc-label doc-label-dataclass"&gt;&lt;code&gt;dataclass&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;netstead.network.Network&lt;/code&gt;)'>Network</a></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>Source :class:<code>Network</code>.</p>
+</div>
+</td>
+<td>
+<em>required</em>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td>
+<code>session</code>
+</td>
+<td>
+<code><span title="corral.editing.Session">Session</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>Open :class:<code>Session</code>.</p>
+</div>
+</td>
+<td>
+<em>required</em>
+</td>
+</tr>
+</tbody>
+</table>
+<p><span class="doc-section-title">Returns:</span></p>
+<table>
+<thead>
+<tr>
+<th>Name</th> <th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td><code>An</code></td> <td>
+<code><span title="corral.editing.EditResult">EditResult</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<p><span class="doc-section-title">Examples:</span></p>
+<div class="language-pycon highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+</span><span id="__span-0-2"><a href="#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">_</span> <span class="o">=</span> <span class="n">pytest</span><span class="o">.</span><span class="n">importorskip</span><span class="p">(</span><span class="s2">"shapely"</span><span class="p">)</span>
+</span><span id="__span-0-3"><a href="#__codelineno-0-3" id="__codelineno-0-3" name="__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">remove_orphans</span>
+</span><span id="__span-0-4"><a href="#__codelineno-0-4" id="__codelineno-0-4" name="__codelineno-0-4"></a><span class="go">&lt;function remove_orphans at ...&gt;</span>
+</span></code></pre></div>
+</div>
+</div>
+<div class="doc doc-object doc-function">
+<h3 class="doc doc-heading" id="netstead.clean.recompute_lengths">
+<code class="highlight language-python"><span class="n">netstead</span><span class="o">.</span><span class="n">clean</span><span class="o">.</span><span class="n">recompute_lengths</span><span class="p">(</span><span class="n">net</span><span class="p">,</span> <span class="n">session</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">geodesic</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+<a class="headerlink" href="#netstead.clean.recompute_lengths" title="Permanent link"> ¶</a></h3>
+<div class="doc doc-contents first">
+<p>Recompute <code>link.length</code> from the inline geometry.</p>
+<p><span class="doc-section-title">Parameters:</span></p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td>
+<code>net</code>
+</td>
+<td>
+<code><a class="autorefs autorefs-internal" href="#netstead.Network" title='&lt;code class="highlight language-python"&gt;&lt;span class="n"&gt;netstead&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;Network&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;spec_version&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="kc"&gt;None&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;&lt;/code&gt;
+
+  &lt;span class="doc doc-labels"&gt;
+      &lt;small class="doc doc-label doc-label-dataclass"&gt;&lt;code&gt;dataclass&lt;/code&gt;&lt;/small&gt;
+  &lt;/span&gt; (&lt;code&gt;netstead.network.Network&lt;/code&gt;)'>Network</a></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>Source :class:<code>Network</code>. Must have a <code>link.geometry</code>
+column (inline WKT).</p>
+</div>
+</td>
+<td>
+<em>required</em>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td>
+<code>session</code>
+</td>
+<td>
+<code><span title="corral.editing.Session">Session</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>Open :class:<code>Session</code>.</p>
+</div>
+</td>
+<td>
+<em>required</em>
+</td>
+</tr>
+<tr class="doc-section-item">
+<td>
+<code>geodesic</code>
+</td>
+<td>
+<code><span title="bool">bool</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+<p>When <code>True</code>, treat geometry coords as
+(lon, lat) in WGS84 and compute haversine length in meters.
+When <code>False</code> (default), report shapely’s planar length
+in CRS units (right for projected networks).</p>
+</div>
+</td>
+<td>
+<code>False</code>
+</td>
+</tr>
+</tbody>
+</table>
+<p><span class="doc-section-title">Returns:</span></p>
+<table>
+<thead>
+<tr>
+<th>Name</th> <th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="doc-section-item">
+<td><code>An</code></td> <td>
+<code><span title="corral.editing.EditResult">EditResult</span></code>
+</td>
+<td>
+<div class="doc-md-description">
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+<p><span class="doc-section-title">Examples:</span></p>
+<div class="language-pycon highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+</span><span id="__span-0-2"><a href="#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">_</span> <span class="o">=</span> <span class="n">pytest</span><span class="o">.</span><span class="n">importorskip</span><span class="p">(</span><span class="s2">"shapely"</span><span class="p">)</span>
+</span><span id="__span-0-3"><a href="#__codelineno-0-3" id="__codelineno-0-3" name="__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">recompute_lengths</span>
+</span><span id="__span-0-4"><a href="#__codelineno-0-4" id="__codelineno-0-4" name="__codelineno-0-4"></a><span class="go">&lt;function recompute_lengths at ...&gt;</span>
+</span></code></pre></div>
+</div>
+</div><h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link"> ¶</a></h2>
+<ul>
+<li><a href="https://e-lo.github.io/netstead/corral/reference/api/">corral API reference</a> — the generic primitives netstead is built on.</li>
+<li><a href="../spec/">Schema reference</a> — GMNS field-level reference.</li>
+<li><a href="../table-of-tables/">Table of tables</a> — “which table do I use?” entry point.</li>
+<li><a href="../glossary/">Glossary</a> — terms used in this API.</li>
+</ul>
+<aside class="md-source-file">
+<span class="md-source-file__fact">
+<span class="md-icon" title="Last update">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"></path></svg>
+</span>
+<span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 5, 2026 18:58:19 UTC">October 5, 2026</span>
+</span>
+<span class="md-source-file__fact">
+<span class="md-icon" title="Created">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"></path></svg>
+</span>
+<span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 5, 2026 18:58:19 UTC">October 5, 2026</span>
+</span>
+</aside>
+</article>
+</div>
+<script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+</div>
+<button class="md-top md-icon" data-md-component="top" hidden="" type="button">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"></path></svg>
+  Back to top
+</button>
+</main>
+<footer class="md-footer">
+<div class="md-footer-meta md-typeset">
+<div class="md-footer-meta__inner md-grid">
+<div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" rel="noopener" target="_blank">
+      Material for MkDocs
+    </a>
+</div>
+</div>
+</div>
+</footer>
+</div>
+<div class="md-dialog" data-md-component="dialog">
+<div class="md-dialog__inner md-typeset"></div>
+</div>
+<script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.indexes", "navigation.top", "navigation.tracking", "toc.follow", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.tooltips", "content.action.edit", "content.action.view", "search.suggest", "search.highlight", "search.share"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+<script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+<script src="https://unpkg.com/mermaid@9.4.3/dist/mermaid.min.js"></script>
+<script id="init-glightbox">const lightbox = GLightbox({"touchNavigation": true, "loop": false, "zoomable": true, "draggable": true, "openEffect": "zoom", "closeEffect": "zoom", "slideEffect": "slide"});
+document$.subscribe(()=>{ lightbox.reload(); });
+</script></body></html>

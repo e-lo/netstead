@@ -1,0 +1,1457 @@
+# corral + netstead full documentation
+
+Every doc page concatenated in nav order. Each section starts with a `<!-- source: ... -->` delimiter pointing at the canonical URL.
+
+<!-- source: index.md url: https://e-lo.github.io/netstead/corral/index.md -->
+
+---
+title: corral
+audience: users
+summary: Generic Frictionless data-package engine — lazy ibis with DuckDB, with pandas + polars on demand. Reads CSV / Parquet / DuckDB / zip-CSV from local paths and URLs with a credentials cascade. Composable validation, scope, editing, HTTP and MCP primitives.
+---
+
+# corral
+
+A generic engine for tabular data packages in the [Frictionless](concepts/frictionless.md) format. Lazy by default, regional-scale ready, with composable primitives for validation, scope, editing, and serving.
+
+## What problems corral solves
+
+**Reading any Frictionless data package**, regardless of physical format, with one API surface:
+
+<!-- doctest: skip -->
+```python
+from corral import Package
+
+pkg = Package.from_source("local/path/datapackage.json")      # local directory
+pkg = Package.from_source("s3://bucket/path/datapackage.json")  # cloud, credentials cascade
+pkg = Package.from_source("./mydata.duckdb")                    # single-file duckdb
+pkg = Package.from_source("./mydata.csv.zip")                   # zipped CSV bundle
+```
+
+**Lazy evaluation at regional scale.** Tables aren't materialised until you ask. `pkg.tables["link"].filter(...).count()` pushes the count to DuckDB; only the integer comes back to Python.
+
+**Engine choice without API rewrite.** The same `Package.from_source(...).validate()` works against ibis (default), pandas, or polars. Switch via `engine=` per call.
+
+**Validation as a single report.** `pkg.validate()` returns one `ValidationReport` covering structural, schema, foreign-key, and sync-state checks. Severity-graded; rendered as rich console, JSON, or interactive HTML.
+
+**Composable editing with rollback.** Open a `Session`, apply one or many edits, commit or roll back atomically. Persisted log as a sidecar parquet file.
+
+**Generic surfaces** — CLI, FastAPI HTTP server, and MCP server — all reusable for any domain-specific spec that builds on corral (netstead being the canonical example).
+
+## Use cases — when to install dbcorral directly
+
+<div class="grid cards" markdown>
+
+-   :material-truck-fast-outline:{ .lg .middle } &nbsp;**GTFS interop research**
+
+    ---
+
+    Building a GTFS ↔ GMNS bridge, or analysing GTFS feeds with the same toolchain you use for other tabular specs.
+
+-   :material-file-cog-outline:{ .lg .middle } &nbsp;**Custom internal spec**
+
+    ---
+
+    Your organisation has a tabular data spec (sensor metadata, asset catalogs, planning datasets) that you want to validate, version, and serve consistently.
+
+-   :material-cloud-outline:{ .lg .middle } &nbsp;**Cloud-resident data**
+
+    ---
+
+    Tables live in S3 / Azure Blob / GCS, and you want lazy SQL pushdown without writing the connection plumbing yourself.
+
+-   :material-wrench-cog-outline:{ .lg .middle } &nbsp;**Building your own toolkit**
+
+    ---
+
+    You want the generic primitives (engine ABC, FormatAdapter registry, ValidationReport, Session, FastAPI helpers) to compose into a domain-specific package. netstead is the worked example.
+
+</div>
+
+## Why install dbcorral
+
+**It's small and focused.** Generic data-package primitives only — no domain semantics. Easy to reason about, easy to extend.
+
+**Backend-agnostic.** ibis for SQL pushdown by default, pandas for compatibility, polars for fast in-memory. Add a backend by implementing the `Engine` protocol; no API rewrite.
+
+**Production-grade defaults.** Bearer-token auth on the HTTP server by default. Warn-loudly on misconfiguration (e.g. `auth=none` + non-localhost bind). Cost-model gating on long operations with explicit approval semantics.
+
+**Extension points are first-class.** `register_adapter` for new formats. `register_engine` for new backends. `register_rule` for quality rules. `extra_router_factory` for HTTP extensions. Same pattern across the surface.
+
+## Install
+
+Pick the tool you already use — these all produce the same install:
+
+=== "uv (recommended)"
+
+    ```bash
+    uv add dbcorral
+    ```
+
+    Fastest. Works inside a `uv`-managed project and writes to your `pyproject.toml` + `uv.lock`.
+
+=== "uv pip"
+
+    ```bash
+    uv pip install dbcorral
+    ```
+
+    Drop-in `pip` replacement. Use this in a plain `venv` without a project file.
+
+=== "pip"
+
+    ```bash
+    pip install dbcorral
+    ```
+
+    Classic. Works anywhere Python does.
+
+=== "pipx"
+
+    ```bash
+    pipx install dbcorral
+    ```
+
+    Isolated env for the `corral` CLI only — your project env stays untouched.
+
+### Optional extras
+
+The default install ships the ibis + DuckDB engine and Frictionless loader. Extras let you opt in to specific engines, cloud backends, and the AI surface:
+
+| Extra | Pulls in | When you need it |
+|---|---|---|
+| `polars` | `polars>=1.0` | Use the polars engine for in-memory speed (see [engines decision guide](concepts/engines.md)) |
+| `pandas` | `pandas>=2.2` | Use the pandas engine for DataFrame ergonomics |
+| `s3` / `gcs` / `azure` | corresponding fsspec adapter | Read from cloud-storage URLs |
+| `keyring` | `keyring>=24` | Resolve credentials from the system keychain |
+| `mcp` | `mcp>=1.0` | Run `corral mcp serve` for Claude Desktop / Code |
+
+Install with the same syntax (uv shown — substitute your tool):
+
+```bash
+uv add 'dbcorral[polars,s3,keyring]'   # combine with commas
+```
+
+!!! tip "zsh users: quote the brackets"
+    On **zsh** (the default shell on macOS), `[` and `]` are glob characters. Running `uv add dbcorral[polars]` unquoted gives `zsh: no matches found: corral[polars]`. Always wrap the extras in quotes (`'corral[polars]'` or `"corral[polars]"`), or run `setopt no_nomatch` once per session to disable the check. bash users don't hit this.
+
+## Where to go next
+
+<div class="grid cards" markdown>
+
+-   :material-rocket-launch:{ .lg .middle } &nbsp;**Quickstart**
+
+    ---
+
+    Load a data package, validate it, scope it, write it out — in five minutes.
+
+    [:octicons-arrow-right-24: Get started](quickstart.md)
+
+-   :material-book-open-page-variant:{ .lg .middle } &nbsp;**Cookbook**
+
+    ---
+
+    Task-oriented recipes — read from S3, convert formats, spatial scope.
+
+    [:octicons-arrow-right-24: Browse recipes](cookbook/index.md)
+
+-   :material-api:{ .lg .middle } &nbsp;**API reference**
+
+    ---
+
+    Every public symbol, auto-generated from docstrings, with stable anchors.
+
+    [:octicons-arrow-right-24: API reference](reference/api.md)
+
+-   :material-architecture:{ .lg .middle } &nbsp;**Architecture**
+
+    ---
+
+    Defaults, rationales, extension points. Single source of truth.
+
+    [:octicons-arrow-right-24: Architecture](architecture.md)
+
+</div>
+
+
+<!-- source: quickstart.md url: https://e-lo.github.io/netstead/corral/quickstart.md -->
+
+---
+title: Quickstart
+audience: users
+kind: howto
+summary: Install, load any Frictionless data package, validate it, scope it, and write it out in five minutes — using only corral, no GMNS bits.
+---
+
+# Quickstart — corral
+
+## When to use this
+
+You want to load + validate + (optionally) spatially scope a Frictionless data package — any spec, not just GMNS — and see what `corral` gives you in five minutes. If you're working with GMNS networks specifically, the [netstead quickstart](https://e-lo.github.io/netstead/netstead/quickstart/) is the better starting point; everything here applies underneath that surface.
+
+## Quick example
+
+The fastest way to confirm `corral` is wired up is to load a real Frictionless package, run the four-pass validator, and print a one-line summary. The example below uses the bundled Leavenworth GMNS fixture as a stand-in for "any Frictionless package" — the API is identical regardless of spec.
+
+```bash
+pip install dbcorral
+```
+
+Then in Python:
+
+```python
+from corral import Package
+from netstead.fixtures import leavenworth  # any Frictionless dir works here
+
+pkg = Package.from_source(leavenworth.csv_dir(), spec=leavenworth.spec_path())
+report = pkg.validate()
+print(f"{len(pkg.tables)} tables, {len(report.issues)} validation issues")
+```
+
+Expected:
+
+```text
+25 tables, 0 validation issues
+```
+
+You just loaded a Frictionless data package through the default ibis + DuckDB engine, then ran the structural / schema / FK / sync-state validator in a single call. Nothing was eagerly materialised — `pkg.tables["link"]` is still a lazy expression.
+
+## Step-by-step
+
+### 1. Install
+
+The default install ships everything for the four-pass validator below. Pick your tool:
+
+=== "uv (recommended)"
+
+    ```bash
+    uv add dbcorral
+    ```
+
+=== "uv pip"
+
+    ```bash
+    uv pip install dbcorral
+    ```
+
+=== "pip"
+
+    ```bash
+    pip install dbcorral
+    ```
+
+=== "pipx"
+
+    ```bash
+    pipx install dbcorral
+    ```
+
+Optional extras (`polars` / `pandas` / `s3` / `gcs` / `azure` / `keyring` / `mcp`) opt in to alternative engines, cloud backends, and the AI surface — see the [install guide](index.md#optional-extras) for the full list.
+
+### 2. Load a Frictionless package
+
+`Package.from_source` accepts a local path, an `s3://` / `https://` / `duckdb://` URL, or a directory of CSV / Parquet / DuckDB / zip-CSV files. The example below loads the bundled Leavenworth fixture, which is a CSV directory. Because a CSV-only directory doesn't carry a `datapackage.json` manifest, pass `spec=` explicitly to tell `corral` which schema to validate against.
+
+```python
+from corral import Package
+from netstead.fixtures import leavenworth
+
+pkg = Package.from_source(
+    leavenworth.csv_dir(),
+    spec=leavenworth.spec_path(),
+)
+```
+
+You should see something like:
+
+<!-- doctest: skip -->
+```python
+>>> pkg
+<Package: 9 tables, source=.../leavenworth/csv>
+```
+
+Substitute any other Frictionless package — your own spec, a GTFS feed converted to a Frictionless package, or a cloud-hosted parquet partition — and the rest of the steps below are identical.
+
+### 3. Validate and read the report
+
+Validation runs four passes in one call — **structural** (required resources present), **schema** (field types and constraints), **foreign-key** (cross-table integrity), and **sync-state** (have FKs gone stale since a previous edit?). The result is one `ValidationReport` with severity-graded issues.
+
+```python
+report = pkg.validate()
+print(f"{len(report.issues)} issues across {len(pkg.tables)} tables")
+
+for issue in report.issues[:5]:
+    print(f"  {issue.severity.value:9} {issue.code:30} {issue.message[:60]}")
+```
+
+In a Jupyter notebook, evaluating `report` on its own renders an HTML card grouped by severity. In a script, you can also serialise to JSON for CI:
+
+```python
+import tempfile, pathlib
+with tempfile.TemporaryDirectory() as d:
+    report.to_json(pathlib.Path(d) / "validation.json")
+```
+
+### 4. Scope to a spatial subset
+
+If your package has a geometry column (any WKT or WKB), `corral.dataset.view.from_bbox` returns a lazy view filtered to features inside a bounding box. The example below scopes the Leavenworth `geometry` table (which carries the inline WKT) to a small bbox around the historic core.
+
+```python
+from corral.dataset.view import from_bbox
+
+geometry = pkg.tables["geometry"]
+scoped_geom = from_bbox(geometry, -120.665, 47.594, -120.655, 47.600)
+print(f"scoped: {scoped_geom.count()} geometries in bbox")
+```
+
+The filter pushes down to DuckDB — only the matching rows are read.
+
+### 5. Write the package out
+
+`pkg.write(dest)` round-trips the package to a new location. The output format is inferred from the extension: `.parquet` for a Parquet directory, `.duckdb` for a single-file DuckDB, or a directory for CSV.
+
+```python
+import tempfile, pathlib
+with tempfile.TemporaryDirectory() as d:
+    pkg.write(pathlib.Path(d) / "out.parquet")
+```
+
+The `datapackage.json` manifest is regenerated alongside the data, so the written-out package is itself a valid Frictionless package.
+
+## Common variations
+
+Each accordion below is one alternative to the defaults used above. The first (most common) is expanded; the rest are collapsed — open the one that matches your situation.
+
+???+ note "Switch the backend engine to pandas or polars"
+    Default is `IbisEngine` (lazy, DuckDB-backed). Switch to pandas for eager DataFrame ergonomics, or polars when you want fast in-memory analytics.
+
+    ```python
+
+    pkg = Package.from_source(path, spec=spec)
+    ```
+
+??? note "Read from S3 with credentials"
+    Credentials resolve via a cascade: keyword arg → `CORRAL_CRED_<host>_TOKEN` env var → OS keyring → `.netrc`. No code changes needed if the environment is set up.
+
+    ```python
+    pkg = Package.from_source(
+        "s3://bucket/path/datapackage.json",
+    )
+    ```
+
+??? note "Load only a subset of tables"
+    Pass `tables=` to materialise only the tables you need — useful when the package is large and you only care about a few resources.
+
+    ```python
+    pkg = Package.from_source(
+        path,
+        spec=spec,
+        tables=["link", "node", "geometry"],
+    )
+    ```
+
+??? note "Pass the spec from a URL or another package"
+    `spec=` accepts a local path, a URL, or an already-loaded `Spec` object. Useful for sharing a spec across many sibling datasets.
+
+    ```python
+    pkg = Package.from_source(
+        path,
+        spec="https://example.org/specs/my-spec/datapackage.json",
+    )
+    ```
+
+## Pitfalls
+
+* **No `datapackage.json` in your directory → pass `spec=` explicitly.** CSV-only fixtures and ad-hoc directories don't carry a manifest, so `corral` can't infer the schema. Point `spec=` at the canonical `datapackage.json` for your data. See [Frictionless data packages](concepts/frictionless.md) for the spec-vs-data distinction.
+* **Credential cascade order matters.** Per-call `credentials=` always wins; otherwise `CORRAL_CRED_<host>_TOKEN` env var, then OS keyring, then `.netrc`. If you've stashed a token in two places, the higher-priority one is the one that gets used.
+* **Lazy by default.** Tables are lazy ibis expressions over DuckDB — nothing materialises until you call `.to_pandas()` / `.to_polars()` / `.count()`. Push predicates down and only pull the rows you need into Python.
+
+## See also
+
+* [Cookbook](cookbook/index.md) — task-oriented recipes (read from S3, convert formats, spatial scope).
+* [API reference](reference/api.md) — every public symbol with stable anchors.
+* [Architecture](architecture.md) — defaults, rationales, extension points.
+* [Frictionless data packages](concepts/frictionless.md) — the spec `corral` builds on.
+
+
+<!-- source: cookbook/index.md url: https://e-lo.github.io/netstead/corral/cookbook/index.md -->
+
+---
+title: corral cookbook
+audience: users
+kind: concept
+summary: Task-oriented recipes for the generic Frictionless data-package surface — read from S3, convert between formats, spatial scope.
+---
+
+# corral cookbook
+
+Generic recipes — apply to any Frictionless package, not just GMNS. For GMNS-specific recipes (network-aware scope, quality rules, editing, MCP), see the [netstead cookbook](https://e-lo.github.io/netstead/netstead/cookbook/).
+
+## I/O + formats
+
+* [Read from S3 with credentials](read-from-s3.md) — credential cascade, partial loads, predicate pushdown.
+* [Convert formats](convert-formats.md) — CSV ↔ Parquet ↔ DuckDB ↔ zip-CSV.
+
+## Scope
+
+* [Spatial scope — bbox and polygon](scope-bbox.md) — generic geometric scope on any geometry-bearing package.
+
+## Contributing a recipe
+
+A recipe is `kind: howto` per the [Page Style Guide](../_page-style-guide.md). One-liner trigger, a runnable example with **prose before the code**, step-by-step, accordion-style variations, pitfalls, see-also.
+
+
+<!-- source: reference/api.md url: https://e-lo.github.io/netstead/corral/reference/api.md -->
+
+---
+title: corral API reference
+audience: both
+kind: reference
+summary: Every public corral symbol, auto-generated from docstrings. Stable anchors match the codes in ai/api-index.json.
+stability: stable
+---
+
+# corral API reference
+
+Auto-generated from package docstrings via [mkdocstrings](https://mkdocstrings.github.io/). Every public symbol gets a stable anchor (`#<dotted.qualname>`) that matches the entries in [`ai/api-index.json`](../ai/index.md).
+
+For task-oriented recipes see the [cookbook](../cookbook/index.md). For design rationale see [architecture](../architecture.md).
+
+## Top-level
+
+::: corral.dataset.Package
+    options:
+      members:
+        - from_source
+        - from_tables
+        - validate
+        - write
+        - safe_count
+        - tables
+      show_root_heading: true
+
+::: corral.dataset.Table
+    options:
+      members:
+        - filter
+        - select
+        - head
+        - count
+        - to_pandas
+        - to_polars
+        - collect
+        - columns
+      show_root_heading: true
+
+## Engines
+
+::: corral.engines.Engine
+
+::: corral.engines.get_engine
+
+::: corral.engines.register_engine
+
+::: corral.engines.resolve_engine
+
+## Reports
+
+::: corral.reports.ValidationReport
+
+::: corral.reports.Issue
+
+::: corral.reports.Severity
+
+::: corral.reports.Category
+
+## Editing
+
+::: corral.editing.Edit
+
+::: corral.editing.EditResult
+
+::: corral.editing.Session
+    options:
+      members:
+        - add_edit
+        - rollback
+
+::: corral.editing.rollback
+
+## Quality (generic framework)
+
+::: corral.quality.Rule
+
+::: corral.quality.RuleConfig
+
+::: corral.quality.run_quality
+
+## Operations (cost model + gating)
+
+::: corral.operations.OperationCost
+
+::: corral.operations.gate
+
+::: corral.operations.ApprovalRequired
+
+::: corral.operations.Batch
+
+::: corral.operations.coalesce
+
+## API server primitives
+
+::: corral.api.build_app
+
+::: corral.api.PackageRegistry
+    options:
+      members:
+        - require
+        - source_for
+        - describe
+        - list_ids
+
+::: corral.api.ServerSettings
+
+::: corral.api.AuthSettings
+
+::: corral.api.ExtraRouterFactory
+
+::: corral.api.AuthDep
+
+::: corral.api.PackageLoader
+
+## MCP primitives
+
+::: corral.mcp.build_server
+
+## See also
+
+* [`shared/ai/index.md`](../ai/index.md) — explains the api-index.json + llms.txt artifacts.
+* [corral cookbook](../cookbook/index.md)
+* [Architecture](../architecture.md)
+
+
+<!-- source: concepts/frictionless.md url: https://e-lo.github.io/netstead/corral/concepts/frictionless.md -->
+
+---
+title: Frictionless data packages
+audience: both
+kind: concept
+summary: What the Frictionless Data Package format is, how corral + netstead use it, what each Frictionless term maps to in this codebase, and how to handle data that isn't (yet) a Frictionless package.
+---
+
+# Frictionless data packages
+
+This page explains the data-description format that sits underneath every `Package` and `Network` in corral and netstead. If you've ever wondered why `datapackage.json` exists or what a "table schema" formally is, start here.
+
+## What it is
+
+The [Frictionless Data Package](https://datapackage.org/) specification is a small, JSON-based standard for describing a directory of tabular files — what tables it contains, what columns each table has, and how the tables relate to each other through foreign keys. It is maintained by the [Open Knowledge Foundation](https://okfn.org/) and is the de-facto common language for data-publishing organisations that need machine-readable structure (Datahub.io, the EU Open Data Portal, the Frictionless Repository ecosystem) and for domain specs that need a portable model — the [General Modeling Network Specification (GMNS)](https://github.com/zephyr-data-specs/GMNS) being the canonical example for transportation networks. corral's `Package` type and netstead's `Network` type are both thin wrappers around a resolved Frictionless Data Package — when you load a network, you are loading a Data Package whose Resources happen to be GMNS link / node / segment tables.
+
+## Why we have it
+
+Frictionless solves the problem of "here is a folder of CSVs, what *is* it?" without inventing a new format for every domain. Every domain spec that needs structural metadata — column types, foreign keys, required-vs-optional resources — would otherwise have to ship its own description format and its own parser. By standing on Frictionless, GMNS (and any future spec corral serves) gets a portable, tooling-rich substrate for free, and corral gets to write *one* spec loader that handles every domain spec built on top.
+
+## The four moving parts
+
+Four concepts compose a Frictionless package. Each maps cleanly onto a type in corral / netstead.
+
+### Data Package
+
+A Data Package is a directory containing a `datapackage.json` manifest plus the data files the manifest describes. The manifest names the package, lists its resources, and declares cross-resource constraints (foreign keys, shared categories).
+
+```json
+{
+  "name": "leavenworth-gmns",
+  "title": "Leavenworth WA — bundled GMNS fixture",
+  "profile": "tabular-data-package",
+  "resources": [
+    { "name": "link", "path": "link.csv", "schema": "link.schema.json" },
+    { "name": "node", "path": "node.csv", "schema": "node.schema.json" }
+  ]
+}
+```
+
+In corral this is `corral.Package`; in netstead this is `netstead.Network` (a `Package` plus GMNS-aware accessors like `.links`, `.nodes`).
+
+### Resource
+
+A Resource is one table in the package — a single file (or set of files, for partitioned formats) with a path, a name, and a schema. Resources are the unit of read and write: `pkg.tables["link"]` and `engine.scan(resource)` both operate on a single Resource.
+
+```json
+{
+  "name": "link",
+  "path": "link.csv",
+  "format": "csv",
+  "schema": "link.schema.json",
+  "profile": "tabular-data-resource"
+}
+```
+
+In corral this is `pkg.tables["link"]` (returning a `corral.dataset.Table`); in netstead this is `net.tables["link"]` (same object, exposed alongside the GMNS-named accessor `net.links`).
+
+### Table Schema
+
+A Table Schema describes the fields of one Resource — name, type, constraints, missing-value tokens. It can live inline inside `datapackage.json` or in a sibling `<name>.schema.json` file (the latter is what GMNS does, and what corral emits).
+
+```json
+{
+  "primaryKey": "link_id",
+  "fields": [
+    { "name": "link_id",      "type": "integer", "constraints": { "required": true } },
+    { "name": "from_node_id", "type": "integer", "constraints": { "required": true } },
+    { "name": "to_node_id",   "type": "integer", "constraints": { "required": true } },
+    { "name": "length",       "type": "number" },
+    { "name": "facility_type","type": "string"  }
+  ]
+}
+```
+
+In corral this is `net.tables["link"].schema` (a Pydantic v2 `Schema` model from `corral.spec`). The schema is what `schema_check` validates row dtypes against and what the docgen pipeline renders into reference pages.
+
+### Foreign Keys
+
+Foreign keys are declared at the package level inside `datapackage.json`. A foreign key says "column X in resource Y must reference an existing value of column Z in resource W." This is what lets GMNS state "every `link.from_node_id` must exist in `node.node_id`" once, in machine-readable form, instead of in prose buried in a PDF.
+
+```json
+{
+  "name": "link",
+  "schema": {
+    "foreignKeys": [
+      {
+        "fields": "from_node_id",
+        "reference": { "resource": "node", "fields": "node_id" }
+      }
+    ]
+  }
+}
+```
+
+In corral this is walked by `net.validate()`'s FK pass (see `corral.validation.foreign_keys`). The same pass also stamps source + target content hashes into the `DirtyTracker` so a later edit + write can warn on out-of-sync FKs (see [architecture §6.3](../architecture.md#63-validation-sync-state)).
+
+## GMNS-to-Frictionless mapping table
+
+Every GMNS concept lands on a Frictionless concept and a concrete name in corral / netstead:
+
+| GMNS concept | Frictionless concept | corral / netstead name |
+|---|---|---|
+| The whole network | Data Package | `netstead.Network` / `corral.Package` |
+| `link` / `node` / `segment` / `lane` table | Resource | `net.tables["link"]` |
+| `link.schema.json` field definitions | Table Schema | `net.tables["link"].schema` |
+| `link.from_node_id → node.node_id` | Foreign Key | walked by `net.validate()` |
+| `signal_phase_mvmt.timeday_id → time_set_definitions.timeday_id` | Composite-ref Foreign Key | walked by `net.validate()` (composite-key path) |
+| Allowed `facility_type` values | Shared Categories (`shared_categories.json`) | resolved by `corral.spec.loader` |
+| Vendored spec versions (`0.95/`, `0.96/`, `0.97/`) | Per-version Data Package definitions | `netstead.spec.load_gmns_spec(version)` |
+| Missing-value tokens (e.g. `-99`) | `missingValues` on the Table Schema | applied by `engine.cast_schema` on read |
+
+## What Frictionless gives you (and what it doesn't)
+
+What you get by standing on Frictionless:
+
+- **Cross-tool interop.** Any Frictionless-aware tool (the OKFN CLI, OpenRefine, several R packages, the dataset publishers above) can read a corral-emitted package without writing custom code.
+- **Machine-readable schemas.** Field types, primary keys, foreign keys, and required-vs-optional are all declarative JSON — not English prose. This is what makes `--json` CLI output, MCP tools, and AI agents possible.
+- **Declarative FKs.** The relational structure is in the manifest, not scattered across reader code. `validate()` walks it; renderers display it; agents can reason about it.
+- **Public-domain spec + tooling ecosystem.** OKFN maintains the spec; the surrounding ecosystem is permissively licensed. No vendor risk on the format itself.
+- **Composable spec versioning.** Corral supports multiple GMNS versions side-by-side because each version is just a different Data Package definition (see [architecture §7](../architecture.md#7-spec-sync-strategy)).
+
+What you *don't* get, and where the rest of the stack picks up:
+
+- **Semantics.** Frictionless is structural only. It knows `from_node_id` is an integer that references `node.node_id`; it does not know what a "node" *means*. Domain semantics (connectivity, geometry assembly, TOD resolution) live in `netstead.semantics`.
+- **Data-quality rules.** Frictionless validates structure — "is this column an integer?". It does not validate plausibility — "is a 65 mph residential street suspicious?". That's the rule-pack pattern in `corral.quality` + the `netstead.quality` GMNS rule pack.
+- **Units and measurement conventions.** Frictionless can say `length` is a `number`; it cannot say it must be in metres. GMNS layers a units convention on top; corral does not police it.
+
+## Handling non-Frictionless data — the design seam
+
+Real GMNS-adjacent data is not always shipped as a Frictionless package. Modellers receive GTFS feeds, OGC GeoPackages, shapefiles, OSM-derived parquet, raw CSV directories with no manifest, and Avro-with-metadata blobs from upstream systems. The toolkit has a tiered story for handling these:
+
+### 1. Today's escape valve — pass `spec=` explicitly
+
+When a source has tabular files but no `datapackage.json`, the caller passes the spec directly:
+
+```python
+from corral import Package
+from netstead.spec import load_gmns_spec
+
+pkg = Package.from_source(
+    "./my-csv-directory/",
+    spec=load_gmns_spec("0.97"),
+)
+```
+
+This says "the data is in the directory, the schema is in my toolchain, glue them together." It is the right escape hatch when the user knows what spec the directory was written against and the file layout matches what the spec expects. This is the only path that exists today, and it is enough for the GMNS use case.
+
+### 2. Future extension surface — `SchemaProbe` registry (v1.1+)
+
+For sources whose schema can be *inferred* from the source itself — GTFS (canonical filename set), OGC GeoPackage (schema in `gpkg_contents` metadata table), Avro (schema in file header), JSON Schema sidecar files — the long-term plan is a `SchemaProbe` registry that mirrors the existing `FormatAdapter` registry in `corral.io`. Each probe declares "if you see an X-shaped source, the schema is Y," and `Package.from_source` walks the registry when no explicit `spec=` is passed.
+
+This is filed as [issue #177 — Design SchemaProbe registry pattern (parallel to FormatAdapter)](https://github.com/e-lo/netstead/issues/177) for v1.1. The shape is deliberately deferred until we have a second real probe target (GTFS or GeoPackage) driving the design — one-consumer abstractions tend to ossify around the first consumer's quirks.
+
+### 3. Schema translator pattern
+
+For sources that *carry their own schema description* in a non-Frictionless format (Avro headers, OGC GeoPackage metadata tables, JSON Schema files, GraphQL schemas), the right shape is a translator that converts the source's native schema into a Frictionless `DataPackage` at load time. The probe pattern in (2) is the registration mechanism; the translator is the conversion logic each probe implements.
+
+Both (2) and (3) keep the rest of corral ignorant of where the schema came from — once the `DataPackage` is in hand, validation, scoping, editing, and rendering all behave identically regardless of whether the schema was hand-written, loaded from `datapackage.json`, or synthesised by a probe.
+
+## See also
+
+* [Architecture §6.1 (Engine + I/O)](../architecture.md#61-engine-io) — how Frictionless `Resource`s flow through the engine + adapter layer.
+* [Architecture §6.3 (Validation + sync state)](../architecture.md#63-validation-sync-state) — how the FK graph is walked and how `DirtyTracker` stamps hashes per Resource.
+* [Architecture §7 (Spec sync strategy)](../architecture.md#7-spec-sync-strategy) — how multiple GMNS spec versions live side-by-side as separate Data Packages.
+* [netstead Schema reference](https://e-lo.github.io/netstead/netstead/reference/spec/) — the resolved GMNS schemas as corral sees them.
+* [Issue #177 — SchemaProbe registry (v1.1)](https://github.com/e-lo/netstead/issues/177) — the planned extension surface for non-Frictionless sources.
+
+## Further reading
+
+* [Frictionless Data Package spec](https://datapackage.org/) — the canonical spec, OKFN-maintained.
+* [Frictionless Table Schema spec](https://datapackage.org/standard/table-schema/) — the field-level schema spec referenced by Table Schemas.
+* [Frictionless Python library](https://framework.frictionlessdata.io/) — note that corral uses the *spec*, not this library; the dep audit during Phase 1 concluded that a direct Pydantic v2 implementation (in `corral.spec`) gave better error messages and tighter typing than the upstream library, and avoided a heavy transitive dep tree.
+* [GMNS upstream repository](https://github.com/zephyr-data-specs/GMNS) — the Zephyr Foundation specification that netstead vendors per-version.
+
+
+<!-- source: concepts/engines.md url: https://e-lo.github.io/netstead/corral/concepts/engines.md -->
+
+---
+title: The compute engine (DuckDB) and dataframe formats
+audience: both
+kind: concept
+summary: DuckDB (via ibis) is corral's single compute engine. pandas, polars and pyarrow are input/output formats, not compute backends. Push predicates down to SQL; materialise to a dataframe only for Python-side work (shapely, regex, ML).
+---
+
+# The compute engine and dataframe formats
+
+corral has **one compute engine: DuckDB, driven through [ibis](https://ibis-project.org/)**. Everything — reads, filters, joins, validation, foreign-key checks, spatial scopes, edits — is expressed as lazy ibis expressions and executed inside DuckDB, pushing predicates down to SQL so only matching rows ever materialise.
+
+**pandas, polars and pyarrow are *formats*, not engines.** You hand data in as any of them and get results back as any of them, but the computation always happens in DuckDB. This mirrors the [ibis project's own decision](https://ibis-project.org/posts/farewell-pandas/) to drop its non-SQL execution backends in 10.0: there is no feature gap versus DuckDB, DuckDB is faster, and DuckDB queries pandas/polars/Arrow objects directly (zero-copy via Arrow). We stopped maintaining separate pandas/polars *compute* engines for the same reasons.
+
+## Getting data in and out
+
+**In** — DuckDB reads files directly (`Package.from_source(path)` for CSV / Parquet / DuckDB / zipped CSV), and you can bring an in-memory frame in through Arrow:
+
+<!-- doctest: skip -->
+```python
+import pyarrow as pa
+from corral.engines import get_engine
+
+e = get_engine()                      # the DuckDB engine
+expr = e.from_arrow(pa.Table.from_pandas(df))   # pandas -> engine
+expr = e.from_arrow(polars_df.to_arrow())       # polars -> engine
+expr = e.from_records({"a": [1, 2, 3]})         # columnar dict -> engine
+```
+
+**Out** — materialise a table to whichever format the next step wants:
+
+<!-- doctest: skip -->
+```python
+pkg.tables["link"].to_pandas()        # -> pandas.DataFrame (nullable dtypes)
+pkg.tables["link"].to_polars()        # -> polars.DataFrame
+pkg.tables["link"].collect()          # -> engine-native (ibis) for further lazy work
+```
+
+`to_pandas()` returns the cross-engine nullable dtype family (`Int64` / `Float64` / `string` / `boolean`) so missing integers never silently become floats.
+
+## Mental model
+
+* **Default to pushing down.** If your operation is a predicate (`link.toll > 0`, `node.zone_id.isin([1, 2, 3])`, `link.geometry.intersects(bbox)`) or an aggregation (`link.length.sum()`), write it as an ibis expression and DuckDB answers in milliseconds against a 200k-link network — the data never leaves the engine.
+* **Materialise to a dataframe only for Python-side work.** Pure-Python parsing (shapely geometries, regex, fuzzy strings, ML models) needs values in memory. Push down what you *can* first (e.g. a coarse `facility_type == 'residential'` filter), then `.to_pandas()` / `.to_polars()` the surviving rows and do the Python work there.
+* **Never materialise a whole table just to filter it in Python.** If the predicate is SQL-expressible, push it down.
+
+## Spatial
+
+`corral.dataset.view.from_bbox` / `from_polygon` / `from_geometry_buffer` build on the same pushdown pattern: the predicate compiles to DuckDB SQL (via the DuckDB spatial extension), partitioned parquet sources prune partitions at scan time, and full materialisation is the exception. `netstead.scope` adds *network-aware* scopes (`from_nodes`, `from_link`, `from_point`, `connected_component`, `from_zone`) on top.
+
+## See also
+
+* [Architecture §6.1 — engine + I/O](../architecture.md#61-engine--io) — design rationale for the DuckDB-first choice.
+* [Frictionless data packages](frictionless.md) — the schema/data model the engine sees.
+* [DuckDB spatial extension](https://duckdb.org/docs/extensions/spatial/overview.html) — the ST_* functions available from ibis.
+* [Ibis: Farewell pandas](https://ibis-project.org/posts/farewell-pandas/) — the upstream decision this mirrors.
+
+
+<!-- source: ai/index.md url: https://e-lo.github.io/netstead/corral/ai/index.md -->
+
+---
+title: AI surface
+audience: both
+kind: concept
+summary: Everything in this repo that an AI agent (Claude Code Skills, MCP clients, llms.txt consumers) can consume — and how the surfaces stay in sync with the human docs.
+---
+
+# AI surface
+
+Netstead + corral are designed to be driven by AI agents as a first-class usage mode. Four distinct surfaces, all generated from the same source of truth as the human docs so they can't drift:
+
+## 1. `llms.txt` + `llms-full.txt` (this site)
+
+Two files at the site root, regenerated on every `mkdocs build`:
+
+| Artifact | Purpose | Built from |
+|---|---|---|
+| [`llms.txt`](../llms.txt) | Site map for LLMs. Page titles + summaries + absolute URLs. The minimum context to pick the right page for a question. | The mkdocs `nav` + each page's `summary` frontmatter. |
+| [`llms-full.txt`](../llms-full.txt) | The entire site flattened into one document. Drop into a context window when you want the model to have everything. | Same nav + full page bodies, excluding pages marked `ai_index: false`. |
+
+Both follow the [llms.txt convention](https://llmstxt.org/).
+
+### Use it from Claude / ChatGPT / your MCP host
+
+The fastest way to bootstrap a model with this project's docs is to paste the `llms.txt` URL into a chat. The model fetches it, indexes the pages, then decides which ones to pull for follow-up questions:
+
+```text
+Read https://e-lo.github.io/netstead/llms.txt to learn the structure
+of the netstead + corral docs, then walk me through validating a
+GMNS network at <path>.
+```
+
+The result is a model that knows what pages exist and what each one is for — without you having to remember the URL of every concept doc. Replace `<path>` with a real local path or the bundled fixture (`packages/netstead/netstead/fixtures/leavenworth/csv`) to anchor the conversation in something concrete.
+
+### When to use which
+
+The two variants serve different agent loops:
+
+| Artifact | Best for | Trade-off |
+|---|---|---|
+| `llms.txt` | An agent picking the right page for a question. Minimum context. | The agent has to make a second fetch to actually read a page. |
+| `llms-full.txt` | An agent that needs everything in one shot — large context windows, offline use, or one-pass synthesis. | Heavy. Don't drop into a 4k-token context. |
+
+### Concrete use cases
+
+* Drop into a fresh chat to bootstrap context before asking netstead-specific questions.
+* Pin in an MCP client's system prompt so every conversation starts with the doc map loaded.
+* Feed `llms-full.txt` to a model with a large context window for one-pass synthesis (migration planning, cross-page audits).
+* CI: have an agent verify cookbook recipes still match the `api-index.json` shape after a refactor.
+
+## 2. `ai/api-index.json` — public-API surface
+
+[`ai/api-index.json`](api-index.json) is a structured snapshot of every public symbol in `corral` + `corral.reports`. The netstead docs site emits its own `ai/api-index.json` covering `netstead`. Schema:
+
+```json
+{
+  "schema_version": "1",
+  "packages": [
+    {
+      "name": "corral",
+      "version": "0.1.0",
+      "symbols": [
+        {
+          "kind": "function | class | method",
+          "qualname": "corral.dataset.Package.from_source",
+          "signature": "(source, *, engine=None, spec=None, tables=None)",
+          "stability": "stable | beta | experimental",
+          "summary": "first line of docstring",
+          "anchor": "https://e-lo.github.io/netstead/reference/api/#corral.dataset.Package.from_source"
+        }
+      ]
+    }
+  ]
+}
+```
+
+Built by `corral.docgen.llms.generate_api_index_json`. Refreshes each build.
+
+### Use it from an agent
+
+The index is small and structured — an agent can fetch the whole thing, then answer "which symbol should I use for X?" without round-tripping through the full API reference:
+
+```text
+Fetch https://e-lo.github.io/netstead/ai/api-index.json. Find every
+symbol with stability=stable in the netstead.scope module and tell me
+which one I should use to get the connected component a node
+belongs to.
+```
+
+That sort of question used to need either a search over the full reference page or a brittle grep over the codebase. With the index, the agent has the same answer in one fetch.
+
+### Concrete use cases
+
+* Bootstrap context for an MCP client without loading the full API docs into the context window.
+* CI gate: an agent verifies cookbook code samples still reference symbols that exist (and at the expected stability level).
+* Tool dispatch: an agent picks the right function from a user's question by grepping the index for matching names + summaries.
+* Migration assistance: diff two versions' indexes to spot removed / renamed / newly-experimental symbols.
+* Build a typed wrapper or client SDK directly from the JSON shape — every symbol has a signature and an anchor back to the docs.
+
+### jq cheatsheet
+
+The JSON shape is shallow enough that `jq` covers most ad-hoc questions. Fetch the file once and explore locally:
+
+```bash
+# List all public functions in netstead.scope
+jq '.packages.netstead.symbols[]
+    | select(.module | startswith("netstead.scope"))
+    | select(.kind == "function")
+    | .name' api-index.json
+
+# Find every experimental symbol across all packages
+jq '.packages | to_entries[] | .value.symbols[]
+    | select(.stability == "experimental")' api-index.json
+
+# Count stable vs beta vs experimental per package
+jq '.packages | to_entries[] | {
+      pkg: .key,
+      counts: (.value.symbols | group_by(.stability) | map({(.[0].stability): length}) | add)
+    }' api-index.json
+```
+
+These compose well inside CI scripts and one-liner agent prompts (`subprocess.run(["jq", "...", "api-index.json"])`).
+
+## 3. Claude Code Skills (`skills/` in the repo)
+
+Five skills shipped in-repo, installed via git URL:
+
+```shell-session
+$ claude code skill add https://github.com/e-lo/netstead#path=skills/gmns-validate
+```
+
+| Skill | When it triggers |
+|---|---|
+| [`corral-validate`](https://github.com/e-lo/netstead/blob/main/skills/corral-validate/SKILL.md) | User has a Frictionless data package and wants to validate it. |
+| [`gmns-author`](https://github.com/e-lo/netstead/blob/main/skills/gmns-author/SKILL.md) | User wants to construct a GMNS network from scratch. |
+| [`gmns-validate`](https://github.com/e-lo/netstead/blob/main/skills/gmns-validate/SKILL.md) | User wants to understand a GMNS validation / quality report. |
+| [`gmns-convert`](https://github.com/e-lo/netstead/blob/main/skills/gmns-convert/SKILL.md) | User wants to convert GMNS data between formats. |
+| [`gmns-clean`](https://github.com/e-lo/netstead/blob/main/skills/gmns-clean/SKILL.md) | User wants to edit / clean a network with rollback. |
+
+Each skill links back to the matching cookbook recipe + concept page on this site so an agent that loads the skill also has the long-form context.
+
+## 4. MCP server (`netstead mcp serve`)
+
+Stateless tools over stdio for Claude Desktop, Claude Code, or any MCP-compatible host:
+
+```json
+{
+  "mcpServers": {
+    "netstead": {"command": "netstead", "args": ["mcp", "serve"]}
+  }
+}
+```
+
+Tools shipped (full reference: [MCP tools](https://e-lo.github.io/netstead/netstead/ai/mcp-tools/)):
+
+* **Generic (inherited from `corral.mcp`)** — `describe_package`, `validate_package`, `list_tables`.
+* **GMNS-aware** — `describe_network`, `quality_check`, `connected_components`, `scope_from_nodes`.
+
+Stateful tools (`edit_session` with rollback, `convert`) are deferred to a follow-up (not yet tracked in an issue).
+
+## The `--json` CLI contract
+
+Every `corral` / `netstead` CLI command supports `--json`:
+
+* **Single document** on stdout (no log noise, no progress bars).
+* **Rich + prompts on stderr** — `--json` on stdout stays parseable even when an approval prompt fires.
+* **Stable schemas** — same shape across versions inside a major. `ValidationReport`, `EditResult`, and the per-command summary dicts are documented in the [API reference](https://e-lo.github.io/netstead/netstead/reference/api/).
+
+That's the lowest-friction way to drive the CLI from a tool-call loop without spinning up MCP.
+
+## How the surfaces stay in sync
+
+Single source of truth: docstrings + the mkdocs nav. `llms.txt`, `llms-full.txt`, `api-index.json`, and the per-page `summary` frontmatter all flow from there. CI fails if a generated artifact can't parse a page or if a public symbol is missing a docstring summary.
+
+When you change a public docstring or rename a page, those artifacts regenerate next build — no separate AI-surface step.
+
+## See also
+
+* [Page Style Guide](../_page-style-guide.md) — what every page on this site follows so the AI artifacts have something parseable to consume.
+* [Architecture §6.9](../architecture.md#69-ai-accessibility) — design rationale for the four surfaces.
+* [Migration guide](https://e-lo.github.io/netstead/netstead/migration/v0.3-to-v1.0/#whats-new) — what's new vs v0.3 from an AI consumer's standpoint.
+
+
+<!-- source: ai/json-cli.md url: https://e-lo.github.io/netstead/corral/ai/json-cli.md -->
+
+---
+title: Drive the CLI from an AI agent loop
+audience: users
+kind: howto
+summary: Every netstead command emits one parseable JSON document on stdout — wire it into a tool-call loop with --json and CORRAL_AUTO_APPROVE.
+---
+
+# Drive the CLI from an AI agent loop
+
+## When to use this
+
+You're building an agent loop (Claude Code, a LangChain tool, a one-off shell harness) that needs to call `netstead` and parse the result. You don't want to spin up MCP for a stateless one-shot call.
+
+## Quick example
+
+Wrap `netstead validate --json` as a Python tool the LLM can invoke. The function parses stdout, summarises the report, and caps the issue list to keep agent context cost predictable:
+<!-- doctest: skip -->
+
+```python
+import json, subprocess
+
+def validate(source: str) -> dict:
+    """Tool function an LLM agent can call."""
+    result = subprocess.run(
+        ["netstead", "validate", "--json", source],
+        capture_output=True, text=True, check=False,
+    )
+    report = json.loads(result.stdout)
+    return {
+        "ok": result.returncode == 0,
+        "error_count": sum(1 for i in report["issues"] if i["severity"] == "error"),
+        "spec_version": report["spec_version"],
+        "issues": report["issues"][:5],   # cap context cost
+    }
+
+print(validate("packages/netstead/netstead/fixtures/leavenworth/csv"))
+```
+
+## Step-by-step
+
+### 1. Every command supports `--json`
+
+Add `--json` to any `netstead` (or `corral`) CLI command and the output becomes a single machine-readable JSON document on stdout — pipe into `jq`, save to a file, feed to a script or AI agent. Default output is human-readable rich panels:
+
+```bash
+netstead info     --json <source>
+netstead validate --json <source>
+netstead quality  --json <source>
+netstead scope from-nodes      --json <source> 1 25 50
+netstead clean simplify-geometry --json <source>
+netstead bench    --json <source>
+```
+
+The `--json` contract: exactly one parseable JSON document on stdout, no log prefix, no progress bars, no trailing whitespace. `json.loads(proc.stdout)` always works on a successful run.
+
+### 2. Stderr stays separate
+
+Rich output (panels, tables, progress, approval prompts) goes to stderr. With `--json` on stdout the parser stays clean even when an approval prompt fires on stderr — the agent loop can either suppress stderr or surface it as side-channel feedback:
+<!-- doctest: skip -->
+
+```python
+result = subprocess.run(
+    ["netstead", "validate", "--json", source],
+    capture_output=True, text=True,
+)
+data = json.loads(result.stdout)        # always parseable
+diagnostics = result.stderr             # human-readable, optional to display
+```
+
+### 3. Pre-approve gated operations
+
+Mutating commands (`clean`, edit sessions) prompt for confirmation by default. In an agent loop, set the env var once instead of repeating `--yes` per call. The env var is preferable for agents because it scopes to the process tree and survives `subprocess` calls from inside the loop:
+<!-- doctest: skip -->
+
+```python
+import os, subprocess
+env = {**os.environ, "CORRAL_AUTO_APPROVE": "1"}
+subprocess.run(["netstead", "clean", "--json", source], env=env, check=False)
+```
+
+`--yes` on the command line works too.
+
+### 4. Schema stability
+
+The JSON shapes are stable inside a major version. Three types your loop is most likely to parse:
+
+| Type | Shape (abridged) | Returned by |
+|---|---|---|
+| `ValidationReport` | `{issues: [{severity, category, code, message, table, column, row, fix_hint}], spec_version}` | `validate`, `quality` |
+| `EditResult` | `{success, table, rows_changed, history_entry_id, dry_run, issues}` | `clean`, edit ops |
+| Command summary | per-command `{source, ...}` dict, documented in API ref | `info`, `bench`, `scope` |
+
+Full details: [API reference](https://e-lo.github.io/netstead/netstead/reference/api/).
+
+### 5. Exit codes
+
+Check `returncode` *and* parse the JSON in agent loops — `returncode != 0` plus an `issues` array tells the model what went wrong:
+
+| Command | Exit 0 | Exit 1 | Exit 2 |
+|---|---|---|---|
+| `validate` | no ERROR-severity issues | ≥1 ERROR issue | CLI usage error |
+| `quality` | always (issues are WARNING/INFO) | — | CLI usage error |
+| `clean` / edit | success or pure dry-run | failed precondition | CLI usage error |
+| others | success | unhandled error | CLI usage error |
+
+## Common variations
+
+???+ note "Default — `subprocess.run` + `json.loads`"
+    The simplest pattern: one shell out, one JSON parse, hand the dict back to the model.
+<!-- doctest: skip -->
+
+    ```python
+    import json, subprocess
+    out = subprocess.check_output(["netstead", "info", "--json", src])
+    report = json.loads(out)
+    ```
+
+??? note "Quick shell filter via `jq`"
+    Useful inside ad-hoc agent shells where you want only ERROR issues.
+
+    ```bash
+    netstead validate --json src | jq '.issues[] | select(.severity=="error")'
+    ```
+
+??? note "Stateful flows (sessions, history)"
+    The CLI is stateless. For multi-step agent flows that need to inspect intermediate state, use MCP instead.
+
+    See [Wire the MCP server](https://e-lo.github.io/netstead/netstead/cookbook/serve-mcp/).
+
+??? note "Streaming output"
+    Not supported — commands emit one document on completion. For long-running operations, poll a sidecar log or use the HTTP server.
+
+## Pitfalls
+
+* **Don't parse stderr.** It's intentionally human-formatted (rich panels, colour, prompts). Mixing it into your parser breaks on the next release.
+* **Don't mix `--json` and non-`--json` calls in the same loop.** Pick one and stick to it — the model gets confused when half the tool outputs are JSON and half are panels.
+* **Auto-approve makes destructive ops silent.** `CORRAL_AUTO_APPROVE=1` skips every confirmation including ones the user might *want* to be asked about. Scope the env var to the agent subprocess; don't export it shell-wide.
+
+## See also
+
+* [MCP tools reference](https://e-lo.github.io/netstead/netstead/ai/mcp-tools/) — richer, stateful surface for agents that can speak MCP.
+* [AI surface](index.md) — how `--json` fits with `llms.txt`, `api-index.json`, and the Claude Code Skills.
+
+
+<!-- source: architecture.md url: https://e-lo.github.io/netstead/corral/architecture.md -->
+
+# Software architecture — Netstead + corral v1.0
+
+This document is the **single source of truth** for the *current* software design of netstead and corral. It exists so that any contributor — human or AI sub-agent — landing in the repo can pick up cold and make decisions consistent with the rest of the work.
+
+For the **GMNS data model** (link/node/lane/etc. ER diagrams), see [gmns-data-model.md](https://e-lo.github.io/netstead/netstead/gmns-data-model/). Decisions (ADRs), PRDs, feature designs and implementation plans live in [`docs/design/`](https://github.com/e-lo/netstead/tree/main/docs/design); start at its [README](https://github.com/e-lo/netstead/blob/main/docs/design/README.md), which indexes every record with its status.
+
+---
+
+## 1. Mission
+
+Netstead is a Python toolkit for the [General Modeling Network Specification (GMNS)](https://github.com/zephyr-data-specs/GMNS), the Zephyr Foundation's open standard for routable transportation network data. v1.0 is a major rewrite of the v0.3.x alpha to deliver:
+
+- **Regional-scale performance** — load + scope + validate Bay-Area-class networks without melting RAM or CPU
+- **Modern formats** — Parquet (default persistent), DuckDB (default API download), zipped CSV, CSV; remote URLs with credentials
+- **Foreign-key validation with sync-state awareness** — warn on writes when a network is mid-edit and FKs are stale
+- **Network-aware scoping** — bbox + polygon + BFS-induced subgraph + network-distance buffer + spatial buffer from any link/point/node, with eager spatial+graph indexes for fast repeat queries (memory-for-compute tradeoff)
+- **Data-quality warnings** beyond the spec (high-speed-residential, disconnected components, etc.) via configurable plugin pattern
+- **Editing with atomic rollback + audit log** (`netstead[clean]`)
+- **Self-hostable API server** (`netstead[server]`) — FastAPI + auto-OpenAPI; we ship the package + Dockerfile, not a service
+- **AI accessibility** — Claude Code Skills (in-repo, git-URL install) + MCP server (`netstead[mcp]`); zero hosting commitment
+- **Three usage surfaces** — interactive CLI, Jupyter notebook, programmatic API
+- **Awesome docs** — for both human and AI consumers
+
+Full requirements list (29 items) traces to phase tasks via the GitHub issue tree.
+
+## 2. Repo layout (monorepo, two PyPI packages)
+
+```
+Netstead/                                       # git repo
+├── pyproject.toml                            # uv workspace root + shared dev tooling
+├── uv.lock
+├── packages/
+│   ├── corral/                            # PyPI package #1 — generic engine
+│   │   ├── pyproject.toml
+│   │   └── corral/
+│   └── netstead/                               # PyPI package #2 — GMNS-specific (depends on corral)
+│       ├── pyproject.toml
+│       └── netstead/
+│           └── spec/{0.95,0.96,0.97}/        # vendored upstream spec versions
+├── skills/                                   # Claude Code Skills (git-URL install)
+├── docs/                                     # mkdocs site (covers both packages + GMNS itself)
+├── scripts/
+└── .github/workflows/                        # tests / publish-corral / publish-netstead / docs / spec-sync / bench
+```
+
+**Per-package release tags:** `corral-vX.Y.Z`, `netstead-vX.Y.Z`. PyPI trusted publishing fires per-tag.
+
+**Branch model:** `main` is the trunk; short-lived feature branches merge into `main` via PR. The v0.3 code is preserved on `legacy-gmnspy`.
+
+## 3. Two packages, one principle
+
+`corral` holds **generic primitives / frameworks**. `netstead` holds the **GMNS-specific assembly** that composes those primitives with domain knowledge. The same composition pattern applies to every cross-cutting concern:
+
+| Concern | corral (generic) | netstead (GMNS-specific) |
+|---|---|---|
+| editing | `editing/` (Edit/Diff/Session/Rollback framework) | `clean/` (simplify_geometry, merge_close_nodes, …) |
+| HTTP server | `api/` (FastAPI primitives, routers, OpenAPI helpers) | `server/` (assembled app, GMNS endpoints, Dockerfile) |
+| MCP | `mcp/` (server primitives, tool decorators) | `mcp/` (GMNS tool registrations) |
+| CLI | `cli/` (validate, convert, info, scope-spatial, describe; entry: `corral`) | `cli/` (read, spec, quality, clean, scope-network, index; entry: `netstead`) |
+| Quality | `quality/` (Rule base class, plugin discovery; **no domain rules**) | `quality/` (GMNS rule pack via entry point) |
+| Notebook | `notebook/` (`_repr_html_` for Package/Table/ValidationReport/EditResult) | `notebook/` (Network repr + scope widgets) |
+| Validation | `validation/` (schema, structural, FK, sync-state) | (uses corral validation as-is) |
+| Engines | `engines/` (Engine protocol + the one DuckDB-via-ibis engine) | (uses) |
+| I/O | `io/` (FormatAdapter ABC + csv/parquet/duckdb/zipcsv/remote) | (uses) |
+| Dataset | `dataset/` (lazy `Package`, `Table`, `View`) | `network.py` (`Network` = `Package` + GMNS accessors) |
+| Spec | `spec/` (Pydantic Frictionless models, multi-version loader) | `spec/<version>/` (vendored GMNS schemas) |
+
+**Hard rule (lint-enforced via import-linter):** `corral` may not import from `netstead`. Optional-extra submodules in netstead (`clean`/`server`/`mcp`) may not be imported from netstead core modules. **No raw SQL strings** anywhere except inside `corral.engines.ibis_engine`.
+
+Promotion criterion to extract `corral` to a separate repo: a second consumer (e.g., GTFSpy) has consumed it for ≥1 month with no breaking-change requests. Until then, monorepo.
+
+## 4. Module map — corral
+
+```
+corral/
+├── spec/         # Pydantic v2 models for Frictionless DataPackage/Resource/Schema/Field/ForeignKey/MissingValues/SharedCategory + loader (resolves $ref, shared_categories) + multi-version
+├── engines/      # Engine protocol + IbisEngine (DuckDB backend) — the only compute engine; pandas/polars/arrow are I/O formats
+├── io/           # FormatAdapter ABC + csv / parquet (partitioned) / duckdb / zipcsv / remote (fsspec) + credentials cascade
+├── validation/   # ValidationReport + Issue (Error/Warning/Info/DataQuality) + schema_check + foreign_keys + structural + sync_state (DirtyTracker)
+├── operations/   # cost_model + gating (>30s estimate, >3min approval) + pool/batch + progress (rich, notebook-aware)
+├── dataset/      # Package / Table (lazy ibis-backed) / View (geographic scope)
+├── reports/      # rich console / JSON / interactive single-file HTML renderers (Jinja2 + DataTables + Vega-Lite)
+├── docgen/       # markdown + llms.txt + machine-readable api-index.json
+├── editing/      # generic Edit / Diff / Session / Rollback framework (no domain semantics)
+├── api/          # FastAPI primitives (routers, deps, OpenAPI helpers)
+├── mcp/          # MCP server primitives (tool decorators, server scaffold)
+├── cli/          # generic typer CLI: validate / convert / info / scope (bbox|polygon|geometry-buffer) / describe
+├── quality/      # generic rule framework (Rule base class, threshold config, entry-point plugin discovery)
+└── notebook/     # generic _repr_html_ for Package/Table/ValidationReport/EditResult
+```
+
+## 5. Module map — netstead
+
+```
+netstead/
+├── spec/<version>/    # Vendored GMNS spec JSONs per supported version (0.95/, 0.96/, 0.97/, …)
+├── network.py         # Network = corral.Package + GMNS-aware accessors (.links, .nodes, .segments, …) + add_*/update_* routed through DirtyTracker
+├── semantics/         # connectivity, geometry assembly from geometry_id, TOD resolution
+├── scope/             # network-aware scope ops: from_nodes, from_node, from_link, from_point, connected_component, from_zone
+├── indexes/           # spatial (shapely STRtree) + graph (via netstead.graph) build/cache/load; sidecar parquet keyed on content hash
+├── graph/             # OPTIONAL [graph] — scipy-CSR routing: components, shortest paths, isochrones, nearest-node snap
+├── quality/           # GMNS rule pack: high-speed-on-residential, disconnected components, lane-count mismatch, …
+├── clean/             # OPTIONAL [clean] — simplify_geometry, merge_close_nodes, snap_to_reference, …; uses corral.editing for rollback
+├── server/            # OPTIONAL [server] — assembled FastAPI app on top of corral.api primitives
+├── mcp/               # OPTIONAL [mcp] — assembled MCP server on top of corral.mcp primitives
+├── cli/               # GMNS commands registered onto the corral typer app
+├── notebook/          # Network._repr_html_ + scope-builder ipywidget; extends corral.notebook
+├── osm/               # OPTIONAL [osm] — build GMNS from OpenStreetMap (Overpass/Nominatim, maintained tag mappings)
+├── overture/          # OPTIONAL [overture] — build GMNS from Overture Maps (mirrors osm/)
+├── config.py          # layered settings (default / user / project / env / session)
+├── workbench/         # `netstead app`: Session + typed Action bus, registry, jobs, SSE, FastAPI server, ES-module front end
+├── llm/               # OPTIONAL [nl] — provider adapters (Anthropic / OpenAI / Gemini / Ollama over httpx), model catalog, keyring
+├── select/            # natural-language selection → validated GMNS link_id set (2026-09-23 design)
+├── viz/               # binary render buffers, styling and paged DuckDB table reads used by the Workbench
+├── map/               # embeddable Leaflet map component + edit log (ProjectCard-shaped YAML)
+├── reports/           # findings CSV/XLSX writers
+├── bench/             # benchmark harness (time + peak memory) behind `netstead bench`
+└── fixtures/leavenworth/  # bundled tiny GMNS network for tests + docs
+```
+
+## 6. Defaults & key design decisions
+
+### 6.1 Engine + I/O
+
+- **One compute engine: DuckDB, driven through ibis.** Lazy expressions throughout. pandas / polars / Arrow are I/O formats only — frames come in via `from_arrow` / `from_records` and go out via `.to_pandas()` / `.to_polars()`. There is no per-call engine switch. Decision record: [engine strategy ADR](https://github.com/e-lo/netstead/blob/main/docs/design/2026-10-01-engine-strategy-reevaluation.md) (pandas and polars engines removed in #195).
+
+    *Why ibis vs alternatives?* Writing SQL directly couples query intent to one dialect and makes lint-based composition checks brittle; agents would have to parse SQL strings to reason about intent. SQLModel is ORM-shaped — fine for transactional row work, wrong shape for analytic column work over millions of rows. Pandas-only forces eager materialisation, which kills the regional-scale story (Bay-Area links don't fit RAM-comfortably on a laptop). Polars-only gives lazy evaluation but locks us into one backend and one expression language. Ibis is the only option that gives lazy expressions, lazy pushdown into DuckDB, and a clean escape valve via `.to_pandas()` / `.to_polars()` when the consumer wants a familiar frame.
+
+    *Why DuckDB as the default ibis backend?* SQLite is single-table-write-locked and has no spatial pushdown — fine for a config store, wrong for a network. A PostgreSQL backend would force every user to stand up a server, which kills the laptop-friendly story. In-memory pandas misses the whole point of lazy evaluation. DuckDB is single-file, embeddable, has native Parquet reads (with predicate pushdown), a working spatial extension, no server to run, and is RAM-resident at regional scale — exactly the laptop-to-server gradient the toolkit targets.
+
+- **No raw SQL strings** anywhere except inside `corral.engines.ibis_engine`. Lint-enforced by `scripts/lint_no_sql.py`.
+
+    *Why this rule?* Once a SQL string leaks into business logic, the composition contract breaks — any backend change (or ibis upgrade) suddenly requires a dialect audit across the whole codebase. Keeping SQL inside one module future-proofs the engine layer and lets AI agents reason about query intent through ibis expressions rather than string-parsing SQL. The lint script is cheap; the long-term churn it prevents is not.
+
+- **I/O front door:** `corral.read(source, *, format=None, credentials=None, engine=None, scope=None, spec=None)`. `netstead.read(...)` wraps with `spec=GMNS_DEFAULT`.
+- **Format detection:** explicit `format=` overrides; else extension sniff (`.parquet`, `.csv`, `.csv.zip`, `.zip`, `.duckdb`); else `FormatAdapter.probe()` chain.
+- **Defaults:** API/URL downloads default to **DuckDB**; persistent local writes default to **partitioned Parquet** (partition by H3 cell or zone_id, configurable).
+
+    *Why partitioned Parquet for persistent writes?* A single Parquet file works until the network grows past laptop-memory scale, at which point you want partition pruning on bbox / zone scope ops — the dispatcher pushes the predicate down and only reads the relevant partitions. CSV loses dtypes, has no predicate pushdown, isn't splittable, and balloons disk footprint. A single `.duckdb` file is great for downloads but not for modelling tool interop: every GIS tool reads Parquet natively, very few read DuckDB. Partitioned Parquet is the only format that is columnar, splittable, predicate-pushdown-friendly, and readable by every downstream tool a modeller might use.
+
+    *Why DuckDB for URL / API downloads?* A single `.duckdb` file round-trips multi-table packages with zero schema loss (Parquet would need a sidecar manifest; CSV would need a zip), and the consumer can query it in-place without unpacking. For an API response where the consumer is most likely going to load → query → discard, this is strictly better than handing them a directory tree.
+
+- **Credentials cascade (corral-owned):** kwarg → `CORRAL_CRED_<host>_TOKEN` env → `keyring` (service `"corral"`) → `.netrc`. fsspec underneath. The env prefix lives in `corral` because credential resolution is a generic concern; `netstead` consumes it as-is.
+- **Recommended persistent layout:**
+  ```
+  mynet.gmns/
+    datapackage.json
+    link/h3=8829a0c00b/part-0.parquet
+    node/part-0.parquet
+    ...
+    _netstead_meta.json   # spec version, write timestamp, dirty flags, content hash per file
+  ```
+
+#### Engine ↔ Adapter dispatch (issue #134 — single source of truth)
+
+The `Engine` protocol and the `FormatAdapter` registry have an
+**inverted** relationship that keeps format dispatch in exactly one
+place:
+
+- **Engines expose per-format primitives** — `read_csv`,
+  `read_parquet`, `read_duckdb_table`, `from_records` plus the matching
+  `write_*` — and a `cast_schema` helper. These are what adapters
+  actually call.
+- **Adapters own format dispatch.** `Adapter.read(source, engine, ...)`
+  calls `engine.read_<format>(...)` directly. No engine-name `if/elif`
+  inside adapters; no per-format `if/elif` inside engines.
+- **`Engine.scan(source)` is a 3-line convenience** that resolves
+  `source` via `corral.io.dispatch` and delegates to the chosen
+  adapter's `read`. It exists so callers who don't want to think about
+  adapters can still write `engine.scan(path)`. The single carve-out
+  is dict sources (`{"data": ...}`, `{"format": "duckdb", ...}`) which
+  the dispatcher can't sniff — `scan` short-circuits those to
+  `from_records` / `read_duckdb_table` before delegating.
+- **`Engine.write(expr, dest, fmt)` is symmetric** — a 3-line
+  convenience over `corral.io.get_adapter(fmt).write`.
+
+This means a new format (xlsx, geoparquet, …) is added by writing one
+`FormatAdapter` plus a `read_<format>` primitive on the DuckDB engine —
+no central dispatch needs editing.
+
+The format-interop test
+(`packages/corral/tests/dataset/test_format_interop.py`) locks the
+input/output contract: pandas / polars / pyarrow in and out round-trip
+through DuckDB with the nullable dtype family preserved. A regression
+test pins that `Engine.scan()` stays a thin delegator (≤10 top-level
+statements) so no future contributor can re-grow the per-format
+if/elif inside it.
+
+### 6.2 Memory-efficient scoping
+
+- **Lazy by default.** `netstead.read(...)` returns a `Network` whose tables are unmaterialized ibis expressions. Materialization on `.to_pandas()` / `.collect()` / `.head()` / explicit consumer.
+- **Spatial scopes (generic, in `corral.dataset.view`):** `from_bbox`, `from_polygon`, `from_geometry_buffer`.
+- **Network-aware scopes (in `netstead.scope`):** `from_nodes(ids, path_between=True)` (BFS / shortest-path induced subgraph), `from_node(id, network_buffer="0.5mi")` (Dijkstra), `from_link(id, spatial_buffer_m | network_buffer)`, `from_point(xy, spatial_buffer_m)` (snaps + buffers), `connected_component(seed)`, `from_zone(zone_ids)`.
+- **Composite + chainable:** `net.scope.from_nodes([1,2,3]).buffer_network("0.5mi").buffer_spatial(30)`.
+- **Eager-index opt-in (memory-for-compute):** `net.build_indexes(spatial=True, graph=True)` builds STRtree + igraph adjacency once; subsequent scopes use them. Indexes cached as sidecar parquet keyed on content hash (auto-invalidated on edit). Auto-build heuristic: trigger when network exceeds N nodes (configurable; default 50k) AND user calls a network-aware scope op.
+
+    *Why ~50k nodes as the auto-build threshold?* Empirically calibrated against the Leavenworth (75 nodes) and synthetic regional (~500k nodes) fixtures: below ~50k, the first scope op runs faster than the index build, so building eagerly is a net loss. Above ~50k, the second scope op pays back the build cost, and by the third the user is clearly going to repeat-query. Setting the threshold low (e.g. 1k) burns CPU on networks that don't need it; setting it high (e.g. 1M) makes regional networks feel slow on the second scope op. The number is empirical, not load-bearing — configurable via `NETSTEAD_AUTO_INDEX_THRESHOLD` env var for users with atypical workloads.
+- **Predicate pushdown** to all other tables by FK chain (links → TOD tables, nodes → zone references, etc.). For partitioned parquet, bbox scope becomes true partition prune via duckdb pushdown — verified via `EXPLAIN` snapshot tests.
+- **Geometry encoding:** geometry is WKB in memory; CSV stores WKT and Parquet stores WKB with GeoParquet `geo` metadata + bbox. See the [geometry encoding ADR](https://github.com/e-lo/netstead/blob/main/docs/design/2026-10-01-geometry-encoding-adr.md).
+- **Partial loads:** `net.tables(["link", "node"])`. FK validation degrades gracefully with warnings on unverifiable FKs.
+
+### 6.3 Validation + sync state
+
+`ValidationReport` is the single object returned by all validation paths (schema + structural + FK + sync + data-quality). Severity levels: Error / Warning / Info / DataQuality. `category` field discriminates rule families. Renderers: rich console / JSON / **interactive single-file HTML** (Jinja2 + DataTables + Vega-Lite map view for geo-located issues; severity ranking; filter by table/severity/rule/category; click-to-expand row context).
+
+**Integrity is reported, not enforced.** PK / FK / NOT NULL / enum checks run as pushed-down aggregates and anti-joins and become findings; tables never carry native DuckDB constraints (measured ~46–120× slower to load, and all-or-nothing on the first bad row). See the [FK constraints ADR](https://github.com/e-lo/netstead/blob/main/docs/design/2026-10-01-fk-constraints-adr.md).
+
+**Sync state model:**
+- `DirtyTracker` (in `corral.validation.sync_state`) records content hashes per table.
+- FK validations stamp source+target hashes at validation time.
+- Before any `write()` or `validate(strict=True)`: walk FK graph; if any FK's recorded hashes don't match current hashes, raise `OutOfSyncWarning` (warning by default; error under `--strict`).
+- Direct DataFrame mutations bypass tracker — documented; user calls `net.invalidate("link")`.
+- Auto-detection on read via `_netstead_meta.json` hash check.
+
+**Data-quality framework (`corral.quality`):**
+- `Rule` base class with `apply(net) → list[Issue]`.
+- Threshold/config via Pydantic settings.
+- Entry-point plugin discovery — packages register their rule packs under `corral.quality.rules` group.
+- Run via `corral.quality.run_quality(net, rules=None)` (None = all registered).
+- netstead ships the GMNS rule pack: high-speed-residential, disconnected components, lane-count mismatch, near-duplicate nodes, sharp-angle bends, implausible v/c, missing critical-but-optional fields. Configurable thresholds; warnings not errors by default.
+
+### 6.4 Editing + rollback
+
+`corral.editing` provides the framework: `EditResult` (diff per table + log entry + visual summary), `Session` (chronological log + atomic rollback to a sidecar `_history.parquet`), `Rollback` primitives.
+
+`netstead.clean` (optional `[clean]` extra) provides domain ops: `simplify_geometry(net, mode="redundant_only" | "douglas_peucker", tolerance=...)`, `merge_close_nodes(threshold_m=5)`, `remove_orphans()`, `split_link_at_node(...)`, `connect_disconnected_components(...)`, `recompute_lengths()`, `snap_to_reference(other_net)`. Each returns `EditResult` integrated with `corral.editing.Session`.
+
+Edits inside `with net.session() as s:` produce a chronological log; `net.rollback(to=session_id_or_timestamp)` reverses. Audit log persists with the network.
+
+### 6.5 Pooled operations + cost model
+
+**Pool/batch:** `with net.batch(): ...` defers + coalesces ops, validates once on `__exit__`. Atomic on exception (state unchanged on raise). CLI `netstead edit` wraps an implicit batch with `:save` / `:abort`.
+
+**Cost model (heuristic):** `est_seconds(op, n_rows, n_tables, fmt)` per op. Coefficients calibrated on the Leavenworth fixture + a synthetic ~regional fixture. Nightly bench job re-fits on Python/duckdb minor releases.
+
+**Gating:**
+- `<30s` → run silently
+- `30s ≤ est < 180s` → emit estimate + run with progress bar
+- `est ≥ 180s` → require user approval
+
+CLI `--yes`, env `NETSTEAD_AUTO_APPROVE=1`, programmatic `approve=True` skip prompts. CLI surfaces actual time after each gated op so the model self-improves over time. Documented as heuristic — not authoritative.
+
+*Why 30s estimate / 180s approval thresholds?* 30 seconds is the high end of what feels interactive — past that, the user starts wondering whether something broke, so we owe them an estimate and a progress bar. 180 seconds (three minutes) is the low end of "I've gone to get coffee" — by then a silent op risks the user closing the laptop and coming back to a half-finished session, so we require an explicit approval. Both numbers are calibrated to typical interactive vs batch UX expectations rather than load on the machine. The cost model itself is heuristic and self-improving; the thresholds are stable UX contracts.
+
+### 6.6 CLI
+
+`typer` + `rich`. Two entry points:
+
+- `corral …` — generic commands on any Frictionless package: `validate`, `convert`, `info`, `scope` (bbox/polygon/geometry-buffer only), `describe`.
+- `netstead …` — extends the corral typer app with GMNS commands: `read`, `spec {sync|list|diff}`, `quality`, `clean`, `scope from-nodes|from-link|...`, `index {build|status|drop}`, `bench`, `doctor`, `edit` (REPL — stretch).
+
+`--json` flag on every command emits structured JSON for AI agent consumption. Claude Code-style short interactive prompts; default in brackets; summary before destructive ops.
+
+### 6.7 Notebook
+
+`_repr_html_` on `Package`, `Table`, `ValidationReport`, `EditResult` (in corral); on `Network` (in netstead). Rich progress with `force_terminal=False` for inline rendering. Optional ipywidget for interactive scope construction (gated behind `netstead[notebook]` extra).
+
+### 6.8 Self-hostable API server
+
+`netstead.server` (optional `[server]` extra) ships a FastAPI app with auto-generated OpenAPI at `/docs`. Endpoints:
+- `GET /networks` — list configured networks
+- `GET /networks/{id}` — metadata + spec version + table list + last-validated timestamp
+- `GET /networks/{id}/tables/{table}?bbox=...&zone_ids=...&columns=...&format=parquet|csv|duckdb|json` — scoped table download
+- `GET /networks/{id}/spec` — return resolved spec (Frictionless JSON)
+- `POST /networks/{id}/validate` — run validation, return `ValidationReport` JSON (or HTML if Accept header)
+- `GET /networks/{id}/quality` — data-quality report
+
+Pluggable auth: none / bearer-token / OAuth2 (config-driven). Default download format = DuckDB. Config-file driven; backend points at any `corral.read()`-compatible source. Ships `Dockerfile` + `docker-compose.yml` example. **We don't host.**
+
+*Why bearer-token default + warn-on-unsafe over hard-block?* The deployment shape is intentionally mixed: a researcher running `netstead serve` on `localhost` for a notebook session shouldn't be forced through OAuth, but the same binary running behind a reverse proxy on a campus network needs auth. Hard-blocking unauthenticated mode would push users to roll their own server; silently allowing it would leak networks. Warn-on-unsafe + bearer-token default puts the security decision in the operator's config file where it's auditable and version-controlled. The right paranoia level is "loud about the risk, not paternalistic about the choice."
+
+*Why no rate limiting or token rotation in v1?* Both are real concerns at hosted-multi-tenant scale, but the v1 target is self-hosted single-team deployments. Building rate-limit middleware in v1 would either ship a token-bucket implementation that's worse than `nginx`/`caddy`/`traefik`, or pull in a Redis dependency that doubles the deployment surface. The recommended pattern is a reverse proxy in front, which gives rate limits, TLS, token rotation, and audit logs for free — features the project would otherwise have to reimplement badly.
+
+### 6.9 AI accessibility
+
+- **`docs/llms.txt`** + **`docs/llms-full.txt`** at site root (auto-generated from mkdocs nav).
+- **`docs/ai/`** subtree: `cookbook.md`, `api-index.json` (machine-readable public API), `glossary.md` (GMNS terms).
+- **Doctests in every public function** (Google-style docstrings with `Examples:` block), run in CI.
+- **`--json` flag on every CLI command**.
+- **Claude Code Skills** in `skills/` directory: `corral-validate`, `gmns-author`, `gmns-validate`, `gmns-convert`, `gmns-clean`. Installable via `claude code skill add <git-url>#path=skills/<name>`.
+- **MCP server** — `netstead[mcp]` ships `netstead mcp serve` (and `corral mcp serve` for the generic case). Tools: `read_network`, `describe_network`, `query_table` (ibis predicate, not SQL), `scope`, `validate`, `quality_check`, `convert`, `edit_session` (with rollback).
+
+*Why stateless MCP tools?* MCP tool dispatch is a single request/response round-trip; the protocol does not currently have a first-class session abstraction the way SSE-based RPCs do. Trying to hide session state inside individual tool calls would either smuggle global mutable state across MCP clients (a footgun) or force the user to thread an opaque handle through every call (worse ergonomics than just reloading). The right seam is to keep v1 tools stateless and add session affinity later as an explicit protocol feature; the `state=` kwarg added in PR-A is the placeholder for that later seam without committing to its shape today.
+
+*Why ship Skills in-repo + MCP via extra rather than hosting?* Hosting either would commit the project to an availability SLA, an auth story, and an upgrade cadence — three full-time jobs the project doesn't have. Shipping Skills as files in the git repo means installation is `git clone` + a one-line Claude Code config; shipping MCP behind a `[mcp]` extra means users run it under their own MCP client (Claude Desktop, Cursor, etc.) with their own auth model. Zero hosting commitment, full local control, no rug-pull risk if the project's funding changes.
+
+## 7. Spec sync strategy
+
+- Each supported GMNS spec version vendored under `packages/netstead/netstead/spec/<version>/` (e.g., `0.97/datapackage.json`, `0.97/link.schema.json`, `0.97/shared_categories.json`).
+- `netstead.SUPPORTED_SPECS = ["0.95", "0.96", "0.97"]`; `DEFAULT_SPEC = "0.97"`.
+- User override: `netstead.read(..., spec_version="0.96")`.
+- `.github/workflows/spec-sync.yml` runs daily, checks upstream releases at zephyr-data-specs/GMNS, opens a PR labeled `spec-sync` against `develop` with the new version added side-by-side. Maintainer reviews; default-version bump goes in a minor release.
+- Validation reports always include `spec_version` in the header.
+
+*Why bundle 0.95 / 0.96 / 0.97 side-by-side rather than auto-upgrade?* GMNS isn't a frozen spec — field renames and category enumerations shift between minor versions. An old fixture written against 0.95 should still validate against 0.95 without the user being forced to migrate; a silent auto-upgrade would either fabricate fields that didn't exist or fail with confusing errors about fields the user never wrote. Bundling versions side-by-side and letting the user select explicitly (or letting `_netstead_meta.json` record what the file was written against) keeps old data loadable forever and makes spec drift a visible, version-controlled decision rather than a hidden one.
+
+## 8. Quality bar
+
+- **Coverage targets (gated at Phase 5):** corral ≥85%, netstead ≥75%.
+- **Test pyramid:** unit (per-module) → contract (engine/adapter conformance) → fixture (Leavenworth) → perf (synthetic regional fixture, `pytest-benchmark`).
+- **CI matrix:** Python 3.11 / 3.12 / 3.13 × Linux + macOS smoke. I/O formats (pandas / polars / Arrow in and out) pinned by `test_format_interop.py`.
+- **No raw SQL, no `pandas` in corral core paths** (allowed via `to_pandas()` converter at the edge only).
+- **Doctests run in CI** — public-API examples must execute.
+
+## 9. Conventions
+
+- **Docstrings:** Google style on every public function. **`Examples:` blocks required only on *user-facing* public symbols** — i.e., symbols re-exported via a package's `__init__.__all__`, the constructor / main methods of public classes, and convenience wrappers that appear in cookbook / quickstart material. Internal-public helpers (functions that lack a `_` prefix only because tests need to import them directly) get a Google-style summary docstring but skip the `Examples:` / doctest overhead. Examples bloat is real — see review-deferred LOC notes in #134-class issues. Rule of thumb: *if a user would type the symbol's name into their own code, it needs Examples; if only the test suite types it, the summary is enough.*
+- **Logging:** `logging.getLogger(__name__)` per module. Library never configures the root logger; only the CLI does.
+- **Pydantic:** v2, strict on corral core types.
+- **Type hints:** required on all public APIs. `pyright` strict on `corral`, basic on `netstead`.
+- **Errors:** structured exceptions in a per-module `errors.py`. Use specific subclasses, not bare `ValueError`.
+- **Backwards compat:** v0.3.x is a clean break — no shims. Migration guide ([docs/migration/v0.3-to-v1.0.md](https://e-lo.github.io/netstead/netstead/migration/v0.3-to-v1.0/), Phase 4 task 4.14) explains old → new mappings.
+- **Per-package semver.** `corral` and `netstead` version independently. Tags: `corral-vX.Y.Z`, `netstead-vX.Y.Z`.
+
+## 10. Phase plan summary (historical)
+
+> The phase plan below is how the v1.0 rewrite was staged (May–June 2026); phases 0–4 have shipped. Current and future work is tracked in [`docs/design/README.md`](https://github.com/e-lo/netstead/blob/main/docs/design/README.md) and GitHub issues.
+
+Five phases, ~14–16 weeks to v1.0 GA. Full task tree in the [GitHub issue tree](https://github.com/e-lo/netstead/issues/115) (Epic).
+
+| Phase | Focus | Duration |
+|---|---|---|
+| 0 | Repo prep — workspace, vendored specs, dev tooling, CI, issue tree, **module skeletons** | done |
+| 1 | corral foundation — spec model, engines, IO adapters, Leavenworth fixture | weeks 1–4 |
+| 2 | Validation + dataset surface — schema/FK/structural/sync, lazy Package/Table, generic edit framework, interactive HTML reports | weeks 4–7 |
+| 3 | Operations + GMNS bindings + quality + clean — cost model, GMNS Network, semantics, indexes, scope, quality framework + GMNS rule pack, clean ops | weeks 7–11 |
+| 4 | Surfaces — CLI (corral + netstead), notebook, server, MCP, Skills, awesome docs, migration guide, full PRD | weeks 11–14 |
+| 5 | Hardening + beta + GA — coverage gate, perf bench, spec-sync bot, releases | weeks 14–16+ |
+
+**Sub-agent friendly tasks** are tagged `subagent-friendly` in the issue tree. Phase 1–4 mid-batches have 5–10 truly parallel tasks (no file overlap, no inter-deps).
+
+## 11. How to contribute (short version)
+
+1. Pick an issue labeled `subagent-friendly` (or any task on the current phase).
+2. Branch from `main` as `<type>/<slug>` (e.g. `feat/scope-zones`).
+3. Write the code per the issue's Deliverable + Acceptance criteria.
+4. Add tests under `packages/<pkg>/tests/`.
+5. Run `uv run ruff check`, `uv run ruff format`, `uv run lint-imports`, `uv run pytest` locally.
+6. Open PR against `main`. Use the issue body's acceptance checklist as your self-review.
+
+Full contributor workflow: [CONTRIBUTING.md](https://github.com/e-lo/netstead/blob/main/CONTRIBUTING.md).
+
+---
+
+*This document is updated as architectural decisions evolve. When a decision changes, record it as an ADR in `docs/design/`, update this file, and update the [design index](https://github.com/e-lo/netstead/blob/main/docs/design/README.md). Authoritative source for any conflict: this file > accepted ADRs > PRDs / designs > plans > issue bodies > inline code comments.*
+
+
+<!-- source: development.md url: https://e-lo.github.io/netstead/corral/development.md -->
+
+# Development
+
+{{ include_file('CONTRIBUTING.md') }}
+
+{{ include_file('CODE_OF_CONDUCT.md') }}
+
+{{ include_file('CONTRIBUTORS.md') }}

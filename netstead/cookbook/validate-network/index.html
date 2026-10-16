@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="Python toolkit for the General Modeling Network Specification — load, validate, scope, edit GMNS networks at regional scale, with CLI / notebook / HTTP / MCP surfaces." name="description"/>
+<link href="https://e-lo.github.io/netstead/netstead/cookbook/validate-network/" rel="canonical"/>
+<link href="../" rel="prev"/>
+<link href="../build-from-osm/" rel="next"/>
+<link href="../../assets/images/favicon.png" rel="icon"/>
+<meta content="mkdocs-1.6.1, mkdocs-material-9.7.7" name="generator"/>
+<title>Validate a network and read the report - netstead documentation</title>
+<link href="../../assets/stylesheets/main.ec1eaa64.min.css" rel="stylesheet"/>
+<link href="../../assets/stylesheets/palette.ab4e12ef.min.css" rel="stylesheet"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&amp;display=fallback" rel="stylesheet"/>
+<style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+<link href="../../assets/_mkdocstrings.css" rel="stylesheet"/>
+<link href="../../assets/stylesheets/extra.css" rel="stylesheet"/>
+<script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+<link href="../../assets/stylesheets/glightbox.min.css" rel="stylesheet"/><script src="../../assets/javascripts/glightbox.min.js"></script><style id="glightbox-style">
+            html.glightbox-open { overflow: initial; height: 100%; }
+            .gslide-title { margin-top: 0px; user-select: text; }
+            .gslide-desc { color: #666; user-select: text; }
+            .gslide-image img { background: white; }
+            .gscrollbar-fixer { padding-right: 15px; }
+            .gdesc-inner { font-size: 0.75rem; }
+            body[data-md-color-scheme="slate"] .gdesc-inner { background: var(--md-default-bg-color); }
+            body[data-md-color-scheme="slate"] .gslide-title { color: var(--md-default-fg-color); }
+            body[data-md-color-scheme="slate"] .gslide-desc { color: var(--md-default-fg-color); }
+        </style></head>
+<body data-md-color-accent="green" data-md-color-primary="green" data-md-color-scheme="default" dir="ltr">
+<input autocomplete="off" class="md-toggle" data-md-toggle="drawer" id="__drawer" type="checkbox"/>
+<input autocomplete="off" class="md-toggle" data-md-toggle="search" id="__search" type="checkbox"/>
+<label class="md-overlay" for="__drawer"></label>
+<div data-md-component="skip">
+<a class="md-skip" href="#validate-a-network-and-read-the-report">
+          Skip to content
+        </a>
+</div>
+<div data-md-component="announce">
+</div>
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+<nav aria-label="Header" class="md-header__inner md-grid">
+<a aria-label="netstead documentation" class="md-header__button md-logo" data-md-component="logo" href="../.." title="netstead documentation">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"></path></svg>
+</a>
+<label class="md-header__button md-icon" for="__drawer">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"></path></svg>
+</label>
+<div class="md-header__title" data-md-component="header-title">
+<div class="md-header__ellipsis">
+<div class="md-header__topic">
+<span class="md-ellipsis">
+            netstead documentation
+          </span>
+</div>
+<div class="md-header__topic" data-md-component="header-topic">
+<span class="md-ellipsis">
+            
+              Validate a network and read the report
+            
+          </span>
+</div>
+</div>
+</div>
+<form class="md-header__option" data-md-component="palette">
+<input aria-label="Switch to dark mode" class="md-option" data-md-color-accent="green" data-md-color-media="(prefers-color-scheme: light)" data-md-color-primary="green" data-md-color-scheme="default" id="__palette_0" name="__palette" type="radio"/>
+<label class="md-header__button md-icon" for="__palette_1" hidden="" title="Switch to dark mode">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M17 6H7c-3.31 0-6 2.69-6 6s2.69 6 6 6h10c3.31 0 6-2.69 6-6s-2.69-6-6-6m0 10H7c-2.21 0-4-1.79-4-4s1.79-4 4-4h10c2.21 0 4 1.79 4 4s-1.79 4-4 4M7 9c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3"></path></svg>
+</label>
+<input aria-label="Switch to light mode" class="md-option" data-md-color-accent="green" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-primary="green" data-md-color-scheme="slate" id="__palette_1" name="__palette" type="radio"/>
+<label class="md-header__button md-icon" for="__palette_0" hidden="" title="Switch to light mode">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M17 7H7a5 5 0 0 0-5 5 5 5 0 0 0 5 5h10a5 5 0 0 0 5-5 5 5 0 0 0-5-5m0 8a3 3 0 0 1-3-3 3 3 0 0 1 3-3 3 3 0 0 1 3 3 3 3 0 0 1-3 3"></path></svg>
+</label>
+</form>
+<script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+<label class="md-header__button md-icon" for="__search">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+</label>
+<div class="md-search" data-md-component="search" role="dialog">
+<label class="md-search__overlay" for="__search"></label>
+<div class="md-search__inner" role="search">
+<form class="md-search__form" name="search">
+<input aria-label="Search" autocapitalize="off" autocomplete="off" autocorrect="off" class="md-search__input" data-md-component="search-query" name="query" placeholder="Search" required="" spellcheck="false" type="text"/>
+<label class="md-search__icon md-icon" for="__search">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"></path></svg>
+</label>
+<nav aria-label="Search" class="md-search__options">
+<a aria-label="Share" class="md-search__icon md-icon" data-clipboard="" data-clipboard-text="" data-md-component="search-share" href="javascript:void(0)" tabindex="-1" title="Share">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"></path></svg>
+</a>
+<button aria-label="Clear" class="md-search__icon md-icon" tabindex="-1" title="Clear" type="reset">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>
+</button>
+</nav>
+<div class="md-search__suggest" data-md-component="search-suggest"></div>
+</form>
+<div class="md-search__output">
+<div class="md-search__scrollwrap" data-md-scrollfix="" tabindex="0">
+<div class="md-search-result" data-md-component="search-result">
+<div class="md-search-result__meta">
+            Initializing search
+          </div>
+<ol class="md-search-result__list" role="presentation"></ol>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="md-header__source">
+<a class="md-source" data-md-component="source" href="https://github.com/e-lo/netstead" title="Go to repository">
+<div class="md-source__icon md-icon">
+<svg viewbox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"></path></svg>
+</div>
+<div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+</div>
+</nav>
+<nav aria-label="Tabs" class="md-tabs" data-md-component="tabs">
+<div class="md-grid">
+<ul class="md-tabs__list">
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../..">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../quickstart/">
+        
+  
+  
+    
+  
+  Quickstart
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../what-is-gmns/">
+        
+  
+  
+    
+  
+  What is GMNS?
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../visual-tour/">
+        
+  
+  
+    
+  
+  Visual tour
+
+      </a>
+</li>
+<li class="md-tabs__item md-tabs__item--active">
+<a class="md-tabs__link" href="../">
+        
+  
+  
+    
+  
+  Cookbook
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../reference/api/">
+          
+  
+  
+    
+  
+  Reference
+
+        </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../migration/v0.3-to-v1.0/">
+        
+  
+  
+    
+  
+  Migration v0.3 → v1.0
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../ai/mcp-tools/">
+        
+  
+  
+    
+  
+  MCP tools reference
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../../gmns-data-model/">
+        
+  
+  
+    
+  
+  GMNS data model
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="https://e-lo.github.io/netstead/">
+        
+  
+  
+    
+  
+  « Netstead umbrella
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="https://e-lo.github.io/netstead/corral/">
+        
+  
+  
+    
+  
+  corral site »
+
+      </a>
+</li>
+</ul>
+</div>
+</nav>
+</header>
+<div class="md-container" data-md-component="container">
+<main class="md-main" data-md-component="main">
+<div class="md-main__inner md-grid">
+<div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation">
+<div class="md-sidebar__scrollwrap">
+<div class="md-sidebar__inner">
+<nav aria-label="Navigation" class="md-nav md-nav--primary md-nav--lifted" data-md-level="0">
+<label class="md-nav__title" for="__drawer">
+<a aria-label="netstead documentation" class="md-nav__button md-logo" data-md-component="logo" href="../.." title="netstead documentation">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"></path></svg>
+</a>
+    netstead documentation
+  </label>
+<div class="md-nav__source">
+<a class="md-source" data-md-component="source" href="https://github.com/e-lo/netstead" title="Go to repository">
+<div class="md-source__icon md-icon">
+<svg viewbox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"></path></svg>
+</div>
+<div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+</div>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../..">
+<span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../quickstart/">
+<span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../what-is-gmns/">
+<span class="md-ellipsis">
+    
+  
+    What is GMNS?
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../visual-tour/">
+<span class="md-ellipsis">
+    
+  
+    Visual tour
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+<input checked="" class="md-nav__toggle md-toggle" id="__nav_5" type="checkbox"/>
+<div class="md-nav__link md-nav__container">
+<a class="md-nav__link" href="../">
+<span class="md-ellipsis">
+    
+  
+    Cookbook
+  
+
+    
+  </span>
+</a>
+<label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+<span class="md-nav__icon md-icon"></span>
+</label>
+</div>
+<nav aria-expanded="true" aria-labelledby="__nav_5_label" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_5">
+<span class="md-nav__icon md-icon"></span>
+            
+  
+    Cookbook
+  
+
+          </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item md-nav__item--active">
+<input class="md-nav__toggle md-toggle" id="__toc" type="checkbox"/>
+<label class="md-nav__link md-nav__link--active" for="__toc">
+<span class="md-ellipsis">
+    
+  
+    Validate a network
+  
+
+    
+  </span>
+<span class="md-nav__icon md-icon"></span>
+</label>
+<a class="md-nav__link md-nav__link--active" href="./">
+<span class="md-ellipsis">
+    
+  
+    Validate a network
+  
+
+    
+  </span>
+</a>
+<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
+<label class="md-nav__title" for="__toc">
+<span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#when-to-use-this">
+<span class="md-ellipsis">
+      
+        When to use this
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#quick-example">
+<span class="md-ellipsis">
+      
+        Quick example
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#step-by-step">
+<span class="md-ellipsis">
+      
+        Step-by-step
+      
+    </span>
+</a>
+<nav aria-label="Step-by-step" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#1-run-validation">
+<span class="md-ellipsis">
+      
+        1. Run validation
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#2-read-the-report-shape">
+<span class="md-ellipsis">
+      
+        2. Read the report shape
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#3-filter-by-severity">
+<span class="md-ellipsis">
+      
+        3. Filter by severity
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#4-filter-by-category">
+<span class="md-ellipsis">
+      
+        4. Filter by category
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#5-common-codes-youll-see">
+<span class="md-ellipsis">
+      
+        5. Common codes you’ll see
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#common-variations">
+<span class="md-ellipsis">
+      
+        Common variations
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#pitfalls">
+<span class="md-ellipsis">
+      
+        Pitfalls
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#see-also">
+<span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../build-from-osm/">
+<span class="md-ellipsis">
+    
+  
+    Build from OpenStreetMap
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../view-your-network/">
+<span class="md-ellipsis">
+    
+  
+    View a network on a map
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../workbench/">
+<span class="md-ellipsis">
+    
+  
+    Explore in the Workbench
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../workbench-plugins/">
+<span class="md-ellipsis">
+    
+  
+    Write a Workbench plugin
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../local-llm-ollama/">
+<span class="md-ellipsis">
+    
+  
+    Local language models (Ollama)
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../fix-findings/">
+<span class="md-ellipsis">
+    
+  
+    Triage and fix findings
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../query-and-update/">
+<span class="md-ellipsis">
+    
+  
+    Query and update linked tables
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../customise-quality/">
+<span class="md-ellipsis">
+    
+  
+    Customise quality rules
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../scope-from-nodes/">
+<span class="md-ellipsis">
+    
+  
+    Scope from seed nodes
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../edit-with-rollback/">
+<span class="md-ellipsis">
+    
+  
+    Edit with rollback
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../run-bench/">
+<span class="md-ellipsis">
+    
+  
+    Run the bench
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../serve-http/">
+<span class="md-ellipsis">
+    
+  
+    Self-host the HTTP server
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../serve-mcp/">
+<span class="md-ellipsis">
+    
+  
+    Wire up the MCP server
+  
+
+    
+  </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item md-nav__item--nested">
+<input class="md-nav__toggle md-toggle" id="__nav_6" type="checkbox"/>
+<label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+<span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+<span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-expanded="false" aria-labelledby="__nav_6_label" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_6">
+<span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../reference/api/">
+<span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../reference/spec/">
+<span class="md-ellipsis">
+    
+  
+    Schema
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../reference/table-of-tables/">
+<span class="md-ellipsis">
+    
+  
+    Table of tables
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../reference/glossary/">
+<span class="md-ellipsis">
+    
+  
+    Glossary
+  
+
+    
+  </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../migration/v0.3-to-v1.0/">
+<span class="md-ellipsis">
+    
+  
+    Migration v0.3 → v1.0
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../ai/mcp-tools/">
+<span class="md-ellipsis">
+    
+  
+    MCP tools reference
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../../gmns-data-model/">
+<span class="md-ellipsis">
+    
+  
+    GMNS data model
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="https://e-lo.github.io/netstead/">
+<span class="md-ellipsis">
+    
+  
+    « Netstead umbrella
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="https://e-lo.github.io/netstead/corral/">
+<span class="md-ellipsis">
+    
+  
+    corral site »
+  
+
+    
+  </span>
+</a>
+</li>
+</ul>
+</nav>
+</div>
+</div>
+</div>
+<div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc">
+<div class="md-sidebar__scrollwrap">
+<div class="md-sidebar__inner">
+<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
+<label class="md-nav__title" for="__toc">
+<span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#when-to-use-this">
+<span class="md-ellipsis">
+      
+        When to use this
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#quick-example">
+<span class="md-ellipsis">
+      
+        Quick example
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#step-by-step">
+<span class="md-ellipsis">
+      
+        Step-by-step
+      
+    </span>
+</a>
+<nav aria-label="Step-by-step" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#1-run-validation">
+<span class="md-ellipsis">
+      
+        1. Run validation
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#2-read-the-report-shape">
+<span class="md-ellipsis">
+      
+        2. Read the report shape
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#3-filter-by-severity">
+<span class="md-ellipsis">
+      
+        3. Filter by severity
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#4-filter-by-category">
+<span class="md-ellipsis">
+      
+        4. Filter by category
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#5-common-codes-youll-see">
+<span class="md-ellipsis">
+      
+        5. Common codes you’ll see
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#common-variations">
+<span class="md-ellipsis">
+      
+        Common variations
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#pitfalls">
+<span class="md-ellipsis">
+      
+        Pitfalls
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#see-also">
+<span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</div>
+</div>
+</div>
+<div class="md-content" data-md-component="content">
+<article class="md-content__inner md-typeset">
+<a class="md-content__button md-icon" href="https://github.com/e-lo/netstead/edit/main/packages/netstead/docs/cookbook/validate-network.md" rel="edit" title="Edit this page">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75z"></path></svg>
+</a>
+<a class="md-content__button md-icon" href="https://github.com/e-lo/netstead/raw/main/packages/netstead/docs/cookbook/validate-network.md" title="View source of this page">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0 8a5 5 0 0 1-5-5 5 5 0 0 1 5-5 5 5 0 0 1 5 5 5 5 0 0 1-5 5m0-12.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5"></path></svg>
+</a>
+<h1 id="validate-a-network-and-read-the-report">Validate a network and read the report<a class="headerlink" href="#validate-a-network-and-read-the-report" title="Permanent link"> ¶</a></h1>
+<h2 id="when-to-use-this">When to use this<a class="headerlink" href="#when-to-use-this" title="Permanent link"> ¶</a></h2>
+<p>You have a GMNS network — yours, a vendor’s, the output of an edit — and you need to know whether it conforms to the spec before downstream tools (assignment models, AI agents, regulators) touch it. Validation is fast (sub-second on Leavenworth, a few seconds on a regional network) and answers four questions at once: do all required tables exist, do columns match the schema, do foreign keys resolve, and are any of those FKs stale from a recent edit?</p>
+<h2 id="quick-example">Quick example<a class="headerlink" href="#quick-example" title="Permanent link"> ¶</a></h2>
+<p>Validate the bundled Leavenworth fixture from the shell. Add <code>--json</code> to any <code>netstead</code> (or <code>corral</code>) CLI command and the output becomes a single machine-readable JSON document on stdout — pipe into <code>jq</code>, save to a file, feed to a script or AI agent. Default output is human-readable rich panels.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a>netstead<span class="w"> </span>validate<span class="w"> </span>--json<span class="w"> </span>packages/netstead/netstead/fixtures/leavenworth/csv
+</span></code></pre></div>
+<p>Expected — Leavenworth is clean of ERRORs and WARNINGs, so the issue list contains only INFO entries (optional tables not present):</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-1-1"><a href="#__codelineno-1-1" id="__codelineno-1-1" name="__codelineno-1-1"></a><span class="p">{</span><span class="nt">"header"</span><span class="p">:</span><span class="w"> </span><span class="s2">"validation report: ..."</span><span class="p">,</span><span class="w"> </span><span class="nt">"issues"</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span><span class="nt">"severity"</span><span class="p">:</span><span class="w"> </span><span class="s2">"info"</span><span class="p">,</span><span class="w"> </span><span class="err">...</span><span class="p">}]}</span>
+</span></code></pre></div>
+<p>The same call from Python returns a <code>ValidationReport</code> dataclass:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a href="#__codelineno-2-1" id="__codelineno-2-1" name="__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">netstead</span><span class="w"> </span><span class="kn">import</span> <span class="n">Network</span>
+</span><span id="__span-2-2"><a href="#__codelineno-2-2" id="__codelineno-2-2" name="__codelineno-2-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">netstead.fixtures</span><span class="w"> </span><span class="kn">import</span> <span class="n">leavenworth</span>
+</span><span id="__span-2-3"><a href="#__codelineno-2-3" id="__codelineno-2-3" name="__codelineno-2-3"></a>
+</span><span id="__span-2-4"><a href="#__codelineno-2-4" id="__codelineno-2-4" name="__codelineno-2-4"></a><span class="n">net</span> <span class="o">=</span> <span class="n">Network</span><span class="o">.</span><span class="n">from_source</span><span class="p">(</span><span class="n">leavenworth</span><span class="o">.</span><span class="n">csv_dir</span><span class="p">())</span>
+</span><span id="__span-2-5"><a href="#__codelineno-2-5" id="__codelineno-2-5" name="__codelineno-2-5"></a><span class="n">report</span> <span class="o">=</span> <span class="n">net</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>
+</span><span id="__span-2-6"><a href="#__codelineno-2-6" id="__codelineno-2-6" name="__codelineno-2-6"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"is_clean=</span><span class="si">{</span><span class="n">report</span><span class="o">.</span><span class="n">is_clean</span><span class="si">}</span><span class="s2">  issues=</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">report</span><span class="o">.</span><span class="n">issues</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</span></code></pre></div>
+<p>The CLI exits non-zero if any ERROR-severity finding fires, so it drops straight into a CI gate.</p>
+<p><a class="glightbox" data-desc-position="bottom" data-height="auto" data-type="image" data-width="auto" href="../../assets/screenshots/leavenworth-validation-report.png"><img alt="Validation report card for the Leavenworth fixture" class="screenshot" src="../../assets/screenshots/leavenworth-validation-report.png"/></a>
+<em>Validation report card. Zero ERRORs (Leavenworth is clean); a handful of DATA_QUALITY warnings from the residential-speed rule.</em></p>
+<h2 id="step-by-step">Step-by-step<a class="headerlink" href="#step-by-step" title="Permanent link"> ¶</a></h2>
+<h3 id="1-run-validation">1. Run validation<a class="headerlink" href="#1-run-validation" title="Permanent link"> ¶</a></h3>
+<p><code>net.validate()</code> runs all four passes — structural, schema, FK, sync-state — and returns a <code>ValidationReport</code>. Toggle individual passes with boolean kwargs:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a href="#__codelineno-3-1" id="__codelineno-3-1" name="__codelineno-3-1"></a><span class="n">report</span> <span class="o">=</span> <span class="n">net</span><span class="o">.</span><span class="n">validate</span><span class="p">()</span>                                                  <span class="c1"># all four passes</span>
+</span><span id="__span-3-2"><a href="#__codelineno-3-2" id="__codelineno-3-2" name="__codelineno-3-2"></a><span class="n">report</span> <span class="o">=</span> <span class="n">net</span><span class="o">.</span><span class="n">validate</span><span class="p">(</span><span class="n">structural</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">sync_state</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>                <span class="c1"># schema + FK only</span>
+</span></code></pre></div>
+<p>The same operation is available from the shell, with three output formats:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a href="#__codelineno-4-1" id="__codelineno-4-1" name="__codelineno-4-1"></a>netstead<span class="w"> </span>validate<span class="w"> </span>&lt;source&gt;<span class="w">                       </span><span class="c1"># human-readable summary</span>
+</span><span id="__span-4-2"><a href="#__codelineno-4-2" id="__codelineno-4-2" name="__codelineno-4-2"></a>netstead<span class="w"> </span>validate<span class="w"> </span>&lt;source&gt;<span class="w"> </span>--json<span class="w">                </span><span class="c1"># machine-readable</span>
+</span><span id="__span-4-3"><a href="#__codelineno-4-3" id="__codelineno-4-3" name="__codelineno-4-3"></a>netstead<span class="w"> </span>validate<span class="w"> </span>&lt;source&gt;<span class="w"> </span>--html<span class="w"> </span>report.html<span class="w">    </span><span class="c1"># standalone HTML report</span>
+</span></code></pre></div>
+<h3 id="2-read-the-report-shape">2. Read the report shape<a class="headerlink" href="#2-read-the-report-shape" title="Permanent link"> ¶</a></h3>
+<p><code>ValidationReport</code> is a dataclass with three fields you’ll touch:</p>
+<table>
+<thead>
+<tr>
+<th>Field / property</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>report.is_clean</code></td>
+<td><code>bool</code></td>
+<td><code>True</code> iff zero issues of any severity fired.</td>
+</tr>
+<tr>
+<td><code>report.has_errors</code></td>
+<td><code>bool</code></td>
+<td><code>True</code> iff ≥1 ERROR-severity issue fired. CI gates usually want <code>if report.has_errors:</code>.</td>
+</tr>
+<tr>
+<td><code>report.has_warnings</code></td>
+<td><code>bool</code></td>
+<td><code>True</code> iff ≥1 WARNING-severity issue fired.</td>
+</tr>
+<tr>
+<td><code>report.spec_version</code></td>
+<td><code>str</code></td>
+<td>The GMNS spec version the validator ran against.</td>
+</tr>
+<tr>
+<td><code>report.issues</code></td>
+<td><code>list[Issue]</code></td>
+<td>One entry per finding.</td>
+</tr>
+</tbody>
+</table>
+<p>Each <code>Issue</code> is a small dataclass carrying severity, category, a stable code, a human-readable message, and the offending row coordinates when known:</p>
+<!-- doctest: skip -->
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a href="#__codelineno-5-1" id="__codelineno-5-1" name="__codelineno-5-1"></a><span class="nd">@dataclass</span>
+</span><span id="__span-5-2"><a href="#__codelineno-5-2" id="__codelineno-5-2" name="__codelineno-5-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">Issue</span><span class="p">:</span>
+</span><span id="__span-5-3"><a href="#__codelineno-5-3" id="__codelineno-5-3" name="__codelineno-5-3"></a>    <span class="n">severity</span><span class="p">:</span> <span class="n">Severity</span>      <span class="c1"># ERROR | WARNING | INFO</span>
+</span><span id="__span-5-4"><a href="#__codelineno-5-4" id="__codelineno-5-4" name="__codelineno-5-4"></a>    <span class="n">category</span><span class="p">:</span> <span class="n">Category</span>      <span class="c1"># SCHEMA | STRUCTURAL | FOREIGN_KEY | SYNC_STATE | DATA_QUALITY</span>
+</span><span id="__span-5-5"><a href="#__codelineno-5-5" id="__codelineno-5-5" name="__codelineno-5-5"></a>    <span class="n">code</span><span class="p">:</span> <span class="nb">str</span>               <span class="c1"># stable identifier, e.g. "schema.required"</span>
+</span><span id="__span-5-6"><a href="#__codelineno-5-6" id="__codelineno-5-6" name="__codelineno-5-6"></a>    <span class="n">message</span><span class="p">:</span> <span class="nb">str</span>            <span class="c1"># human-readable</span>
+</span><span id="__span-5-7"><a href="#__codelineno-5-7" id="__codelineno-5-7" name="__codelineno-5-7"></a>    <span class="n">table</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>       <span class="c1"># table the finding is about</span>
+</span><span id="__span-5-8"><a href="#__codelineno-5-8" id="__codelineno-5-8" name="__codelineno-5-8"></a>    <span class="n">column</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>      <span class="c1"># column, if applicable</span>
+</span><span id="__span-5-9"><a href="#__codelineno-5-9" id="__codelineno-5-9" name="__codelineno-5-9"></a>    <span class="n">row</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span>         <span class="c1"># row index, if applicable</span>
+</span><span id="__span-5-10"><a href="#__codelineno-5-10" id="__codelineno-5-10" name="__codelineno-5-10"></a>    <span class="n">fix_hint</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>    <span class="c1"># what to do about it</span>
+</span></code></pre></div>
+<h3 id="3-filter-by-severity">3. Filter by severity<a class="headerlink" href="#3-filter-by-severity" title="Permanent link"> ¶</a></h3>
+<p>Most CI gates want <code>if errors: sys.exit(1)</code>. The CLI does this for you; from Python it’s a one-liner:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a href="#__codelineno-6-1" id="__codelineno-6-1" name="__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">corral.validation</span><span class="w"> </span><span class="kn">import</span> <span class="n">Severity</span>
+</span><span id="__span-6-2"><a href="#__codelineno-6-2" id="__codelineno-6-2" name="__codelineno-6-2"></a>
+</span><span id="__span-6-3"><a href="#__codelineno-6-3" id="__codelineno-6-3" name="__codelineno-6-3"></a><span class="n">errors</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">report</span><span class="o">.</span><span class="n">issues</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">severity</span> <span class="ow">is</span> <span class="n">Severity</span><span class="o">.</span><span class="n">ERROR</span><span class="p">]</span>
+</span><span id="__span-6-4"><a href="#__codelineno-6-4" id="__codelineno-6-4" name="__codelineno-6-4"></a><span class="n">warnings</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">report</span><span class="o">.</span><span class="n">issues</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">severity</span> <span class="ow">is</span> <span class="n">Severity</span><span class="o">.</span><span class="n">WARNING</span><span class="p">]</span>
+</span></code></pre></div>
+<h3 id="4-filter-by-category">4. Filter by category<a class="headerlink" href="#4-filter-by-category" title="Permanent link"> ¶</a></h3>
+<p>Categories group findings by which validation pass produced them:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a href="#__codelineno-7-1" id="__codelineno-7-1" name="__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">corral.validation</span><span class="w"> </span><span class="kn">import</span> <span class="n">Category</span>
+</span><span id="__span-7-2"><a href="#__codelineno-7-2" id="__codelineno-7-2" name="__codelineno-7-2"></a>
+</span><span id="__span-7-3"><a href="#__codelineno-7-3" id="__codelineno-7-3" name="__codelineno-7-3"></a><span class="n">schema_problems</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">report</span><span class="o">.</span><span class="n">issues</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">category</span> <span class="ow">is</span> <span class="n">Category</span><span class="o">.</span><span class="n">SCHEMA</span><span class="p">]</span>
+</span><span id="__span-7-4"><a href="#__codelineno-7-4" id="__codelineno-7-4" name="__codelineno-7-4"></a><span class="n">fk_problems</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">report</span><span class="o">.</span><span class="n">issues</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">category</span> <span class="ow">is</span> <span class="n">Category</span><span class="o">.</span><span class="n">FOREIGN_KEY</span><span class="p">]</span>
+</span></code></pre></div>
+<ul>
+<li><code>SCHEMA</code> — field-level type / enum / required-column violations.</li>
+<li><code>STRUCTURAL</code> — package-level shape problems (missing required table, missing required file).</li>
+<li><code>FOREIGN_KEY</code> — cross-table integrity (<code>link.from_node_id</code> points at a node that doesn’t exist).</li>
+<li><code>SYNC_STATE</code> — FKs that resolved on disk but were invalidated by an in-memory edit (see <a href="../edit-with-rollback/">edit-with-rollback</a>).</li>
+<li><code>DATA_QUALITY</code> — rule-pack findings (high-speed-residential, lane-count-mismatch, etc.). Always WARNING / INFO; see <a href="../customise-quality/">customise the quality pack</a>.</li>
+</ul>
+<h3 id="5-common-codes-youll-see">5. Common codes you’ll see<a class="headerlink" href="#5-common-codes-youll-see" title="Permanent link"> ¶</a></h3>
+<p>Stable identifier strings let you script around specific findings without parsing free-text messages. Codes live inline at the top of each validator module (see <a href="https://github.com/e-lo/netstead/blob/main/packages/corral/corral/validation/structural.py"><code>corral.validation.structural</code></a>, <a href="https://github.com/e-lo/netstead/blob/main/packages/corral/corral/validation/schema_check.py"><code>schema_check</code></a>, <a href="https://github.com/e-lo/netstead/blob/main/packages/corral/corral/validation/foreign_keys.py"><code>foreign_keys</code></a>, <a href="https://github.com/e-lo/netstead/blob/main/packages/corral/corral/validation/sync_state.py"><code>sync_state</code></a>). The most common ones:</p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Category</th>
+<th>Severity</th>
+<th>What it means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>schema.required</code></td>
+<td>SCHEMA</td>
+<td>ERROR</td>
+<td>A required column is missing or null on a row.</td>
+</tr>
+<tr>
+<td><code>schema.enum</code></td>
+<td>SCHEMA</td>
+<td>ERROR</td>
+<td>A column value isn’t in the spec-defined enum set.</td>
+</tr>
+<tr>
+<td><code>schema.type</code></td>
+<td>SCHEMA</td>
+<td>ERROR</td>
+<td>A value doesn’t parse as the declared type.</td>
+</tr>
+<tr>
+<td><code>structural.missing_table</code></td>
+<td>STRUCTURAL</td>
+<td>ERROR</td>
+<td>A required table (<code>link</code>, <code>node</code>) isn’t in the package.</td>
+</tr>
+<tr>
+<td><code>structural.missing_file</code></td>
+<td>STRUCTURAL</td>
+<td>ERROR</td>
+<td>A table is declared in the package descriptor but the file isn’t there.</td>
+</tr>
+<tr>
+<td><code>fk.missing_target</code></td>
+<td>FOREIGN_KEY</td>
+<td>ERROR</td>
+<td>FK points at a row that doesn’t exist in the parent table.</td>
+</tr>
+<tr>
+<td><code>fk.dangling_child</code></td>
+<td>FOREIGN_KEY</td>
+<td>WARNING</td>
+<td>Parent row has no children (often benign).</td>
+</tr>
+<tr>
+<td><code>sync.fk_stale</code></td>
+<td>SYNC_STATE</td>
+<td>ERROR</td>
+<td>An edit invalidated an FK and no <code>recompute</code> ran.</td>
+</tr>
+<tr>
+<td><code>quality.high_speed_residential</code></td>
+<td>DATA_QUALITY</td>
+<td>WARNING</td>
+<td>Residential link with speed limit above the configured threshold.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="common-variations">Common variations<a class="headerlink" href="#common-variations" title="Permanent link"> ¶</a></h2>
+<details class="note" open="open">
+<summary>Default — full validation, rich console output</summary>
+<p>The most common path: run all four passes and read the panel.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a href="#__codelineno-8-1" id="__codelineno-8-1" name="__codelineno-8-1"></a>netstead<span class="w"> </span>validate<span class="w"> </span>&lt;source&gt;
+</span></code></pre></div>
+</details>
+<details class="note">
+<summary>JSON for scripts and AI agents</summary>
+<p><code>--json</code> emits one parseable document on stdout — exits non-zero on ERROR.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a href="#__codelineno-9-1" id="__codelineno-9-1" name="__codelineno-9-1"></a>netstead<span class="w"> </span>validate<span class="w"> </span>&lt;source&gt;<span class="w"> </span>--json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">'.issues[] | select(.severity=="error")'</span>
+</span></code></pre></div>
+</details>
+<details class="note">
+<summary>Interactive map+table HTML report (<code>--html</code>)</summary>
+<p>Self-contained file you can email or upload to a docs site. The map
+pane on top plots each finding on the actual network geometry
+(Leaflet, vendored — no network calls when the report is opened);
+the filterable table below shows the same findings with severity,
+code, message, and fix hint. For networks imported from
+OpenStreetMap, each finding’s popup carries a one-click “Edit in
+OSM” deep link to the iD editor.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a href="#__codelineno-10-1" id="__codelineno-10-1" name="__codelineno-10-1"></a>netstead<span class="w"> </span>validate<span class="w"> </span>&lt;source&gt;<span class="w"> </span>--html<span class="w"> </span>report.html
+</span></code></pre></div>
+<p>Or programmatically:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a href="#__codelineno-11-1" id="__codelineno-11-1" name="__codelineno-11-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">netstead.reports</span><span class="w"> </span><span class="kn">import</span> <span class="n">render_validation_html</span>
+</span><span id="__span-11-2"><a href="#__codelineno-11-2" id="__codelineno-11-2" name="__codelineno-11-2"></a><span class="nb">open</span><span class="p">(</span><span class="s2">"report.html"</span><span class="p">,</span> <span class="s2">"w"</span><span class="p">)</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">render_validation_html</span><span class="p">(</span><span class="n">net</span><span class="p">,</span> <span class="n">report</span><span class="p">))</span>
+</span></code></pre></div>
+<p>Requires <code>pip install 'netstead[reports]'</code>. When that extra is not
+installed, <code>--html</code> still writes a file — the older corral
+table-only HTML — and prints a stderr note pointing at the install
+command.</p>
+</details>
+<details class="note">
+<summary>Findings spreadsheet (<code>--csv</code> / <code>--xlsx</code>)</summary>
+<p>Flat one-row-per-finding spreadsheet — the right shape for triage in
+Excel, Google Sheets, or jq.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-12-1"><a href="#__codelineno-12-1" id="__codelineno-12-1" name="__codelineno-12-1"></a>netstead<span class="w"> </span>validate<span class="w"> </span>&lt;source&gt;<span class="w"> </span>--csv<span class="w"> </span>findings.csv<span class="w"> </span>--xlsx<span class="w"> </span>findings.xlsx
+</span></code></pre></div>
+<p>Columns: <code>severity, category, code, table, column, row, message,
+fix_hint, extra</code>. The <code>extra</code> column is a JSON blob carrying
+adapter-specific payload (FK target, OSM provenance, …).
+<code>--xlsx</code> needs <code>[reports]</code>; <code>--csv</code> works on the lean install.</p>
+</details>
+<details class="note">
+<summary>Just the failing tables</summary>
+<p>Useful for triaging which datasets need attention first.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-13-1"><a href="#__codelineno-13-1" id="__codelineno-13-1" name="__codelineno-13-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">corral.reports</span><span class="w"> </span><span class="kn">import</span> <span class="n">Severity</span>
+</span><span id="__span-13-2"><a href="#__codelineno-13-2" id="__codelineno-13-2" name="__codelineno-13-2"></a><span class="n">failing</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="o">.</span><span class="n">table</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">report</span><span class="o">.</span><span class="n">issues</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">severity</span> <span class="ow">is</span> <span class="n">Severity</span><span class="o">.</span><span class="n">ERROR</span><span class="p">}</span>
+</span></code></pre></div>
+</details>
+<details class="note">
+<summary>Embed in a CI step</summary>
+<p>Non-zero exit code on ERROR — no extra wiring needed.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-14-1"><a href="#__codelineno-14-1" id="__codelineno-14-1" name="__codelineno-14-1"></a>netstead<span class="w"> </span>validate<span class="w"> </span>./data<span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nb">exit</span><span class="w"> </span><span class="m">1</span>
+</span></code></pre></div>
+</details>
+<details class="note">
+<summary>Pretty-print in a notebook</summary>
+<p><code>ValidationReport</code> ships a <code>_repr_html_</code>; just leave it as the last cell expression.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-15-1"><a href="#__codelineno-15-1" id="__codelineno-15-1" name="__codelineno-15-1"></a><span class="n">report</span>  <span class="c1"># renders an HTML summary in Jupyter</span>
+</span></code></pre></div>
+</details>
+<details class="note">
+<summary>Server response</summary>
+<p>The HTTP server returns JSON by default and HTML when the request sets <code>Accept: text/html</code>. See <a href="../serve-http/">serve-http</a>.</p>
+</details>
+<h2 id="pitfalls">Pitfalls<a class="headerlink" href="#pitfalls" title="Permanent link"> ¶</a></h2>
+<ul>
+<li><strong>WARNING-level findings don’t fail CI.</strong> That’s intentional — data-quality findings are advisory. If you want them to be blocking, post-process: <code>if any(i.code.startswith("quality.") for i in report.issues): sys.exit(1)</code>.</li>
+<li><strong>Data-quality thresholds are configurable.</strong> A WARNING firing on your network may just mean the default threshold doesn’t match your context (e.g. metric vs imperial speed). See the <a href="../customise-quality/">customise the quality pack</a> recipe.</li>
+<li><strong><code>sync.fk_stale</code> only fires after an edit.</strong> A freshly-loaded package can’t be out of sync with itself. If you see this in CI, an upstream step in the same process mutated the network.</li>
+<li><strong>The validator runs against the spec version embedded in the package.</strong> Override with <code>Network.from_source(path, spec_version="0.96")</code> if the package is mislabeled.</li>
+</ul>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link"> ¶</a></h2>
+<ul>
+<li><a href="https://e-lo.github.io/netstead/corral/architecture/">Architecture</a> — the four-pass validator design.</li>
+<li><a href="../edit-with-rollback/">Edit with rollback</a> — <code>sync.fk_stale</code> is produced by edits without a <code>recompute_fks</code>.</li>
+<li><a href="../../reference/api/">API reference</a> — <code>ValidationReport</code>, <code>Issue</code>, <code>Severity</code>, <code>Category</code>.</li>
+</ul>
+<aside class="md-source-file">
+<span class="md-source-file__fact">
+<span class="md-icon" title="Last update">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"></path></svg>
+</span>
+<span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 5, 2026 18:58:19 UTC">October 5, 2026</span>
+</span>
+<span class="md-source-file__fact">
+<span class="md-icon" title="Created">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"></path></svg>
+</span>
+<span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 5, 2026 18:58:19 UTC">October 5, 2026</span>
+</span>
+</aside>
+</article>
+</div>
+<script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+</div>
+<button class="md-top md-icon" data-md-component="top" hidden="" type="button">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"></path></svg>
+  Back to top
+</button>
+</main>
+<footer class="md-footer">
+<div class="md-footer-meta md-typeset">
+<div class="md-footer-meta__inner md-grid">
+<div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" rel="noopener" target="_blank">
+      Material for MkDocs
+    </a>
+</div>
+</div>
+</div>
+</footer>
+</div>
+<div class="md-dialog" data-md-component="dialog">
+<div class="md-dialog__inner md-typeset"></div>
+</div>
+<script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.indexes", "navigation.top", "navigation.tracking", "toc.follow", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.tooltips", "content.action.edit", "content.action.view", "search.suggest", "search.highlight", "search.share"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+<script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+<script src="https://unpkg.com/mermaid@9.4.3/dist/mermaid.min.js"></script>
+<script id="init-glightbox">const lightbox = GLightbox({"touchNavigation": true, "loop": false, "zoomable": true, "draggable": true, "openEffect": "zoom", "closeEffect": "zoom", "slideEffect": "slide"});
+document$.subscribe(()=>{ lightbox.reload(); });
+</script></body></html>

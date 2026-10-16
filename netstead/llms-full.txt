@@ -1,0 +1,1704 @@
+# corral + netstead full documentation
+
+Every doc page concatenated in nav order. Each section starts with a `<!-- source: ... -->` delimiter pointing at the canonical URL.
+
+<!-- source: index.md url: https://e-lo.github.io/netstead/netstead/index.md -->
+
+---
+title: netstead
+audience: users
+summary: Python toolkit for the General Modeling Network Specification — load, validate, scope, edit GMNS networks at regional scale, with CLI / notebook / HTTP / MCP surfaces. Built on corral.
+---
+
+# netstead
+
+A Python toolkit for the [General Modeling Network Specification (GMNS)](https://github.com/zephyr-data-specs/GMNS) — the Zephyr Foundation's open standard for routable transportation networks. Built on top of [corral](https://e-lo.github.io/netstead/corral/).
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/e-lo/netstead/blob/main/packages/netstead/docs/notebooks/quickstart.ipynb) — five-cell quickstart in the browser. Load a real GMNS network from a URL, validate it, and view findings on an interactive map. No install needed.
+
+## What problems netstead solves
+
+**Reading any GMNS network without writing import code.** Local CSV directory, S3 parquet partition, single-file DuckDB, zipped CSV bundle — same `Network.from_source(...)` call, same lazy-evaluation behaviour:
+
+<!-- doctest: skip -->
+```python
+from netstead import Network
+
+net = Network.from_source("./my-network/")              # CSV directory
+net = Network.from_source("s3://bucket/network.parquet/")  # cloud parquet
+net = Network.from_source("./network.duckdb")              # single duckdb
+```
+
+**Validation in one report.** `net.validate()` covers structural (required tables), schema (per-field constraints), foreign-key (cross-table integrity), and sync-state (have FKs gone stale since the last edit?). Severity-graded, rendered as rich console / JSON / interactive HTML.
+
+**Data quality beyond the spec.** Seven rules out of the box — high-speed-on-residential, disconnected components, lane-count mismatch, near-duplicate nodes, sharp-angle bends, implausible v/c ratios, missing critical fields. Plug in your own with a class + entry point.
+
+**Network-aware scope** at regional scale. BFS-induced subgraph from seed nodes, Dijkstra-bounded network buffer, spatial-buffer from any link or point, connected-component, zone filter. Chainable, with FK pushdown to every related table (TOD overrides, lane detail, signal control).
+
+**Editing with atomic rollback.** `with Session(net) as s: simplify_geometry(net, s); merge_close_nodes(net, s)` — commit on clean exit, roll back on exception. Persisted log as a sidecar parquet so you can replay later.
+
+**Surfaces for every workflow.** CLI for shells and scripts, notebook `_repr_html_` for Jupyter, FastAPI HTTP server for self-hosting, MCP server for Claude Desktop / Claude Code, every command supports `--json`.
+
+## Use cases — when to install netstead
+
+<div class="grid cards" markdown>
+
+-   :material-map:{ .lg .middle } &nbsp;**MPO / DOT planning**
+
+    ---
+
+    Loading regional networks from OSM-derived sources, validating against the spec, applying data-quality checks before they feed a model.
+
+-   :material-truck-fast-outline:{ .lg .middle } &nbsp;**Travel-demand modeling**
+
+    ---
+
+    Scoping a regional GMNS network down to a project area or analysis subnet, exporting to your modeling tool's format with zero conversion code.
+
+-   :material-pencil-ruler:{ .lg .middle } &nbsp;**Network editing**
+
+    ---
+
+    Cleaning up an OSM-extract before it goes into a model — simplify geometry, merge near-duplicate nodes, remove orphans, recompute lengths.
+
+-   :material-robot-outline:{ .lg .middle } &nbsp;**AI-assisted analysis**
+
+    ---
+
+    Letting Claude (or any MCP-compatible agent) drive validation, quality checks, and scope queries through a tool-call loop.
+
+-   :material-server-network:{ .lg .middle } &nbsp;**Self-hosted network API**
+
+    ---
+
+    Exposing a curated set of GMNS networks behind a FastAPI HTTP server with bearer-token auth for consumers in your organisation.
+
+-   :material-school-outline:{ .lg .middle } &nbsp;**GTFS-GMNS interop research**
+
+    ---
+
+    Researching the bridge between transit schedules and routable street networks; netstead gives you the GMNS side as a stable substrate.
+
+</div>
+
+## Why install netstead
+
+**GMNS spec built in.** Vendored 0.95 / 0.96 / 0.97 side-by-side. Default 0.97; per-call override `Network.from_source(path, spec_version="0.96")`. Networks load against the version they were written against — no silent upgrades.
+
+**Regional scale on a laptop.** Lazy ibis + DuckDB by default. A 200k-node network reads in seconds and validates in tens of seconds. Spatial and graph indexes built on demand, cached to sidecar parquet, content-hash keyed for auto-invalidation.
+
+**Three usage modes target the same data.** CLI, notebook, programmatic — choose by ergonomics, not capability.
+
+**AI-first by design.** Every CLI command supports `--json` for tool-call loops. `llms.txt` + `llms-full.txt` + `ai/api-index.json` regenerate on every docs build. Optional MCP server (`netstead mcp serve`) for Claude Desktop / Claude Code. Five Claude Code Skills shipped in-repo.
+
+**No vendor lock-in.** Pure Python under Apache 2.0. Engines, formats, quality rules, scope ops all behind protocols you can implement yourself.
+
+## Install
+
+Pick the tool you already use — these all produce the same install:
+
+=== "uv (recommended)"
+
+    ```bash
+    uv add netstead
+    ```
+
+    Fastest. Works inside a `uv`-managed project and writes to your `pyproject.toml` + `uv.lock`.
+
+=== "uv pip"
+
+    ```bash
+    uv pip install netstead
+    ```
+
+    Drop-in `pip` replacement. Use this in a plain `venv` without a project file.
+
+=== "pip"
+
+    ```bash
+    pip install netstead
+    ```
+
+    Classic. Works anywhere Python does.
+
+=== "pipx"
+
+    ```bash
+    pipx install netstead
+    ```
+
+    Isolated env for the `netstead` CLI only — your project env stays untouched.
+
+`corral` comes along automatically — you don't install both.
+
+### Optional extras
+
+Pick by what you need:
+
+| Extra | Pulls in | When you need it |
+|---|---|---|
+| `clean` | `shapely` + `geopandas` + `igraph` + `pyproj` | Network editing (simplify, merge, snap) + connectivity ops |
+| `server` | `fastapi` + `uvicorn` + `pydantic-settings` | Self-hostable HTTP server |
+| `mcp` | `mcp>=1.0` | Run `netstead mcp serve` for Claude Desktop / Code |
+| `notebook` | `ipywidgets` + `anywidget` | Interactive scope-builder widget *(the basic `_repr_html_` for `Network` / `ValidationReport` / `EditResult` works without this)* |
+| `all` | every extra above | Single-flag full install |
+
+Install with the same syntax (uv shown — substitute your tool):
+
+```bash
+uv add 'netstead[clean,server]'       # combine with commas
+uv add 'netstead[all]'                # everything
+```
+
+!!! tip "zsh users: quote the brackets"
+    On **zsh** (the default shell on macOS), `[` and `]` are glob characters. Running `uv add netstead[all]` unquoted gives `zsh: no matches found: netstead[all]`. Always wrap the extras in quotes (`'netstead[all]'` or `"netstead[all]"`), or run `setopt no_nomatch` once per session to disable the check. bash users don't hit this.
+
+## Where to go next
+
+<div class="grid cards" markdown>
+
+-   :material-rocket-launch:{ .lg .middle } &nbsp;**Quickstart**
+
+    ---
+
+    Install, load the bundled Leavenworth fixture, run validation in five minutes.
+
+    [:octicons-arrow-right-24: Get started](quickstart.md)
+
+-   :material-book-open-variant:{ .lg .middle } &nbsp;**What is GMNS?**
+
+    ---
+
+    Plain-English intro to the spec — what it defines, who maintains it, how it relates to GTFS / OSM / Frictionless.
+
+    [:octicons-arrow-right-24: Spec overview](what-is-gmns.md)
+
+-   :material-eye-outline:{ .lg .middle } &nbsp;**Visual tour**
+
+    ---
+
+    See the bundled Leavenworth network rendered as a map, validated, quality-checked, edited, and scoped — all in one notebook session.
+
+    [:octicons-arrow-right-24: Visual tour](visual-tour.md)
+
+-   :material-book-open-page-variant:{ .lg .middle } &nbsp;**Cookbook**
+
+    ---
+
+    Task-oriented recipes — read from S3, scope, edit with rollback, self-host, AI-drive.
+
+    [:octicons-arrow-right-24: Browse recipes](cookbook/index.md)
+
+-   :material-api:{ .lg .middle } &nbsp;**API reference**
+
+    ---
+
+    Every public symbol with stable anchors that match the api-index.json.
+
+    [:octicons-arrow-right-24: API reference](reference/api.md)
+
+-   :material-table:{ .lg .middle } &nbsp;**Schema reference**
+
+    ---
+
+    Every GMNS table, field, foreign key, with ER diagrams.
+
+    [:octicons-arrow-right-24: Schema](reference/spec.md)
+
+</div>
+
+## Upgrading from v0.3?
+
+v1.0 is a clean-break rewrite. See the [migration guide](migration/v0.3-to-v1.0.md) for the side-by-side API mapping.
+
+
+<!-- source: quickstart.md url: https://e-lo.github.io/netstead/netstead/quickstart.md -->
+
+---
+title: Quickstart
+audience: users
+kind: howto
+summary: Install, load the bundled Leavenworth fixture, run validation + quality + scope in five minutes.
+---
+
+# Quickstart
+
+## When to use this
+
+You're new to `netstead` and want to see what it does on a real GMNS network before reading anything else. Time budget: five minutes.
+
+## Quick example
+
+The fastest way to confirm `netstead` is wired up correctly is to install it, load the bundled Leavenworth, WA fixture, and print a one-line summary. The whole sequence runs in under thirty seconds on a cold cache.
+
+```bash
+pip install 'netstead[clean]'
+```
+
+Then in Python:
+
+```python
+from netstead import Network
+from netstead.fixtures import leavenworth
+
+net = Network.from_source(leavenworth.csv_dir())
+print(f"{net.spec_version}: {net.links.count()} links, {net.nodes.count()} nodes")
+```
+
+Expected:
+
+```text
+0.97: 339 links, 121 nodes
+```
+
+You just loaded the bundled Leavenworth network through the default ibis + DuckDB engine. Nothing was materialised — `net.links` is a lazy expression; only the integer count came back from DuckDB to Python.
+
+## Step-by-step
+
+### 1. Install
+
+The bare `netstead` install is enough for read-only validation. Add `[clean]` to unlock the geometry + connectivity ops the rest of this guide uses (brings in `shapely` + `igraph` + `pyproj`).
+
+=== "uv (recommended)"
+
+    ```bash
+    uv add 'netstead[clean]'
+    ```
+
+=== "uv pip"
+
+    ```bash
+    uv pip install 'netstead[clean]'
+    ```
+
+=== "pip"
+
+    ```bash
+    pip install 'netstead[clean]'
+    ```
+
+=== "pipx"
+
+    ```bash
+    pipx install 'netstead[clean]'
+    ```
+
+`corral` comes along as a transitive dependency — you don't install both packages. For the full list of extras (`server`, `mcp`, `notebook`, `all`) see the [install guide](index.md#optional-extras).
+
+### 2. Load the bundled fixture
+
+The fixture is a small real network (Leavenworth, WA — roughly 600 m of OSM-derived street grid) bundled inside the `netstead` wheel, so the example below runs without any download. `Network.from_source` accepts the same surface as `corral.Package.from_source`: local paths, URLs (`s3://`, `https://`, `duckdb://`), or directories of CSV / Parquet / DuckDB / zip-CSV.
+
+```python
+from netstead import Network
+from netstead.fixtures import leavenworth
+
+net = Network.from_source(leavenworth.csv_dir())
+```
+
+The result is a lazy `Network` object — its tables haven't been read yet. Print a quick summary to confirm it loaded:
+
+```python
+print(f"{net.spec_version}: {net.links.count()} links, {net.nodes.count()} nodes")
+```
+
+Expected:
+
+```text
+0.97: 339 links, 121 nodes
+```
+
+In a Jupyter notebook, evaluating `net` on its own renders an HTML summary card with the spec version, table counts, and a thumbnail map.
+
+#### Outputs
+
+![Network summary card for the Leavenworth fixture](assets/screenshots/leavenworth-network-card.png){ .screenshot }
+*Network summary card (`net._repr_html_()` rendered in a notebook). Shows spec version, table inventory with row counts, and a thumbnail of the link geometry.*
+
+### 3. Validate against the spec
+
+Validation runs four passes in a single call: **structural** (required tables and files), **schema** (per-field types and constraints), **foreign-key** (cross-table integrity), and **sync-state** (have any FKs gone stale since a previous edit?). The Leavenworth fixture is clean by construction, so you should see zero ERROR-severity findings.
+
+```python
+report = net.validate()
+print(f"issues: {len(report.issues)} ({report.spec_version})")
+```
+
+In a notebook, `report` on its own renders an HTML card grouped by severity.
+
+#### Outputs
+
+![Validation report card for the Leavenworth fixture](assets/screenshots/leavenworth-validation-report.png){ .screenshot }
+*Validation report card (`report._repr_html_()` rendered in a notebook). Zero ERRORs since Leavenworth is clean; a few DATA_QUALITY warnings from the residential-speed rule.*
+
+### 4. Run data-quality checks
+
+The data-quality rule pack covers things the spec is silent on but every real network gets wrong sooner or later — high-speed-residential, lane-count mismatch, sharp-angle bends, near-duplicate nodes, disconnected components, implausible v/c ratios, missing critical fields. Findings come back as WARNING or INFO by default.
+
+```python
+from corral.quality import run_quality
+
+qreport = run_quality(net)
+for issue in qreport.issues[:5]:
+    print(f"  {issue.severity.value:9} {issue.code:35} {issue.message[:60]}")
+```
+
+#### Outputs
+
+![Quality report card for the Leavenworth fixture](assets/screenshots/leavenworth-quality-report.png){ .screenshot }
+*Quality report card (`qreport._repr_html_()` rendered in a notebook). Severity-grouped findings — Leavenworth's tertiary streets with 25-30 mph posted speeds trip the `quality.high_speed_residential` rule when configured with a low threshold.*
+
+### 5. Scope to a subgraph
+
+The scope module lets you carve a smaller network out of a larger one without writing FK-pushdown SQL by hand. `from_node` builds a network-distance-bounded subgraph around a seed node; every related table (`lane`, `link_tod`, `movement`, signal control) is pre-filtered so the result is still a self-consistent GMNS network.
+
+<!-- doctest: skip -->
+```python
+from netstead.scope import from_node
+
+scoped = from_node(net, 1, network_buffer="200m").apply()
+print(f"scoped: {scoped.links.count()} links, {scoped.nodes.count()} nodes")
+```
+
+That's a 200-metre Dijkstra-bounded buffer around node 1.
+
+#### Outputs
+
+![Scoped subgraph rendered next to the full Leavenworth network](assets/screenshots/leavenworth-scoped-map.png){ .screenshot }
+*Scope visualisation. The 200 m network-distance buffer around node 1 (highlighted green) over the full Leavenworth network (grey context). Spatially nearby links that are only reachable via long detours fall outside the buffer.*
+
+### 6. Or run the same thing from the CLI
+
+The CLI mirrors the Python API one-for-one. The same fixture lives at `packages/netstead/netstead/fixtures/leavenworth/csv` in the repo, so you can point the CLI at it directly.
+
+```bash
+netstead info packages/netstead/netstead/fixtures/leavenworth/csv
+netstead validate packages/netstead/netstead/fixtures/leavenworth/csv
+netstead quality packages/netstead/netstead/fixtures/leavenworth/csv
+netstead scope from-node packages/netstead/netstead/fixtures/leavenworth/csv 1 --network-buffer 200m
+```
+
+By default `netstead` prints colorized tables and panels for humans. Add `--json` and you get a single machine-readable JSON document on stdout instead — useful for scripting, CI checks, or feeding the output to an AI agent.
+
+```bash
+netstead validate --json packages/netstead/netstead/fixtures/leavenworth/csv | jq '.issues | length'
+```
+
+## Common variations
+
+Each accordion below is one alternative to the defaults used above. The first (most common) is expanded; the rest are collapsed — open the one that matches your situation.
+
+???+ note "Pick a different GMNS spec version"
+    The vendored versions are 0.95, 0.96, and 0.97; default is 0.97. Networks load against the version they were written against — no silent upgrades.
+
+    ```python
+    net = Network.from_source(path, spec_version="0.96")
+    ```
+
+??? note "Switch the backend engine to pandas"
+    Default is `IbisEngine` (lazy, DuckDB-backed). Switch to pandas when you need eager evaluation or DataFrame ergonomics for downstream code.
+
+    ```python
+
+    net = Network.from_source(path)
+    ```
+
+??? note "Read from S3 with credentials"
+    Credentials resolve via a cascade: keyword arg → `CORRAL_CRED_<host>_TOKEN` env var → OS keyring → `.netrc`. No code changes if your environment is already set up.
+
+    ```python
+    net = Network.from_source("s3://bucket/network/")
+    ```
+
+??? note "Write the scoped network out"
+    The output format follows the file extension — `.parquet`, `.duckdb`, or a directory for CSV.
+
+    ```python
+    scoped.write("./scoped.parquet")
+    ```
+
+??? note "Run the data-quality pack with custom thresholds"
+    Per-rule config keys override defaults. The example below tightens the residential-speed threshold to 30 mph.
+
+    ```python
+    from corral.quality import RuleConfig, run_quality
+
+    qreport = run_quality(
+        net,
+        config={
+            "quality.high_speed_residential": RuleConfig(
+                thresholds={"speed_limit_mph": 30.0}
+            )
+        },
+    )
+    ```
+
+## Pitfalls
+
+* **Auto-build of the graph index on large networks.** The first `from_node` or `connected_component` call on a network larger than ~50k nodes silently builds the igraph adjacency. Pre-build with `net.build_indexes(graph=True)` if you want to control the timing, or set `NETSTEAD_AUTO_INDEX_THRESHOLD` to raise the silent-build bar.
+* **Duplicate-near-nodes default threshold is tight** (`epsilon_units=1e-5`). Networks in WGS84 degrees barely trigger it; networks in projected meters need an explicit threshold via `RuleConfig`.
+* **Editing requires a `Session`.** Don't mutate tables directly — open `with corral.editing.Session(net) as s:` and pass `s` into the `netstead.clean.*` ops. The cookbook recipe walking through this is being filled in this wave.
+
+## See also
+
+* [Cookbook](cookbook/index.md) — task-oriented recipes for the common workflows.
+* [Visual tour](visual-tour.md) — see every step above rendered as maps, cards, and diffs in a notebook.
+* [API reference](reference/api.md) — every symbol you saw above.
+* [Architecture](https://e-lo.github.io/netstead/corral/architecture/) — design rationale for the defaults.
+
+
+<!-- source: what-is-gmns.md url: https://e-lo.github.io/netstead/netstead/what-is-gmns.md -->
+
+---
+title: What is GMNS?
+audience: both
+kind: concept
+summary: Plain-English introduction to the General Modeling Network Specification — what it defines, who maintains it, how it relates to Frictionless, GTFS, and OpenStreetMap.
+---
+
+# What is GMNS?
+
+## What it is
+
+The **General Modeling Network Specification (GMNS)** is an open standard, maintained by the [Zephyr Foundation](https://zephyrtransport.org/), for representing routable transportation networks as a small set of related tables. The spec lives at [github.com/zephyr-data-specs/GMNS](https://github.com/zephyr-data-specs/GMNS) and is versioned (current vendored versions: 0.95, 0.96, 0.97).
+
+A GMNS network is a directory of CSVs (or Parquet, or any tabular store) plus a `datapackage.json` manifest that describes the schema. The required core is just two tables:
+
+* `link` — directed edges of the routable graph (one row per road segment between two intersections).
+* `node` — vertices of the graph (intersections, dead-ends, zone centroids).
+
+Layered on top of that core, the spec defines optional tables for the things real transportation models need:
+
+* **Geometry detail** — `geometry` (WKT shapes per link), `segment` and `segment_lane` (sub-link partitioning for places where lane geometry changes).
+* **Lane detail** — `lane` (one row per travel lane), `movement` (turning movements at a node).
+* **Time-of-day overrides** — `link_tod`, `lane_tod`, `segment_tod`, `segment_lane_tod`, `movement_tod` — per-period overrides on capacity, allowed uses, lane assignments.
+* **Signal control** — `signal_controller`, `signal_coordination`, `signal_detector`, `signal_phase_mvmt`, `signal_timing_phase`, `signal_timing_plan`.
+* **Demand context** — `zone` (traffic analysis zones), `location` (curb-side points), `curb_seg` (curb space management).
+* **Dimension tables** — `time_set_definitions` (period definitions), `use_definition` and `use_group` (vehicle / mode classes), `config` (network-wide configuration).
+
+The full set across the 0.97 spec is **25 resource files**. See [Table of tables](reference/table-of-tables.md) for the catalog and [Schema reference](reference/spec.md) for field-level detail.
+
+The spec ships as a [Frictionless Data Package](https://specs.frictionlessdata.io/data-package/) — `datapackage.json` declares each resource, its CSV schema, primary keys, and foreign-key relationships in a machine-readable form.
+
+## Why we have it
+
+Before GMNS, every traffic simulator, travel-demand model, and routing engine carried its own network format. A network exported from Cube didn't load in TransCAD; a Visum file didn't open in SUMO; a TomTom routing graph wasn't a TransModeler input. Modelers spent more time writing conversion scripts than running models, and every conversion silently dropped information.
+
+GMNS exists so a network produced for one tool travels to another with **zero conversion code**. The interop story is the whole story:
+
+1. Producers (state DOTs, MPOs, OSM derivative pipelines) publish in GMNS.
+2. Consumers (modelers, routing services, analysis tools) read GMNS directly.
+3. The spec is small enough that bespoke conversions are practical when a tool *doesn't* speak GMNS natively — but the goal is that they don't have to be written twice.
+
+GMNS is **not** a modeling format with semantics baked in (capacity calculations, BPR functions, signal optimisation). It is the *substrate* on which those tools operate. The same GMNS network feeds a microsimulation, a static-equilibrium assignment, and an active-transportation accessibility analysis.
+
+## Mental model
+
+* **Tables, not files** — a GMNS network is a set of relations, not a binary blob. Any tabular store works (CSV, Parquet, DuckDB, zipped CSV).
+* **Two required tables, the rest optional** — the minimum viable GMNS network is `link` + `node`. Every other table layers detail onto that spine.
+* **Foreign keys are the API** — relationships between tables (`lane.link_id` → `link.link_id`, `link.from_node_id` → `node.node_id`) are declared in `datapackage.json` and machine-checkable.
+
+The core relationships:
+
+```mermaid
+erDiagram
+    node ||--o{ link : "from_node_id / to_node_id"
+    link ||--o{ lane : "link_id"
+    link ||--o{ link_tod : "link_id"
+    link }o--|| geometry : "geometry_id (optional)"
+    node ||--o{ movement : "node_id"
+    link ||--o{ movement : "ib_link_id / ob_link_id"
+```
+
+A real network has more edges in this diagram (signal tables hang off `node`, segment tables sub-divide `link`, zone tables hang off `node`) but the four cardinal relations above carry most of the routing semantics.
+
+## How it relates to ...
+
+### The Frictionless Data Package format
+
+GMNS is a Frictionless Data Package. The spec is not a custom serialization — it's a `datapackage.json` that declares 25 resources, each with a Table Schema (field types, constraints, primary key, foreign keys). Any Frictionless-compatible reader can parse a GMNS package's structure without knowing what GMNS is.
+
+This is why the Netstead validator's structural and schema passes are inherited verbatim from `corral` (the generic toolkit underneath); only the foreign-key chains and the data-quality rules are GMNS-specific.
+
+### GTFS
+
+[GTFS](https://gtfs.org/) (General Transit Feed Specification) is a separate spec, scoped to **scheduled public transit** — routes, stops, trips, stop-times. GMNS is scoped to the **routable roadway / street network** — links, nodes, lanes, signals.
+
+The two are complementary and frequently combined: GMNS for the street network the bus drives on, GTFS for the bus schedule. Bridging tools like [openmobilitydata.org](https://openmobilitydata.org) and the in-development GTFS-GMNS reconciliation patterns let a transit assignment use both.
+
+GMNS deliberately does not duplicate GTFS. A `transit_route` table is *not* in GMNS — that's GTFS's job.
+
+### OpenStreetMap
+
+[OpenStreetMap (OSM)](https://www.openstreetmap.org/) is a global, crowdsourced geographic database. It is **not** a network spec — OSM tags are loose, regionally inconsistent, and not designed for routing-grade modeling out of the box.
+
+GMNS is the standardised target for the conversion. Tools like [`osm2gmns`](https://github.com/jiawlu/OSM2GMNS) and `osmnx` (used to build the bundled Leavenworth fixture — see its [README](https://github.com/e-lo/netstead/blob/main/packages/netstead/netstead/fixtures/leavenworth/README.md)) consume OSM, infer link attributes (lanes, free-flow speed, facility type) from OSM tags, and emit GMNS.
+
+OSM → GMNS is lossy and opinionated (tag inference is heuristic; OSM doesn't carry signal timing or TOD restrictions). The point is that the *output* is a single standardised format that every downstream consumer understands, regardless of where the source data came from.
+
+## See also
+
+* [Quickstart](quickstart.md) — install and load the bundled fixture in five minutes.
+* [Visual tour](visual-tour.md) — see Leavenworth rendered as a map, validated, edited, and scoped.
+* [Table of tables](reference/table-of-tables.md) — catalog of every GMNS resource.
+* [Schema reference](reference/spec.md) — field-level reference for the vendored spec.
+* [Architecture](https://e-lo.github.io/netstead/corral/architecture/) — design rationale for the toolkit on top of GMNS.
+
+
+<!-- source: visual-tour.md url: https://e-lo.github.io/netstead/netstead/visual-tour.md -->
+
+---
+title: Visual tour
+audience: users
+kind: tutorial
+summary: Walk through the bundled Leavenworth fixture end-to-end — map, validation report, quality report, simplify-geometry diff, scope visualisation — all in one notebook session.
+---
+
+# Visual tour
+
+## What you'll build
+
+You'll work through the bundled Leavenworth, WA network in one notebook session and produce, in order:
+
+1. A folium / matplotlib map of the full network.
+2. A validation report rendered as an HTML card.
+3. A data-quality report grouped by severity.
+4. A simplify-geometry edit, rendered as a before/after diff (then rolled back).
+5. A scoped subgraph around a single node, rendered side-by-side with the original.
+
+Total runtime: under two minutes on a laptop. The fixture is ~5 MB and ships inside the `netstead` wheel.
+
+## Prerequisites
+
+The `[clean]` extra brings in `shapely` + `igraph` for geometry simplification and scope operations. The `[notebook]` extra brings in `ipywidgets` so the `_repr_html_` cards render in classic Jupyter as well as JupyterLab.
+
+```bash
+pip install 'netstead[clean,notebook]'
+```
+
+For the map steps, either `folium` (interactive Leaflet) or `matplotlib` (static fallback) works — pick one:
+
+```bash
+pip install folium       # interactive Leaflet map
+pip install matplotlib   # static fallback
+```
+
+The steps below show both paths.
+
+## Steps
+
+### 1. Load the fixture
+
+Start by loading the bundled Leavenworth network. `Network.from_source` returns a lazy `Network` — no rows have been read from disk yet; `net.links` is still an ibis expression.
+<!-- doctest: skip -->
+
+```python
+from netstead import Network
+from netstead.fixtures import leavenworth
+
+net = Network.from_source(leavenworth.csv_dir())
+print(f"{net.spec_version}: {net.links.count()} links, {net.nodes.count()} nodes")
+```
+
+You should see:
+
+```text
+0.97: 339 links, 121 nodes
+```
+
+In a notebook, evaluating `net` on its own renders an HTML summary card with the spec version, table inventory, and a thumbnail map.
+
+![Network summary card for the Leavenworth fixture](assets/screenshots/leavenworth-network-card.png){ .screenshot }
+*Network summary card (`net._repr_html_()`). Spec version 0.97, 25 tables, 339 links / 121 nodes, with a thumbnail of the link geometry.*
+
+### 2. Render the network as a map
+
+The `link` table is keyed to `geometry` by `geometry_id`; the `geometry.geometry` column carries the WKT LineString per link. Materialise both with `.to_pandas()` and join them before plotting.
+<!-- doctest: skip -->
+
+```python
+import pandas as pd
+from shapely import wkt
+
+links = net.links.to_pandas()
+geoms = net.tables["geometry"].to_pandas().set_index("geometry_id")
+links = links.join(geoms[["geometry"]], on="geometry_id")
+links["shape"] = links["geometry"].map(wkt.loads)
+```
+
+For an interactive Leaflet map, use folium. Compute the centroid from the node table, then add one PolyLine per link.
+<!-- doctest: skip -->
+
+```python
+import folium
+
+# Centroid of the network — average node y/x
+nodes = net.nodes.to_pandas()
+center = [nodes["y_coord"].mean(), nodes["x_coord"].mean()]
+
+m = folium.Map(location=center, zoom_start=15, tiles="cartodbpositron")
+for shape in links["shape"]:
+    coords = [(y, x) for x, y in shape.coords]  # folium wants (lat, lon)
+    folium.PolyLine(coords, color="#1f77b4", weight=2, opacity=0.8).add_to(m)
+m  # in a notebook, this renders the map inline
+```
+
+You should see the downtown Leavenworth grid — a compact, walkable core wrapped around Highway 2 / Front Street, surrounded by a few residential tertiary streets.
+
+![Leavenworth network rendered on a folium map](assets/screenshots/leavenworth-folium-map.png){ .screenshot }
+*Folium map of the full Leavenworth fixture. The compact downtown grid is visible around Highway 2, with tertiary residential streets fanning out.*
+
+If `folium` isn't available, the static matplotlib fallback gives an equivalent view (without basemap tiles):
+<!-- doctest: skip -->
+
+```python
+import matplotlib.pyplot as plt
+
+fig, ax = plt.subplots(figsize=(8, 8))
+for shape in links["shape"]:
+    xs, ys = shape.xy
+    ax.plot(xs, ys, color="#1f77b4", linewidth=1.0, alpha=0.8)
+ax.set_aspect("equal")
+ax.set_title(f"Leavenworth GMNS fixture — {len(links)} links")
+plt.show()
+```
+
+Either way: a recognisable Bavarian-themed downtown core in roughly 600 m of OSM-derived street network.
+
+### 3. Validate and display the report
+
+`net.validate()` runs the four-pass validator (structural / schema / FK / sync-state) and returns a `ValidationReport`. In a notebook, evaluating the report on its own renders a styled HTML card.
+<!-- doctest: skip -->
+
+```python
+report = net.validate()
+report  # in a notebook, the _repr_html_ renders a styled card
+```
+
+You should see a green header ("0 errors") with a per-pass summary. The Leavenworth fixture is clean by construction — no ERRORs.
+
+![Validation report card for the Leavenworth fixture](assets/screenshots/leavenworth-validation-report.png){ .screenshot }
+*Validation report card. Zero ERRORs, with the four passes (structural / schema / FK / sync-state) summarised across 25 tables.*
+
+In a non-notebook context, drop down to the text representation:
+<!-- doctest: skip -->
+
+```python
+print(f"{report.spec_version}: {len(report.issues)} issues")
+for issue in report.issues[:5]:
+    print(f"  {issue.severity.value:9} {issue.code:30} {issue.message[:60]}")
+```
+
+### 4. Run quality and display
+
+The data-quality pack flags things the spec is silent on but every real network has — disconnected components, lane-count mismatches, high speeds on residential facilities, near-duplicate nodes. Run it the same way as validation; the result has its own `_repr_html_`.
+<!-- doctest: skip -->
+
+```python
+from corral.quality import run_quality
+
+qreport = run_quality(net)
+qreport  # _repr_html_ renders severity-grouped findings
+```
+
+You should see a card with WARNING / INFO findings (no ERRORs). Leavenworth's tertiary streets carry posted speeds in the 25-30 mph range with `facility_type=residential`, which trips `quality.high_speed_residential` when configured with a low threshold — useful for seeing what a real finding looks like.
+
+![Quality report card for the Leavenworth fixture](assets/screenshots/leavenworth-quality-report.png){ .screenshot }
+*Quality report card. Severity-grouped findings; the residential-speed rule fires on a handful of tertiary streets.*
+
+To see the top findings in detail, iterate over `qreport.issues`:
+<!-- doctest: skip -->
+
+```python
+for issue in qreport.issues[:3]:
+    print(f"  {issue.severity.value:9} {issue.code:35} {issue.message}")
+```
+
+### 5. Simplify geometry and render before/after
+
+The `simplify_geometry` op in `netstead.clean` removes redundant vertices from link geometries. Wrap it in a `Session` so the edit can be rolled back atomically.
+<!-- doctest: skip -->
+
+```python
+from corral.editing import Session
+from netstead.clean import simplify_geometry
+
+with Session(net) as s:
+    edit = simplify_geometry(net, s, mode="redundant_only", tolerance=1.0)
+    edit  # in a notebook, _repr_html_ shows the diff (vertices removed per link)
+```
+
+You should see an `EditResult` diff card listing the number of vertices removed per affected link. `mode="redundant_only"` removes only colinear vertices and is loss-free; `mode="douglas_peucker"` is the lossy alternative with an explicit tolerance.
+
+![EditResult diff card for the simplify-geometry edit](assets/screenshots/leavenworth-simplify-edit-result.png){ .screenshot }
+*EditResult diff card. Per-link vertex counts before / after, with a summary of links touched and vertices removed.*
+
+To visualise before-and-after on one map, snapshot the geometry before opening the session, then overlay both:
+<!-- doctest: skip -->
+
+```python
+links_before = links[["link_id", "shape"]].copy()
+# (run the simplify edit above inside the Session)
+links_after_geoms = net.tables["geometry"].to_pandas().set_index("geometry_id")
+links_after = links.copy()
+links_after["shape"] = links_after["geometry_id"].map(
+    lambda gid: wkt.loads(links_after_geoms.loc[gid, "geometry"])
+)
+
+m = folium.Map(location=center, zoom_start=15, tiles="cartodbpositron")
+for shape in links_before["shape"]:
+    folium.PolyLine([(y, x) for x, y in shape.coords],
+                    color="#888", weight=4, opacity=0.4).add_to(m)
+for shape in links_after["shape"]:
+    folium.PolyLine([(y, x) for x, y in shape.coords],
+                    color="#d62728", weight=1.5, opacity=0.9).add_to(m)
+m
+```
+
+Grey underneath = before; red on top = after. On Leavenworth most links don't change (the OSM source is already minimal), but a handful of curved tertiary links visibly simplify.
+
+To restore the original state, roll the session back:
+<!-- doctest: skip -->
+
+```python
+s.rollback()
+```
+
+The session's chronological log reverses every edit atomically — the network returns byte-identical to step 1.
+
+### 6. Build a scope from a single node and render
+
+`from_node` builds a network-distance-bounded subgraph around a seed node. The 200 m buffer below is Dijkstra-bounded along the routable graph — links that are spatially close but only reachable via long detours fall outside.
+<!-- doctest: skip -->
+
+```python
+from netstead.scope import from_node
+
+scoped = from_node(net, node_id=1, network_buffer="200m").apply()
+print(f"scoped: {scoped.links.count()} links, {scoped.nodes.count()} nodes")
+```
+
+Every related table (`lane`, `link_tod`, `movement`, signal tables) is pre-filtered by FK chain, so the result is a self-consistent GMNS network you can write back out.
+
+Render the scope side-by-side with the original to see the contrast — full network as grey context, scoped subgraph highlighted.
+<!-- doctest: skip -->
+
+```python
+scoped_links = scoped.links.to_pandas().join(geoms[["geometry"]], on="geometry_id")
+scoped_links["shape"] = scoped_links["geometry"].map(wkt.loads)
+
+m = folium.Map(location=center, zoom_start=15, tiles="cartodbpositron")
+# Full network, faint
+for shape in links["shape"]:
+    folium.PolyLine([(y, x) for x, y in shape.coords],
+                    color="#bbb", weight=1, opacity=0.5).add_to(m)
+# Scope, highlighted
+for shape in scoped_links["shape"]:
+    folium.PolyLine([(y, x) for x, y in shape.coords],
+                    color="#2ca02c", weight=3, opacity=0.95).add_to(m)
+m
+```
+
+You should see a small green subgraph centred on one intersection, with the rest of the network greyed out as context.
+
+![Scoped subgraph rendered next to the full Leavenworth network](assets/screenshots/leavenworth-scoped-map.png){ .screenshot }
+*Scope visualisation. The 200 m network-distance buffer around node 1 highlighted in green, full network in grey context. Long-detour links are excluded even when spatially nearby.*
+
+## Variations you might try
+
+Each accordion below is a one-line tweak that shows off a different facet of the toolkit. Pick whichever matches what you want to learn next.
+
+???+ note "Try a different fixture or your own network"
+    The bundled fixture is Leavenworth. Point `Network.from_source` at any GMNS package on disk or in cloud storage to repeat the tour with your own data — every step above is fixture-agnostic.
+<!-- doctest: skip -->
+
+    ```python
+    net = Network.from_source("./my-network/")
+    net = Network.from_source("s3://my-bucket/network.parquet/")
+    ```
+
+??? note "Switch to the pandas engine for eager evaluation"
+    The default ibis + DuckDB engine is lazy. Switch to pandas if you'd rather have every table materialised up-front (handy for small fixtures where you'll touch every row).
+<!-- doctest: skip -->
+
+    ```python
+
+    net = Network.from_source(leavenworth.csv_dir())
+    ```
+
+??? note "Configure a custom quality threshold"
+    Override the `quality.high_speed_residential` threshold (default is conservative). Tightening it surfaces more findings on a network with mixed posted speeds.
+<!-- doctest: skip -->
+
+    ```python
+    from corral.quality import RuleConfig, run_quality
+
+    qreport = run_quality(
+        net,
+        config={
+            "quality.high_speed_residential": RuleConfig(
+                thresholds={"speed_limit_mph": 30.0}
+            )
+        },
+    )
+    ```
+
+## Next steps
+
+* [Cookbook](cookbook/index.md) — task-oriented recipes for any of the workflows above.
+* [API reference](reference/api.md) — every symbol you used in this tour.
+* [Architecture](https://e-lo.github.io/netstead/corral/architecture/) — design rationale for sessions, scopes, and the lazy-by-default engine.
+* [Table of tables](reference/table-of-tables.md) — what other GMNS tables you can pull from `net.tables[...]`.
+
+
+<!-- source: cookbook/index.md url: https://e-lo.github.io/netstead/netstead/cookbook/index.md -->
+
+---
+title: netstead cookbook
+audience: users
+kind: concept
+summary: Task-oriented recipes for the common GMNS workflows — validate, scope, edit, run the bench, self-host, drive from an AI agent.
+---
+
+# netstead cookbook
+
+Each recipe is one task, one runnable example, one paragraph of why-it-works. Recipes are intentionally short — for the *design* behind a workflow, follow the "See also" link to the relevant concept page.
+
+For generic Frictionless data-package recipes (S3 reads, format conversion, generic spatial scope), see the [corral cookbook](https://e-lo.github.io/netstead/corral/cookbook/).
+
+## Validation + data quality
+
+* [Run validation and read the report](validate-network.md) — interpret severity / category / code.
+* [Customise the data-quality rule pack](customise-quality.md) — threshold overrides, disable rules, plug in your own.
+
+## Creating networks
+
+* [Build a GMNS network from OpenStreetMap](build-from-osm.md) — `netstead build` from a place / bbox / point+buffer (needs the `[osm]` extra).
+
+## Scope + geographic subsetting
+
+* [Build a scope from seed nodes](scope-from-nodes.md) — BFS shortest-path, network buffers, FK pushdown.
+
+For bbox / polygon (non-GMNS-specific) spatial scope, see [corral cookbook: spatial scope](https://e-lo.github.io/netstead/corral/cookbook/scope-bbox/).
+
+## Querying + editing linked tables
+
+* [Query and update linked tables](query-and-update.md) — join across foreign keys, inspect lazily (no pandas), edit rows Network-Wrangler-style with rollback.
+* [Edit a network with atomic rollback](edit-with-rollback.md) — `Session` lifecycle, dry-run preview, persisted history.
+
+## Surfaces
+
+* [Explore networks in the Netstead Workbench](workbench.md) — linked map + tables, NL selection, replayable actions.
+* [Write a Workbench plugin](workbench-plugins.md) — add Actions, settings, state, routes and a front end as a separate pip package; the `Host` API, trust model, testing and versioning.
+* [Run language models locally with Ollama](local-llm-ollama.md) — install Ollama, pull `qwen3:4b`, select in plain English with nothing leaving your machine.
+* [Self-host the HTTP server](serve-http.md) — config file, bearer auth, deploying behind a proxy.
+* [Wire the MCP server to Claude Code / Claude Desktop](serve-mcp.md) — stdio transport, tool list, agent prompts.
+* [Run the bundled benchmarks](run-bench.md) — `netstead bench`, what to expect on Leavenworth vs regional networks.
+
+## For AI agents specifically
+
+* [Drive both packages from a tool-call loop](https://e-lo.github.io/netstead/corral/ai/json-cli/) — every CLI command emits a parseable document with `--json`.
+* [AI surface overview](https://e-lo.github.io/netstead/corral/ai/) — llms.txt + api-index.json + Skills + MCP.
+
+## Contributing a new recipe
+
+A recipe is `kind: howto` per the [Page Style Guide](../_page-style-guide.md):
+
+* `When to use this` — 1-2 sentences, the trigger.
+* `Quick example` — ≤20 lines, copy-pasteable against the Leavenworth fixture, with **prose before the code**.
+* `Step-by-step` — numbered, one short paragraph each.
+* `Common variations` — collapsible accordions (`???`), one per variation.
+* `Pitfalls` — explicit gotchas.
+* `See also` — one link per related concept, no diffuse paths.
+
+Open a PR with the new recipe + a link from this index. CI's doctest pass runs any python code blocks tagged `>>> `.
+
+
+<!-- source: reference/api.md url: https://e-lo.github.io/netstead/netstead/reference/api.md -->
+
+---
+title: netstead API reference
+audience: both
+kind: reference
+summary: Every public netstead symbol, auto-generated from docstrings. Stable anchors match the codes in ai/api-index.json. For the generic corral API see the corral reference.
+stability: stable
+---
+
+# netstead API reference
+
+GMNS-specific surface. For the generic Frictionless data-package primitives (`Package`, `Table`, validation, editing framework, HTTP + MCP factories) see the [corral API reference](https://e-lo.github.io/netstead/corral/reference/api/).
+
+Auto-generated from package docstrings via [mkdocstrings](https://mkdocstrings.github.io/). Stable anchors match the codes in [`ai/api-index.json`](https://e-lo.github.io/netstead/corral/ai/).
+
+## Network — the GMNS-aware Package
+
+::: netstead.Network
+    options:
+      members:
+        - from_source
+        - validate
+        - links
+        - nodes
+        - geometry
+        - lanes
+        - link_tod
+        - segments
+        - spec_version
+      show_root_heading: true
+
+::: netstead.NetworkError
+
+## Spec
+
+::: netstead.spec.SUPPORTED_SPECS
+
+::: netstead.spec.DEFAULT_SPEC
+
+::: netstead.spec.load_gmns_spec
+
+## Semantics
+
+::: netstead.semantics.is_connected
+
+::: netstead.semantics.connected_components
+
+::: netstead.semantics.assemble_link_geometry
+
+::: netstead.semantics.resolve_link_attrs_at
+
+## Scope
+
+::: netstead.scope.NetworkScope
+    options:
+      members:
+        - apply
+        - union
+        - intersect
+        - subtract
+        - buffer_network
+        - buffer_spatial
+
+::: netstead.scope.from_nodes
+
+::: netstead.scope.from_node
+
+::: netstead.scope.from_link
+
+::: netstead.scope.from_point
+
+::: netstead.scope.connected_component
+
+::: netstead.scope.from_zone
+
+## Quality (GMNS rule pack)
+
+::: netstead.quality.register_all
+
+The 7 rule classes:
+
+::: netstead.quality.HighSpeedResidentialRule
+::: netstead.quality.DisconnectedComponentsRule
+::: netstead.quality.LaneCountMismatchRule
+::: netstead.quality.DuplicateNearNodesRule
+::: netstead.quality.SharpAngleBendsRule
+::: netstead.quality.ImplausibleVcRule
+::: netstead.quality.MissingCriticalFieldsRule
+
+## Indexes (optional `[clean]` extra)
+
+::: netstead.indexes.SpatialIndex
+
+::: netstead.indexes.build_indexes
+
+## Graph / routing (optional `[graph]` extra)
+
+::: netstead.graph.GMNSGraph
+
+## Clean (optional `[clean]` extra)
+
+::: netstead.clean.simplify_geometry
+
+::: netstead.clean.merge_close_nodes
+
+::: netstead.clean.remove_orphans
+
+::: netstead.clean.recompute_lengths
+
+## See also
+
+* [corral API reference](https://e-lo.github.io/netstead/corral/reference/api/) — the generic primitives netstead is built on.
+* [Schema reference](spec.md) — GMNS field-level reference.
+* [Table of tables](table-of-tables.md) — "which table do I use?" entry point.
+* [Glossary](glossary.md) — terms used in this API.
+
+
+<!-- source: reference/spec.md url: https://e-lo.github.io/netstead/netstead/reference/spec.md -->
+
+# Official GMNS Specification
+
+The GMNS specification is managed in the following Github repo: <https://github.com/zephyr-data-specs/GMNS>
+
+| **GMNS Version** | **Description** |
+| ----- | ----- |
+| [development](../spec-versions/development.md) | Not yet in official spec. Hasn't been voted on by PMG |
+| [local](../spec-versions/local.md) | Local copy of spec. May not be identical to official spec. |
+
+GMNS is defined using the [Frictionless Framework](https://specs.frictionlessdata.io/#data-package-specs-suite) as a series of `tabular-data-resources`.
+
+## Files in Specification
+
+GMNS consists of a package of files as defined in the following table.
+
+*The following tables are automatically generated from the official spec.*
+
+{{ official_frictionless_spec('master') }}
+
+## Data Table Schemas
+
+{{ official_frictionless_schemas('master') }}
+
+
+<!-- source: reference/table-of-tables.md url: https://e-lo.github.io/netstead/netstead/reference/table-of-tables.md -->
+
+---
+title: Table of tables
+audience: both
+kind: reference
+summary: Catalog of every GMNS 0.97 resource — purpose, required vs optional, primary foreign keys, link into the field-level reference.
+---
+
+# Table of tables
+
+## Summary
+
+GMNS 0.97 defines **25 resource files** grouped into four families: required, detail, signal-control, and dimension. Two tables (`link`, `node`) are required by the spec; the rest layer optional detail. This page is the "which table should I use?" entry point. For field-level detail (types, constraints, descriptions per column) see [Schema reference](spec.md).
+
+The vendored 0.97 spec lives at `packages/netstead/netstead/spec/0.97/`. Each table is defined by a `<name>.schema.json` and listed as a resource in `datapackage.json`.
+
+## Required
+
+These two tables form the routable graph spine. A valid GMNS package must include both.
+
+| Table | Purpose | Key foreign keys |
+|---|---|---|
+| `link` | Directed edges of the routable graph; one row per road segment between two intersections. Carries facility type, lane count, free-flow speed, allowed uses. | `from_node_id`, `to_node_id` → `node.node_id`; `geometry_id` → `geometry.geometry_id` (optional); `parent_link_id` → `link.link_id` (self-ref, optional) |
+| `node` | Vertices of the routable graph; intersections, dead-ends, zone centroids. Carries x/y coordinates and control type. | `zone_id` → `zone.zone_id` (optional); `parent_node_id` → `node.node_id` (self-ref, optional) |
+
+## Detail tables
+
+Add geometric, lane-level, segment-level, or curb-level detail to the link/node spine. All optional.
+
+| Table | Purpose | Key foreign keys |
+|---|---|---|
+| `lane` | One row per travel lane on a link. Carries lane number, width, allowed uses, turn restrictions. | `link_id` → `link.link_id` |
+| `segment` | Sub-divides a link where attributes change mid-link (e.g., a lane drop). One row per segment. | `link_id` → `link.link_id` |
+| `segment_lane` | One row per lane within a segment. Same role as `lane` but at segment granularity. | `segment_id` → `segment.segment_id` |
+| `link_tod` | Time-of-day override on link attributes (capacity, allowed uses) for a defined period. | `link_id` → `link.link_id`; `timeday_id` → `time_set_definitions.timeday_id` |
+| `lane_tod` | Time-of-day override on lane attributes. | `lane_id` → `lane.lane_id`; `timeday_id` → `time_set_definitions.timeday_id` |
+| `segment_tod` | Time-of-day override on segment attributes. | `segment_id` → `segment.segment_id`; `timeday_id` → `time_set_definitions.timeday_id` |
+| `segment_lane_tod` | Time-of-day override on segment-lane attributes. | `segment_lane_id` → `segment_lane.segment_lane_id`; `timeday_id` → `time_set_definitions.timeday_id` |
+| `movement` | A turning movement at a node, from an inbound link to an outbound link. Carries permitted uses and a movement type (left/through/right/u-turn). | `node_id` → `node.node_id`; `ib_link_id`, `ob_link_id` → `link.link_id` |
+| `movement_tod` | Time-of-day override on movement attributes. | `mvmt_id` → `movement.mvmt_id`; `timeday_id` → `time_set_definitions.timeday_id` |
+| `geometry` | WKT LineString per link. Referenced by `link.geometry_id`; optional (links can be implicit straight from-to). | (primary key; referenced by `link`) |
+| `zone` | Traffic analysis zone (TAZ) polygons or centroids for demand modeling. | (primary key; referenced by `node.zone_id`) |
+| `location` | Curb-side point of interest — a stop, a pick-up location, a service door. | `link_id` → `link.link_id` (optional); `zone_id` → `zone.zone_id` (optional) |
+| `curb_seg` | A managed curb segment with allowed uses, parking regulations, loading-zone designations. | `link_id` → `link.link_id` |
+
+## Signal-control tables
+
+Carry signalized-intersection timing and detection data. All optional; needed only when modeling signal operations.
+
+| Table | Purpose | Key foreign keys |
+|---|---|---|
+| `signal_controller` | One row per signal controller (typically one per signalized intersection). | `node_id` → `node.node_id` |
+| `signal_coordination` | Coordination relationships between controllers in a corridor. | `controller_id` → `signal_controller.controller_id` |
+| `signal_detector` | Detector loops / video zones on link approaches. | `controller_id` → `signal_controller.controller_id`; `link_id` → `link.link_id` |
+| `signal_phase_mvmt` | Maps movements to signal phases (which phase serves which turning movement). | `controller_id` → `signal_controller.controller_id`; `mvmt_id` → `movement.mvmt_id` |
+| `signal_timing_phase` | Per-phase timing parameters (min green, max green, yellow, all-red). | `timing_plan_id` → `signal_timing_plan.timing_plan_id` |
+| `signal_timing_plan` | A named timing plan (cycle length, offset, plan identifier) for one controller. | `controller_id` → `signal_controller.controller_id`; `timeday_id` → `time_set_definitions.timeday_id` (when plan is TOD-bound) |
+
+## Dimension tables
+
+Vocabularies and configuration referenced by the detail and signal-control tables. All optional but typically present when any TOD or use-restriction is used.
+
+| Table | Purpose | Key foreign keys |
+|---|---|---|
+| `time_set_definitions` | Named time periods (e.g., `weekday_am_peak` = Mon-Fri 07:00-09:00). Referenced by every `*_tod` table. | (primary key) |
+| `use_definition` | A defined vehicle / mode class (auto, truck, transit, bike, walk). | (primary key; referenced by `use_group`, `lane.allowed_uses`, etc.) |
+| `use_group` | A named set of `use_definition` members (e.g., `motorized` = {auto, truck, transit}). | `use_id` → `use_definition.use_id` |
+| `config` | Network-wide configuration key/value pairs (units, default CRS, GMNS version metadata). | (primary key) |
+
+## ER diagram
+
+The core link / node / lane / link_tod / movement / geometry relationships:
+
+```mermaid
+erDiagram
+    node ||--o{ link : "from_node_id"
+    node ||--o{ link : "to_node_id"
+    link ||--o{ lane : "link_id"
+    link ||--o{ link_tod : "link_id"
+    link }o--|| geometry : "geometry_id"
+    lane ||--o{ lane_tod : "lane_id"
+    node ||--o{ movement : "node_id"
+    link ||--o{ movement : "ib_link_id"
+    link ||--o{ movement : "ob_link_id"
+    time_set_definitions ||--o{ link_tod : "timeday_id"
+    time_set_definitions ||--o{ lane_tod : "timeday_id"
+    zone ||--o{ node : "zone_id"
+```
+
+The signal, segment, and curb tables hang off `link` and `node` with the same shape but aren't shown here to keep the diagram readable. For the complete table list see the families above; for individual field detail see [Schema reference](spec.md).
+
+## See also
+
+* [Schema reference](spec.md) — auto-generated field-level reference per table.
+* [What is GMNS?](../what-is-gmns.md) — design context for the spec.
+* [Visual tour](../visual-tour.md) — see several of these tables rendered in a notebook.
+* [Glossary](glossary.md) — GMNS terms used above (TOD, segment, movement, …).
+
+
+<!-- source: reference/glossary.md url: https://e-lo.github.io/netstead/netstead/reference/glossary.md -->
+
+---
+title: Glossary
+audience: both
+kind: reference
+summary: GMNS-domain terms (link, lane, TOD, segment, …) and project conventions (sync state, scope, EditResult, Skill, MCP, …) defined in one place.
+---
+
+# Glossary
+
+## Summary
+
+Two sections: **GMNS domain** terms come from the spec itself and apply to any GMNS toolkit. **Project conventions** are Netstead + corral specific — names that appear in the API, CLI, and docs of this toolkit. Entries are alphabetical within each section.
+
+## GMNS domain
+
+**Allowed uses** — the set of `use_definition` ids permitted to traverse a link or lane (e.g., `{auto, truck, transit}`). Encoded as a comma-separated list referencing `use_definition.use_id` or as a `use_group.group_id`. Distinct from `prohibited_uses`, which is the inverse expression. See [`use_definition`](table-of-tables.md#dimension-tables).
+
+**Capacity** — the maximum hourly throughput of a link or lane under prevailing conditions, in vehicles per hour. Carried on `link.capacity` (and overridable per period via `link_tod.capacity`). Units are vehicles per hour per lane unless the producer notes otherwise; GMNS is silent on the LOS model used to compute it.
+
+**Curb segment** — a managed length of curb (parking, loading zone, no-stopping). One row per curb segment in `curb_seg`, keyed to a `link_id`. New in recent GMNS versions; supports curb-management modeling.
+
+**Facility type** — categorical descriptor of a link's roadway class (e.g., `motorway`, `primary`, `tertiary`, `residential`, `service`). Drives default values for capacity, free speed, and lane count when those fields are absent. The exact vocabulary is in `shared_categories.json` under `facility_type_categories`.
+
+**Free speed** — the posted or signed speed limit, or the speed at which vehicles travel under uncongested conditions. Carried on `link.free_speed` in `link.free_speed_units` (typically `mph` or `kph`). Distinct from any modeled travel speed.
+
+**Geometry** — a row in the optional `geometry` table holding a WKT LineString, referenced by `link.geometry_id`. When absent, the link is implicit straight-line from `from_node` to `to_node`. The geometry table exists so multiple links can share one shape (e.g., a divided highway represented as two opposing links sharing a centerline).
+
+**GMNS** — General Modeling Network Specification. The Zephyr Foundation's open standard for routable transportation networks in tabular Frictionless Data Package form. See [What is GMNS?](../what-is-gmns.md).
+
+**Lane** — a sub-element of a link with its own lane number, optional turn restrictions, and allowed uses. One row per travel lane per link in the `lane` table; `lane.lane_id` is keyed to `link.link_id`. A link with `lanes=3` typically has three corresponding `lane` rows.
+
+**Link** — a directed edge in the routable network, from `from_node_id` to `to_node_id`. The required spine table; carries facility type, lanes, free speed, length, allowed uses. Undirected networks are represented by paired links (one per direction).
+
+**Movement** — a turning movement at a node, from an inbound link to an outbound link. One row per allowed turn in the `movement` table; carries movement type (left/through/right/u-turn) and permitted uses. Used by signal-control tables to map phases to movements.
+
+**Node** — a vertex in the routable network — intersection, dead-end, zone centroid. The required vertices table; carries x/y coordinates and optional `ctrl_type` (signal, stop, yield, no-control).
+
+**Segment** — a sub-division of a link where attributes change mid-link (e.g., a lane drop, a facility-type change). One row per segment in the `segment` table; segments tile a link end-to-end. Used when link-level attributes are too coarse.
+
+**Spec version** — the GMNS spec release the data conforms to. Netstead vendors 0.95, 0.96, and 0.97. Validation reports always include the spec version. The default is 0.97; override via `Network.from_source(path, spec_version="0.96")`.
+
+**TOD (time-of-day)** — per-time-period overrides on link / lane / segment / movement attributes. Keyed by `timeday_id` into `time_set_definitions`. A period like `weekday_am_peak` (Mon-Fri 07:00-09:00) is defined once and referenced from every `*_tod` row that varies by that period.
+
+**Zone** — a traffic analysis zone (TAZ) for demand modeling. Nodes carry an optional `zone_id`. The `zone` table holds polygon or centroid geometry; not every network has zones (routing-only networks often don't).
+
+## Project conventions
+
+**ApprovalRequired** — exception raised when a gated operation's cost estimate exceeds the approval threshold (default 180 seconds) and the caller has not set `approve=True`. See the cost-model section of [Architecture](https://e-lo.github.io/netstead/corral/architecture/#65-pooled-operations-cost-model).
+
+**Auto-build threshold** — the network size (in nodes) above which `netstead.scope` ops silently build the spatial + graph indexes on first call. Default 50,000 nodes. Configurable via the `NETSTEAD_AUTO_INDEX_THRESHOLD` environment variable. Pre-build explicitly with `net.build_indexes(graph=True, spatial=True)` to control timing.
+
+**CORRAL_AUTO_APPROVE** — environment variable (`CORRAL_AUTO_APPROVE=1`) that bypasses the cost-model approval prompt for gated operations. Equivalent to CLI `--yes` or programmatic `approve=True`. Intended for batch / CI use.
+
+**EditResult** — the value returned by every `netstead.clean` op. Carries the diff per affected table, the log entry for the operation, and a `_repr_html_` visual summary for notebook rendering. Integrated with `corral.editing.Session` for rollback.
+
+**Engine** — the compute backend. corral has one: `IbisEngine` (lazy expressions over DuckDB). pandas / polars / pyarrow are I/O *formats* (`.to_pandas()` / `.to_polars()`), not compute engines. See `corral.engines`.
+
+**NETSTEAD_AUTO_INDEX_THRESHOLD** — see *Auto-build threshold*.
+
+**Lazy expression** — a `Table.expr` that has not been materialised. Operations on a lazy expression return a new lazy expression. Materialisation happens explicitly via `.to_pandas()`, `.to_polars()`, `.collect()`, `.head()`, or `.count()`.
+
+**MCP (Model Context Protocol)** — the open protocol Claude and other AI agents use to discover and call tools. Netstead ships an MCP server via `pip install 'netstead[mcp]'`; start it with `netstead mcp serve`. Tools exposed: `read_network`, `describe_network`, `query_table`, `scope`, `validate`, `quality_check`, `convert`, `edit_session`. See [Architecture §6.9](https://e-lo.github.io/netstead/corral/architecture/#69-ai-accessibility).
+
+**Network buffer** — a Dijkstra-bounded expansion in **graph distance** (using `link.length`). Used by `netstead.scope.from_node(id, network_buffer="200m")`. Distinct from spatial buffer.
+
+**OutOfSyncWarning** — warning raised before `write()` or `validate(strict=True)` when any tracked foreign-key's source or target table hash has changed since the last validation. Indicates the in-memory FK graph may no longer match the data. Promote to an error with `strict=True`.
+
+**Scope** — a `NetworkScope` is a (node_ids, link_ids) pair that, when applied via `.apply()`, returns a filtered `Network` with every other table pre-filtered by FK chain. Scopes are composable and chainable: `net.scope.from_nodes([1,2,3]).buffer_network("0.5mi").buffer_spatial(30)`. See [Architecture §6.2](https://e-lo.github.io/netstead/corral/architecture/#62-memory-efficient-scoping).
+
+**Session** — context manager around one or more `EditResult`s with atomic rollback. Open with `with Session(net) as s: ...`; rollback with `s.rollback()` or `s.rollback(to=session_id_or_timestamp)`. Audit log persists with the network as a sidecar `_history.parquet`.
+
+**Severity / Category / Issue** — see [API reference](api.md#corral.reports.Severity). `Severity` is one of `Error`, `Warning`, `Info`, `DataQuality`. `Category` discriminates rule families. `Issue` is the per-finding record carried in a `ValidationReport`.
+
+**Skill (Claude Code Skill)** — a packaged set of instructions and prompts a Claude Code agent can load on demand. Netstead ships several (`gmns-author`, `gmns-validate`, `gmns-convert`, `gmns-clean`, `corral-validate`) under `skills/` in the repo. Install with `claude code skill add <git-url>#path=skills/<name>`. See [Architecture §6.9](https://e-lo.github.io/netstead/corral/architecture/#69-ai-accessibility).
+
+**Spatial buffer** — a shapely-bounded expansion in **CRS units** (degrees for WGS84, meters for projected CRSs). Used by `netstead.scope.from_link(id, spatial_buffer_m=...)` and the `buffer_spatial()` chain method. Distinct from network buffer.
+
+**Sync state** — content-hash tracking on every table via `DirtyTracker` (in `corral.validation.sync_state`). Records source + target hashes per FK at validation time so the validator can detect when a previously-checked FK has gone stale. Direct DataFrame mutations bypass the tracker — call `net.invalidate("link")` to force.
+
+## See also
+
+* [Table of tables](table-of-tables.md) — catalog of every GMNS resource referenced above.
+* [Schema reference](spec.md) — field-level reference for the vendored spec.
+* [Architecture](https://e-lo.github.io/netstead/corral/architecture/) — design rationale for the project-convention terms.
+
+
+<!-- source: migration/v0.3-to-v1.0.md url: https://e-lo.github.io/netstead/netstead/migration/v0.3-to-v1.0.md -->
+
+# Migrating from GMNSpy v0.3.x to Netstead v1.0
+
+Netstead v1.0 is the successor to GMNSpy — a ground-up rewrite published
+under a new name. The package name, public API, package layout, and
+runtime engine all changed. This guide walks GMNSpy v0.3.5 users through
+the breaking changes and shows the new equivalents.
+
+If you need the old behavior, keep depending on `gmnspy<1` — v0.3.5 is the
+last release of the old line and is no longer maintained. (An early
+`gmnspy==1.0.0b1` preview of the rewrite was published under the old name
+before the rename; it has been yanked and is superseded by `netstead`.)
+
+## TL;DR
+
+- v1.0 is a clean rewrite — **no automatic upgrade path, no compat shim,
+  no `DeprecationWarning` bridges**. You will edit your imports.
+- The codebase is split into two packages: **`corral`** (generic
+  schema / validation / IO engine) and **`netstead`** (GMNS-specific
+  bindings on top).
+- Old: `import gmnspy; gmnspy.read_gmns_network(path)` →
+  New: `from netstead import Network; Network.from_source(path)`.
+- Validation returns a single `ValidationReport` — multiple renderers
+  (rich terminal / JSON / HTML) replace ad-hoc `_check_*` helpers.
+- Memory + performance are first-class: tables are **lazy DuckDB
+  expressions** (driven through ibis). pandas / polars / Arrow are
+  input and output formats, not engines — call `.to_pandas()` /
+  `.to_polars()` only when you actually need the materialized frame.
+- New **CLI**: `netstead validate`, `netstead info`, `netstead quality`, and
+  the inherited `corral` commands. Every command supports `--json`
+  for AI / scripting consumption.
+
+## Installation
+
+**GMNSpy v0.3.x**
+
+```bash
+pip install gmnspy
+```
+
+**Netstead v1.0**
+
+```bash
+pip install netstead
+```
+
+`netstead` depends on `corral`, which is installed transitively.
+
+## API mapping
+
+| GMNSpy v0.3 (removed) | Netstead v1.0 (use this) | Notes |
+|---|---|---|
+| `import gmnspy` | `from netstead import Network` | Top-level helpers are gone — the entry point is the `Network` class. |
+| `gmnspy.read_gmns_network(path)` | `netstead.Network.from_source(path)` | Returns a `Network` (subclass of `corral.Package`) with lazy tables, not a `dict[str, DataFrame]`. |
+| `gmnspy.read_gmns_csv(path, validate=True)` | `corral.read(path)` for any table; or `Network.from_source(dir).<table>` | Format inference (csv / parquet / duckdb / zip-csv / URL) is automatic. |
+| `gmnspy.validation.apply_schema_to_df(df, schema_file=...)` | `net.validate()` | Schema, foreign-key, structural, and sync-state checks all run from one call. |
+| `gmnspy.validation.validate_foreign_keys(...)` | `net.validate()` then filter `report.issues` by `rule="foreign_key"` | Composite + self-referential FKs supported. |
+| `gmnspy.validation._check_*` helpers | `report = net.validate(); report.issues` / `report.summary()` | The Series-vs-bool truthiness bugs in `constraint_checking.py` are gone — predicates are ibis expressions now. |
+| `gmnspy.schema.read_schema(path)` | `corral.spec.load_spec(path)` / `netstead.load_gmns_spec(version="0.97")` | Multi-version spec support; `DEFAULT_SPEC = "0.97"`. |
+| `gmnspy.schema.read_config(config_file, data_dir, schema_dir)` | `Network.from_source(path)` (auto-discovery) or `corral.Package.from_config(...)` | No more manual config wiring for the common case. |
+| `gmnspy.schema.document_schemas_to_md(...)` | `corral.docgen.schemas_to_md(package)` / `corral.docgen.package_to_md(package)` | Same idea, generalized; takes a `corral.spec.DataPackage`, so it honors version selection. |
+| `gmnspy.utils.logger` | `import logging; logging.getLogger("netstead")` | The `utils` grab-bag is gone. |
+| `gmnspy.utils.list_to_md_table` | — | Gone; see below. |
+| (no CLI) | `netstead validate <path>` / `netstead info <path>` / `netstead quality <path>` / `corral validate <path>` | All commands accept `--json` and `--yes`. |
+| (no editing API) | `with corral.editing.Session(net) as s: netstead.clean.simplify_geometry(net, s)` | Atomic rollback + audit log. |
+| (no network-aware scope) | `netstead.scope.from_nodes(net, [...], path_between=True).apply()` | Network buffer, spatial buffer, connected component, zone filter — all chainable. |
+
+## What's gone (no replacement)
+
+These v0.3 surfaces were removed because they were either unsound or
+subsumed by the new engine:
+
+- **`gmnspy.validation.constraint_checking`** — the per-row validators
+  there had latent Series-vs-bool truthiness bugs (`if some_series:`)
+  that silently passed. Replaced by ibis-first predicates evaluated on
+  pyarrow samples; the failure mode is structurally impossible.
+- **`gmnspy.utils`** — the grab-bag is gone. GMNS-specific name handling
+  lives in `netstead.semantics`; logging is stdlib `logging`; the markdown
+  table helper has no replacement (use `corral.docgen` for spec docs, or
+  `pandas.DataFrame.to_markdown`).
+- **Implicit `pandas` everywhere.** Tables are lazy ibis expressions by
+  default. If you mutated a returned DataFrame in v0.3 expecting the
+  change to stick on the network, you must now go through an editing
+  `Session` (see below).
+- **`read_gmns_network` returning a bare dict.** The `Network` object
+  exposes the same tables as attributes (`net.nodes`, `net.links`, …)
+  but those attributes return lazy `Table` wrappers, not DataFrames.
+
+## What's new
+
+- **Modern formats out of the box.** Parquet (incl. partitioned),
+  DuckDB, zip-CSV, and HTTP(S) URLs with a credentials cascade. Try
+  `corral.read("s3://bucket/network.parquet", credentials=...)`.
+- **Multi-version GMNS spec.** v0.95 / v0.96 / v0.97 ship side-by-side;
+  default is 0.97. Per-call override:
+  `Network.from_source(path, spec_version="0.96")`.
+- **Network-aware scoping.** BFS, Dijkstra network buffer, spatial
+  buffer from any link / point / node, connected-component, zone
+  filter — chainable. See `netstead.scope`.
+- **Data-quality framework.** 7 GMNS rules out of the box; plugin
+  pattern for custom rules. Surface: `netstead quality <path>`.
+- **Editing with rollback.** `netstead.clean.simplify_geometry`,
+  `merge_close_nodes`, `remove_orphans`, `recompute_lengths`. All run
+  inside an atomic `corral.editing.Session` with an audit log.
+- **CLI + AI surface.** `netstead --help`. Every command takes `--json`
+  for machine-readable output. (MCP server lands in #91 / #92.)
+- **Reports.** `report.to_html(path)` / `report.to_json()` /
+  `report.to_rich()` render the same `ValidationReport` for humans,
+  CI, or dashboards.
+
+## Worked example: load + validate + filter a network
+
+**GMNSpy v0.3.5**
+
+```python
+import gmnspy
+import pandas as pd
+
+# Load — returns a dict[str, DataFrame], validates eagerly
+network = gmnspy.read_gmns_network("path/to/gmns/dir")
+
+nodes = network["node"]
+links = network["link"]
+
+# Re-validate one table by hand
+gmnspy.validation.apply_schema_to_df(
+    nodes,
+    schema_file="gmnspy/spec/node.schema.json",
+    originating_file="node.csv",
+)
+
+# Filter to a subnetwork — pandas only, no FK awareness
+keep = nodes[nodes["zone_id"] == 42]["node_id"]
+sub_links = links[links["from_node_id"].isin(keep) & links["to_node_id"].isin(keep)]
+```
+
+**Netstead v1.0**
+
+```python
+from netstead import Network
+from netstead import scope
+
+# Load — lazy, format-agnostic, no eager validation
+net = Network.from_source("path/to/gmns/dir")  # or .parquet / .duckdb / URL
+
+# Validate everything (schema + FK + structural + sync-state) in one call
+report = net.validate()
+if not report.ok:
+    report.to_rich()           # pretty-print to terminal
+    report.to_html("report.html")
+    raise SystemExit(1)
+
+# Network-aware subnetwork: zone filter, then connected component
+sub = (
+    scope.from_zones(net, [42])
+    .connected_component()
+    .apply()
+)
+
+# Materialize only when you need to
+nodes_df = sub.nodes.to_pandas()
+```
+
+Equivalent from the shell:
+
+```bash
+netstead validate path/to/gmns/dir --json > report.json
+netstead info     path/to/gmns/dir
+netstead quality  path/to/gmns/dir --json
+```
+
+## Breaking changes checklist
+
+Before you upgrade, scan your codebase for each of these:
+
+- [ ] Requirement `gmnspy` replaced with `netstead`.
+- [ ] All `from gmnspy import …` and `from gmnspy.* import …` imports
+      refactored to `netstead` — submodule paths changed too.
+- [ ] Calls to `read_gmns_csv` / `read_gmns_network` replaced with
+      `Network.from_source(...)` (or `corral.read(...)` for a single
+      table).
+- [ ] Code that mutated returned DataFrames in place now uses
+      `corral.editing.Session` (or explicitly materializes with
+      `.to_pandas()` and treats the result as a snapshot).
+- [ ] Validation call sites updated — they receive a
+      `ValidationReport`, not bare lists or `None`. Check `report.ok`
+      / iterate `report.issues`.
+- [ ] Tests that imported `gmnspy.validation._check_*` helpers switch
+      to `Network.validate()` (or `corral.Package.validate()` for
+      non-GMNS packages).
+- [ ] `gmnspy.utils` imports rerouted: logger → stdlib `logging`,
+      markdown helpers → `corral.docgen` (spec docs) or removed.
+- [ ] Hard-coded references to `gmnspy/spec/*.schema.json` paths
+      replaced with `netstead.load_gmns_spec(version=...)` or
+      `netstead.get_spec_path(version=...)`.
+
+## Where to ask
+
+- **Issues:** <https://github.com/e-lo/netstead/issues>
+- **Discussions:** <https://github.com/e-lo/netstead/discussions>
+- **v1.0 tracking issue:** <https://github.com/e-lo/netstead/issues/97>
+
+If you hit a v0.3 pattern not covered above, please open an issue with
+the snippet — we want this guide to cover the long tail.
+
+
+<!-- source: ai/mcp-tools.md url: https://e-lo.github.io/netstead/netstead/ai/mcp-tools.md -->
+
+---
+title: MCP tools reference
+audience: both
+kind: reference
+summary: Complete reference for the seven MCP tools the netstead server exposes — three generic corral tools plus four GMNS-aware ones.
+---
+
+# MCP tools reference
+
+## Summary
+
+`netstead mcp serve` runs a stdio MCP server that exposes seven tools: three generic Frictionless-package tools inherited from `corral.mcp`, plus four GMNS-aware tools. Every tool is **stateless** — each call takes a `source` (path or URL) and loads the package fresh. No session, no cache, no cross-call mutation. A stateful surface (editing sessions, indexed scope ops) is deferred and not yet tracked in an issue.
+
+All tools return JSON-shaped dicts (or lists of strings); shapes are stable inside a major version. For wiring the server into Claude Desktop or Claude Code, see [Wire the MCP server](../cookbook/serve-mcp.md).
+
+## Tools
+
+### `describe_package(source)`
+
+Generic package overview. Available on any Frictionless package, not just GMNS.
+
+**Parameters**
+
+| Name | Type | Description |
+|---|---|---|
+| `source` | string | Filesystem path or URL to a package directory / `datapackage.json` |
+
+**Returns** — `dict`:
+
+```json
+{
+  "source": "<echoed input>",
+  "name": "<package name from spec>",
+  "engine": "DuckDBIbisEngine",
+  "table_count": 9,
+  "tables": [
+    {"name": "link", "rows": 339, "columns": ["link_id", "from_node_id", ...]},
+    {"name": "node", "rows": 75,  "columns": ["node_id", "x_coord", ...]}
+  ]
+}
+```
+
+`rows` / `columns` may be `null` for an individual table if its count fails (e.g. unreadable file).
+
+**Example**
+
+```json
+{"name": "describe_package", "arguments": {"source": "packages/netstead/netstead/fixtures/leavenworth/csv"}}
+```
+
+### `validate_package(source)`
+
+Run the full validation pipeline (structural + schema + foreign-key + sync-state) and return the report.
+
+**Parameters**
+
+| Name | Type | Description |
+|---|---|---|
+| `source` | string | Path or URL to the package |
+
+**Returns** — `dict`:
+
+```json
+{
+  "issues": [
+    {
+      "severity": "error | warning | info",
+      "category": "structural | schema | fk | sync | data_quality",
+      "code": "fk.missing_target",
+      "message": "...",
+      "table": "lane",
+      "column": "link_id",
+      "row": 42,
+      "fix_hint": "..."
+    }
+  ],
+  "spec_version": "0.97"
+}
+```
+
+An empty `issues` list means the package is fully valid.
+
+**Example**
+
+```json
+{"name": "validate_package", "arguments": {"source": "s3://my-bucket/regional/datapackage.json"}}
+```
+
+### `list_tables(source)`
+
+Cheap variant of `describe_package` — returns just the sorted list of table names with no row counts. Useful as a first call when the agent doesn't know what's in a package.
+
+**Parameters**
+
+| Name | Type | Description |
+|---|---|---|
+| `source` | string | Path or URL |
+
+**Returns** — `list[str]`:
+
+```json
+["lane", "link", "link_tod", "node", "signal_phase", "signal_phase_mvmt", "signal_timing_plan", "use_definition", "zone"]
+```
+
+**Example**
+
+```json
+{"name": "list_tables", "arguments": {"source": "packages/netstead/netstead/fixtures/leavenworth/csv"}}
+```
+
+### `describe_network(source)`
+
+GMNS-aware version of `describe_package`. Surfaces the GMNS-specific fields an agent typically wants up front (spec version, link/node counts) without iterating tables.
+
+**Parameters**
+
+| Name | Type | Description |
+|---|---|---|
+| `source` | string | Path or URL to a GMNS network |
+
+**Returns** — `dict`:
+
+```json
+{
+  "source": "<echoed input>",
+  "name": "leavenworth",
+  "spec_version": "0.97",
+  "engine": "DuckDBIbisEngine",
+  "links": 339,
+  "nodes": 121,
+  "table_count": 9,
+  "tables": ["lane", "link", "link_tod", "node", "signal_phase", ...]
+}
+```
+
+`links` / `nodes` may be `null` if the network doesn't have those tables or the count fails.
+
+**Example**
+
+```json
+{"name": "describe_network", "arguments": {"source": "packages/netstead/netstead/fixtures/leavenworth/csv"}}
+```
+
+### `quality_check(source)`
+
+Run the GMNS data-quality rule pack (high-speed-residential, duplicate-near-nodes, sharp-angle bends, etc.).
+
+**Parameters**
+
+| Name | Type | Description |
+|---|---|---|
+| `source` | string | Path or URL to a GMNS network |
+
+**Returns** — same `ValidationReport` shape as `validate_package`:
+
+```json
+{
+  "issues": [
+    {
+      "severity": "warning",
+      "category": "data_quality",
+      "code": "quality.high_speed_residential",
+      "message": "link 42: speed_limit=45 > 35 mph on residential",
+      "table": "link",
+      "row": 42,
+      "fix_hint": "verify speed limit or reclassify"
+    }
+  ],
+  "spec_version": "0.97"
+}
+```
+
+Default-pack issues are WARNING / INFO — the GMNS spec is silent on these checks, but they catch common data-quality misses. Customise thresholds via the Python API ([Customise the data-quality rule pack](../cookbook/customise-quality.md)).
+
+**Example**
+
+```json
+{"name": "quality_check", "arguments": {"source": "packages/netstead/netstead/fixtures/leavenworth/csv"}}
+```
+
+### `connected_components(source)`
+
+Count weakly-connected components in the network graph. Requires the `[clean]` extra (igraph) on the server side.
+
+**Parameters**
+
+| Name | Type | Description |
+|---|---|---|
+| `source` | string | Path or URL to a GMNS network |
+
+**Returns** — `dict`:
+
+```json
+{
+  "source": "<echoed input>",
+  "component_count": 1,
+  "sizes": [75]
+}
+```
+
+`component_count == 1` means the network is fully connected. `sizes` is the descending list of node counts per component — `[75]` for a fully-connected 75-node network; `[60, 12, 3]` for a three-component network with the largest having 60 nodes.
+
+**Example**
+
+```json
+{"name": "connected_components", "arguments": {"source": "packages/netstead/netstead/fixtures/leavenworth/csv"}}
+```
+
+### `scope_from_nodes(source, node_ids, path_between)`
+
+Build a network-aware scope from a list of seed node ids and return the resulting node + link sets.
+
+**Parameters**
+
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `source` | string | — | Path or URL to a GMNS network |
+| `node_ids` | list[int] | — | Seed node ids |
+| `path_between` | bool | `true` | If true, includes all nodes/links on shortest paths between every pair of seeds. If false, keeps only the seeds + their incident links. |
+
+**Returns** — `dict`:
+
+```json
+{
+  "source": "<echoed input>",
+  "seed_node_ids": [1, 25, 50],
+  "path_between": true,
+  "result_node_count": 18,
+  "result_link_count": 31,
+  "node_ids": [1, 5, 8, 14, 25, ...],
+  "link_ids": [101, 102, 105, ...]
+}
+```
+
+The returned ids are sorted. For chaining (union / intersect / buffer), drop into the Python API — the MCP surface only exposes the leaf operation.
+
+**Example**
+
+```json
+{"name": "scope_from_nodes", "arguments": {"source": "packages/netstead/netstead/fixtures/leavenworth/csv", "node_ids": [1, 25, 50], "path_between": true}}
+```
+
+## See also
+
+* [Wire the MCP server to Claude Code / Claude Desktop](../cookbook/serve-mcp.md) — host configuration + transport details.
+* [AI surface](https://e-lo.github.io/netstead/corral/ai/) — how MCP fits with `llms.txt`, `api-index.json`, and the Claude Code Skills.
+* [API reference](../reference/api.md) — the underlying Python symbols each tool wraps.

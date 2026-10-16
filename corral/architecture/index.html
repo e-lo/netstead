@@ -1,0 +1,1383 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="Generic Frictionless data-package engine — lazy ibis with DuckDB, pandas + polars on demand. Validation, scope, editing, HTTP + MCP primitives." name="description"/>
+<link href="https://e-lo.github.io/netstead/corral/architecture/" rel="canonical"/>
+<link href="../ai/json-cli/" rel="prev"/>
+<link href="../development/" rel="next"/>
+<link href="../assets/images/favicon.png" rel="icon"/>
+<meta content="mkdocs-1.6.1, mkdocs-material-9.7.7" name="generator"/>
+<title>Architecture - corral documentation</title>
+<link href="../assets/stylesheets/main.ec1eaa64.min.css" rel="stylesheet"/>
+<link href="../assets/stylesheets/palette.ab4e12ef.min.css" rel="stylesheet"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&amp;display=fallback" rel="stylesheet"/>
+<style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+<link href="../assets/_mkdocstrings.css" rel="stylesheet"/>
+<link href="../assets/stylesheets/extra.css" rel="stylesheet"/>
+<script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+<link href="../assets/stylesheets/glightbox.min.css" rel="stylesheet"/><script src="../assets/javascripts/glightbox.min.js"></script><style id="glightbox-style">
+            html.glightbox-open { overflow: initial; height: 100%; }
+            .gslide-title { margin-top: 0px; user-select: text; }
+            .gslide-desc { color: #666; user-select: text; }
+            .gslide-image img { background: white; }
+            .gscrollbar-fixer { padding-right: 15px; }
+            .gdesc-inner { font-size: 0.75rem; }
+            body[data-md-color-scheme="slate"] .gdesc-inner { background: var(--md-default-bg-color); }
+            body[data-md-color-scheme="slate"] .gslide-title { color: var(--md-default-fg-color); }
+            body[data-md-color-scheme="slate"] .gslide-desc { color: var(--md-default-fg-color); }
+        </style></head>
+<body data-md-color-accent="blue" data-md-color-primary="blue" data-md-color-scheme="default" dir="ltr">
+<input autocomplete="off" class="md-toggle" data-md-toggle="drawer" id="__drawer" type="checkbox"/>
+<input autocomplete="off" class="md-toggle" data-md-toggle="search" id="__search" type="checkbox"/>
+<label class="md-overlay" for="__drawer"></label>
+<div data-md-component="skip">
+<a class="md-skip" href="#software-architecture-netstead-corral-v10">
+          Skip to content
+        </a>
+</div>
+<div data-md-component="announce">
+</div>
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+<nav aria-label="Header" class="md-header__inner md-grid">
+<a aria-label="corral documentation" class="md-header__button md-logo" data-md-component="logo" href=".." title="corral documentation">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"></path></svg>
+</a>
+<label class="md-header__button md-icon" for="__drawer">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"></path></svg>
+</label>
+<div class="md-header__title" data-md-component="header-title">
+<div class="md-header__ellipsis">
+<div class="md-header__topic">
+<span class="md-ellipsis">
+            corral documentation
+          </span>
+</div>
+<div class="md-header__topic" data-md-component="header-topic">
+<span class="md-ellipsis">
+            
+              Architecture
+            
+          </span>
+</div>
+</div>
+</div>
+<form class="md-header__option" data-md-component="palette">
+<input aria-label="Switch to dark mode" class="md-option" data-md-color-accent="blue" data-md-color-media="(prefers-color-scheme: light)" data-md-color-primary="blue" data-md-color-scheme="default" id="__palette_0" name="__palette" type="radio"/>
+<label class="md-header__button md-icon" for="__palette_1" hidden="" title="Switch to dark mode">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M17 6H7c-3.31 0-6 2.69-6 6s2.69 6 6 6h10c3.31 0 6-2.69 6-6s-2.69-6-6-6m0 10H7c-2.21 0-4-1.79-4-4s1.79-4 4-4h10c2.21 0 4 1.79 4 4s-1.79 4-4 4M7 9c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3"></path></svg>
+</label>
+<input aria-label="Switch to light mode" class="md-option" data-md-color-accent="blue" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-primary="blue" data-md-color-scheme="slate" id="__palette_1" name="__palette" type="radio"/>
+<label class="md-header__button md-icon" for="__palette_0" hidden="" title="Switch to light mode">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M17 7H7a5 5 0 0 0-5 5 5 5 0 0 0 5 5h10a5 5 0 0 0 5-5 5 5 0 0 0-5-5m0 8a3 3 0 0 1-3-3 3 3 0 0 1 3-3 3 3 0 0 1 3 3 3 3 0 0 1-3 3"></path></svg>
+</label>
+</form>
+<script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+<label class="md-header__button md-icon" for="__search">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+</label>
+<div class="md-search" data-md-component="search" role="dialog">
+<label class="md-search__overlay" for="__search"></label>
+<div class="md-search__inner" role="search">
+<form class="md-search__form" name="search">
+<input aria-label="Search" autocapitalize="off" autocomplete="off" autocorrect="off" class="md-search__input" data-md-component="search-query" name="query" placeholder="Search" required="" spellcheck="false" type="text"/>
+<label class="md-search__icon md-icon" for="__search">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"></path></svg>
+</label>
+<nav aria-label="Search" class="md-search__options">
+<a aria-label="Share" class="md-search__icon md-icon" data-clipboard="" data-clipboard-text="" data-md-component="search-share" href="javascript:void(0)" tabindex="-1" title="Share">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"></path></svg>
+</a>
+<button aria-label="Clear" class="md-search__icon md-icon" tabindex="-1" title="Clear" type="reset">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>
+</button>
+</nav>
+<div class="md-search__suggest" data-md-component="search-suggest"></div>
+</form>
+<div class="md-search__output">
+<div class="md-search__scrollwrap" data-md-scrollfix="" tabindex="0">
+<div class="md-search-result" data-md-component="search-result">
+<div class="md-search-result__meta">
+            Initializing search
+          </div>
+<ol class="md-search-result__list" role="presentation"></ol>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="md-header__source">
+<a class="md-source" data-md-component="source" href="https://github.com/e-lo/netstead" title="Go to repository">
+<div class="md-source__icon md-icon">
+<svg viewbox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"></path></svg>
+</div>
+<div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+</div>
+</nav>
+<nav aria-label="Tabs" class="md-tabs" data-md-component="tabs">
+<div class="md-grid">
+<ul class="md-tabs__list">
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="..">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../quickstart/">
+        
+  
+  
+    
+  
+  Quickstart
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../cookbook/">
+        
+  
+  
+    
+  
+  Cookbook
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../reference/api/">
+          
+  
+  
+    
+  
+  Reference
+
+        </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../concepts/frictionless/">
+          
+  
+  
+    
+  
+  Concepts
+
+        </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../ai/">
+        
+  
+  
+    
+  
+  AI surface
+
+      </a>
+</li>
+<li class="md-tabs__item md-tabs__item--active">
+<a class="md-tabs__link" href="./">
+          
+  
+  
+    
+  
+  Project
+
+        </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="https://e-lo.github.io/netstead/">
+        
+  
+  
+    
+  
+  « Netstead umbrella
+
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="https://e-lo.github.io/netstead/netstead/">
+        
+  
+  
+    
+  
+  netstead site »
+
+      </a>
+</li>
+</ul>
+</div>
+</nav>
+</header>
+<div class="md-container" data-md-component="container">
+<main class="md-main" data-md-component="main">
+<div class="md-main__inner md-grid">
+<div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation">
+<div class="md-sidebar__scrollwrap">
+<div class="md-sidebar__inner">
+<nav aria-label="Navigation" class="md-nav md-nav--primary md-nav--lifted" data-md-level="0">
+<label class="md-nav__title" for="__drawer">
+<a aria-label="corral documentation" class="md-nav__button md-logo" data-md-component="logo" href=".." title="corral documentation">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"></path></svg>
+</a>
+    corral documentation
+  </label>
+<div class="md-nav__source">
+<a class="md-source" data-md-component="source" href="https://github.com/e-lo/netstead" title="Go to repository">
+<div class="md-source__icon md-icon">
+<svg viewbox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"></path></svg>
+</div>
+<div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+</div>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="..">
+<span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../quickstart/">
+<span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item md-nav__item--nested">
+<input class="md-nav__toggle md-toggle" id="__nav_3" type="checkbox"/>
+<div class="md-nav__link md-nav__container">
+<a class="md-nav__link" href="../cookbook/">
+<span class="md-ellipsis">
+    
+  
+    Cookbook
+  
+
+    
+  </span>
+</a>
+<label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+<span class="md-nav__icon md-icon"></span>
+</label>
+</div>
+<nav aria-expanded="false" aria-labelledby="__nav_3_label" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_3">
+<span class="md-nav__icon md-icon"></span>
+            
+  
+    Cookbook
+  
+
+          </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../cookbook/read-from-s3/">
+<span class="md-ellipsis">
+    
+  
+    Read from S3
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../cookbook/convert-formats/">
+<span class="md-ellipsis">
+    
+  
+    Convert formats
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../cookbook/scope-bbox/">
+<span class="md-ellipsis">
+    
+  
+    Spatial scope (bbox / polygon)
+  
+
+    
+  </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item md-nav__item--nested">
+<input class="md-nav__toggle md-toggle" id="__nav_4" type="checkbox"/>
+<label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+<span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+<span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-expanded="false" aria-labelledby="__nav_4_label" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_4">
+<span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../reference/api/">
+<span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item md-nav__item--nested">
+<input class="md-nav__toggle md-toggle" id="__nav_5" type="checkbox"/>
+<label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+<span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+<span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-expanded="false" aria-labelledby="__nav_5_label" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_5">
+<span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../concepts/frictionless/">
+<span class="md-ellipsis">
+    
+  
+    Frictionless data packages
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../concepts/engines/">
+<span class="md-ellipsis">
+    
+  
+    Compute engine &amp; dataframe formats
+  
+
+    
+  </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item md-nav__item--nested">
+<input class="md-nav__toggle md-toggle" id="__nav_6" type="checkbox"/>
+<div class="md-nav__link md-nav__container">
+<a class="md-nav__link" href="../ai/">
+<span class="md-ellipsis">
+    
+  
+    AI surface
+  
+
+    
+  </span>
+</a>
+<label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+<span class="md-nav__icon md-icon"></span>
+</label>
+</div>
+<nav aria-expanded="false" aria-labelledby="__nav_6_label" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_6">
+<span class="md-nav__icon md-icon"></span>
+            
+  
+    AI surface
+  
+
+          </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../ai/json-cli/">
+<span class="md-ellipsis">
+    
+  
+    Drive the CLI from an agent
+  
+
+    
+  </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+<input checked="" class="md-nav__toggle md-toggle" id="__nav_7" type="checkbox"/>
+<label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+<span class="md-ellipsis">
+    
+  
+    Project
+  
+
+    
+  </span>
+<span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-expanded="true" aria-labelledby="__nav_7_label" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_7">
+<span class="md-nav__icon md-icon"></span>
+            
+  
+    Project
+  
+
+          </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item md-nav__item--active">
+<input class="md-nav__toggle md-toggle" id="__toc" type="checkbox"/>
+<label class="md-nav__link md-nav__link--active" for="__toc">
+<span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+<span class="md-nav__icon md-icon"></span>
+</label>
+<a class="md-nav__link md-nav__link--active" href="./">
+<span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+</a>
+<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
+<label class="md-nav__title" for="__toc">
+<span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#1-mission">
+<span class="md-ellipsis">
+      
+        1. Mission
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#2-repo-layout-monorepo-two-pypi-packages">
+<span class="md-ellipsis">
+      
+        2. Repo layout (monorepo, two PyPI packages)
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#3-two-packages-one-principle">
+<span class="md-ellipsis">
+      
+        3. Two packages, one principle
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#4-module-map-corral">
+<span class="md-ellipsis">
+      
+        4. Module map — corral
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#5-module-map-netstead">
+<span class="md-ellipsis">
+      
+        5. Module map — netstead
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#6-defaults-key-design-decisions">
+<span class="md-ellipsis">
+      
+        6. Defaults &amp; key design decisions
+      
+    </span>
+</a>
+<nav aria-label="6. Defaults &amp; key design decisions" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#61-engine-io">
+<span class="md-ellipsis">
+      
+        6.1 Engine + I/O
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#62-memory-efficient-scoping">
+<span class="md-ellipsis">
+      
+        6.2 Memory-efficient scoping
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#63-validation-sync-state">
+<span class="md-ellipsis">
+      
+        6.3 Validation + sync state
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#64-editing-rollback">
+<span class="md-ellipsis">
+      
+        6.4 Editing + rollback
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#65-pooled-operations-cost-model">
+<span class="md-ellipsis">
+      
+        6.5 Pooled operations + cost model
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#66-cli">
+<span class="md-ellipsis">
+      
+        6.6 CLI
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#67-notebook">
+<span class="md-ellipsis">
+      
+        6.7 Notebook
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#68-self-hostable-api-server">
+<span class="md-ellipsis">
+      
+        6.8 Self-hostable API server
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#69-ai-accessibility">
+<span class="md-ellipsis">
+      
+        6.9 AI accessibility
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#7-spec-sync-strategy">
+<span class="md-ellipsis">
+      
+        7. Spec sync strategy
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#8-quality-bar">
+<span class="md-ellipsis">
+      
+        8. Quality bar
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#9-conventions">
+<span class="md-ellipsis">
+      
+        9. Conventions
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#10-phase-plan-summary-historical">
+<span class="md-ellipsis">
+      
+        10. Phase plan summary (historical)
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#11-how-to-contribute-short-version">
+<span class="md-ellipsis">
+      
+        11. How to contribute (short version)
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../development/">
+<span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="https://e-lo.github.io/netstead/">
+<span class="md-ellipsis">
+    
+  
+    « Netstead umbrella
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="https://e-lo.github.io/netstead/netstead/">
+<span class="md-ellipsis">
+    
+  
+    netstead site »
+  
+
+    
+  </span>
+</a>
+</li>
+</ul>
+</nav>
+</div>
+</div>
+</div>
+<div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc">
+<div class="md-sidebar__scrollwrap">
+<div class="md-sidebar__inner">
+<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
+<label class="md-nav__title" for="__toc">
+<span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#1-mission">
+<span class="md-ellipsis">
+      
+        1. Mission
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#2-repo-layout-monorepo-two-pypi-packages">
+<span class="md-ellipsis">
+      
+        2. Repo layout (monorepo, two PyPI packages)
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#3-two-packages-one-principle">
+<span class="md-ellipsis">
+      
+        3. Two packages, one principle
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#4-module-map-corral">
+<span class="md-ellipsis">
+      
+        4. Module map — corral
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#5-module-map-netstead">
+<span class="md-ellipsis">
+      
+        5. Module map — netstead
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#6-defaults-key-design-decisions">
+<span class="md-ellipsis">
+      
+        6. Defaults &amp; key design decisions
+      
+    </span>
+</a>
+<nav aria-label="6. Defaults &amp; key design decisions" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#61-engine-io">
+<span class="md-ellipsis">
+      
+        6.1 Engine + I/O
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#62-memory-efficient-scoping">
+<span class="md-ellipsis">
+      
+        6.2 Memory-efficient scoping
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#63-validation-sync-state">
+<span class="md-ellipsis">
+      
+        6.3 Validation + sync state
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#64-editing-rollback">
+<span class="md-ellipsis">
+      
+        6.4 Editing + rollback
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#65-pooled-operations-cost-model">
+<span class="md-ellipsis">
+      
+        6.5 Pooled operations + cost model
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#66-cli">
+<span class="md-ellipsis">
+      
+        6.6 CLI
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#67-notebook">
+<span class="md-ellipsis">
+      
+        6.7 Notebook
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#68-self-hostable-api-server">
+<span class="md-ellipsis">
+      
+        6.8 Self-hostable API server
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#69-ai-accessibility">
+<span class="md-ellipsis">
+      
+        6.9 AI accessibility
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#7-spec-sync-strategy">
+<span class="md-ellipsis">
+      
+        7. Spec sync strategy
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#8-quality-bar">
+<span class="md-ellipsis">
+      
+        8. Quality bar
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#9-conventions">
+<span class="md-ellipsis">
+      
+        9. Conventions
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#10-phase-plan-summary-historical">
+<span class="md-ellipsis">
+      
+        10. Phase plan summary (historical)
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#11-how-to-contribute-short-version">
+<span class="md-ellipsis">
+      
+        11. How to contribute (short version)
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</div>
+</div>
+</div>
+<div class="md-content" data-md-component="content">
+<article class="md-content__inner md-typeset">
+<a class="md-content__button md-icon" href="https://github.com/e-lo/netstead/edit/main/packages/corral/docs/architecture.md" rel="edit" title="Edit this page">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75z"></path></svg>
+</a>
+<a class="md-content__button md-icon" href="https://github.com/e-lo/netstead/raw/main/packages/corral/docs/architecture.md" title="View source of this page">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0 8a5 5 0 0 1-5-5 5 5 0 0 1 5-5 5 5 0 0 1 5 5 5 5 0 0 1-5 5m0-12.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5"></path></svg>
+</a>
+<h1 id="software-architecture-netstead-corral-v10">Software architecture — Netstead + corral v1.0<a class="headerlink" href="#software-architecture-netstead-corral-v10" title="Permanent link"> ¶</a></h1>
+<p>This document is the <strong>single source of truth</strong> for the <em>current</em> software design of netstead and corral. It exists so that any contributor — human or AI sub-agent — landing in the repo can pick up cold and make decisions consistent with the rest of the work.</p>
+<p>For the <strong>GMNS data model</strong> (link/node/lane/etc. ER diagrams), see <a href="https://e-lo.github.io/netstead/netstead/gmns-data-model/">gmns-data-model.md</a>. Decisions (ADRs), PRDs, feature designs and implementation plans live in <a href="https://github.com/e-lo/netstead/tree/main/docs/design"><code>docs/design/</code></a>; start at its <a href="https://github.com/e-lo/netstead/blob/main/docs/design/README.md">README</a>, which indexes every record with its status.</p>
+<hr/>
+<h2 id="1-mission">1. Mission<a class="headerlink" href="#1-mission" title="Permanent link"> ¶</a></h2>
+<p>Netstead is a Python toolkit for the <a href="https://github.com/zephyr-data-specs/GMNS">General Modeling Network Specification (GMNS)</a>, the Zephyr Foundation’s open standard for routable transportation network data. v1.0 is a major rewrite of the v0.3.x alpha to deliver:</p>
+<ul>
+<li><strong>Regional-scale performance</strong> — load + scope + validate Bay-Area-class networks without melting RAM or CPU</li>
+<li><strong>Modern formats</strong> — Parquet (default persistent), DuckDB (default API download), zipped CSV, CSV; remote URLs with credentials</li>
+<li><strong>Foreign-key validation with sync-state awareness</strong> — warn on writes when a network is mid-edit and FKs are stale</li>
+<li><strong>Network-aware scoping</strong> — bbox + polygon + BFS-induced subgraph + network-distance buffer + spatial buffer from any link/point/node, with eager spatial+graph indexes for fast repeat queries (memory-for-compute tradeoff)</li>
+<li><strong>Data-quality warnings</strong> beyond the spec (high-speed-residential, disconnected components, etc.) via configurable plugin pattern</li>
+<li><strong>Editing with atomic rollback + audit log</strong> (<code>netstead[clean]</code>)</li>
+<li><strong>Self-hostable API server</strong> (<code>netstead[server]</code>) — FastAPI + auto-OpenAPI; we ship the package + Dockerfile, not a service</li>
+<li><strong>AI accessibility</strong> — Claude Code Skills (in-repo, git-URL install) + MCP server (<code>netstead[mcp]</code>); zero hosting commitment</li>
+<li><strong>Three usage surfaces</strong> — interactive CLI, Jupyter notebook, programmatic API</li>
+<li><strong>Awesome docs</strong> — for both human and AI consumers</li>
+</ul>
+<p>Full requirements list (29 items) traces to phase tasks via the GitHub issue tree.</p>
+<h2 id="2-repo-layout-monorepo-two-pypi-packages">2. Repo layout (monorepo, two PyPI packages)<a class="headerlink" href="#2-repo-layout-monorepo-two-pypi-packages" title="Permanent link"> ¶</a></h2>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a href="#__codelineno-0-1" id="__codelineno-0-1" name="__codelineno-0-1"></a>Netstead/                                       # git repo
+</span><span id="__span-0-2"><a href="#__codelineno-0-2" id="__codelineno-0-2" name="__codelineno-0-2"></a>├── pyproject.toml                            # uv workspace root + shared dev tooling
+</span><span id="__span-0-3"><a href="#__codelineno-0-3" id="__codelineno-0-3" name="__codelineno-0-3"></a>├── uv.lock
+</span><span id="__span-0-4"><a href="#__codelineno-0-4" id="__codelineno-0-4" name="__codelineno-0-4"></a>├── packages/
+</span><span id="__span-0-5"><a href="#__codelineno-0-5" id="__codelineno-0-5" name="__codelineno-0-5"></a>│   ├── corral/                            # PyPI package #1 — generic engine
+</span><span id="__span-0-6"><a href="#__codelineno-0-6" id="__codelineno-0-6" name="__codelineno-0-6"></a>│   │   ├── pyproject.toml
+</span><span id="__span-0-7"><a href="#__codelineno-0-7" id="__codelineno-0-7" name="__codelineno-0-7"></a>│   │   └── corral/
+</span><span id="__span-0-8"><a href="#__codelineno-0-8" id="__codelineno-0-8" name="__codelineno-0-8"></a>│   └── netstead/                               # PyPI package #2 — GMNS-specific (depends on corral)
+</span><span id="__span-0-9"><a href="#__codelineno-0-9" id="__codelineno-0-9" name="__codelineno-0-9"></a>│       ├── pyproject.toml
+</span><span id="__span-0-10"><a href="#__codelineno-0-10" id="__codelineno-0-10" name="__codelineno-0-10"></a>│       └── netstead/
+</span><span id="__span-0-11"><a href="#__codelineno-0-11" id="__codelineno-0-11" name="__codelineno-0-11"></a>│           └── spec/{0.95,0.96,0.97}/        # vendored upstream spec versions
+</span><span id="__span-0-12"><a href="#__codelineno-0-12" id="__codelineno-0-12" name="__codelineno-0-12"></a>├── skills/                                   # Claude Code Skills (git-URL install)
+</span><span id="__span-0-13"><a href="#__codelineno-0-13" id="__codelineno-0-13" name="__codelineno-0-13"></a>├── docs/                                     # mkdocs site (covers both packages + GMNS itself)
+</span><span id="__span-0-14"><a href="#__codelineno-0-14" id="__codelineno-0-14" name="__codelineno-0-14"></a>├── scripts/
+</span><span id="__span-0-15"><a href="#__codelineno-0-15" id="__codelineno-0-15" name="__codelineno-0-15"></a>└── .github/workflows/                        # tests / publish-corral / publish-netstead / docs / spec-sync / bench
+</span></code></pre></div>
+<p><strong>Per-package release tags:</strong> <code>corral-vX.Y.Z</code>, <code>netstead-vX.Y.Z</code>. PyPI trusted publishing fires per-tag.</p>
+<p><strong>Branch model:</strong> <code>main</code> is the trunk; short-lived feature branches merge into <code>main</code> via PR. The v0.3 code is preserved on <code>legacy-gmnspy</code>.</p>
+<h2 id="3-two-packages-one-principle">3. Two packages, one principle<a class="headerlink" href="#3-two-packages-one-principle" title="Permanent link"> ¶</a></h2>
+<p><code>corral</code> holds <strong>generic primitives / frameworks</strong>. <code>netstead</code> holds the <strong>GMNS-specific assembly</strong> that composes those primitives with domain knowledge. The same composition pattern applies to every cross-cutting concern:</p>
+<table>
+<thead>
+<tr>
+<th>Concern</th>
+<th>corral (generic)</th>
+<th>netstead (GMNS-specific)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>editing</td>
+<td><code>editing/</code> (Edit/Diff/Session/Rollback framework)</td>
+<td><code>clean/</code> (simplify_geometry, merge_close_nodes, …)</td>
+</tr>
+<tr>
+<td>HTTP server</td>
+<td><code>api/</code> (FastAPI primitives, routers, OpenAPI helpers)</td>
+<td><code>server/</code> (assembled app, GMNS endpoints, Dockerfile)</td>
+</tr>
+<tr>
+<td>MCP</td>
+<td><code>mcp/</code> (server primitives, tool decorators)</td>
+<td><code>mcp/</code> (GMNS tool registrations)</td>
+</tr>
+<tr>
+<td>CLI</td>
+<td><code>cli/</code> (validate, convert, info, scope-spatial, describe; entry: <code>corral</code>)</td>
+<td><code>cli/</code> (read, spec, quality, clean, scope-network, index; entry: <code>netstead</code>)</td>
+</tr>
+<tr>
+<td>Quality</td>
+<td><code>quality/</code> (Rule base class, plugin discovery; <strong>no domain rules</strong>)</td>
+<td><code>quality/</code> (GMNS rule pack via entry point)</td>
+</tr>
+<tr>
+<td>Notebook</td>
+<td><code>notebook/</code> (<code>_repr_html_</code> for Package/Table/ValidationReport/EditResult)</td>
+<td><code>notebook/</code> (Network repr + scope widgets)</td>
+</tr>
+<tr>
+<td>Validation</td>
+<td><code>validation/</code> (schema, structural, FK, sync-state)</td>
+<td>(uses corral validation as-is)</td>
+</tr>
+<tr>
+<td>Engines</td>
+<td><code>engines/</code> (Engine protocol + the one DuckDB-via-ibis engine)</td>
+<td>(uses)</td>
+</tr>
+<tr>
+<td>I/O</td>
+<td><code>io/</code> (FormatAdapter ABC + csv/parquet/duckdb/zipcsv/remote)</td>
+<td>(uses)</td>
+</tr>
+<tr>
+<td>Dataset</td>
+<td><code>dataset/</code> (lazy <code>Package</code>, <code>Table</code>, <code>View</code>)</td>
+<td><code>network.py</code> (<code>Network</code> = <code>Package</code> + GMNS accessors)</td>
+</tr>
+<tr>
+<td>Spec</td>
+<td><code>spec/</code> (Pydantic Frictionless models, multi-version loader)</td>
+<td><code>spec/&lt;version&gt;/</code> (vendored GMNS schemas)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Hard rule (lint-enforced via import-linter):</strong> <code>corral</code> may not import from <code>netstead</code>. Optional-extra submodules in netstead (<code>clean</code>/<code>server</code>/<code>mcp</code>) may not be imported from netstead core modules. <strong>No raw SQL strings</strong> anywhere except inside <code>corral.engines.ibis_engine</code>.</p>
+<p>Promotion criterion to extract <code>corral</code> to a separate repo: a second consumer (e.g., GTFSpy) has consumed it for ≥1 month with no breaking-change requests. Until then, monorepo.</p>
+<h2 id="4-module-map-corral">4. Module map — corral<a class="headerlink" href="#4-module-map-corral" title="Permanent link"> ¶</a></h2>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a href="#__codelineno-1-1" id="__codelineno-1-1" name="__codelineno-1-1"></a>corral/
+</span><span id="__span-1-2"><a href="#__codelineno-1-2" id="__codelineno-1-2" name="__codelineno-1-2"></a>├── spec/         # Pydantic v2 models for Frictionless DataPackage/Resource/Schema/Field/ForeignKey/MissingValues/SharedCategory + loader (resolves $ref, shared_categories) + multi-version
+</span><span id="__span-1-3"><a href="#__codelineno-1-3" id="__codelineno-1-3" name="__codelineno-1-3"></a>├── engines/      # Engine protocol + IbisEngine (DuckDB backend) — the only compute engine; pandas/polars/arrow are I/O formats
+</span><span id="__span-1-4"><a href="#__codelineno-1-4" id="__codelineno-1-4" name="__codelineno-1-4"></a>├── io/           # FormatAdapter ABC + csv / parquet (partitioned) / duckdb / zipcsv / remote (fsspec) + credentials cascade
+</span><span id="__span-1-5"><a href="#__codelineno-1-5" id="__codelineno-1-5" name="__codelineno-1-5"></a>├── validation/   # ValidationReport + Issue (Error/Warning/Info/DataQuality) + schema_check + foreign_keys + structural + sync_state (DirtyTracker)
+</span><span id="__span-1-6"><a href="#__codelineno-1-6" id="__codelineno-1-6" name="__codelineno-1-6"></a>├── operations/   # cost_model + gating (&gt;30s estimate, &gt;3min approval) + pool/batch + progress (rich, notebook-aware)
+</span><span id="__span-1-7"><a href="#__codelineno-1-7" id="__codelineno-1-7" name="__codelineno-1-7"></a>├── dataset/      # Package / Table (lazy ibis-backed) / View (geographic scope)
+</span><span id="__span-1-8"><a href="#__codelineno-1-8" id="__codelineno-1-8" name="__codelineno-1-8"></a>├── reports/      # rich console / JSON / interactive single-file HTML renderers (Jinja2 + DataTables + Vega-Lite)
+</span><span id="__span-1-9"><a href="#__codelineno-1-9" id="__codelineno-1-9" name="__codelineno-1-9"></a>├── docgen/       # markdown + llms.txt + machine-readable api-index.json
+</span><span id="__span-1-10"><a href="#__codelineno-1-10" id="__codelineno-1-10" name="__codelineno-1-10"></a>├── editing/      # generic Edit / Diff / Session / Rollback framework (no domain semantics)
+</span><span id="__span-1-11"><a href="#__codelineno-1-11" id="__codelineno-1-11" name="__codelineno-1-11"></a>├── api/          # FastAPI primitives (routers, deps, OpenAPI helpers)
+</span><span id="__span-1-12"><a href="#__codelineno-1-12" id="__codelineno-1-12" name="__codelineno-1-12"></a>├── mcp/          # MCP server primitives (tool decorators, server scaffold)
+</span><span id="__span-1-13"><a href="#__codelineno-1-13" id="__codelineno-1-13" name="__codelineno-1-13"></a>├── cli/          # generic typer CLI: validate / convert / info / scope (bbox|polygon|geometry-buffer) / describe
+</span><span id="__span-1-14"><a href="#__codelineno-1-14" id="__codelineno-1-14" name="__codelineno-1-14"></a>├── quality/      # generic rule framework (Rule base class, threshold config, entry-point plugin discovery)
+</span><span id="__span-1-15"><a href="#__codelineno-1-15" id="__codelineno-1-15" name="__codelineno-1-15"></a>└── notebook/     # generic _repr_html_ for Package/Table/ValidationReport/EditResult
+</span></code></pre></div>
+<h2 id="5-module-map-netstead">5. Module map — netstead<a class="headerlink" href="#5-module-map-netstead" title="Permanent link"> ¶</a></h2>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a href="#__codelineno-2-1" id="__codelineno-2-1" name="__codelineno-2-1"></a>netstead/
+</span><span id="__span-2-2"><a href="#__codelineno-2-2" id="__codelineno-2-2" name="__codelineno-2-2"></a>├── spec/&lt;version&gt;/    # Vendored GMNS spec JSONs per supported version (0.95/, 0.96/, 0.97/, …)
+</span><span id="__span-2-3"><a href="#__codelineno-2-3" id="__codelineno-2-3" name="__codelineno-2-3"></a>├── network.py         # Network = corral.Package + GMNS-aware accessors (.links, .nodes, .segments, …) + add_*/update_* routed through DirtyTracker
+</span><span id="__span-2-4"><a href="#__codelineno-2-4" id="__codelineno-2-4" name="__codelineno-2-4"></a>├── semantics/         # connectivity, geometry assembly from geometry_id, TOD resolution
+</span><span id="__span-2-5"><a href="#__codelineno-2-5" id="__codelineno-2-5" name="__codelineno-2-5"></a>├── scope/             # network-aware scope ops: from_nodes, from_node, from_link, from_point, connected_component, from_zone
+</span><span id="__span-2-6"><a href="#__codelineno-2-6" id="__codelineno-2-6" name="__codelineno-2-6"></a>├── indexes/           # spatial (shapely STRtree) + graph (via netstead.graph) build/cache/load; sidecar parquet keyed on content hash
+</span><span id="__span-2-7"><a href="#__codelineno-2-7" id="__codelineno-2-7" name="__codelineno-2-7"></a>├── graph/             # OPTIONAL [graph] — scipy-CSR routing: components, shortest paths, isochrones, nearest-node snap
+</span><span id="__span-2-8"><a href="#__codelineno-2-8" id="__codelineno-2-8" name="__codelineno-2-8"></a>├── quality/           # GMNS rule pack: high-speed-on-residential, disconnected components, lane-count mismatch, …
+</span><span id="__span-2-9"><a href="#__codelineno-2-9" id="__codelineno-2-9" name="__codelineno-2-9"></a>├── clean/             # OPTIONAL [clean] — simplify_geometry, merge_close_nodes, snap_to_reference, …; uses corral.editing for rollback
+</span><span id="__span-2-10"><a href="#__codelineno-2-10" id="__codelineno-2-10" name="__codelineno-2-10"></a>├── server/            # OPTIONAL [server] — assembled FastAPI app on top of corral.api primitives
+</span><span id="__span-2-11"><a href="#__codelineno-2-11" id="__codelineno-2-11" name="__codelineno-2-11"></a>├── mcp/               # OPTIONAL [mcp] — assembled MCP server on top of corral.mcp primitives
+</span><span id="__span-2-12"><a href="#__codelineno-2-12" id="__codelineno-2-12" name="__codelineno-2-12"></a>├── cli/               # GMNS commands registered onto the corral typer app
+</span><span id="__span-2-13"><a href="#__codelineno-2-13" id="__codelineno-2-13" name="__codelineno-2-13"></a>├── notebook/          # Network._repr_html_ + scope-builder ipywidget; extends corral.notebook
+</span><span id="__span-2-14"><a href="#__codelineno-2-14" id="__codelineno-2-14" name="__codelineno-2-14"></a>├── osm/               # OPTIONAL [osm] — build GMNS from OpenStreetMap (Overpass/Nominatim, maintained tag mappings)
+</span><span id="__span-2-15"><a href="#__codelineno-2-15" id="__codelineno-2-15" name="__codelineno-2-15"></a>├── overture/          # OPTIONAL [overture] — build GMNS from Overture Maps (mirrors osm/)
+</span><span id="__span-2-16"><a href="#__codelineno-2-16" id="__codelineno-2-16" name="__codelineno-2-16"></a>├── config.py          # layered settings (default / user / project / env / session)
+</span><span id="__span-2-17"><a href="#__codelineno-2-17" id="__codelineno-2-17" name="__codelineno-2-17"></a>├── workbench/         # `netstead app`: Session + typed Action bus, registry, jobs, SSE, FastAPI server, ES-module front end
+</span><span id="__span-2-18"><a href="#__codelineno-2-18" id="__codelineno-2-18" name="__codelineno-2-18"></a>├── llm/               # OPTIONAL [nl] — provider adapters (Anthropic / OpenAI / Gemini / Ollama over httpx), model catalog, keyring
+</span><span id="__span-2-19"><a href="#__codelineno-2-19" id="__codelineno-2-19" name="__codelineno-2-19"></a>├── select/            # natural-language selection → validated GMNS link_id set (2026-09-23 design)
+</span><span id="__span-2-20"><a href="#__codelineno-2-20" id="__codelineno-2-20" name="__codelineno-2-20"></a>├── viz/               # binary render buffers, styling and paged DuckDB table reads used by the Workbench
+</span><span id="__span-2-21"><a href="#__codelineno-2-21" id="__codelineno-2-21" name="__codelineno-2-21"></a>├── map/               # embeddable Leaflet map component + edit log (ProjectCard-shaped YAML)
+</span><span id="__span-2-22"><a href="#__codelineno-2-22" id="__codelineno-2-22" name="__codelineno-2-22"></a>├── reports/           # findings CSV/XLSX writers
+</span><span id="__span-2-23"><a href="#__codelineno-2-23" id="__codelineno-2-23" name="__codelineno-2-23"></a>├── bench/             # benchmark harness (time + peak memory) behind `netstead bench`
+</span><span id="__span-2-24"><a href="#__codelineno-2-24" id="__codelineno-2-24" name="__codelineno-2-24"></a>└── fixtures/leavenworth/  # bundled tiny GMNS network for tests + docs
+</span></code></pre></div>
+<h2 id="6-defaults-key-design-decisions">6. Defaults &amp; key design decisions<a class="headerlink" href="#6-defaults-key-design-decisions" title="Permanent link"> ¶</a></h2>
+<h3 id="61-engine-io">6.1 Engine + I/O<a class="headerlink" href="#61-engine-io" title="Permanent link"> ¶</a></h3>
+<ul>
+<li>
+<p><strong>One compute engine: DuckDB, driven through ibis.</strong> Lazy expressions throughout. pandas / polars / Arrow are I/O formats only — frames come in via <code>from_arrow</code> / <code>from_records</code> and go out via <code>.to_pandas()</code> / <code>.to_polars()</code>. There is no per-call engine switch. Decision record: <a href="https://github.com/e-lo/netstead/blob/main/docs/design/2026-10-01-engine-strategy-reevaluation.md">engine strategy ADR</a> (pandas and polars engines removed in #195).</p>
+<p><em>Why ibis vs alternatives?</em> Writing SQL directly couples query intent to one dialect and makes lint-based composition checks brittle; agents would have to parse SQL strings to reason about intent. SQLModel is ORM-shaped — fine for transactional row work, wrong shape for analytic column work over millions of rows. Pandas-only forces eager materialisation, which kills the regional-scale story (Bay-Area links don’t fit RAM-comfortably on a laptop). Polars-only gives lazy evaluation but locks us into one backend and one expression language. Ibis is the only option that gives lazy expressions, lazy pushdown into DuckDB, and a clean escape valve via <code>.to_pandas()</code> / <code>.to_polars()</code> when the consumer wants a familiar frame.</p>
+<p><em>Why DuckDB as the default ibis backend?</em> SQLite is single-table-write-locked and has no spatial pushdown — fine for a config store, wrong for a network. A PostgreSQL backend would force every user to stand up a server, which kills the laptop-friendly story. In-memory pandas misses the whole point of lazy evaluation. DuckDB is single-file, embeddable, has native Parquet reads (with predicate pushdown), a working spatial extension, no server to run, and is RAM-resident at regional scale — exactly the laptop-to-server gradient the toolkit targets.</p>
+</li>
+<li>
+<p><strong>No raw SQL strings</strong> anywhere except inside <code>corral.engines.ibis_engine</code>. Lint-enforced by <code>scripts/lint_no_sql.py</code>.</p>
+<p><em>Why this rule?</em> Once a SQL string leaks into business logic, the composition contract breaks — any backend change (or ibis upgrade) suddenly requires a dialect audit across the whole codebase. Keeping SQL inside one module future-proofs the engine layer and lets AI agents reason about query intent through ibis expressions rather than string-parsing SQL. The lint script is cheap; the long-term churn it prevents is not.</p>
+</li>
+<li>
+<p><strong>I/O front door:</strong> <code>corral.read(source, *, format=None, credentials=None, engine=None, scope=None, spec=None)</code>. <code>netstead.read(...)</code> wraps with <code>spec=GMNS_DEFAULT</code>.</p>
+</li>
+<li><strong>Format detection:</strong> explicit <code>format=</code> overrides; else extension sniff (<code>.parquet</code>, <code>.csv</code>, <code>.csv.zip</code>, <code>.zip</code>, <code>.duckdb</code>); else <code>FormatAdapter.probe()</code> chain.</li>
+<li>
+<p><strong>Defaults:</strong> API/URL downloads default to <strong>DuckDB</strong>; persistent local writes default to <strong>partitioned Parquet</strong> (partition by H3 cell or zone_id, configurable).</p>
+<p><em>Why partitioned Parquet for persistent writes?</em> A single Parquet file works until the network grows past laptop-memory scale, at which point you want partition pruning on bbox / zone scope ops — the dispatcher pushes the predicate down and only reads the relevant partitions. CSV loses dtypes, has no predicate pushdown, isn’t splittable, and balloons disk footprint. A single <code>.duckdb</code> file is great for downloads but not for modelling tool interop: every GIS tool reads Parquet natively, very few read DuckDB. Partitioned Parquet is the only format that is columnar, splittable, predicate-pushdown-friendly, and readable by every downstream tool a modeller might use.</p>
+<p><em>Why DuckDB for URL / API downloads?</em> A single <code>.duckdb</code> file round-trips multi-table packages with zero schema loss (Parquet would need a sidecar manifest; CSV would need a zip), and the consumer can query it in-place without unpacking. For an API response where the consumer is most likely going to load → query → discard, this is strictly better than handing them a directory tree.</p>
+</li>
+<li>
+<p><strong>Credentials cascade (corral-owned):</strong> kwarg → <code>CORRAL_CRED_&lt;host&gt;_TOKEN</code> env → <code>keyring</code> (service <code>"corral"</code>) → <code>.netrc</code>. fsspec underneath. The env prefix lives in <code>corral</code> because credential resolution is a generic concern; <code>netstead</code> consumes it as-is.</p>
+</li>
+<li><strong>Recommended persistent layout:</strong>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a href="#__codelineno-3-1" id="__codelineno-3-1" name="__codelineno-3-1"></a>mynet.gmns/
+</span><span id="__span-3-2"><a href="#__codelineno-3-2" id="__codelineno-3-2" name="__codelineno-3-2"></a>  datapackage.json
+</span><span id="__span-3-3"><a href="#__codelineno-3-3" id="__codelineno-3-3" name="__codelineno-3-3"></a>  link/h3=8829a0c00b/part-0.parquet
+</span><span id="__span-3-4"><a href="#__codelineno-3-4" id="__codelineno-3-4" name="__codelineno-3-4"></a>  node/part-0.parquet
+</span><span id="__span-3-5"><a href="#__codelineno-3-5" id="__codelineno-3-5" name="__codelineno-3-5"></a>  ...
+</span><span id="__span-3-6"><a href="#__codelineno-3-6" id="__codelineno-3-6" name="__codelineno-3-6"></a>  _netstead_meta.json   # spec version, write timestamp, dirty flags, content hash per file
+</span></code></pre></div></li>
+</ul>
+<h4 id="engine-adapter-dispatch-issue-134-single-source-of-truth">Engine ↔ Adapter dispatch (issue #134 — single source of truth)<a class="headerlink" href="#engine-adapter-dispatch-issue-134-single-source-of-truth" title="Permanent link"> ¶</a></h4>
+<p>The <code>Engine</code> protocol and the <code>FormatAdapter</code> registry have an
+<strong>inverted</strong> relationship that keeps format dispatch in exactly one
+place:</p>
+<ul>
+<li><strong>Engines expose per-format primitives</strong> — <code>read_csv</code>,
+  <code>read_parquet</code>, <code>read_duckdb_table</code>, <code>from_records</code> plus the matching
+  <code>write_*</code> — and a <code>cast_schema</code> helper. These are what adapters
+  actually call.</li>
+<li><strong>Adapters own format dispatch.</strong> <code>Adapter.read(source, engine, ...)</code>
+  calls <code>engine.read_&lt;format&gt;(...)</code> directly. No engine-name <code>if/elif</code>
+  inside adapters; no per-format <code>if/elif</code> inside engines.</li>
+<li><strong><code>Engine.scan(source)</code> is a 3-line convenience</strong> that resolves
+  <code>source</code> via <code>corral.io.dispatch</code> and delegates to the chosen
+  adapter’s <code>read</code>. It exists so callers who don’t want to think about
+  adapters can still write <code>engine.scan(path)</code>. The single carve-out
+  is dict sources (<code>{"data": ...}</code>, <code>{"format": "duckdb", ...}</code>) which
+  the dispatcher can’t sniff — <code>scan</code> short-circuits those to
+  <code>from_records</code> / <code>read_duckdb_table</code> before delegating.</li>
+<li><strong><code>Engine.write(expr, dest, fmt)</code> is symmetric</strong> — a 3-line
+  convenience over <code>corral.io.get_adapter(fmt).write</code>.</li>
+</ul>
+<p>This means a new format (xlsx, geoparquet, …) is added by writing one
+<code>FormatAdapter</code> plus a <code>read_&lt;format&gt;</code> primitive on the DuckDB engine —
+no central dispatch needs editing.</p>
+<p>The format-interop test
+(<code>packages/corral/tests/dataset/test_format_interop.py</code>) locks the
+input/output contract: pandas / polars / pyarrow in and out round-trip
+through DuckDB with the nullable dtype family preserved. A regression
+test pins that <code>Engine.scan()</code> stays a thin delegator (≤10 top-level
+statements) so no future contributor can re-grow the per-format
+if/elif inside it.</p>
+<h3 id="62-memory-efficient-scoping">6.2 Memory-efficient scoping<a class="headerlink" href="#62-memory-efficient-scoping" title="Permanent link"> ¶</a></h3>
+<ul>
+<li><strong>Lazy by default.</strong> <code>netstead.read(...)</code> returns a <code>Network</code> whose tables are unmaterialized ibis expressions. Materialization on <code>.to_pandas()</code> / <code>.collect()</code> / <code>.head()</code> / explicit consumer.</li>
+<li><strong>Spatial scopes (generic, in <code>corral.dataset.view</code>):</strong> <code>from_bbox</code>, <code>from_polygon</code>, <code>from_geometry_buffer</code>.</li>
+<li><strong>Network-aware scopes (in <code>netstead.scope</code>):</strong> <code>from_nodes(ids, path_between=True)</code> (BFS / shortest-path induced subgraph), <code>from_node(id, network_buffer="0.5mi")</code> (Dijkstra), <code>from_link(id, spatial_buffer_m | network_buffer)</code>, <code>from_point(xy, spatial_buffer_m)</code> (snaps + buffers), <code>connected_component(seed)</code>, <code>from_zone(zone_ids)</code>.</li>
+<li><strong>Composite + chainable:</strong> <code>net.scope.from_nodes([1,2,3]).buffer_network("0.5mi").buffer_spatial(30)</code>.</li>
+<li>
+<p><strong>Eager-index opt-in (memory-for-compute):</strong> <code>net.build_indexes(spatial=True, graph=True)</code> builds STRtree + igraph adjacency once; subsequent scopes use them. Indexes cached as sidecar parquet keyed on content hash (auto-invalidated on edit). Auto-build heuristic: trigger when network exceeds N nodes (configurable; default 50k) AND user calls a network-aware scope op.</p>
+<p><em>Why ~50k nodes as the auto-build threshold?</em> Empirically calibrated against the Leavenworth (75 nodes) and synthetic regional (~500k nodes) fixtures: below ~50k, the first scope op runs faster than the index build, so building eagerly is a net loss. Above ~50k, the second scope op pays back the build cost, and by the third the user is clearly going to repeat-query. Setting the threshold low (e.g. 1k) burns CPU on networks that don’t need it; setting it high (e.g. 1M) makes regional networks feel slow on the second scope op. The number is empirical, not load-bearing — configurable via <code>NETSTEAD_AUTO_INDEX_THRESHOLD</code> env var for users with atypical workloads.
+- <strong>Predicate pushdown</strong> to all other tables by FK chain (links → TOD tables, nodes → zone references, etc.). For partitioned parquet, bbox scope becomes true partition prune via duckdb pushdown — verified via <code>EXPLAIN</code> snapshot tests.
+- <strong>Geometry encoding:</strong> geometry is WKB in memory; CSV stores WKT and Parquet stores WKB with GeoParquet <code>geo</code> metadata + bbox. See the <a href="https://github.com/e-lo/netstead/blob/main/docs/design/2026-10-01-geometry-encoding-adr.md">geometry encoding ADR</a>.
+- <strong>Partial loads:</strong> <code>net.tables(["link", "node"])</code>. FK validation degrades gracefully with warnings on unverifiable FKs.</p>
+</li>
+</ul>
+<h3 id="63-validation-sync-state">6.3 Validation + sync state<a class="headerlink" href="#63-validation-sync-state" title="Permanent link"> ¶</a></h3>
+<p><code>ValidationReport</code> is the single object returned by all validation paths (schema + structural + FK + sync + data-quality). Severity levels: Error / Warning / Info / DataQuality. <code>category</code> field discriminates rule families. Renderers: rich console / JSON / <strong>interactive single-file HTML</strong> (Jinja2 + DataTables + Vega-Lite map view for geo-located issues; severity ranking; filter by table/severity/rule/category; click-to-expand row context).</p>
+<p><strong>Integrity is reported, not enforced.</strong> PK / FK / NOT NULL / enum checks run as pushed-down aggregates and anti-joins and become findings; tables never carry native DuckDB constraints (measured ~46–120× slower to load, and all-or-nothing on the first bad row). See the <a href="https://github.com/e-lo/netstead/blob/main/docs/design/2026-10-01-fk-constraints-adr.md">FK constraints ADR</a>.</p>
+<p><strong>Sync state model:</strong>
+- <code>DirtyTracker</code> (in <code>corral.validation.sync_state</code>) records content hashes per table.
+- FK validations stamp source+target hashes at validation time.
+- Before any <code>write()</code> or <code>validate(strict=True)</code>: walk FK graph; if any FK’s recorded hashes don’t match current hashes, raise <code>OutOfSyncWarning</code> (warning by default; error under <code>--strict</code>).
+- Direct DataFrame mutations bypass tracker — documented; user calls <code>net.invalidate("link")</code>.
+- Auto-detection on read via <code>_netstead_meta.json</code> hash check.</p>
+<p><strong>Data-quality framework (<code>corral.quality</code>):</strong>
+- <code>Rule</code> base class with <code>apply(net) → list[Issue]</code>.
+- Threshold/config via Pydantic settings.
+- Entry-point plugin discovery — packages register their rule packs under <code>corral.quality.rules</code> group.
+- Run via <code>corral.quality.run_quality(net, rules=None)</code> (None = all registered).
+- netstead ships the GMNS rule pack: high-speed-residential, disconnected components, lane-count mismatch, near-duplicate nodes, sharp-angle bends, implausible v/c, missing critical-but-optional fields. Configurable thresholds; warnings not errors by default.</p>
+<h3 id="64-editing-rollback">6.4 Editing + rollback<a class="headerlink" href="#64-editing-rollback" title="Permanent link"> ¶</a></h3>
+<p><code>corral.editing</code> provides the framework: <code>EditResult</code> (diff per table + log entry + visual summary), <code>Session</code> (chronological log + atomic rollback to a sidecar <code>_history.parquet</code>), <code>Rollback</code> primitives.</p>
+<p><code>netstead.clean</code> (optional <code>[clean]</code> extra) provides domain ops: <code>simplify_geometry(net, mode="redundant_only" | "douglas_peucker", tolerance=...)</code>, <code>merge_close_nodes(threshold_m=5)</code>, <code>remove_orphans()</code>, <code>split_link_at_node(...)</code>, <code>connect_disconnected_components(...)</code>, <code>recompute_lengths()</code>, <code>snap_to_reference(other_net)</code>. Each returns <code>EditResult</code> integrated with <code>corral.editing.Session</code>.</p>
+<p>Edits inside <code>with net.session() as s:</code> produce a chronological log; <code>net.rollback(to=session_id_or_timestamp)</code> reverses. Audit log persists with the network.</p>
+<h3 id="65-pooled-operations-cost-model">6.5 Pooled operations + cost model<a class="headerlink" href="#65-pooled-operations-cost-model" title="Permanent link"> ¶</a></h3>
+<p><strong>Pool/batch:</strong> <code>with net.batch(): ...</code> defers + coalesces ops, validates once on <code>__exit__</code>. Atomic on exception (state unchanged on raise). CLI <code>netstead edit</code> wraps an implicit batch with <code>:save</code> / <code>:abort</code>.</p>
+<p><strong>Cost model (heuristic):</strong> <code>est_seconds(op, n_rows, n_tables, fmt)</code> per op. Coefficients calibrated on the Leavenworth fixture + a synthetic ~regional fixture. Nightly bench job re-fits on Python/duckdb minor releases.</p>
+<p><strong>Gating:</strong>
+- <code>&lt;30s</code> → run silently
+- <code>30s ≤ est &lt; 180s</code> → emit estimate + run with progress bar
+- <code>est ≥ 180s</code> → require user approval</p>
+<p>CLI <code>--yes</code>, env <code>NETSTEAD_AUTO_APPROVE=1</code>, programmatic <code>approve=True</code> skip prompts. CLI surfaces actual time after each gated op so the model self-improves over time. Documented as heuristic — not authoritative.</p>
+<p><em>Why 30s estimate / 180s approval thresholds?</em> 30 seconds is the high end of what feels interactive — past that, the user starts wondering whether something broke, so we owe them an estimate and a progress bar. 180 seconds (three minutes) is the low end of “I’ve gone to get coffee” — by then a silent op risks the user closing the laptop and coming back to a half-finished session, so we require an explicit approval. Both numbers are calibrated to typical interactive vs batch UX expectations rather than load on the machine. The cost model itself is heuristic and self-improving; the thresholds are stable UX contracts.</p>
+<h3 id="66-cli">6.6 CLI<a class="headerlink" href="#66-cli" title="Permanent link"> ¶</a></h3>
+<p><code>typer</code> + <code>rich</code>. Two entry points:</p>
+<ul>
+<li><code>corral …</code> — generic commands on any Frictionless package: <code>validate</code>, <code>convert</code>, <code>info</code>, <code>scope</code> (bbox/polygon/geometry-buffer only), <code>describe</code>.</li>
+<li><code>netstead …</code> — extends the corral typer app with GMNS commands: <code>read</code>, <code>spec {sync|list|diff}</code>, <code>quality</code>, <code>clean</code>, <code>scope from-nodes|from-link|...</code>, <code>index {build|status|drop}</code>, <code>bench</code>, <code>doctor</code>, <code>edit</code> (REPL — stretch).</li>
+</ul>
+<p><code>--json</code> flag on every command emits structured JSON for AI agent consumption. Claude Code-style short interactive prompts; default in brackets; summary before destructive ops.</p>
+<h3 id="67-notebook">6.7 Notebook<a class="headerlink" href="#67-notebook" title="Permanent link"> ¶</a></h3>
+<p><code>_repr_html_</code> on <code>Package</code>, <code>Table</code>, <code>ValidationReport</code>, <code>EditResult</code> (in corral); on <code>Network</code> (in netstead). Rich progress with <code>force_terminal=False</code> for inline rendering. Optional ipywidget for interactive scope construction (gated behind <code>netstead[notebook]</code> extra).</p>
+<h3 id="68-self-hostable-api-server">6.8 Self-hostable API server<a class="headerlink" href="#68-self-hostable-api-server" title="Permanent link"> ¶</a></h3>
+<p><code>netstead.server</code> (optional <code>[server]</code> extra) ships a FastAPI app with auto-generated OpenAPI at <code>/docs</code>. Endpoints:
+- <code>GET /networks</code> — list configured networks
+- <code>GET /networks/{id}</code> — metadata + spec version + table list + last-validated timestamp
+- <code>GET /networks/{id}/tables/{table}?bbox=...&amp;zone_ids=...&amp;columns=...&amp;format=parquet|csv|duckdb|json</code> — scoped table download
+- <code>GET /networks/{id}/spec</code> — return resolved spec (Frictionless JSON)
+- <code>POST /networks/{id}/validate</code> — run validation, return <code>ValidationReport</code> JSON (or HTML if Accept header)
+- <code>GET /networks/{id}/quality</code> — data-quality report</p>
+<p>Pluggable auth: none / bearer-token / OAuth2 (config-driven). Default download format = DuckDB. Config-file driven; backend points at any <code>corral.read()</code>-compatible source. Ships <code>Dockerfile</code> + <code>docker-compose.yml</code> example. <strong>We don’t host.</strong></p>
+<p><em>Why bearer-token default + warn-on-unsafe over hard-block?</em> The deployment shape is intentionally mixed: a researcher running <code>netstead serve</code> on <code>localhost</code> for a notebook session shouldn’t be forced through OAuth, but the same binary running behind a reverse proxy on a campus network needs auth. Hard-blocking unauthenticated mode would push users to roll their own server; silently allowing it would leak networks. Warn-on-unsafe + bearer-token default puts the security decision in the operator’s config file where it’s auditable and version-controlled. The right paranoia level is “loud about the risk, not paternalistic about the choice.”</p>
+<p><em>Why no rate limiting or token rotation in v1?</em> Both are real concerns at hosted-multi-tenant scale, but the v1 target is self-hosted single-team deployments. Building rate-limit middleware in v1 would either ship a token-bucket implementation that’s worse than <code>nginx</code>/<code>caddy</code>/<code>traefik</code>, or pull in a Redis dependency that doubles the deployment surface. The recommended pattern is a reverse proxy in front, which gives rate limits, TLS, token rotation, and audit logs for free — features the project would otherwise have to reimplement badly.</p>
+<h3 id="69-ai-accessibility">6.9 AI accessibility<a class="headerlink" href="#69-ai-accessibility" title="Permanent link"> ¶</a></h3>
+<ul>
+<li><strong><code>docs/llms.txt</code></strong> + <strong><code>docs/llms-full.txt</code></strong> at site root (auto-generated from mkdocs nav).</li>
+<li><strong><code>docs/ai/</code></strong> subtree: <code>cookbook.md</code>, <code>api-index.json</code> (machine-readable public API), <code>glossary.md</code> (GMNS terms).</li>
+<li><strong>Doctests in every public function</strong> (Google-style docstrings with <code>Examples:</code> block), run in CI.</li>
+<li><strong><code>--json</code> flag on every CLI command</strong>.</li>
+<li><strong>Claude Code Skills</strong> in <code>skills/</code> directory: <code>corral-validate</code>, <code>gmns-author</code>, <code>gmns-validate</code>, <code>gmns-convert</code>, <code>gmns-clean</code>. Installable via <code>claude code skill add &lt;git-url&gt;#path=skills/&lt;name&gt;</code>.</li>
+<li><strong>MCP server</strong> — <code>netstead[mcp]</code> ships <code>netstead mcp serve</code> (and <code>corral mcp serve</code> for the generic case). Tools: <code>read_network</code>, <code>describe_network</code>, <code>query_table</code> (ibis predicate, not SQL), <code>scope</code>, <code>validate</code>, <code>quality_check</code>, <code>convert</code>, <code>edit_session</code> (with rollback).</li>
+</ul>
+<p><em>Why stateless MCP tools?</em> MCP tool dispatch is a single request/response round-trip; the protocol does not currently have a first-class session abstraction the way SSE-based RPCs do. Trying to hide session state inside individual tool calls would either smuggle global mutable state across MCP clients (a footgun) or force the user to thread an opaque handle through every call (worse ergonomics than just reloading). The right seam is to keep v1 tools stateless and add session affinity later as an explicit protocol feature; the <code>state=</code> kwarg added in PR-A is the placeholder for that later seam without committing to its shape today.</p>
+<p><em>Why ship Skills in-repo + MCP via extra rather than hosting?</em> Hosting either would commit the project to an availability SLA, an auth story, and an upgrade cadence — three full-time jobs the project doesn’t have. Shipping Skills as files in the git repo means installation is <code>git clone</code> + a one-line Claude Code config; shipping MCP behind a <code>[mcp]</code> extra means users run it under their own MCP client (Claude Desktop, Cursor, etc.) with their own auth model. Zero hosting commitment, full local control, no rug-pull risk if the project’s funding changes.</p>
+<h2 id="7-spec-sync-strategy">7. Spec sync strategy<a class="headerlink" href="#7-spec-sync-strategy" title="Permanent link"> ¶</a></h2>
+<ul>
+<li>Each supported GMNS spec version vendored under <code>packages/netstead/netstead/spec/&lt;version&gt;/</code> (e.g., <code>0.97/datapackage.json</code>, <code>0.97/link.schema.json</code>, <code>0.97/shared_categories.json</code>).</li>
+<li><code>netstead.SUPPORTED_SPECS = ["0.95", "0.96", "0.97"]</code>; <code>DEFAULT_SPEC = "0.97"</code>.</li>
+<li>User override: <code>netstead.read(..., spec_version="0.96")</code>.</li>
+<li><code>.github/workflows/spec-sync.yml</code> runs daily, checks upstream releases at zephyr-data-specs/GMNS, opens a PR labeled <code>spec-sync</code> against <code>develop</code> with the new version added side-by-side. Maintainer reviews; default-version bump goes in a minor release.</li>
+<li>Validation reports always include <code>spec_version</code> in the header.</li>
+</ul>
+<p><em>Why bundle 0.95 / 0.96 / 0.97 side-by-side rather than auto-upgrade?</em> GMNS isn’t a frozen spec — field renames and category enumerations shift between minor versions. An old fixture written against 0.95 should still validate against 0.95 without the user being forced to migrate; a silent auto-upgrade would either fabricate fields that didn’t exist or fail with confusing errors about fields the user never wrote. Bundling versions side-by-side and letting the user select explicitly (or letting <code>_netstead_meta.json</code> record what the file was written against) keeps old data loadable forever and makes spec drift a visible, version-controlled decision rather than a hidden one.</p>
+<h2 id="8-quality-bar">8. Quality bar<a class="headerlink" href="#8-quality-bar" title="Permanent link"> ¶</a></h2>
+<ul>
+<li><strong>Coverage targets (gated at Phase 5):</strong> corral ≥85%, netstead ≥75%.</li>
+<li><strong>Test pyramid:</strong> unit (per-module) → contract (engine/adapter conformance) → fixture (Leavenworth) → perf (synthetic regional fixture, <code>pytest-benchmark</code>).</li>
+<li><strong>CI matrix:</strong> Python 3.11 / 3.12 / 3.13 × Linux + macOS smoke. I/O formats (pandas / polars / Arrow in and out) pinned by <code>test_format_interop.py</code>.</li>
+<li><strong>No raw SQL, no <code>pandas</code> in corral core paths</strong> (allowed via <code>to_pandas()</code> converter at the edge only).</li>
+<li><strong>Doctests run in CI</strong> — public-API examples must execute.</li>
+</ul>
+<h2 id="9-conventions">9. Conventions<a class="headerlink" href="#9-conventions" title="Permanent link"> ¶</a></h2>
+<ul>
+<li><strong>Docstrings:</strong> Google style on every public function. <strong><code>Examples:</code> blocks required only on <em>user-facing</em> public symbols</strong> — i.e., symbols re-exported via a package’s <code>__init__.__all__</code>, the constructor / main methods of public classes, and convenience wrappers that appear in cookbook / quickstart material. Internal-public helpers (functions that lack a <code>_</code> prefix only because tests need to import them directly) get a Google-style summary docstring but skip the <code>Examples:</code> / doctest overhead. Examples bloat is real — see review-deferred LOC notes in #134-class issues. Rule of thumb: <em>if a user would type the symbol’s name into their own code, it needs Examples; if only the test suite types it, the summary is enough.</em></li>
+<li><strong>Logging:</strong> <code>logging.getLogger(__name__)</code> per module. Library never configures the root logger; only the CLI does.</li>
+<li><strong>Pydantic:</strong> v2, strict on corral core types.</li>
+<li><strong>Type hints:</strong> required on all public APIs. <code>pyright</code> strict on <code>corral</code>, basic on <code>netstead</code>.</li>
+<li><strong>Errors:</strong> structured exceptions in a per-module <code>errors.py</code>. Use specific subclasses, not bare <code>ValueError</code>.</li>
+<li><strong>Backwards compat:</strong> v0.3.x is a clean break — no shims. Migration guide (<a href="https://e-lo.github.io/netstead/netstead/migration/v0.3-to-v1.0/">docs/migration/v0.3-to-v1.0.md</a>, Phase 4 task 4.14) explains old → new mappings.</li>
+<li><strong>Per-package semver.</strong> <code>corral</code> and <code>netstead</code> version independently. Tags: <code>corral-vX.Y.Z</code>, <code>netstead-vX.Y.Z</code>.</li>
+</ul>
+<h2 id="10-phase-plan-summary-historical">10. Phase plan summary (historical)<a class="headerlink" href="#10-phase-plan-summary-historical" title="Permanent link"> ¶</a></h2>
+<blockquote>
+<p>The phase plan below is how the v1.0 rewrite was staged (May–June 2026); phases 0–4 have shipped. Current and future work is tracked in <a href="https://github.com/e-lo/netstead/blob/main/docs/design/README.md"><code>docs/design/README.md</code></a> and GitHub issues.</p>
+</blockquote>
+<p>Five phases, ~14–16 weeks to v1.0 GA. Full task tree in the <a href="https://github.com/e-lo/netstead/issues/115">GitHub issue tree</a> (Epic).</p>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>Focus</th>
+<th>Duration</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>Repo prep — workspace, vendored specs, dev tooling, CI, issue tree, <strong>module skeletons</strong></td>
+<td>done</td>
+</tr>
+<tr>
+<td>1</td>
+<td>corral foundation — spec model, engines, IO adapters, Leavenworth fixture</td>
+<td>weeks 1–4</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Validation + dataset surface — schema/FK/structural/sync, lazy Package/Table, generic edit framework, interactive HTML reports</td>
+<td>weeks 4–7</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Operations + GMNS bindings + quality + clean — cost model, GMNS Network, semantics, indexes, scope, quality framework + GMNS rule pack, clean ops</td>
+<td>weeks 7–11</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Surfaces — CLI (corral + netstead), notebook, server, MCP, Skills, awesome docs, migration guide, full PRD</td>
+<td>weeks 11–14</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Hardening + beta + GA — coverage gate, perf bench, spec-sync bot, releases</td>
+<td>weeks 14–16+</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Sub-agent friendly tasks</strong> are tagged <code>subagent-friendly</code> in the issue tree. Phase 1–4 mid-batches have 5–10 truly parallel tasks (no file overlap, no inter-deps).</p>
+<h2 id="11-how-to-contribute-short-version">11. How to contribute (short version)<a class="headerlink" href="#11-how-to-contribute-short-version" title="Permanent link"> ¶</a></h2>
+<ol>
+<li>Pick an issue labeled <code>subagent-friendly</code> (or any task on the current phase).</li>
+<li>Branch from <code>main</code> as <code>&lt;type&gt;/&lt;slug&gt;</code> (e.g. <code>feat/scope-zones</code>).</li>
+<li>Write the code per the issue’s Deliverable + Acceptance criteria.</li>
+<li>Add tests under <code>packages/&lt;pkg&gt;/tests/</code>.</li>
+<li>Run <code>uv run ruff check</code>, <code>uv run ruff format</code>, <code>uv run lint-imports</code>, <code>uv run pytest</code> locally.</li>
+<li>Open PR against <code>main</code>. Use the issue body’s acceptance checklist as your self-review.</li>
+</ol>
+<p>Full contributor workflow: <a href="https://github.com/e-lo/netstead/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a>.</p>
+<hr/>
+<p><em>This document is updated as architectural decisions evolve. When a decision changes, record it as an ADR in <code>docs/design/</code>, update this file, and update the <a href="https://github.com/e-lo/netstead/blob/main/docs/design/README.md">design index</a>. Authoritative source for any conflict: this file &gt; accepted ADRs &gt; PRDs / designs &gt; plans &gt; issue bodies &gt; inline code comments.</em></p>
+<aside class="md-source-file">
+<span class="md-source-file__fact">
+<span class="md-icon" title="Last update">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"></path></svg>
+</span>
+<span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 8, 2026 04:04:43 UTC">October 8, 2026</span>
+</span>
+<span class="md-source-file__fact">
+<span class="md-icon" title="Created">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"></path></svg>
+</span>
+<span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 5, 2026 18:58:19 UTC">October 5, 2026</span>
+</span>
+</aside>
+</article>
+</div>
+<script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+</div>
+<button class="md-top md-icon" data-md-component="top" hidden="" type="button">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"></path></svg>
+  Back to top
+</button>
+</main>
+<footer class="md-footer">
+<div class="md-footer-meta md-typeset">
+<div class="md-footer-meta__inner md-grid">
+<div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" rel="noopener" target="_blank">
+      Material for MkDocs
+    </a>
+</div>
+</div>
+</div>
+</footer>
+</div>
+<div class="md-dialog" data-md-component="dialog">
+<div class="md-dialog__inner md-typeset"></div>
+</div>
+<script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.indexes", "navigation.top", "navigation.tracking", "toc.follow", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.tooltips", "content.action.edit", "content.action.view", "search.suggest", "search.highlight", "search.share"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+<script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+<script src="https://unpkg.com/mermaid@9.4.3/dist/mermaid.min.js"></script>
+<script id="init-glightbox">const lightbox = GLightbox({"touchNavigation": true, "loop": false, "zoomable": true, "draggable": true, "openEffect": "zoom", "closeEffect": "zoom", "slideEffect": "slide"});
+document$.subscribe(()=>{ lightbox.reload(); });
+</script></body></html>
