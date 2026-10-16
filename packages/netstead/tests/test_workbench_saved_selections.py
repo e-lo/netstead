@@ -50,6 +50,7 @@ def test_save_then_use_restores_the_selection(session):
             "links": 20,
             "utterance": "Ski Hill Drive",
             "by": "query",
+            "stale": False,
         }
     ]
 
@@ -114,7 +115,18 @@ def test_a_save_keeps_what_using_and_exporting_need_not_the_whole_payload(sessio
     sel = session.dispatch(Select(utterance="Ski Hill Drive"))
     session.dispatch(SaveSelection(name="ski"))
     saved = session.saved_selection("ski")
-    assert set(saved) == {"net_id", "source", "status", "utterance", "intent", "parsed_by", "link_ids", "anchors"}
+    assert set(saved) == {
+        "net_id",
+        "source",
+        "version",
+        "status",
+        "utterance",
+        "intent",
+        "parsed_by",
+        "link_ids",
+        "anchors",
+        "stale_pins",
+    }
     assert saved["source"] == SRC and saved["intent"] == sel["intent"] and saved["link_ids"] == sel["link_ids"]
 
 
@@ -200,3 +212,34 @@ def test_using_a_pinned_save_after_an_edit_keeps_its_pin(session):
     sel = session.dispatch(UseSelection(name="cherry"))
     assert sel["status"] == "resolved" and sel["link_ids"] == [170, 182, 187] and sel["intent"]["to_node"] == 60
     assert "facility ['Cherry Street']: 6 link(s)" in sel["diagnostics"]  # resolved on the network as it is now
+
+
+def test_a_save_made_after_a_pin_went_stale_says_so(session):
+    from netstead.workbench.plugins.host import Host
+
+    session.dispatch(Select(utterance="Cherry Street between Prospect Street and West Center Street"))
+    session.dispatch(PinAnchor(role="to", node_id=60))
+    plan = plan_update(session.network().roadway, "link", [187, 189], {"name": "Cherry Court"})
+    session.mutate("leavenworth", plan.edits, note="node 60 leaves Cherry Street")
+    session.dispatch(SaveSelection(name="cherry"))
+    assert session.saved_selection("cherry")["stale_pins"] == [60]
+    assert session.state()["saved_selections"][0]["stale"] is True
+    saved = Host(session, "probe").saved_selection("cherry")
+    assert saved["stale_pins"] == [60] and "re-pin the to anchor" in saved["warnings"][0]
+    sel = session.dispatch(UseSelection(name="cherry"))  # still off the facility: the fallback again
+    assert sel["stale_pins"] == [60] and sel["link_ids"] == [170, 182, 187]
+
+
+def test_a_remote_save_keeps_its_locator_not_its_signature(session):
+    from netstead import Network
+
+    loaded = Network.from_source(SRC)
+    session.dispatch(CloseNetwork(net_id="leavenworth"))
+    session.add_network(loaded, source="https://bucket.example.com/lw/?X-Amz-Signature=one", net_id="lw")
+    session.dispatch(Select(link_ids=[1, 2]))
+    session.dispatch(SaveSelection(name="remote"))
+    saved = session.saved_selection("remote")
+    assert saved["source"] == "https://bucket.example.com/lw/" and "Signature" not in str(session.saved_selections())
+    session.dispatch(CloseNetwork(net_id="lw"))
+    session.add_network(loaded, source="https://bucket.example.com/lw/?X-Amz-Signature=two", net_id="lw")
+    assert session.dispatch(UseSelection(name="remote"))["link_ids"] == [1, 2]  # the same object, signed again

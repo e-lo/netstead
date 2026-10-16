@@ -76,3 +76,62 @@ def test_a_saved_pinned_selection_exports_its_from_and_to_nodes(setup):
     s.dispatch({"type": "clear_selection"})
     j = client.get(EXPORT, params={"name": "cherry"}).json()
     assert j["content"]["from"] == {"node_id": 53} and j["content"]["to"] == {"node_id": 60} and j["valid"] is True
+
+
+def _stale_cherry(s):
+    """A pinned Cherry selection whose pinned node an edit has taken off the facility (the fallback keeps it)."""
+    from netstead.workbench.editing import plan_update
+
+    s.dispatch({"type": "select", "utterance": CHERRY})
+    s.dispatch({"type": "pin_anchor", "role": "to", "node_id": 60})
+    plan = plan_update(s.network("leavenworth").roadway, "link", [187, 189], {"name": "Cherry Court"})
+    s.mutate("leavenworth", plan.edits, note="node 60 leaves Cherry Street")
+
+
+def test_a_stale_pin_warns_on_the_resolved_form_and_refuses_the_query_form(setup):
+    s, client = setup
+    _stale_cherry(s)
+    assert s.selection["stale_pins"] == [60] and s.selection["status"] == "resolved"
+    j = client.get(EXPORT, params={"what": "fragment", "form": "resolved"}).json()
+    assert j["content"]["links"] == {"link_id": [170, 182, 187]}  # the links selected before the edit
+    assert len(j["warnings"]) == 1 and "the to anchor's pinned node 60 is no longer on the facility" in j["warnings"][0]
+    r = client.get(EXPORT, params={"what": "fragment", "form": "query"})
+    assert r.status_code == 409 and "re-pin the to anchor first" in r.json()["detail"]
+    s.dispatch({"type": "pin_anchor", "role": "to", "node_id": None})  # unpinned: resolved afresh, nothing stale
+    assert s.selection["stale_pins"] == [] and "to_node" not in s.selection["intent"]
+
+
+def test_exporting_a_saved_selection_resolves_it_on_the_network_as_it_is_now(setup):
+    from netstead.workbench.editing import plan_delete
+
+    s, client = setup
+    s.dispatch({"type": "select", "link_ids": [1, 2, 3]})
+    s.dispatch({"type": "save_selection", "name": "three"})
+    s.mutate("leavenworth", plan_delete(s.network().roadway, "link", [2]).edits, note="drop link 2")
+    s.dispatch({"type": "select", "link_ids": [5]})
+    seen = len(s.history)
+    j = client.get(EXPORT, params={"name": "three"}).json()
+    assert j["content"]["links"] == {"link_id": [1, 3]}  # not the stale ids
+    assert j["warnings"] == ["'three' was saved on version 0 of 'leavenworth'; exported as of version 1"]
+    assert s.selection["link_ids"] == [5] and len(s.history) == seen  # read-only: nothing used, nothing recorded
+
+
+def test_a_saved_selection_whose_network_is_closed_exports_as_saved_with_a_warning(setup):
+    s, client = setup
+    s.dispatch({"type": "select", "link_ids": [1, 2]})
+    s.dispatch({"type": "save_selection", "name": "two"})
+    s.dispatch({"type": "close_network", "net_id": "leavenworth"})
+    j = client.get(EXPORT, params={"name": "two"}).json()
+    assert j["content"]["links"] == {"link_id": [1, 2]}
+    assert j["warnings"] == ["'leavenworth' is not open: exported 'two' as saved (version 0), without checking it"]
+
+
+def test_a_saved_selection_with_none_of_its_links_left_is_409(setup):
+    from netstead.workbench.editing import plan_delete
+
+    s, client = setup
+    s.dispatch({"type": "select", "link_ids": [1]})
+    s.dispatch({"type": "save_selection", "name": "one"})
+    s.mutate("leavenworth", plan_delete(s.network().roadway, "link", [1]).edits, note="drop link 1")
+    r = client.get(EXPORT, params={"name": "one"})
+    assert r.status_code == 409 and "none of the links saved as 'one' exist any more" in r.json()["detail"]

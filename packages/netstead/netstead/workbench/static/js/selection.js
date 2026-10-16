@@ -1,11 +1,11 @@
-// The Selection dock panel (every workspace): status, anchors with their candidates (Pin / Unpin), diagnostics,
-// export, and saved selections; the "Anchor candidates" map layer; and the selection commands. Every server string is
+// The Selection dock panel (every workspace): status, a stale-pin warning, anchors with their candidates (Pin /
+// Unpin), diagnostics, export, and saved selections; the "Anchor candidates" map layer; and the selection commands. Every server string is
 // escaped. Pinning, saving, using and deleting are Actions, so each is recorded.
 import { dispatch, getJSON } from "./api.js";
 import { addCommandTo } from "./commands.js";
 import { $, esc, toast } from "./dom.js";
 import { addLayer } from "./map.js";
-import { anchorRows, candidatePoints, exportChoices, selectionBadge } from "./selectmodel.js";
+import { anchorRows, candidatePoints, exportChoices, selectionBadge, staleNotes } from "./selectmodel.js";
 import { ALL_WORKSPACES, CORE, slots } from "./slots.js";
 import { activeSelection, store } from "./store.js";
 import { addPanel, showPanel } from "./workspaces.js";
@@ -62,7 +62,8 @@ function anchorHTML(r) {
 
 function savedHTML(x) {
   return `<div class="row saved"><span class="lbl">${esc(x.name)}</span>` +
-    `<span class="diag">${esc(x.net_id)} · ${esc(x.links)} links · ${esc(x.by)}</span>` +
+    `<span class="diag">${esc(x.net_id)} · ${esc(x.links)} links · ${esc(x.by)}` +
+    `${x.stale ? ' · <span class="stale" title="Saved after an edit took its pinned node off the facility">stale pin</span>' : ""}</span>` +
     `<button class="mini ghost" data-use="${esc(x.name)}" data-key="use-${esc(x.name)}">Use</button>` +
     `<button class="mini ghost" data-export="${esc(x.name)}" data-key="export-${esc(x.name)}">Export</button>` +
     `<button class="mini ghost" data-del="${esc(x.name)}" data-key="del-${esc(x.name)}">Delete</button></div>`;
@@ -74,6 +75,9 @@ export function renderSelectionPanel(s) {
     ? `<span class="status ${esc(sel.status)}">${esc(sel.status.replace("_", " "))}</span>` +
       (sel.utterance ? ` <span class="diag">${esc(sel.utterance)}</span>` : "")
     : HINT;
+  const stale = staleNotes(sel);
+  $("sel-stale").hidden = !stale.length;
+  $("sel-stale").innerHTML = stale.map(t => `<p><b>Stale pin.</b> ${esc(t)}</p>`).join("");
   redraw($("anchors"), anchorRows(sel).map(anchorHTML).join("") || '<span class="empty">—</span>');
   const diags = sel ? sel.diagnostics : [];
   $("diag").innerHTML = diags.length ? diags.map(d => `<div class="diag">• ${esc(d)}</div>`).join("") : '<span class="empty">—</span>';
@@ -83,6 +87,7 @@ export function renderSelectionPanel(s) {
   $("sel-export-form").querySelector('[value="query"]').disabled = !choice.query;
   if (!choice.query && $("sel-export-form").value === "query") $("sel-export-form").value = "resolved";
   $("sel-export-note").textContent = choice.reason;
+  $("sel-export-note").classList.toggle("warn-note", stale.length > 0);
   const saved = (s.server && s.server.saved_selections) || [];
   redraw($("sel-saved"), saved.length ? saved.map(savedHTML).join("") : '<span class="empty">None saved.</span>');
   $("sel-save").disabled = !(sel && sel.link_ids.length);
@@ -105,8 +110,11 @@ async function download(name) {
   try {
     const j = await getJSON(`/api/selection/export?${params}`);
     saveFile(j.filename, j.content);
-    $("sel-export-note").textContent = j.valid === false ? `Schema problems: ${j.problems.join("; ")}` :
+    const checked = j.valid === false ? `Schema problems: ${j.problems.join("; ")}.` :
       j.valid ? "Valid against the GMNS selection schema." : `Downloaded ${j.filename}.`;
+    const warned = (j.warnings || []).map(w => ` Warning: ${w}.`).join("");
+    $("sel-export-note").textContent = checked + warned;
+    $("sel-export-note").classList.toggle("warn-note", Boolean(warned));
   } catch (e) { toast(e.message); }
 }
 

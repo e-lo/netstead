@@ -618,3 +618,14 @@ def test_the_filtered_scope_adds_the_view_filter(node_module):
     assert off is None and other is None and none is None
     hint = node_module("linking.js", ["scopeHint"], "[scopeHint('filtered', 0), scopeHint('filtered', 3)]")
     assert hint == ["No link matches the filter (Layers → Filter links).", ""]
+
+
+def test_a_stale_pin_is_named_and_turns_off_the_query_form(node_module):
+    stale = {**SEL, "status": "resolved", "intent": {"to_node": 60, "from_anchor": "a"}, "stale_pins": [60]}
+    expr = f"[staleAnchors({json.dumps(stale)}), staleNotes({json.dumps(stale)}), exportChoices({json.dumps(stale)})]"
+    anchors, notes, choice = node_module("selectmodel.js", ["staleAnchors", "staleNotes", "exportChoices"], expr)
+    assert anchors == [{"role": "to", "nodeId": 60}]
+    assert notes[0].startswith("The to anchor's pinned node 60 is no longer on the facility.")
+    assert choice["resolved"] is True and choice["query"] is False and "re-pinned" in choice["reason"]
+    fresh = {**stale, "stale_pins": []}
+    assert node_module("selectmodel.js", ["staleNotes"], f"staleNotes({json.dumps(fresh)})") == []

@@ -449,7 +449,15 @@ def test_record_edits_undo_and_save_are_registered_commands():
 def test_the_selection_panel_owns_the_selection_markup():
     html = (STATIC_DIR / "index.html").read_text()
     pane = html.split('id="dock-selection"', 1)[1].split("</section>", 1)[0]
-    for el in ('id="status-wrap"', 'id="anchors"', 'id="fragment"', 'id="diag"', 'id="sel-export"', 'id="sel-saved"'):
+    for el in (
+        'id="status-wrap"',
+        'id="sel-stale"',
+        'id="anchors"',
+        'id="fragment"',
+        'id="diag"',
+        'id="sel-export"',
+        'id="sel-saved"',
+    ):
         assert el in pane
     details = html.split('id="dock-details"', 1)[1].split("</section>", 1)[0]
     assert 'id="anchors"' not in details and 'id="details"' in details and 'id="hl-set"' in details

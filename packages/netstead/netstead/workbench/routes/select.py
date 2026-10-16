@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException
 
-from ..selection import export_selection, fragment_problems
+from ..selection import export_selection, fragment_problems, selection_warnings
 from ..session import Session
 
 __all__ = ["select_router"]
@@ -32,8 +32,18 @@ def select_router(session: Session) -> APIRouter:
         form: Literal["resolved", "query"] = "resolved",
         name: str | None = None,
     ) -> dict[str, Any]:
-        """The current (or the saved ``name``) selection as a fragment or ProjectCard object, with a file name."""
-        sel = session.saved_selection(name) if name else session.selection_copy()
+        """The current (or the saved ``name``) selection as a fragment or ProjectCard object, with a file name.
+
+        A saved selection is resolved again on its network as it is now when that network is open from the same
+        source (read-only: the current selection is unchanged). ``warnings`` says what the file may not show: a
+        pin that has gone stale (the links are the ones selected before an edit), or a saved selection that could
+        not be checked, or was saved on another version.
+        """
+        try:
+            found = session.saved_selection_now(name) if name else (session.selection_copy(), [])
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from None
+        sel, notes = found if found is not None else (None, [])
         if sel is None:
             raise HTTPException(404, f"no saved selection named {name!r}" if name else "nothing is selected")
         try:
@@ -46,6 +56,7 @@ def select_router(session: Session) -> APIRouter:
             "content": content,
             "valid": None if problems is None else not problems,
             "problems": problems or [],
+            "warnings": [*selection_warnings(sel), *notes],
         }
 
     return router

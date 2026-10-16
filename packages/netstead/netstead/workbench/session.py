@@ -1093,7 +1093,7 @@ class Session:
             if not kept:
                 return None
             notes = [f"pinned node {node} is no longer on the facility; kept the previous links" for node in lost]
-            return payload_keeping_links(handle, sel, kept, diagnostics=notes)
+            return payload_keeping_links(handle, sel, kept, diagnostics=notes, stale_pins=lost)
         if not kept:
             return None
         result = resolve_frames(SelectionIntent(link_ids=kept), handle.links_df(), handle.nodes_df())
@@ -1567,14 +1567,12 @@ class Session:
         saved = self._saved(action.name)
         net_id, source = saved["net_id"], saved["source"]
         if net_id not in self.registry.ids():
-            raise ActionError(
-                f"the network {net_id!r} is not open; open {scrub(source, limit=None)} to use {action.name!r}"
-            )
+            raise ActionError(f"the network {net_id!r} is not open; open {source} to use {action.name!r}")
         handle = self.registry.get(net_id)
-        if handle.source != source:  # ids are label slugs: another file can be open under the same id
+        if _locator(handle.source) != source:  # ids are label slugs: another file can be open under the same id
             raise ActionError(
-                f"{action.name!r} was saved on {net_id!r} from {scrub(source, limit=None)}, but the open {net_id!r} "
-                f"comes from {scrub(handle.source, limit=None)}"
+                f"{action.name!r} was saved on {net_id!r} from {source}, but the open {net_id!r} "
+                f"comes from {_locator(handle.source)}"
             )
         payload = self._resolve_again(handle, saved)
         if payload is None:
@@ -1591,11 +1589,41 @@ class Session:
         with self._lock:
             return [_saved_summary(name, sel) for name, sel in self.saved.items()]
 
+    def saved_selection_now(self, name: str) -> tuple[dict[str, Any], list[str]] | None:
+        """The selection saved as ``name``, for an export: resolved again (read-only) when it can be, plus notes.
+
+        When its network is open from the same source, it is resolved on the network as it is now, as
+        ``UseSelection`` would, without becoming the current selection. Otherwise it is the selection as saved, with
+        a note that it was not checked. ``None`` when nothing is saved as ``name``; ``ValueError`` when none of its
+        links exist any more.
+        """
+        with self._lock:
+            saved = self.saved.get(name)
+            if saved is None:
+                return None
+            saved = copy.deepcopy(saved)
+            net_id = saved["net_id"]
+            handle = self.registry.get(net_id) if net_id in self.registry.ids() else None
+            if handle is None or _locator(handle.source) != saved["source"]:
+                why = "is not open" if handle is None else f"is open from another source ({_locator(handle.source)})"
+                return saved, [
+                    f"{net_id!r} {why}: exported {name!r} as saved (version {saved['version']}), without checking it"
+                ]
+            payload, now = self._resolve_again(handle, saved), handle.version
+        if payload is None:
+            raise ValueError(f"none of the links saved as {name!r} exist any more")
+        if now == saved["version"]:
+            return payload, []
+        return payload, [
+            f"{name!r} was saved on version {saved['version']} of {net_id!r}; exported as of version {now}"
+        ]
+
     def saved_selection(self, name: str) -> dict[str, Any] | None:
         """A deep copy of the selection saved as ``name`` (``None`` if there is none), as it was when saved.
 
-        It holds ``net_id``, ``source``, ``status``, ``utterance``, ``intent`` (with any pins), ``parsed_by``,
-        ``link_ids`` and the ``anchors``' nodes: what using or exporting it needs, not the whole payload.
+        It holds ``net_id``, ``source`` (the network's locator: scheme, host and path, never a query string),
+        ``version``, ``status``, ``utterance``, ``intent`` (with any pins), ``parsed_by``, ``link_ids``, the
+        ``anchors``' nodes and ``stale_pins``: what using or exporting it needs, not the whole payload.
         """
         with self._lock:
             sel = self.saved.get(name)
@@ -1912,12 +1940,17 @@ def _saved_entry(handle: NetworkHandle, sel: dict[str, Any]) -> dict[str, Any]:
     """What ``SaveSelection`` keeps of a selection payload: enough to resolve it again and export it.
 
     ``source`` ties it to the file it was made on, since a network id is a label slug that another file can reuse.
+    It is the source's locator (:func:`_locator`), so a re-signed URL of the same object still matches and no
+    token reaches ``saved`` (which plugins read). A network added from Python has the source ``"<python>"``, so
+    two of those under the same id are not told apart. ``version`` is the network's version when saved.
     ``anchors`` keeps only each anchor's node, so an export of the resolved form still names its from/to nodes.
+    ``stale_pins`` says the pin had already gone stale (the links are the previous ones).
     """
     anchor_keys = ("role", "node_id", "kind", "anchor", "pinned")
     return {
         "net_id": sel["net_id"],
-        "source": handle.source,
+        "source": _locator(handle.source),
+        "version": handle.version,
         "status": sel["status"],
         "utterance": sel["utterance"],
         "intent": copy.deepcopy(sel["intent"]),
@@ -1926,7 +1959,17 @@ def _saved_entry(handle: NetworkHandle, sel: dict[str, Any]) -> dict[str, Any]:
         "anchors": [
             {k: a[k] for k in anchor_keys if k in a} for a in [*sel["anchors"], *sel.get("anchors_unplaced", [])]
         ],
+        "stale_pins": list(sel.get("stale_pins") or []),
     }
+
+
+def _locator(source: str) -> str:
+    """Where a network came from, without secrets: a URL's scheme, host and path (no query string or userinfo).
+
+    >>> _locator("https://bucket.example.com/net/link.parquet?X-Amz-Signature=abc")
+    'https://bucket.example.com/net/link.parquet'
+    """
+    return scrub(source, limit=None)
 
 
 def _saved_summary(name: str, sel: dict[str, Any]) -> dict[str, Any]:
@@ -1938,6 +1981,7 @@ def _saved_summary(name: str, sel: dict[str, Any]) -> dict[str, Any]:
         "links": len(sel["link_ids"]),
         "utterance": sel["utterance"],
         "by": "query" if sel.get("intent") is not None else "ids",
+        "stale": bool(sel.get("stale_pins")),
     }
 
 
