@@ -126,3 +126,15 @@ def test_pin_replays_and_has_its_own_import_line(session):
     entry = session.dispatch_recorded(PinAnchor(role="to", node_id=60))
     assert entry.python == "app.do(PinAnchor(role='to', node_id=60))"
     assert script_imports([entry.imports])[1:] == ["from netstead.workbench import PinAnchor"]
+
+
+def test_a_freeway_from_anchor_pinned_to_a_node_on_the_carriageway(tmp_path, isolated_env, rdu_source):
+    s = Session(project_dir=tmp_path, environ=isolated_env, parser=StubParser(), plugins=[])
+    s.dispatch(OpenNetwork(source=rdu_source))
+    whole = s.dispatch(Select(utterance="I-40 EB between South Miami Boulevard and Airport Boulevard"))
+    assert whole["status"] == "resolved" and whole["link_ids"][:3] == [5021, 5019, 5018]
+    sel = s.dispatch(PinAnchor(role="from", node_id=553322385))  # the start of link 801, further east
+    assert sel["status"] == "resolved" and sel["link_ids"] == whole["link_ids"][4:]
+    assert _anchor(sel, "from")["kind"] == "pinned" and sel["fragment"]["from"] == {"node_id": 553322385}
+    with pytest.raises(ActionError, match="not on the facility"):
+        s.dispatch(PinAnchor(role="from", node_id=int(s.network().nodes_df()["node_id"].iloc[0])))

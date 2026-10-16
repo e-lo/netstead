@@ -12,11 +12,13 @@ from netstead.workbench.actions import (
     CloseNetwork,
     DeleteSelection,
     OpenNetwork,
+    PinAnchor,
     SaveSelection,
     Select,
     UseSelection,
+    script_imports,
 )
-from netstead.workbench.editing import plan_delete
+from netstead.workbench.editing import plan_delete, plan_update
 from netstead.workbench.errors import ActionError
 from netstead.workbench.plugins import HOST_API, ActionSpec, WorkbenchPlugin
 
@@ -146,3 +148,55 @@ def test_a_failed_action_rolls_back_a_save_it_made(tmp_path, isolated_env):
     s.dispatch(Select(link_ids=[1]))
     assert not s.dispatch_recorded(Hoard()).ok
     assert s.saved_selections() == []
+
+
+class Forget(BaseAction):
+    type: Literal["hoard.delete_and_fail"] = "hoard.delete_and_fail"
+
+
+def _forget(host, action):
+    host.dispatch(DeleteSelection(name="kept"))
+    raise RuntimeError("boom")
+
+
+def test_a_failed_action_rolls_back_a_delete_it_made(tmp_path, isolated_env):
+    plugin = WorkbenchPlugin(
+        id="hoard", name="Hoard", version="0", requires_api=HOST_API, actions=(ActionSpec(Forget, _forget),)
+    )
+    s = Session(project_dir=tmp_path, environ=isolated_env, parser=StubParser(), plugins=[plugin])
+    s.dispatch(OpenNetwork(source=SRC))
+    s.dispatch(Select(link_ids=[1]))
+    s.dispatch(SaveSelection(name="kept"))
+    assert not s.dispatch_recorded(Forget()).ok
+    assert [x["name"] for x in s.saved_selections()] == ["kept"]
+
+
+def test_save_use_and_delete_replay_with_their_own_import_lines(session):
+    session.dispatch(Select(link_ids=[1]))
+    entries = [
+        session.dispatch_recorded(SaveSelection(name="one")),
+        session.dispatch_recorded(UseSelection(name="one")),
+        session.dispatch_recorded(DeleteSelection(name="one")),
+    ]
+    assert [e.python for e in entries] == [
+        "app.do(SaveSelection(name='one'))",
+        "app.do(UseSelection(name='one'))",
+        "app.do(DeleteSelection(name='one'))",
+    ]
+    assert script_imports([e.imports for e in entries])[1:] == [
+        "from netstead.workbench import SaveSelection",
+        "from netstead.workbench import UseSelection",
+        "from netstead.workbench import DeleteSelection",
+    ]
+
+
+def test_using_a_pinned_save_after_an_edit_keeps_its_pin(session):
+    session.dispatch(Select(utterance="Cherry Street between Prospect Street and West Center Street"))
+    session.dispatch(PinAnchor(role="to", node_id=60))
+    session.dispatch(SaveSelection(name="cherry"))
+    session.dispatch(Select(link_ids=[1]))
+    plan = plan_update(session.network().roadway, "link", [193, 195], {"name": "Cherry Lane"})
+    session.mutate("leavenworth", plan.edits, note="rename")  # the facility changes; node 60 stays on it
+    sel = session.dispatch(UseSelection(name="cherry"))
+    assert sel["status"] == "resolved" and sel["link_ids"] == [170, 182, 187] and sel["intent"]["to_node"] == 60
+    assert "facility ['Cherry Street']: 6 link(s)" in sel["diagnostics"]  # resolved on the network as it is now
