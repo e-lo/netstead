@@ -64,6 +64,17 @@
         <div class="row"><select id="colorby"><option value="none">None (single color)</option></select></div>
         <div class="row" id="ramp-row" style="display:none"><span class="lbl">Ramp</span>
           <select id="ramp"><option>YlOrRd</option><option>Blues</option><option>Viridis</option></select></div>
+        <h4 style="margin-top:14px">Filter links</h4>
+        <div class="row"><select id="flt-col" aria-label="Filter column"></select></div>
+        <div class="row flt-cond"><select id="flt-op" aria-label="Filter operator">
+            <option value="eq">=</option><option value="ne">≠</option><option value="lt">&lt;</option>
+            <option value="lte">≤</option><option value="gt">&gt;</option><option value="gte">≥</option>
+            <option value="contains">contains</option><option value="isnull">is empty</option><option value="notnull">is not empty</option>
+          </select>
+          <input id="flt-val" aria-label="Filter value" size="8"></div>
+        <div class="row"><button class="mini" id="flt-apply">Apply</button><button class="mini ghost" id="flt-clear">Clear</button>
+          <span id="flt-count" class="diag" role="status"></span></div>
+        <div id="flt-note" class="diag" hidden></div>
         <div id="plugin-layers"></div>
       </div>
       <div class="panel" id="settings-panel">
@@ -74,6 +85,8 @@
           <label class="sw"><input type="checkbox" id="tg-direction"><span></span></label></div>
         <div class="row"><span class="lbl">Show legend</span>
           <label class="sw"><input type="checkbox" id="tg-legend"><span></span></label></div>
+        <div class="row"><span class="lbl">Width by</span>
+          <select id="widthby" aria-label="Width links by"><option value="none">Lane count</option></select></div>
       </div>
       <div id="legend"></div>
       <div id="boxsel"></div>
@@ -89,6 +102,7 @@
             <option value="selection">Selection</option>
             <option value="highlighted">Highlighted</option>
             <option value="related">Related</option>
+            <option value="filtered">Filtered</option>
           </select>
           <button class="mini ghost" id="tbl-hops" title="Follow keys one more step">Expand a hop</button></div>
         <div id="tbl-grid-wrap"><table id="tbl-grid"></table></div>
@@ -100,8 +114,6 @@
   <aside id="side">
     <div id="dock-tabs" role="tablist" aria-label="Panels" hidden></div>
     <section class="dock-pane" id="dock-details" data-panel="details" role="tabpanel" aria-labelledby="dtab-details">
-    <div id="status-wrap"></div>
-    <div id="sel-cmds-wrap" hidden><button class="mini ghost" id="sel-cmds" aria-haspopup="menu" aria-expanded="false">Selection actions &#9662;</button></div>
     <div class="label">Highlighted links <span id="hl-count" class="pcount">0</span></div>
     <div id="hl-wrap">
       <span class="empty" id="hl-hint">Turn on <b>Highlight links</b> (&#9647;), then click links or shift-drag a box.</span>
@@ -112,12 +124,26 @@
     </div>
     <div class="label">Details</div>
     <div id="details"><span class="empty">Click a link or node on the map, or a row in the table.</span></div>
+    </section>
+    <section class="dock-pane" id="dock-selection" data-panel="selection" role="tabpanel" aria-labelledby="dtab-selection" hidden>
+    <div id="status-wrap"></div>
+    <div id="sel-stale" class="warnbox" role="alert" hidden></div>
+    <div id="sel-cmds-wrap" hidden><button class="mini ghost" id="sel-cmds" aria-haspopup="menu" aria-expanded="false">Selection actions &#9662;</button></div>
     <div class="label">Anchors</div>
-    <div id="anchors"><span class="empty">—</span></div>
-    <div class="label">Fragment</div>
-    <pre id="fragment">—</pre>
+    <div id="anchors" tabindex="-1"><span class="empty">—</span></div>
     <div class="label">Diagnostics</div>
     <div id="diag"><span class="empty">—</span></div>
+    <div class="label">Export</div>
+    <div id="sel-export" class="row">
+      <select id="sel-export-what" aria-label="Export as"><option value="fragment">GMNS fragment</option><option value="projectcard">ProjectCard facility</option></select>
+      <select id="sel-export-form" aria-label="Form"><option value="resolved">Resolved (link ids)</option><option value="query">Query (re-resolvable)</option></select>
+      <button class="mini" id="sel-export-go">Download</button>
+    </div>
+    <div id="sel-export-note" class="diag" role="status"></div>
+    <div class="label">Fragment</div>
+    <pre id="fragment">—</pre>
+    <div class="label">Saved selections <button class="mini ghost" id="sel-save">Save selection…</button></div>
+    <div id="sel-saved" tabindex="-1"><span class="empty">None saved.</span></div>
     </section>
     <section class="dock-pane" id="dock-issues" data-panel="issues" role="tabpanel" aria-labelledby="dtab-issues" hidden>
       <div id="iss-fixer"></div>

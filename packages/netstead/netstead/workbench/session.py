@@ -28,10 +28,11 @@ from __future__ import annotations
 
 import copy
 import functools
+import json
 import logging
 import threading
 import time
-from collections import deque
+from collections import OrderedDict, deque
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
@@ -54,11 +55,13 @@ from netstead.config import (
 from netstead.llm import LLMError, MissingKey, ProviderRegistry, build_registry
 from netstead.llm.context import assistant_context, find_project_context, read_capped
 from netstead.llm.secrets import redact_settings
+from netstead.select.errors import IntentError
 from netstead.select.intent import SelectionIntent
 from netstead.select.parse import LLMParser, intent_from_payload, make_parser, payload_from_intent
 from netstead.select.prompt import PromptContext, close_match_hint, vocabulary_from_links
 from netstead.select.resolve import resolve_frames
 from netstead.viz.styling import json_scalar, styleable_columns
+from netstead.viz.tables import FilterError, KeyTypeError, coerce_filter_value, coerce_keys, filter_frame
 
 from . import build
 from .actions import (
@@ -69,16 +72,21 @@ from .actions import (
     ClearSelection,
     CloseNetwork,
     DeleteRows,
+    DeleteSelection,
     EditCells,
+    Filter,
     Navigate,
     OpenNetwork,
+    PinAnchor,
     RunValidation,
     SaveNetwork,
+    SaveSelection,
     Select,
     SetActiveNetwork,
     SetSetting,
     Style,
     UndoEdit,
+    UseSelection,
     import_line,
     is_secret_name,
     to_python,
@@ -97,7 +105,7 @@ from .plugins.host import Host, PluginSettingsError, validate_plugin_settings
 from .plugins.spec import HOST_API, WorkbenchPlugin, api_compatible, problems
 from .redact import describe_error, scrub
 from .registry import NetworkHandle, NetworkRegistry, as_pandas, derived_copy
-from .selection import selection_payload, unparsed_payload
+from .selection import payload_keeping_links, selection_payload, unparsed_payload
 
 __all__ = [
     "DEFAULT_STYLE",
@@ -111,8 +119,17 @@ __all__ = [
 
 logger = logging.getLogger(__name__)
 
+#: Selections one session keeps saved (``SaveSelection`` refuses another: delete one first).
+MAX_SAVED_SELECTIONS = 50
+#: Filters whose matching link ids are kept, per network version: a slider or type-as-you-go must not grow memory.
+FILTER_CACHE_SIZE = 8
+#: Module-level because the filter maps live on network handles (which expose no lock) and are read outside the
+#: session lock (``filter_ids``); held only around dict operations, never across a query.
+_FILTER_CACHE_LOCK = threading.Lock()
+
 DEFAULT_STYLE: dict[str, Any] = {
     "color_by": "none",
+    "width_by": "none",
     "ramp": "YlOrRd",
     "offset": True,
     "show_direction": False,
@@ -240,13 +257,24 @@ class _Nested:
     children: list[_Nested]
 
 
+@dataclass(frozen=True)
+class _View:
+    """The session's shared view state before an Action ran: what a failed Action puts back."""
+
+    active: str | None
+    selection: dict[str, Any] | None
+    style: dict[str, Any]
+    saved: dict[str, dict[str, Any]]
+    filters: dict[str, dict[str, Any]]
+
+
 @dataclass
 class _Running:
     """An Action whose handler is running (innermost last in ``Session._running``)."""
 
     action: BaseAction
     undo_mark: int  # ``len(Session._undo)`` when it started: a failure undoes everything after it
-    view: tuple[str | None, dict[str, Any] | None, dict[str, Any]]  # active, selection, style before it ran
+    view: _View  # the shared view state before it ran
     children: list[_Nested] = field(default_factory=list)
 
 
@@ -334,6 +362,8 @@ class Session:
         self.events = EventBus()
         self.active: str | None = None
         self.selection: dict[str, Any] | None = None
+        self.saved: dict[str, dict[str, Any]] = {}  # name -> a saved selection payload (SaveSelection)
+        self.filters: dict[str, dict[str, Any]] = {}  # net_id -> its Filter: {table, where}
         self.style: dict[str, Any] = copy.deepcopy(DEFAULT_STYLE)
         self.history: list[HistoryEntry] = []
         self.edits: dict[str, EditLedger] = {}  # net_id -> its pending edits
@@ -599,7 +629,8 @@ class Session:
             except Exception as exc:  # boundary: recorded below, under the lock
                 failure = exc
         with self._lock:
-            running = _Running(action, len(self._undo), (self.active, self.selection, dict(self.style)))
+            view = _View(self.active, self.selection, dict(self.style), dict(self.saved), dict(self.filters))
+            running = _Running(action, len(self._undo), view)
             self._running.append(running)
             try:
                 if failure is not None:
@@ -638,16 +669,19 @@ class Session:
         """Undo what ``running`` (and every Action nested in it) changed; mark its nested entries rolled back.
 
         Restores the tables, version, lineage and sync stamps of each mutated network, unregisters
-        the networks it derived, and puts back the active network, selection and style. A plugin's
+        the networks it derived, and puts back the active network, selection, style, saved selections and
+        filters. A plugin's
         own state (its closure, files it wrote) is the plugin's to keep consistent.
         """
         while len(self._undo) > running.undo_mark:
             self._undo.pop().undo(self)
-        active, selection, style = running.view
+        view = running.view
         ids = self.registry.ids()
-        self.active = active if active in ids else (ids[0] if ids else None)
-        self.selection = selection if selection is None or selection.get("net_id") in ids else None
-        self.style = style
+        self.active = view.active if view.active in ids else (ids[0] if ids else None)
+        self.selection = view.selection if view.selection is None or view.selection.get("net_id") in ids else None
+        self.style = view.style
+        self.saved = view.saved
+        self.filters = {nid: f for nid, f in view.filters.items() if nid in ids}
         _mark_rolled_back(running.children, running.action.type)
 
     def _is_plugin_action(self, action_type: str) -> bool:
@@ -1019,11 +1053,7 @@ class Session:
             return
         if sel.get("intent") is not None:
             try:
-                intent = intent_from_payload(sel["intent"], sel["utterance"] or "")
-                result = resolve_frames(intent, handle.links_df(), handle.nodes_df())
-                self.selection = selection_payload(
-                    handle, result, utterance=sel["utterance"], parsed_by=sel["parsed_by"]
-                )
+                self.selection = self._resolve_again(handle, sel)
                 return
             except Exception:  # boundary: keep the edit; fall back to the ids it selected
                 logger.exception("re-resolving the selection's query on %s failed; keeping its ids", handle.id)
@@ -1050,6 +1080,29 @@ class Session:
             return
         result = resolve_frames(SelectionIntent(link_ids=kept), handle.links_df(), handle.nodes_df())
         self.selection = selection_payload(handle, result)
+
+    def _resolve_again(self, handle: NetworkHandle, sel: dict[str, Any]) -> dict[str, Any] | None:
+        """``sel`` resolved on ``handle`` as it is now (P2 R4's rule): a query again; ids minus the links now gone.
+
+        A query whose pinned node is no longer on its facility falls back to the ids rule (its previous links that
+        still exist), keeping the pin and saying so in its diagnostics: an edit never silently loses it.
+        """
+        present = {json_scalar(v) for v in handle.links_df()["link_id"]}
+        kept = [i for i in sel["link_ids"] if i in present]
+        if sel.get("intent") is not None:
+            intent = intent_from_payload(sel["intent"], sel["utterance"] or "")
+            result = resolve_frames(intent, handle.links_df(), handle.nodes_df())
+            lost = _lost_pins(intent, result)
+            if not lost:
+                return selection_payload(handle, result, utterance=sel["utterance"], parsed_by=sel["parsed_by"])
+            if not kept:
+                return None
+            notes = [f"pinned node {node} is no longer on the facility; kept the previous links" for node in lost]
+            return payload_keeping_links(handle, sel, kept, diagnostics=notes, stale_pins=lost)
+        if not kept:
+            return None
+        result = resolve_frames(SelectionIntent(link_ids=kept), handle.links_df(), handle.nodes_df())
+        return selection_payload(handle, result)
 
     def _record_outside_action(self, net_id: str, note: str, origin: str, *, kind: str = "mutate") -> None:
         """Record a ``mutate`` or ``revert`` no Action covers, so nothing changes silently (not replayable)."""
@@ -1101,6 +1154,8 @@ class Session:
                 "active": self.active,
                 "selection": copy.deepcopy(self.selection),
                 "style": copy.deepcopy(self.style),
+                "saved_selections": [_saved_summary(n, s) for n, s in self.saved.items()],
+                "filters": {nid: {**f, "count": self._filter_count(nid, f)} for nid, f in self.filters.items()},
                 "plugins": self._plugin_state(),
                 "edits": {nid: ledger.summary() for nid, ledger in self.edits.items()},
                 "issues": {
@@ -1324,6 +1379,7 @@ class Session:
         self.issues.pop(action.net_id, None)
         if self.selection and self.selection["net_id"] == action.net_id:
             self.selection = None
+        self.filters = {nid: f for nid, f in self.filters.items() if nid != action.net_id}
         if self.active == action.net_id:
             ids = self.registry.ids()
             self.active = ids[0] if ids else None
@@ -1466,13 +1522,180 @@ class Session:
     def _do_clear_selection(self, action: ClearSelection) -> None:
         self.selection = None
 
+    def _do_pin_anchor(self, action: PinAnchor) -> dict[str, Any]:
+        sel = self.selection
+        if not sel or sel.get("intent") is None:
+            raise ActionError("only a selection made by a query has anchors to pin; select with an utterance first")
+        if not sel["intent"].get(f"{action.role}_anchor"):
+            raise ActionError(f"the selection has no {action.role} anchor to pin")
+        handle = self._handle(sel["net_id"])
+        args = dict(sel["intent"])
+        if action.node_id is None:
+            args.pop(f"{action.role}_node", None)
+        else:
+            args[f"{action.role}_node"] = _network_node(handle, action.node_id)
+        try:
+            intent = intent_from_payload(args, sel["utterance"] or "")
+        except IntentError as exc:
+            raise ActionError(str(exc)) from None
+        result = resolve_frames(intent, handle.links_df(), handle.nodes_df())
+        if action.node_id is not None:  # a pin that resolves nothing is refused; the selection stays as it was
+            match = result.from_match if action.role == "from" else result.to_match
+            if match is None or match.node_id is None:
+                detail = match.detail if match is not None else f"node {action.node_id} is not on the facility"
+                raise ActionError(f"cannot pin the {action.role} anchor: {detail}")
+            if result.status == "not_found":
+                why = result.diagnostics[-1] if result.diagnostics else "it selects no links"
+                raise ActionError(f"cannot pin the {action.role} anchor to node {action.node_id}: {why}")
+        self.selection = selection_payload(handle, result, utterance=sel["utterance"], parsed_by=sel["parsed_by"])
+        return self.selection
+
+    def _saved(self, name: str) -> dict[str, Any]:
+        try:
+            return self.saved[name]
+        except KeyError:
+            raise ActionError(f"no saved selection named {name!r}") from None
+
+    def _do_save_selection(self, action: SaveSelection) -> dict[str, Any]:
+        if not self.selection:
+            raise ActionError("nothing is selected")
+        if action.name in self.saved:
+            raise ActionError(f"a selection is already saved as {action.name!r}; delete it first")
+        if len(self.saved) >= MAX_SAVED_SELECTIONS:
+            raise ActionError(f"{MAX_SAVED_SELECTIONS} selections are saved already; delete one to save another")
+        entry = _saved_entry(self._handle(self.selection["net_id"]), self.selection)
+        self.saved = {**self.saved, action.name: entry}
+        return _saved_summary(action.name, entry)
+
+    def _do_use_selection(self, action: UseSelection) -> dict[str, Any]:
+        saved = self._saved(action.name)
+        net_id, source = saved["net_id"], saved["source"]
+        if net_id not in self.registry.ids():
+            raise ActionError(f"the network {net_id!r} is not open; open {source} to use {action.name!r}")
+        handle = self.registry.get(net_id)
+        if _locator(handle.source) != source:  # ids are label slugs: another file can be open under the same id
+            raise ActionError(
+                f"{action.name!r} was saved on {net_id!r} from {source}, but the open {net_id!r} "
+                f"comes from {_locator(handle.source)}"
+            )
+        payload = self._resolve_again(handle, saved)
+        if payload is None:
+            raise ActionError(f"none of the links saved as {action.name!r} exist any more")
+        self.selection = payload
+        return payload
+
+    def _do_delete_selection(self, action: DeleteSelection) -> None:
+        self._saved(action.name)
+        self.saved = {k: v for k, v in self.saved.items() if k != action.name}
+
+    def saved_selections(self) -> list[dict[str, Any]]:
+        """A summary of each saved selection (name, network, status, link count, utterance, query or ids)."""
+        with self._lock:
+            return [_saved_summary(name, sel) for name, sel in self.saved.items()]
+
+    def saved_selection_now(self, name: str) -> tuple[dict[str, Any], list[str]] | None:
+        """The selection saved as ``name``, for an export: resolved again (read-only) when it can be, plus notes.
+
+        When its network is open from the same source, it is resolved on the network as it is now, as
+        ``UseSelection`` would, without becoming the current selection. Otherwise it is the selection as saved, with
+        a note that it was not checked. ``None`` when nothing is saved as ``name``; ``ValueError`` when none of its
+        links exist any more.
+        """
+        with self._lock:
+            saved = self.saved.get(name)
+            if saved is None:
+                return None
+            saved = copy.deepcopy(saved)
+            net_id = saved["net_id"]
+            handle = self.registry.get(net_id) if net_id in self.registry.ids() else None
+            if handle is None or _locator(handle.source) != saved["source"]:
+                why = "is not open" if handle is None else f"is open from another source ({_locator(handle.source)})"
+                return saved, [
+                    f"{net_id!r} {why}: exported {name!r} as saved (version {saved['version']}), without checking it"
+                ]
+            payload, now = self._resolve_again(handle, saved), handle.version
+        if payload is None:
+            raise ValueError(f"none of the links saved as {name!r} exist any more")
+        # The version is the only marker a saved selection keeps, so an undo followed by a new edit (which lands on
+        # the saved version number with other data) goes without this note. The selection is still resolved on
+        # the network as it is now; only the note is missed.
+        if now == saved["version"]:
+            return payload, []
+        return payload, [
+            f"{name!r} was saved on version {saved['version']} of {net_id!r}; exported as of version {now}"
+        ]
+
+    def saved_selection(self, name: str) -> dict[str, Any] | None:
+        """A deep copy of the selection saved as ``name`` (``None`` if there is none), as it was when saved.
+
+        It holds ``net_id``, ``source`` (the network's locator: scheme, host and path, never a query string),
+        ``version``, ``status``, ``utterance``, ``intent`` (with any pins), ``parsed_by``, ``link_ids``, the
+        ``anchors``' nodes and ``stale_pins``: what using or exporting it needs, not the whole payload.
+        """
+        with self._lock:
+            sel = self.saved.get(name)
+            return copy.deepcopy(sel) if sel is not None else None
+
+    def _do_filter(self, action: Filter) -> dict[str, Any] | None:
+        handle = self._handle(action.net_id)
+        if not action.where:
+            self.filters = {nid: f for nid, f in self.filters.items() if nid != handle.id}
+            return None
+        entry = {"table": "link", "where": _typed_where(handle, action.where)}
+        ids = self._filter_ids(handle, entry)  # checks the columns and values now, so a bad filter is refused
+        self.filters = {**self.filters, handle.id: entry}
+        return {**entry, "count": len(ids)}
+
+    def _filter_ids(self, handle: NetworkHandle, entry: dict[str, Any]) -> list[Any]:
+        """The link ids ``entry`` matches on ``handle``: the last :data:`FILTER_CACHE_SIZE` kept per version."""
+        key = json.dumps(entry["where"], sort_keys=True)
+        recent = handle.cached("filter-ids", OrderedDict)  # one bounded map per network version
+        with _FILTER_CACHE_LOCK:
+            if key in recent:
+                recent.move_to_end(key)
+                return recent[key]
+        try:
+            ids = [json_scalar(v) for v in filter_frame(handle.links_df(), entry["where"])["link_id"]]
+        except FilterError as exc:
+            raise ActionError(str(exc)) from None
+        except (TypeError, ValueError) as exc:  # a value that can't be compared with its column
+            raise ActionError(f"a filter value does not fit its column ({type(exc).__name__})") from None
+        with _FILTER_CACHE_LOCK:
+            recent[key] = ids
+            while len(recent) > FILTER_CACHE_SIZE:
+                recent.popitem(last=False)
+        return ids
+
+    def filter_entry(self, net_id: str) -> dict[str, Any] | None:
+        """A copy of ``net_id``'s stored ``Filter`` (``{table, where}``), or ``None`` when it has none."""
+        with self._lock:
+            entry = self.filters.get(net_id)
+            return copy.deepcopy(entry) if entry is not None else None
+
+    def filter_ids(self, net_id: str) -> list[Any] | None:
+        """The link ids ``net_id``'s filter matches now (``None`` when it has no filter)."""
+        with self._lock:
+            entry = self.filters.get(net_id)
+            handle = self.registry.get(net_id) if entry else None
+        return self._filter_ids(handle, entry) if entry and handle else None
+
+    def _filter_count(self, net_id: str, entry: dict[str, Any]) -> int | None:
+        """How many links a stored filter matches now; ``None`` when an edit made it unrunnable (a column went)."""
+        try:
+            return len(self._filter_ids(self.registry.get(net_id), entry))
+        except ActionError:
+            return None
+
     def _do_style(self, action: Style) -> dict[str, Any]:
         patch = action.model_dump(exclude_none=True, exclude={"type"})
-        color_by = patch.get("color_by")
-        if color_by not in (None, "none"):
-            names = {c["name"] for c in styleable_columns(self._handle(None).links_df())}
-            if color_by not in names:
-                raise ActionError(f"cannot color by {color_by!r}; choose one of {sorted(names)}")
+        wanted = {k: patch[k] for k in ("color_by", "width_by") if patch.get(k) not in (None, "none")}
+        if wanted:
+            kinds = {c["name"]: c["kind"] for c in styleable_columns(self._handle(None).links_df())}
+            if "color_by" in wanted and wanted["color_by"] not in kinds:
+                raise ActionError(f"cannot color by {wanted['color_by']!r}; choose one of {sorted(kinds)}")
+            numeric = sorted(n for n, k in kinds.items() if k == "continuous")
+            if "width_by" in wanted and wanted["width_by"] not in numeric:
+                raise ActionError(f"cannot size by {wanted['width_by']!r}; choose a numeric column: {numeric}")
         for key, value in patch.items():
             self.style[key] = {**self.style[key], **value} if isinstance(value, dict) else value
         return copy.deepcopy(self.style)
@@ -1480,7 +1703,19 @@ class Session:
     def _do_navigate(self, action: Navigate) -> None:
         if action.to_selection and not self.selection:
             raise ActionError("nothing is selected")
-        self.events.publish({"type": "navigate", **action.model_dump(mode="json", exclude={"type"})})
+        event = {"type": "navigate", **action.model_dump(mode="json", exclude={"type", "record"})}
+        if action.record is not None:  # an event without one keeps its old shape
+            handle = self._handle(None)
+            table, key = action.record.table, f"{action.record.table}_id"
+            frame = handle.links_df() if table == "link" else handle.nodes_df()
+            try:  # "170" is 170 on an integer key, as PinAnchor reads a node id given as text
+                (rid,) = coerce_keys([action.record.id], frame[key].dtype)
+            except KeyTypeError:
+                rid = None
+            if rid is None or not frame[key].isin([rid]).any():
+                raise ActionError(f"no {table} {action.record.id!r} in {handle.id}")
+            event["record"] = {"table": table, "id": json_scalar(rid)}
+        self.events.publish(event)
 
     def _do_set_setting(self, action: SetSetting) -> dict[str, Any]:
         key = action.key.strip().lower()
@@ -1695,6 +1930,102 @@ def _restore_stamps(handle: NetworkHandle, stamps: Mapping[str, Any]) -> None:
             stamped[name] = stamp
         else:
             tracker.mark_dirty(name)
+
+
+def _lost_pins(intent: SelectionIntent, result: Any) -> list[Any]:
+    """The nodes ``intent`` pins whose anchor no longer resolves in ``result`` (the node left the facility)."""
+    lost = []
+    for role in ("from", "to"):
+        pin, match = getattr(intent, f"{role}_node"), getattr(result, f"{role}_match")
+        if pin is not None and (match is None or match.node_id is None):
+            lost.append(pin)
+    return lost
+
+
+def _network_node(handle: NetworkHandle, node_id: Any) -> Any:
+    """``node_id`` as ``handle``'s node key (``"60"`` is ``60`` on an integer key); ``ActionError`` if absent."""
+    keys = handle.nodes_df()["node_id"]
+    try:
+        (key,) = coerce_keys([node_id], keys.dtype)
+    except KeyTypeError:
+        key = None
+    if key is None or not keys.isin([key]).any():
+        raise ActionError(f"no node {node_id!r} in {handle.id}")
+    return json_scalar(key)
+
+
+def _typed_where(handle: NetworkHandle, where: Sequence[Any]) -> list[dict[str, Any]]:
+    """A ``Filter``'s conditions with each value as its column's type (``"2"`` on ``lanes`` is ``2``).
+
+    Raises ``ActionError`` for a column the link table does not have, or a value its column cannot hold, so a
+    filter is refused at dispatch rather than matching nothing.
+    """
+    links = handle.links_df()
+    out = []
+    for cond in where:
+        c = cond.model_dump(mode="json")
+        if c["col"] not in links.columns:
+            raise ActionError(f"unknown column {c['col']!r}")
+        if c["op"] != "contains":  # contains matches text: any value reads as a substring
+            dtype = links[c["col"]].dtype
+            try:
+                if isinstance(c["val"], list):
+                    c["val"] = [coerce_filter_value(v, dtype) for v in c["val"]]
+                else:
+                    c["val"] = coerce_filter_value(c["val"], dtype)
+            except FilterError as exc:
+                raise ActionError(f"cannot filter {c['col']!r} by {c['op']}: {exc}") from None
+        out.append(c)
+    return out
+
+
+def _saved_entry(handle: NetworkHandle, sel: dict[str, Any]) -> dict[str, Any]:
+    """What ``SaveSelection`` keeps of a selection payload: enough to resolve it again and export it.
+
+    ``source`` ties it to the file it was made on, since a network id is a label slug that another file can reuse.
+    It is the source's locator (:func:`_locator`), so a re-signed URL of the same object still matches and no
+    token reaches ``saved`` (which plugins read). A network added from Python has the source ``"<python>"``, so
+    two of those under the same id are not told apart. ``version`` is the network's version when saved.
+    ``anchors`` keeps only each anchor's node, so an export of the resolved form still names its from/to nodes.
+    ``stale_pins`` says the pin had already gone stale (the links are the previous ones).
+    """
+    anchor_keys = ("role", "node_id", "kind", "anchor", "pinned")
+    return {
+        "net_id": sel["net_id"],
+        "source": _locator(handle.source),
+        "version": handle.version,
+        "status": sel["status"],
+        "utterance": sel["utterance"],
+        "intent": copy.deepcopy(sel["intent"]),
+        "parsed_by": copy.deepcopy(sel["parsed_by"]),
+        "link_ids": list(sel["link_ids"]),
+        "anchors": [
+            {k: a[k] for k in anchor_keys if k in a} for a in [*sel["anchors"], *sel.get("anchors_unplaced", [])]
+        ],
+        "stale_pins": list(sel.get("stale_pins") or []),
+    }
+
+
+def _locator(source: str) -> str:
+    """Where a network came from, without secrets: a URL's scheme, host and path (no query string or userinfo).
+
+    >>> _locator("https://bucket.example.com/net/link.parquet?X-Amz-Signature=abc")
+    'https://bucket.example.com/net/link.parquet'
+    """
+    return scrub(source, limit=None)
+
+
+def _saved_summary(name: str, sel: dict[str, Any]) -> dict[str, Any]:
+    """What the state (and the Selection panel's list) shows of a saved selection."""
+    return {
+        "name": name,
+        "net_id": sel["net_id"],
+        "status": sel["status"],
+        "links": len(sel["link_ids"]),
+        "utterance": sel["utterance"],
+        "by": "query" if sel.get("intent") is not None else "ids",
+        "stale": bool(sel.get("stale_pins")),
+    }
 
 
 def _value_or_unset(settings: Settings, key: str) -> Any:

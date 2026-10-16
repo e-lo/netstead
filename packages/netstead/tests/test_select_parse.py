@@ -7,7 +7,17 @@ from netstead.llm.providers.anthropic import AnthropicProvider
 from netstead.llm.secrets import KEYRING_SERVICE
 from netstead.select.errors import IntentError
 from netstead.select.intent import SelectionIntent
-from netstead.select.parse import SELECTION_TOOL, SYSTEM_PROMPT, ClaudeParser, LLMParser, StubParser, make_parser
+from netstead.select.parse import (
+    INTENT_TOOL,
+    SELECTION_TOOL,
+    SYSTEM_PROMPT,
+    ClaudeParser,
+    LLMParser,
+    StubParser,
+    intent_from_payload,
+    make_parser,
+    payload_from_intent,
+)
 from netstead.select.prompt import PromptContext
 
 pytestmark = pytest.mark.usefixtures("no_network")
@@ -192,3 +202,16 @@ def test_anchors_nested_inside_facility_are_repaired_not_dropped(fake_api):
     assert (intent.from_anchor, intent.to_anchor) == ("A Street", "B Street")
     assert len(fake_api.requests) == 2
     assert "Additional properties" in fake_api.body()["messages"][-1]["content"]
+
+
+def test_pins_round_trip_through_the_payload():
+    args = {"facility": {"name": "Cherry Street"}, "from_anchor": "A", "to_anchor": "B", "to_node": 60}
+    intent = intent_from_payload(args, "u")
+    assert (intent.from_node, intent.to_node) == (None, 60)
+    assert payload_from_intent(intent) == args
+
+
+def test_the_llm_tool_schema_never_offers_pins():
+    props = INTENT_TOOL["input_schema"]["properties"]
+    assert "from_node" not in props and "to_node" not in props
+    assert INTENT_TOOL["input_schema"]["additionalProperties"] is False  # a model's pin is a schema error

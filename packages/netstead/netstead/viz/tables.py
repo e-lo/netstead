@@ -22,12 +22,17 @@ import numpy as np
 import pandas as pd
 
 __all__ = [
+    "FILTER_OPS",
     "GEOM_COLS",
+    "MAX_FILTER_CONDITIONS",
+    "MAX_IN_VALUES",
     "MAX_LIMIT",
     "FilterError",
     "KeyTypeError",
+    "coerce_filter_value",
     "coerce_keys",
     "column_dtype",
+    "filter_frame",
     "locate_row",
     "page_table",
     "parse_ids",
@@ -48,10 +53,16 @@ _OPS = {
     "gt": lambda s, v: s > v,
     "gte": lambda s, v: s >= v,
     "in": lambda s, v: s.isin(v if isinstance(v, (list, tuple, set)) else [v]),
-    "contains": lambda s, v: s.astype("string").str.contains(str(v), case=False, na=False),
+    # A plain substring, never a regex: a bad pattern can't raise, and a catastrophic one can't hang the session.
+    "contains": lambda s, v: s.astype("string").str.contains(str(v), case=False, na=False, regex=False),
     "isnull": lambda s, v: s.isna(),
     "notnull": lambda s, v: s.notna(),
 }
+#: The filter operators every table filter accepts (the rows routes, and the Workbench's ``Filter``).
+FILTER_OPS: tuple[str, ...] = tuple(_OPS)
+#: Conditions accepted in one filter, and values in one ``in`` condition.
+MAX_FILTER_CONDITIONS = 50
+MAX_IN_VALUES = 10_000
 
 
 class FilterError(ValueError):
@@ -139,6 +150,46 @@ def coerce_keys(values: Iterable[Any], dtype: Any) -> list[Any]:
     return list(values)
 
 
+def coerce_filter_value(value: Any, dtype: Any) -> Any:
+    """``value`` as a filter compares it with a ``dtype`` column: a number for a numeric column, text for text.
+
+    ``None`` passes through (``isnull``/``notnull`` take no value). A numeric column takes numbers and numeric text
+    (``"2"`` is ``2``); a boolean column takes booleans and ``"true"``/``"false"``; a text column takes text and
+    numbers (``2`` is ``"2"``). Any other column type passes the value through.
+
+    Raises:
+        FilterError: a value the column's type cannot hold.
+
+    >>> coerce_filter_value("2", pd.Int64Dtype()), coerce_filter_value("2.5", np.dtype("float64"))
+    (2, 2.5)
+    >>> coerce_filter_value(3, pd.StringDtype())
+    '3'
+    """
+    if value is None:
+        return None
+    if pd.api.types.is_bool_dtype(dtype):
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str) and value.strip().lower() in ("true", "false"):
+            return value.strip().lower() == "true"
+        raise FilterError(f"{str(value)[:40]!r} is not true or false")
+    if pd.api.types.is_numeric_dtype(dtype):
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return value
+        if isinstance(value, str) and _INT_TEXT.fullmatch(value.strip()):
+            return int(value)
+        try:
+            number = float(value) if isinstance(value, str) else None
+        except ValueError:
+            number = None
+        if number is None or not np.isfinite(number):
+            raise FilterError(f"{str(value)[:40]!r} is not a number")
+        return number
+    if isinstance(dtype, pd.StringDtype) or pd.api.types.is_object_dtype(dtype):
+        return value if isinstance(value, str) else str(value)
+    return value
+
+
 def column_dtype(src: Any, column: str) -> Any:
     """The pandas dtype ``column`` materialises as (one row sampled from a lazy table)."""
     return _schema_frame(src)[column].dtype
@@ -195,6 +246,11 @@ def _apply_filter(df: pd.DataFrame, spec: list[dict]) -> pd.DataFrame:
             raise FilterError(f"unknown operator {op!r}")
         df = df[_OPS[op](df[col], cond.get("val"))]
     return df
+
+
+def filter_frame(df: pd.DataFrame, spec: list[dict]) -> pd.DataFrame:
+    """The rows of ``df`` matching every condition in ``spec`` (raises :class:`FilterError`)."""
+    return _apply_filter(df, spec)
 
 
 def _clamp(offset: int, limit: int) -> tuple[int, int]:

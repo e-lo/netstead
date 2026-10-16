@@ -515,3 +515,199 @@ def test_an_empty_cell_parses_by_its_column_kind(node_module):
         ' catch (e) { return "refused"; } })()'
     )
     assert node_module("editmodel.js", ["parseCell", "cellSample"], refused) == "refused"
+
+
+SEL = {
+    "status": "ambiguous",
+    "net_id": "n",
+    "link_ids": [1, 2],
+    "intent": {"facility": {"name": "Cherry"}},
+    "anchors": [
+        {
+            "role": "from",
+            "node_id": 53,
+            "kind": "intersection",
+            "detail": "d",
+            "anchor": "Prospect",
+            "pinned": False,
+            "candidates": [],
+            "lon": 1,
+            "lat": 2,
+        },
+        {
+            "role": "to",
+            "node_id": 60,
+            "kind": "intersection",
+            "detail": "d",
+            "anchor": "West Center",
+            "pinned": False,
+            "candidates": [{"node_id": 61, "lon": 3, "lat": 4}, {"node_id": 62}],
+            "lon": 5,
+            "lat": 6,
+        },
+    ],
+    "anchors_unplaced": [],
+}
+
+
+def test_anchor_rows_list_candidates_and_mark_unplaced_ones(node_module):
+    rows = node_module("selectmodel.js", ["anchorRows"], f"anchorRows({json.dumps(SEL)})")
+    assert [r["role"] for r in rows] == ["from", "to"]
+    assert rows[1]["candidates"] == [{"nodeId": 61, "placed": True}, {"nodeId": 62, "placed": False}]
+    assert rows[1]["canUnpin"] is False
+    assert rows[1]["canPin"] is True and rows[0]["canPin"] is False  # only an anchor with other candidates
+    unplaced = {**SEL, "anchors": SEL["anchors"][:1], "anchors_unplaced": [{**SEL["anchors"][1], "pinned": True}]}
+    rows = node_module("selectmodel.js", ["anchorRows"], f"anchorRows({json.dumps(unplaced)})")
+    assert rows[1]["unplaced"] is True and rows[1]["canUnpin"] is True and rows[1]["canPin"] is False
+
+
+def test_candidate_points_are_only_placed_candidates(node_module):
+    pts = node_module("selectmodel.js", ["candidatePoints"], f"candidatePoints({json.dumps(SEL)})")
+    assert pts == [{"role": "to", "node_id": 61, "lon": 3, "lat": 4}]
+    assert node_module("selectmodel.js", ["candidatePoints"], "candidatePoints(null)") == []
+
+
+def test_export_choices_follow_status_and_kind(node_module):
+    expr = (
+        f"[exportChoices({json.dumps(SEL)}), exportChoices({json.dumps({**SEL, 'status': 'resolved'})}),"
+        f" exportChoices({json.dumps({**SEL, 'status': 'resolved', 'intent': None})}), exportChoices(null),"
+        f" exportChoices({json.dumps({**SEL, 'status': 'not_found'})})]"
+    )
+    amb, res, ids, none, lost = node_module("selectmodel.js", ["exportChoices"], expr)
+    assert amb == {"resolved": False, "query": False, "reason": "Pin the ambiguous anchors first."}
+    assert res == {"resolved": True, "query": True, "reason": ""}
+    assert ids["query"] is False and none["reason"] == "Nothing is selected."
+    assert lost["resolved"] is False and lost["reason"] == "Nothing was found to export."
+
+
+def test_selection_badge(node_module):
+    expr = (
+        f"[selectionBadge({json.dumps(SEL)}), selectionBadge({json.dumps({**SEL, 'status': 'resolved'})}),"
+        " selectionBadge(null)]"
+    )
+    assert node_module("selectmodel.js", ["selectionBadge"], expr) == ["?", 2, None]
+
+
+def test_link_widths_scale_a_numeric_property(node_module):
+    net = {"L": {"count": 3}, "linkStart": [0, 2, 4, 6], "linkLanes": [1, 1, 1]}
+    prop = {"name": "lanes", "kind": "continuous", "values": [1, None, 3], "min": 1, "max": 3}
+    expr = f"Array.from(buildLinkWidths({json.dumps(net)}, {{width_by: 'lanes'}}, {json.dumps(prop)}))"
+    assert node_module("palette.js", ["buildLinkWidths"], expr) == [1.5, 1.5, 1, 1, 10, 10]
+    n, p = json.dumps(net), json.dumps(prop)
+    off = f"[buildLinkWidths({n}, {{width_by: 'none'}}, {p}), buildLinkWidths({n}, {{width_by: 'lanes'}}, null)]"
+    assert node_module("palette.js", ["buildLinkWidths"], off) == [None, None]
+
+
+def test_unmatched_links_are_dimmed(node_module):
+    net = {"L": {"count": 2}, "linkStart": [0, 1, 2], "attrsIds": None}
+    expr = (
+        f"Array.from(dimUnmatched(new Uint8Array([9,9,9,222, 9,9,9,222]), {json.dumps(net)}, [10, 20], new Set([20])))"
+    )
+    assert node_module("palette.js", ["dimUnmatched"], expr) == [9, 9, 9, 40, 9, 9, 9, 222]
+
+
+def test_the_filtered_scope_adds_the_view_filter(node_module):
+    vf = {"table": "link", "where": [{"col": "lanes", "op": "gte", "val": 2}]}
+    expr = (
+        f"[combinedFilter([{{col:'name',op:'contains',val:'a'}}], 'filtered', 'link', {json.dumps(vf)}),"
+        f" combinedFilter([], 'all', 'link', {json.dumps(vf)}),"
+        f" combinedFilter([], 'filtered', 'node', {json.dumps(vf)}),"
+        " combinedFilter([], 'filtered', 'link', null)]"
+    )
+    on, off, other, none = node_module("linking.js", ["combinedFilter"], expr)
+    assert on == [{"col": "lanes", "op": "gte", "val": 2}, {"col": "name", "op": "contains", "val": "a"}]
+    assert off is None and other is None and none is None
+    hint = node_module("linking.js", ["scopeHint"], "[scopeHint('filtered', 0), scopeHint('filtered', 3)]")
+    assert hint == ["No link matches the filter (Layers → Filter links).", ""]
+    nodes = node_module(
+        "linking.js", ["scopeHint"], "[scopeHint('filtered', 0, 'node'), scopeHint('filtered', 40, 'node')]"
+    )
+    assert nodes == ["Filtered applies to links: every row is listed."] * 2
+    assert node_module("linking.js", ["scopeHint"], "scopeHint('all', 40, 'node')") == ""
+
+
+def test_a_stale_pin_is_named_and_turns_off_the_query_form(node_module):
+    stale = {**SEL, "status": "resolved", "intent": {"to_node": 60, "from_anchor": "a"}, "stale_pins": [60]}
+    expr = f"[staleAnchors({json.dumps(stale)}), staleNotes({json.dumps(stale)}), exportChoices({json.dumps(stale)})]"
+    anchors, notes, choice = node_module("selectmodel.js", ["staleAnchors", "staleNotes", "exportChoices"], expr)
+    assert anchors == [{"role": "to", "nodeId": 60}]
+    assert notes[0].startswith("The to anchor's pinned node 60 is no longer on the facility.")
+    assert choice["resolved"] is True and choice["query"] is False and "re-pinned" in choice["reason"]
+    fresh = {**stale, "stale_pins": []}
+    assert node_module("selectmodel.js", ["staleNotes"], f"staleNotes({json.dumps(fresh)})") == []
+
+
+@pytest.mark.parametrize(
+    ("op", "raw", "want"),
+    [
+        ("eq", "007", "007"),  # a text key stays text: the server reads it as the column's type
+        ("gte", " 2 ", "2"),
+        ("contains", "Main St", "Main St"),
+        ("eq", "", ""),
+        ("isnull", "anything", None),
+        ("notnull", "", None),
+    ],
+)
+def test_a_filter_value_is_sent_as_typed(node_module, op, raw, want):
+    assert node_module("filtermodel.js", ["filterValue"], f"filterValue({json.dumps(op)}, {json.dumps(raw)})") == want
+
+
+def _filter_server(where, count=12):
+    return {"active": "n1", "filters": {"n1": {"table": "link", "where": where, "count": count}}}
+
+
+def test_a_recorded_filter_is_restored_into_the_controls(node_module):
+    one = _filter_server([{"col": "ref", "op": "eq", "val": "007"}])
+    empty = _filter_server([{"col": "name", "op": "isnull", "val": None}], count=None)
+    view, nulls = node_module(
+        "filtermodel.js", ["filterView"], f"[filterView({json.dumps(one)}), filterView({json.dumps(empty)})]"
+    )
+    assert view == {
+        "mode": "controls",
+        "count": "12 links match",
+        "canClear": True,
+        "note": "",
+        "controls": {"col": "ref", "op": "eq", "val": "007", "valDisabled": False},
+    }
+    assert nulls["controls"] == {"col": "name", "op": "isnull", "val": "", "valDisabled": True}
+    assert nulls["count"] == "filter no longer applies"
+
+
+def test_no_filter_resets_the_controls(node_module):
+    for server in ({"active": "n1", "filters": {}}, {"active": "n1", "filters": {"n2": {"where": []}}}, None):
+        view = node_module("filtermodel.js", ["filterView"], f"filterView({json.dumps(server)})")
+        assert view == {
+            "mode": "none",
+            "count": "",
+            "canClear": False,
+            "note": "",
+            "controls": {"op": "eq", "val": "", "valDisabled": False},
+        }
+
+
+def test_a_filter_the_controls_cannot_send_back_is_shown_read_only(node_module):
+    in_list = _filter_server([{"col": "ref", "op": "in", "val": ["a", "<b>"]}])
+    several = _filter_server([{"col": "lanes", "op": "gte", "val": 2}, {"col": "name", "op": "notnull", "val": None}])
+    a, b = node_module(
+        "filtermodel.js", ["filterView"], f"[filterView({json.dumps(in_list)}), filterView({json.dumps(several)})]"
+    )
+    assert a["mode"] == "readonly" and "controls" not in a and a["canClear"] is True
+    assert a["note"] == "Set from Python: ref in a, <b>."  # escaped by the panel (textContent)
+    assert b["note"] == "Set from Python: lanes ≥ 2 and name is not empty."
+
+
+def test_the_filter_key_changes_only_with_the_recorded_filter(node_module):
+    s1 = _filter_server([{"col": "lanes", "op": "gte", "val": 2}])
+    s2 = {**s1, "filters": {"n1": {**s1["filters"]["n1"], "count": 99}}}
+    s3 = _filter_server([{"col": "lanes", "op": "gte", "val": 3}])
+    none, other = {"active": "n1", "filters": {}}, {"active": "n2", "filters": {}}
+    expr = f"[{', '.join(f'filterKey({json.dumps(s)})' for s in (s1, s2, s3, none, other))}]"
+    k1, k2, k3, kn, ko = node_module("filtermodel.js", ["filterKey"], expr)
+    assert k1 == k2 and k1 != k3 and kn != ko and kn != k1
+
+
+def test_focus_moves_to_unpin_after_a_pin(node_module):
+    expr = (
+        "[unpinAfterPin('pin-to-60'), unpinAfterPin('pin-from-a-b'), unpinAfterPin('unpin-to'), unpinAfterPin('use-x')]"
+    )
+    assert node_module("selectmodel.js", ["unpinAfterPin"], expr) == ["unpin-to", "unpin-from", None, None]

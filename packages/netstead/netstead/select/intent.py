@@ -74,6 +74,8 @@ class SelectionIntent:
             (e.g. ``{"lanes": [2, 3]}``) — mirrors ProjectCard's extra fields.
         ignore_missing: Carried through to the emitted selection.
         utterance: The cleaned natural-language request (for ``notes``).
+        from_node / to_node: A node the user pinned the anchor to (``PinAnchor``); the resolver uses it instead of
+            ranking candidates. Never produced by a parser.
     """
 
     facility: Facility | None = None
@@ -85,6 +87,8 @@ class SelectionIntent:
     conditions: dict = field(default_factory=dict)
     ignore_missing: bool = True
     utterance: str | None = None
+    from_node: Any = None
+    to_node: Any = None
 
     def __post_init__(self) -> None:
         """Validate that at least one primary selector is present."""
@@ -99,5 +103,8 @@ class SelectionIntent:
         for label, anchor in (("from_anchor", self.from_anchor), ("to_anchor", self.to_anchor)):
             if anchor is not None and not anchor.strip():
                 raise IntentError(f"{label} must be a non-empty string when provided")
+        for role in ("from", "to"):
+            if getattr(self, f"{role}_node") is not None and not getattr(self, f"{role}_anchor"):
+                raise IntentError(f"{role}_node pins {role}_anchor: give the anchor too")
         if not isinstance(self.conditions, dict):
             raise IntentError("conditions must be a dict of {column: value | [values]}")

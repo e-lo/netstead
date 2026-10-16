@@ -46,3 +46,27 @@ export function buildLinkColors(net, style, prop) {
   }
   return c;
 }
+
+const MIN_W = 1.5, MAX_W = 10, NULL_W = 1;
+
+// Per-vertex link widths for `style.width_by` (a continuous property), linear between MIN_W and MAX_W; null values
+// draw at NULL_W. Null when not sizing by a property: the caller keeps the lane-count widths (net.linkWidths).
+export function buildLinkWidths(net, style, prop) {
+  if (!prop || prop.kind !== "continuous" || style.width_by !== prop.name) return null;
+  const w = new Float32Array(net.linkStart[net.L.count]), span = prop.max - prop.min;
+  for (let i = 0; i < net.L.count; i++) {
+    const v = prop.values[i];
+    const px = v === null || v === undefined ? NULL_W : MIN_W + (span > 0 ? (v - prop.min) / span : 0.5) * (MAX_W - MIN_W);
+    for (let k = net.linkStart[i]; k < net.linkStart[i + 1]; k++) w[k] = px;
+  }
+  return w;
+}
+
+// Dim (alpha 40) the vertices of links whose id is not in `keep`; `ids[i]` is link i's id. Changes `colors` in place.
+export function dimUnmatched(colors, net, ids, keep) {
+  for (let i = 0; i < net.L.count; i++) {
+    if (keep.has(ids[i])) continue;
+    for (let k = net.linkStart[i]; k < net.linkStart[i + 1]; k++) colors[k * 4 + 3] = 40;
+  }
+  return colors;
+}

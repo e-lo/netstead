@@ -1,31 +1,14 @@
-// Right-hand panel: selection result, link details, and interactive highlights.
+// The Details dock panel: the focused record's details and the interactive highlights (the selection's status,
+// anchors, export and saved selections are in the Selection panel: selection.js).
 import { dispatch, getJSON, netPath } from "./api.js";
 import { $, esc, toast } from "./dom.js";
 import { editSummary, undoBlocked } from "./editmodel.js";
 import { deleteRecord, openFixEditor } from "./fixeditor.js";
 import { store } from "./store.js";
 
-const HINT = '<span class="empty">Click a feature or row for details; type an utterance to select.</span>';
 const DETAILS_HINT = '<span class="empty">Click a link or node on the map, or a row in the table.</span>';
 
 export function clearDetails() { $("details").innerHTML = DETAILS_HINT; }
-
-export function renderSelection(sel) {
-  $("status-wrap").innerHTML = sel
-    ? `<span class="status ${esc(sel.status)}">${esc(sel.status.replace("_", " "))}</span>` +
-      (sel.utterance ? ` <span class="diag">${esc(sel.utterance)}</span>` : "")
-    : HINT;
-  // Anchors whose node has no coordinates (`anchors_unplaced`) are listed too, as not on the map.
-  const anchors = sel ? [...sel.anchors, ...(sel.anchors_unplaced || []).map(a => ({ ...a, unplaced: true }))] : [];
-  $("anchors").innerHTML = anchors.length
-    ? anchors.map(a => `<div><span class="dot" style="background:${a.role === "from" ? "#35c46a" : "#e0524d"}"></span>` +
-        `<b>${esc(a.role)}</b> · node ${esc(a.node_id)} · ${esc(a.kind)} <span class="diag">(${esc(a.detail)})</span>` +
-        `${a.unplaced ? ' <span class="diag">· not on the map</span>' : ""}</div>`).join("")
-    : '<span class="empty">—</span>';
-  $("fragment").textContent = sel && sel.fragment ? JSON.stringify(sel.fragment, null, 2) : "—";
-  const diags = sel ? sel.diagnostics : [];
-  $("diag").innerHTML = diags.length ? diags.map(d => `<div class="diag">• ${esc(d)}</div>`).join("") : '<span class="empty">—</span>';
-}
 
 let detailsShown = Promise.resolve();
 // The last showDetails render (a command that opens the editor in Details waits for it).

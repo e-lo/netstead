@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal, get_args, g
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
 from netstead.llm.secrets import has_url_userinfo, is_secret_name, looks_like_secret
+from netstead.viz.tables import MAX_FILTER_CONDITIONS, MAX_IN_VALUES
 
 from .area import Area
 from .registry import Component, default_label
@@ -36,16 +37,24 @@ __all__ = [
     "ClearSelection",
     "CloseNetwork",
     "DeleteRows",
+    "DeleteSelection",
     "EditCells",
+    "Filter",
+    "FilterCond",
+    "FilterOp",
     "Navigate",
     "OpenNetwork",
+    "PinAnchor",
+    "RecordRef",
     "RunValidation",
     "SaveNetwork",
+    "SaveSelection",
     "Select",
     "SetActiveNetwork",
     "SetSetting",
     "Style",
     "UndoEdit",
+    "UseSelection",
     "action_json_schema",
     "import_line",
     "is_secret_name",
@@ -154,10 +163,14 @@ class ClearSelection(BaseAction):
 
 
 class Style(BaseAction):
-    """Partially update the map style; omitted fields are unchanged."""
+    """Partially update the map style; omitted fields are unchanged.
+
+    ``width_by`` sizes links by a numeric column (``"none"`` for widths by lane count).
+    """
 
     type: Literal["style"] = "style"
     color_by: str | None = None
+    width_by: str | None = None
     ramp: Literal["YlOrRd", "Blues", "Viridis"] | None = None
     show: dict[Literal["links", "nodes", "labels", "selection"], bool] | None = None
     colors: dict[Literal["links", "nodes", "selection"], RGB] | None = None
@@ -166,18 +179,27 @@ class Style(BaseAction):
     show_legend: bool | None = None
 
 
+class RecordRef(BaseModel):
+    """One record of the active network, by table and primary key (``link`` or ``node``)."""
+
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+    table: Literal["link", "node"]
+    id: int | str
+
+
 class Navigate(BaseAction):
-    """Move the map camera to a bbox, the active network, or the selection."""
+    """Move the map camera to a bbox, the active network, the selection, or one link or node."""
 
     type: Literal["navigate"] = "navigate"
     bbox: tuple[float, float, float, float] | None = None
     to_network: bool = False
     to_selection: bool = False
+    record: RecordRef | None = None
 
     @model_validator(mode="after")
     def _one_target(self) -> Navigate:
-        if sum([self.bbox is not None, self.to_network, self.to_selection]) != 1:
-            raise ValueError("give exactly one of bbox, to_network, to_selection")
+        if sum([self.bbox is not None, self.to_network, self.to_selection, self.record is not None]) != 1:
+            raise ValueError("give exactly one of bbox, to_network, to_selection, record")
         return self
 
 
@@ -415,6 +437,87 @@ class SaveNetwork(BaseAction):
         return f"save {self.name}"
 
 
+#: A node id as the Actions take it (GMNS keys are integers or strings).
+NodeId = int | str
+
+
+class PinAnchor(BaseAction):
+    """Pin the current selection's ``from`` or ``to`` anchor to one node, then resolve it again (``None`` unpins).
+
+    For an ambiguous selection made by a query: pick one of the anchor's ``candidates`` (or any node on the
+    facility). The pin is kept in the selection's ``intent``, so it survives an edit and a saved selection's reuse.
+    A pin that resolves nothing (a node off the facility, or one with no path to the other anchor) is refused.
+    """
+
+    type: Literal["pin_anchor"] = "pin_anchor"
+    role: Literal["from", "to"]
+    node_id: NodeId | None = None
+
+
+#: A saved selection's name: letters, digits, space ``_ . -``; starts with a letter or digit, never ends in a space.
+_SELECTION_NAME = r"^[A-Za-z0-9](?:[A-Za-z0-9 _.-]{0,62}[A-Za-z0-9_.-])?$"
+
+
+class SaveSelection(BaseAction):
+    """Save the current selection under ``name`` (refused if the name is taken: delete it first)."""
+
+    type: Literal["save_selection"] = "save_selection"
+    name: str = Field(pattern=_SELECTION_NAME)
+
+
+class UseSelection(BaseAction):
+    """Make a saved selection current again, resolved against its network as it is now."""
+
+    type: Literal["use_selection"] = "use_selection"
+    name: str = Field(pattern=_SELECTION_NAME)
+
+
+class DeleteSelection(BaseAction):
+    """Forget a saved selection."""
+
+    type: Literal["delete_selection"] = "delete_selection"
+    mutates: ClassVar[bool] = True  # it throws away something the user made: the assistant drafts it
+    name: str = Field(pattern=_SELECTION_NAME)
+
+
+#: The operators a :class:`FilterCond` may use: exactly ``netstead.viz.tables.FILTER_OPS`` (a test pins it).
+FilterOp = Literal["eq", "ne", "lt", "lte", "gt", "gte", "in", "contains", "isnull", "notnull"]
+
+
+class FilterCond(BaseModel):
+    """One condition on a link column: ``col op val`` (``in`` takes a list; ``isnull``/``notnull`` take no value)."""
+
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+    col: str = Field(min_length=1, max_length=100)
+    op: FilterOp
+    val: CellValue | list[CellValue] = None
+
+    @model_validator(mode="after")
+    def _bounded(self) -> FilterCond:
+        if self.op in ("isnull", "notnull"):
+            if self.val is not None:
+                raise ValueError(f"'{self.op}' takes no value")
+        elif isinstance(self.val, list):
+            if self.op != "in":
+                raise ValueError(f"only 'in' takes a list of values; '{self.op}' takes one")
+            if len(self.val) > MAX_IN_VALUES:
+                raise ValueError(f"an 'in' condition lists too many values (over {MAX_IN_VALUES:,})")
+        elif self.val is None:
+            raise ValueError(f"'{self.op}' needs a value (to match empty cells, use 'isnull')")
+        return self
+
+
+class Filter(BaseAction):
+    """Show only the links matching every condition: the map dims the rest; the table's Filtered scope lists them.
+
+    A constrained predicate over the link table's columns, never SQL. ``where=None`` (or empty) clears the filter.
+    """
+
+    type: Literal["filter"] = "filter"
+    net_id: str | None = None
+    where: list[FilterCond] | None = Field(default=None, max_length=MAX_FILTER_CONDITIONS)
+
+
 Action = Annotated[
     OpenNetwork
     | BuildNetwork
@@ -430,7 +533,12 @@ Action = Annotated[
     | AddRows
     | UndoEdit
     | RunValidation
-    | SaveNetwork,
+    | SaveNetwork
+    | PinAnchor
+    | SaveSelection
+    | UseSelection
+    | DeleteSelection
+    | Filter,
     Field(discriminator="type"),
 ]
 #: The Actions every session understands, in registry order (``to_python`` imports them from ``netstead.workbench``).
@@ -451,6 +559,11 @@ CORE_ACTIONS: tuple[type[BaseAction], ...] = (
     UndoEdit,
     RunValidation,
     SaveNetwork,
+    PinAnchor,
+    SaveSelection,
+    UseSelection,
+    DeleteSelection,
+    Filter,
 )
 
 

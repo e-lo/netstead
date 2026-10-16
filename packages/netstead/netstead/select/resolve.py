@@ -155,14 +155,27 @@ def _result_from_path(intent, base, from_m, to_m, path, diags, *, cand_note):
     )
 
 
+def _resolve_anchors(intent, allowed: set, resolve_unpinned):
+    """``(from match, to match)``: a pinned role is accepted only on ``allowed``; others go to ``resolve_unpinned``."""
+    matches = []
+    for role in ("from", "to"):
+        text, pin = getattr(intent, f"{role}_anchor"), getattr(intent, f"{role}_node")
+        if pin is not None:
+            matches.append(_anchors.pinned_anchor(text, pin, allowed))
+        else:
+            matches.append(resolve_unpinned(text, role))
+    return matches[0], matches[1]
+
+
 def _freeway_segment(intent, base, links, nx, ny, diags):
     """Gore/merge anchors + shortest directed path along the carriageway."""
     facility_all = _facility_links(links, intent.facility)[0] if intent.facility else base
     directed_nodes = set(base["from_node_id"]) | set(base["to_node_id"])
     mainline_nodes = set(facility_all["from_node_id"]) | set(facility_all["to_node_id"])
     interchanges = _anchors.classify_interchanges(links, directed_nodes, mainline_nodes)
-    from_m = _anchors.resolve_anchor(intent.from_anchor, "from", links, interchanges)
-    to_m = _anchors.resolve_anchor(intent.to_anchor, "to", links, interchanges)
+    from_m, to_m = _resolve_anchors(
+        intent, directed_nodes, lambda text, role: _anchors.resolve_anchor(text, role, links, interchanges)
+    )
     diags = [*diags, from_m.detail, to_m.detail]
     if from_m.node_id is None or to_m.node_id is None:
         return SelectionResult("not_found", intent, from_match=from_m, to_match=to_m, diagnostics=diags)
@@ -183,8 +196,9 @@ def _freeway_segment(intent, base, links, nx, ny, diags):
 def _surface_segment(intent, base, links, nx, ny, diags):
     """At-grade intersection (or freeway-ramp) anchors + undirected path along the facility."""
     facility_nodes = set(base["from_node_id"]) | set(base["to_node_id"])
-    from_m = _anchors.resolve_surface_anchor(intent.from_anchor, facility_nodes, links)
-    to_m = _anchors.resolve_surface_anchor(intent.to_anchor, facility_nodes, links)
+    from_m, to_m = _resolve_anchors(
+        intent, facility_nodes, lambda text, _role: _anchors.resolve_surface_anchor(text, facility_nodes, links)
+    )
     diags = [*diags, from_m.detail, to_m.detail]
     if from_m.node_id is None or to_m.node_id is None:
         return SelectionResult("not_found", intent, from_match=from_m, to_match=to_m, diagnostics=diags)

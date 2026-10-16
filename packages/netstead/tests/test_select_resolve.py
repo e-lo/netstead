@@ -4,6 +4,8 @@ from importlib import resources
 
 import pandas as pd
 import pytest
+from netstead.fixtures import leavenworth
+from netstead.select.errors import IntentError
 from netstead.select.intent import Facility, SelectionIntent
 from netstead.select.resolve import resolve_frames
 
@@ -153,3 +155,73 @@ def test_fallback_note_survives_the_segment_path(rdu):
     assert r.status == "resolved"
     assert r.link_ids == golden.link_ids
     assert "treated name 'I 40' as a route number" in r.diagnostics
+
+
+@pytest.fixture(scope="module")
+def leav():
+    base = leavenworth.parquet_dir()
+    return pd.read_parquet(base / "link.parquet"), pd.read_parquet(base / "node.parquet")
+
+
+def _cherry(**pins):
+    return SelectionIntent(
+        facility=Facility(name="Cherry Street"),
+        from_anchor="Prospect Street",
+        to_anchor="West Center Street",
+        **pins,
+    )
+
+
+def test_surface_anchors_resolve_on_a_network_without_a_ref_column(leav):
+    links, nodes = leav
+    assert "ref" not in links.columns
+    r = resolve_frames(_cherry(), links, nodes)
+    assert r.status == "ambiguous" and r.link_ids == [170, 182, 187]
+    assert (r.from_match.node_id, r.from_match.candidates) == (53, [])
+    assert (r.to_match.node_id, r.to_match.candidates) == (60, [61])
+
+
+def test_rdu_anchors_do_not_raise_without_a_ref_column(rdu):
+    """A second network: RDU with ``ref`` dropped must not raise either (``_anchor_links`` reads the same columns).
+
+    The freeway path's ``_surface_links`` gets the same ``_column`` fix; RDU's freeway needs ``ref`` to find I-40
+    at all, so that path is covered by reading the diff, not by a test.
+    """
+    links, nodes = rdu
+    no_ref = links.drop(columns=["ref"])
+    intent = SelectionIntent(
+        facility=Facility(name="Page Road"), from_anchor="South Miami Boulevard", to_anchor="Airport Boulevard"
+    )
+    resolve_frames(intent, no_ref, nodes)  # the status depends on the fixture's names; raising is the bug
+
+
+def test_without_a_name_column_the_facility_matches_nothing(leav):
+    links, nodes = leav
+    assert resolve_frames(_cherry(), links.drop(columns=["name"]), nodes).status == "not_found"
+
+
+def test_pinning_the_chosen_candidate_resolves(leav):
+    links, nodes = leav
+    r = resolve_frames(_cherry(to_node=60), links, nodes)
+    assert r.status == "resolved" and r.link_ids == [170, 182, 187]
+    assert (r.to_match.node_id, r.to_match.kind, r.to_match.candidates) == (60, "pinned", [])
+    assert "pinned to node 60" in r.to_match.detail
+
+
+def test_pinning_another_candidate_re_resolves_and_may_find_no_path(leav):
+    links, nodes = leav
+    r = resolve_frames(_cherry(to_node=61), links, nodes)
+    assert r.status == "not_found" and r.to_match.node_id == 61
+    assert "no path between resolved anchor nodes" in r.diagnostics
+
+
+def test_a_pin_off_the_facility_is_unresolved(leav):
+    links, nodes = leav
+    r = resolve_frames(_cherry(from_node=999_999), links, nodes)
+    assert r.status == "not_found" and r.from_match.node_id is None
+    assert "not on the facility" in r.from_match.detail
+
+
+def test_a_pin_needs_its_anchor():
+    with pytest.raises(IntentError, match="from_node pins from_anchor"):
+        SelectionIntent(facility=Facility(name="X"), from_node=1)

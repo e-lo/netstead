@@ -1141,7 +1141,12 @@ export async function paths() {
 // Hung plugins load side by side: N of them cost one time limit, not N. "core" is refused; others are skipped.
 export async function parallel() {
   const reports = [], imported = [];
-  const report = (owner, phase, e) => reports.push([owner, phase, String((e && e.message) || e)]);
+  // A timeout report also lands in `imported`, so the order shows whether every import started before the first one.
+  const report = (owner, phase, e) => {
+    const message = String((e && e.message) || e);
+    if (message.includes("within")) imported.push(`timeout:${owner}`);
+    reports.push([owner, phase, message]);
+  };
   const importModule = s => { imported.push(s.id); return never(); };
   const createWb = () => ({ wb: {}, rollback() {} });
   const t0 = Date.now();
@@ -1223,8 +1228,9 @@ def test_activate_one_contains_each_failure_and_a_late_one(node_module, tmp_path
 
 def test_hung_plugins_load_in_parallel_and_core_is_refused(node_module, tmp_path):
     got = _loader(node_module, tmp_path, "parallel")
-    assert got["imported"] == ["h1", "h2", "h3", "h4"]
-    assert 150 <= got["elapsed"] < 450, got["elapsed"]  # one at a time would be 600
+    # All four start before the first times out (one at a time would interleave them); no wall-clock lower bound.
+    assert got["imported"] == ["h1", "h2", "h3", "h4", "timeout:h1", "timeout:h2", "timeout:h3", "timeout:h4"]
+    assert got["elapsed"] < 600, got["elapsed"]  # one at a time would take at least 600
     assert got["reports"][0] == ["core", "activate", 'the plugin id "core" is reserved']
     assert [r[0] for r in got["reports"][1:]] == ["h1", "h2", "h3", "h4"]
 

@@ -254,6 +254,8 @@ A plugin never sees the `Session`. Every handler, `router`, `state` and `on_load
 | `host.settings` | The validated `[plugins.<id>]` model, or `None` if there is no `settings_model`. Re-read on each access, so it reflects setting changes. |
 | `host.active` | The active network's id, or `None`. |
 | `host.selection` | A copy of the shared selection payload (the dict `/api/state` carries), or `None`. It adds `projectcard`: a resolved selection's ProjectCard facility forms (`picked`, `resolved`, `query`), else `None`. `anchors` are the from/to nodes with `lon`/`lat`; `anchors_unplaced` (API 1.2) are those whose node has no coordinates. |
+| `host.saved_selections()` | A summary of each saved selection: `name`, `net_id`, `status`, `links` (a count), `utterance`, `by` (`query` or `ids`) and `stale` (it was saved with a stale pin). API 1.3. |
+| `host.saved_selection(name)` | A copy of the selection saved as `name`, or `None`: `net_id`, `source` (a locator: no query string), `version`, `status`, `utterance`, `intent` (with any pins), `parsed_by`, `link_ids`, the anchors' nodes and `stale_pins`, plus `projectcard` (its facility forms) and `warnings` (a stale pin, in words). It is the selection as saved; `UseSelection` resolves it again on the network as it is now. API 1.3. |
 | `host.network(net_id=None)` | The network handle (default: the active one). Read it, but change it only through `mutate`. |
 | `host.mutate(net_id, edits, note=..., expected_version=None)` | Applies `corral.editing.Edit`s to a network's roadway **all or nothing**. The edits run on a draft, so a failing edit leaves the network (and its caches) untouched and re-raises. On success it bumps the version, appends `"<id>: <note>"` to the lineage and pushes state. It returns the `EditResult`s (the rollback data). Inside a handler, the change is undone if the handler fails. Outside one (a job, a route), it is recorded as a non-replayable `<id>.mutate` history entry. With `expected_version` (a plan's `version`, API 1.2) it refuses with `ActionError`, changing nothing, if the network's version moved since. |
 | `host.undo(net_id=None)` | Reverts this plugin's newest mutation of a network, if it is that network's newest change, and returns the undone entry (`seq`, `source`, `note`, `version`, `rows`, `saved`). Raises `ActionError` when there is nothing to undo or the newest change came from core, Python or another plugin. API 1.2. |
@@ -394,7 +396,7 @@ export function activate(wb) {
 
 | Member | What it gives you |
 |---|---|
-| `wb.id`, `wb.hostApi` | This plugin's id, and the plugin API this netstead provides (`"1.2"`). |
+| `wb.id`, `wb.hostApi` | This plugin's id, and the plugin API this netstead provides (`"1.3"`). |
 | `wb.api.fetch(path, init)`, `wb.api.get(path)`, `wb.api.post(path, body)` | `fetch`, and JSON helpers, scoped to your router: `"/count"` is `/api/plugins/<id>/count`. A path must start with `/` and, once resolved (`%2e%2e` and `\` count as `..` and `/`), stay under that prefix; other hosts are refused. |
 | `wb.api.dispatch(action)` | Posts any Action (yours, another plugin's, core's) to `POST /api/actions` and resolves to its result. |
 | `wb.store.get()`, `wb.store.subscribe(keys, fn)` | The server state (`/api/state`), and a listener that fires when any of `keys` changes. Keys may be dotted (`"plugins.hello"`). `get()` and the listener's argument are a frozen copy: changing it throws (changes go through Actions). Returns an unsubscribe function. |
@@ -596,6 +598,7 @@ A minor bump only adds to the API and a major bump breaks it.
 | `1.0` | The Python plugin core: Actions, `Host`, settings, state, routes, static files. |
 | `1.1` | The browser API: `activate(wb)` and the `wb` object (workspaces, dock panels, commands, map layers, `schemaForm`), and `GET /api/actions`. A plugin with a front end should pass `requires_api="1.1"` (or `HOST_API`); a `1.0` plugin still runs. |
 | `1.2` | Editing: `host.undo`, `host.edit_warnings` and `host.plan_update` / `plan_delete` / `plan_add` (with `EditPlan` and `EditRefused` exported from `netstead.workbench.plugins`), and `host.mutate(..., expected_version=plan.version)`, which refuses a stale plan. Every `host.mutate` becomes a pending edit with the plugin's id as its source, re-checked live (`host.edit_warnings`), and listed in core's Edits panel. `host.selection` adds `anchors_unplaced`. |
+| `1.3` | Saved selections: `host.saved_selections()` and `host.saved_selection(name)`. `host.selection`'s anchors carry `anchor`, `confidence`, `pinned` and `candidates`, and the payload carries `stale_pins`. New core Actions a plugin may dispatch: `PinAnchor`, `SaveSelection`, `UseSelection`, `DeleteSelection`, `Filter`, `Style(width_by=…)` and `Navigate(record=…)`. |
 
 **The plugin API is provisional until netstead v1.0.** Until then it may change without a major
 bump. Pin the netstead versions you support in your package's dependencies, and check the changelog

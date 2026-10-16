@@ -16,7 +16,7 @@ from pydantic import BaseModel, ValidationError
 
 from ..editing import EditPlan, plan_add, plan_delete, plan_update
 from ..paths import resolve_allowed
-from ..selection import payload_facility_forms
+from ..selection import payload_facility_forms, selection_warnings
 
 if TYPE_CHECKING:
     from corral.editing import Edit, EditResult
@@ -87,6 +87,23 @@ class Host:
         sel = self._session.selection_copy()
         if sel is not None:
             sel["projectcard"] = payload_facility_forms(sel)
+        return sel
+
+    def saved_selections(self) -> list[dict[str, Any]]:
+        """Each saved selection: ``name``, ``net_id``, ``status``, ``links``, ``utterance``, ``by``, ``stale``."""
+        return self._session.saved_selections()
+
+    def saved_selection(self, name: str) -> dict[str, Any] | None:
+        """A copy of the selection saved as ``name``, plus its ``projectcard`` forms; ``None`` if there is none.
+
+        It is the payload as saved; ``UseSelection`` resolves it again on the network as it is now. ``stale_pins``
+        is non-empty when its pin had already gone stale (an edit took the pinned node off the facility, so the
+        links are the ones selected before the edit), and ``warnings`` says so in words.
+        """
+        sel = self._session.saved_selection(name)
+        if sel is not None:
+            sel["projectcard"] = payload_facility_forms(sel)
+            sel["warnings"] = selection_warnings(sel)
         return sel
 
     def network(self, net_id: str | None = None) -> NetworkHandle:

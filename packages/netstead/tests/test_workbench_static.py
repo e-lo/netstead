@@ -426,8 +426,9 @@ def test_record_edits_undo_and_save_are_registered_commands():
     assert "accept_warnings: true" in edits and "savePrompt(job.payload)" in edits
     assert "savedText(job.result)" in edits and "validatedText(job.result)" in edits
     assert "onEditJob(e.job)" in (JS_DIR / "main.js").read_text()
-    # Anchors with no coordinates are still listed in Details, as not on the map (escaped like the others).
-    assert "anchors_unplaced" in side and "not on the map" in side
+    # Anchors with no coordinates are still listed in the Selection panel, as not on the map (escaped like the others).
+    selection = (JS_DIR / "selection.js").read_text()
+    assert "anchors_unplaced" in (JS_DIR / "selectmodel.js").read_text() and "not on the map" in selection
     html = (STATIC_DIR / "index.html").read_text()
     pane = html[html.index('id="dock-edits"') : html.index("</aside>")]
     for element_id in (
@@ -443,3 +444,50 @@ def test_record_edits_undo_and_save_are_registered_commands():
         assert f'id="{element_id}"' in pane
     header = (JS_DIR / "header.js").read_text()
     assert "dirtyBadge(" in header and "networkBadge(" in header
+
+
+def test_the_selection_panel_owns_the_selection_markup():
+    html = (STATIC_DIR / "index.html").read_text()
+    pane = html.split('id="dock-selection"', 1)[1].split("</section>", 1)[0]
+    for el in (
+        'id="status-wrap"',
+        'id="sel-stale"',
+        'id="anchors"',
+        'id="fragment"',
+        'id="diag"',
+        'id="sel-export"',
+        'id="sel-saved"',
+    ):
+        assert el in pane
+    details = html.split('id="dock-details"', 1)[1].split("</section>", 1)[0]
+    assert 'id="anchors"' not in details and 'id="details"' in details and 'id="hl-set"' in details
+
+
+def test_the_selection_panel_escapes_what_the_server_sends():
+    js = (JS_DIR / "selection.js").read_text()
+    # Selection names, anchor details and candidate labels all reach innerHTML only through esc().
+    for raw in ("${x.name}", "${r.detail}", "${r.anchor}", "node ${c.nodeId}${c.placed", "${d}"):
+        assert raw not in js, raw
+    assert "${esc(x.name)}" in js and "${esc(r.detail)}" in js and "node ${esc(c.nodeId)}" in js
+    assert 'aria-label="${esc(`Pin the ${r.role} anchor to node ${c.nodeId}`)}' in js  # the label escaped whole
+    assert "window.confirm(`Delete the saved selection" in js  # Delete asks first
+
+
+def test_layers_panel_has_width_by_and_a_filter_row():
+    html = (STATIC_DIR / "index.html").read_text()
+    for el in (
+        'id="widthby"',
+        'id="flt-col"',
+        'id="flt-op"',
+        'id="flt-val"',
+        'id="flt-apply"',
+        'id="flt-clear"',
+        'id="flt-count"',
+        'value="filtered"',
+    ):
+        assert el in html
+    panels = (JS_DIR / "panels.js").read_text()
+    assert 'type: "filter"' in panels and "width_by: e.target.value" in panels  # both are recorded Actions
+    main = (JS_DIR / "main.js").read_text()
+    assert "ev.record" in main and 'netPath(server.active, "filter")' in main
+    assert "combinedFilter(" in (JS_DIR / "table.js").read_text()

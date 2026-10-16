@@ -27,7 +27,7 @@ class AnchorMatch:
         candidates: Ranked alternative node ids when ambiguous.
         confidence: 0..1 heuristic confidence.
         kind: ``gore`` (off-ramp diverge), ``merge`` (on-ramp merge),
-            ``surface`` (direct at-grade), or ``unresolved``.
+            ``surface`` (direct at-grade), ``pinned`` (chosen by the user), or ``unresolved``.
         detail: Human-readable explanation for diagnostics/UX.
     """
 

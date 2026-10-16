@@ -5,7 +5,7 @@
 // (the one record last clicked on the map or in the table: {table, id, from}). Focus and highlights are
 // view state and are never recorded; only an action changes the selection.
 
-export const TABLE_SCOPES = ["all", "selection", "highlighted", "related"];
+export const TABLE_SCOPES = ["all", "selection", "highlighted", "related", "filtered"];
 
 // The related-records sources: the highlights plus the focused record, as {table: [ids]}.
 export function sourcesFor(focus, highlights) {
@@ -40,12 +40,15 @@ export function rowsRequest({ scope, table, selection, highlights, focus, hops =
   return tint;
 }
 
-// The grid's empty-state hint for a scope (blank when there are rows).
-export function scopeHint(scope, total) {
+// The grid's hint for a scope: why it is empty (blank when there are rows), or, for the Filtered scope on a table
+// other than links, that the recorded filter doesn't narrow it.
+export function scopeHint(scope, total, table = "link") {
+  if (scope === "filtered" && table !== "link") return "Filtered applies to links: every row is listed.";
   if (total) return "";
   if (scope === "selection") return "Nothing selected.";
   if (scope === "highlighted") return "Nothing highlighted: turn on Highlight links, then click or shift-drag.";
   if (scope === "related") return "Nothing related: turn on Highlight links and highlight some (a focused record only tints).";
+  if (scope === "filtered") return "No link matches the filter (Layers → Filter links).";
   return "";
 }
 
@@ -84,4 +87,12 @@ export function coerceId(raw, numeric = true) {
   if (!numeric || !/^-?\d+$/.test(raw)) return raw;
   const n = Number(raw);
   return Number.isSafeInteger(n) ? n : raw;
+}
+
+// The table's filter spec: the session's recorded Filter (in the "filtered" scope, on its table) first, then the
+// per-tab column filters. Null when there is none.
+export function combinedFilter(columnFilters, scope, table, viewFilter) {
+  const recorded = scope === "filtered" && viewFilter && viewFilter.table === table ? viewFilter.where : [];
+  const all = [...recorded, ...columnFilters];
+  return all.length ? all : null;
 }

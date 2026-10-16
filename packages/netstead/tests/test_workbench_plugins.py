@@ -1104,8 +1104,8 @@ def test_the_plugin_id_core_is_reserved(make_session):
 
 
 def test_a_plugin_built_for_api_1_0_installs_on_this_host(make_session):
-    """A minor bump only adds: a plugin that declares 1.0 still installs (and its Action registers) on 1.2."""
-    assert HOST_API == "1.2"
+    """A minor bump only adds: a plugin that declares 1.0 still installs (and its Action registers) on 1.3."""
+    assert HOST_API == "1.3"
     session = make_session(make_hello(requires_api="1.0"))
     assert _status(session, "hello").state == "loaded" and session.actions.has("hello.greet")
 
@@ -1131,6 +1131,27 @@ def test_host_selection_exposes_the_facility_form(make_session, rdu_source):
     session.dispatch(Select(link_ids=[first]))
     facility = session._hosts["hello"].selection["projectcard"]
     assert facility["picked"] is True and facility["resolved"]["links"]["model_link_id"] == [first]
+
+
+def test_host_reads_saved_selections_with_their_facility_forms(make_session):
+    from netstead.fixtures import leavenworth
+    from netstead.workbench.actions import OpenNetwork, SaveSelection, Select
+
+    seen = {}
+
+    def peek(host, action):
+        seen["list"] = host.saved_selections()
+        seen["one"] = host.saved_selection("ski")
+        seen["none"] = host.saved_selection("nope")
+
+    s = make_session(make_hello(actions=(ActionSpec(Greet, peek),)))
+    s.dispatch(OpenNetwork(source=str(leavenworth.parquet_dir())))
+    s.dispatch(Select(utterance="Ski Hill Drive"))
+    s.dispatch(SaveSelection(name="ski"))
+    s.dispatch(Greet(name="x"))
+    assert [x["name"] for x in seen["list"]] == ["ski"] and seen["none"] is None
+    assert seen["one"]["projectcard"]["query"]["links"]["name"] == ["Ski Hill Drive"]
+    assert "projectcard" not in s.saved_selection("ski")  # the host's copy: what is saved is untouched
 
 
 class Retag(BaseAction):

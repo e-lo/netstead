@@ -20,9 +20,19 @@ import pandas as pd
 from ._support import bounded_bfs, norm_name, norm_ref, to_py
 from .result import AnchorMatch
 
-__all__ = ["Interchanges", "classify_interchanges", "resolve_anchor", "resolve_surface_anchor"]
+__all__ = ["Interchanges", "classify_interchanges", "pinned_anchor", "resolve_anchor", "resolve_surface_anchor"]
 
 _MAX_RAMP_HOPS = 8
+
+
+def _column(links, name: str):
+    """``links[name]``, or an all-null column when the network has none.
+
+    ``ref`` and ``name`` are optional GMNS fields, so an anchor must not assume either.
+    """
+    if name in links.columns:
+        return links[name]
+    return pd.Series(None, index=links.index, dtype="object")
 
 
 @dataclass
@@ -50,6 +60,17 @@ def classify_interchanges(links, directed_nodes: set, mainline_nodes: set) -> In
     return Interchanges(gore=gore, merge=merge)
 
 
+def pinned_anchor(anchor: str, node_id, allowed: set) -> AnchorMatch:
+    """``anchor`` pinned to ``node_id`` by the user: accepted when the node is one of ``allowed`` (on the facility).
+
+    >>> pinned_anchor("Main St", 7, {7, 8}).kind, pinned_anchor("Main St", 9, {7, 8}).node_id
+    ('pinned', None)
+    """
+    if node_id in allowed:
+        return AnchorMatch(anchor, to_py(node_id), [], 1.0, "pinned", f"pinned to node {node_id}")
+    return AnchorMatch(anchor, None, [], 0.0, "unresolved", f"node {node_id} is not on the facility for {anchor!r}")
+
+
 def _surface_links(links, anchor: str):
     """Links whose name OR ref matches the anchor (excluding motorway/ramps).
 
@@ -58,10 +79,10 @@ def _surface_links(links, anchor: str):
     """
     a_name = norm_name(anchor)
     a_ref = norm_ref(anchor)
-    norm = links["name"].fillna("").astype("string").str.lower().str.replace(r"[^a-z0-9]", "", regex=True)
+    norm = _column(links, "name").fillna("").astype("string").str.lower().str.replace(r"[^a-z0-9]", "", regex=True)
     hit = (norm == a_name) if a_name else pd.Series(False, index=links.index)
     if a_ref:
-        hit = hit | links["ref"].apply(lambda r: bool(a_ref & norm_ref(r)))
+        hit = hit | _column(links, "ref").apply(lambda r: bool(a_ref & norm_ref(r)))
     surf = links[hit.fillna(False)]
     return surf[~surf["facility_type"].isin(["motorway", "motorway_link"])]
 
@@ -126,10 +147,10 @@ def _anchor_links(links, anchor: str):
     """Links whose name OR ref matches the anchor (vectorized)."""
     a_name = norm_name(anchor)
     a_ref = norm_ref(anchor)
-    nm = links["name"].fillna("").astype("string").str.lower().str.replace(r"[^a-z0-9]", "", regex=True)
+    nm = _column(links, "name").fillna("").astype("string").str.lower().str.replace(r"[^a-z0-9]", "", regex=True)
     hit = (nm == a_name) if a_name else pd.Series(False, index=links.index)
     if a_ref:
-        hit = hit | links["ref"].apply(lambda r: bool(a_ref & norm_ref(r)))
+        hit = hit | _column(links, "ref").apply(lambda r: bool(a_ref & norm_ref(r)))
     return links[hit.fillna(False)]
 
 

@@ -6,7 +6,34 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ## [Unreleased]
 
-(Reserved for changes between the most recent release and the next.)
+### Added
+
+- **Workbench: verify a selection** (P3a). A **Selection** dock panel in every
+  workspace (the selection's status, anchors, diagnostics, export and saved
+  selections moved out of Details).
+  - **Pinning:** an ambiguous anchor lists its candidate nodes, drawn on the map
+    (**Anchor candidates**); `PinAnchor(role, node_id)` pins one (or the
+    resolver's own choice) and re-resolves. A pin that resolves nothing is
+    refused. Pins are intent fields (`from_node` / `to_node`), never offered to
+    the LLM. When an edit takes a pinned node off its facility, the selection
+    keeps its previous links and says so (`stale_pins`, a **Stale pin** warning).
+  - **Saved selections:** `SaveSelection`, `UseSelection`, `DeleteSelection`
+    (session state, replayed with the history; at most 50; tied to the network's
+    source locator).
+  - **Export** (`GET /api/selection/export`): a resolved selection, current or
+    saved, as a GMNS fragment (schema-checked) or a ProjectCard facility object,
+    in resolved or query form, with `warnings`.
+- **Workbench: Style, Filter, Navigate.** `Style(width_by=…)` sizes links by a
+  numeric column (**Map display → Width by**); `Filter(where=[…])` is a recorded
+  predicate over link fields (no SQL, no regex) that dims the rest of the map
+  and drives the table's new **Filtered** scope (**Layers → Filter links**);
+  `Navigate(record={table, id})` flies to one link or node.
+- **Plugin Host API 1.3:** `host.saved_selections()`, `host.saved_selection(name)`.
+
+### Fixed
+
+- **Selection anchors on a network without a `ref` (or `name`) column** no
+  longer fail with `KeyError: 'ref'` (Leavenworth, for example).
 
 ## [1.0.0-beta.2] — TBD
 
