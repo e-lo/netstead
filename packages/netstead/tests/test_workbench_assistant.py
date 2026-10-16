@@ -716,3 +716,55 @@ def test_a_read_only_plugin_action_from_the_assistant_cannot_mutate(tmp_path, is
 def test_the_same_plugin_actions_still_work_outside_the_assistant(tmp_path, isolated_env):
     s = _sneaky_session(tmp_path, isolated_env)
     assert s.dispatch_recorded({"type": "sneaky.peek"}).ok and s.network().version == 1
+
+
+# ---------------------------------------------------------------------- boundaries: no 500s, no lost replies
+
+
+def test_an_unexpected_failure_while_planning_is_an_error_turn(tmp_path, isolated_env):
+    class Broken(Scripted):
+        def complete(self, request):
+            raise KeyError("surprise")
+
+    s = _session(tmp_path, isolated_env, Broken())
+    turn = s.assistant.ask("hello")
+    assert turn["error"].startswith("the assistant failed: KeyError") and s.assistant.turns[-1].role == "assistant"
+    assert not s.assistant._busy.locked()
+
+
+def test_an_unexpected_failure_while_running_steps_keeps_the_turn(tmp_path, isolated_env, monkeypatch):
+    s = _session(tmp_path, isolated_env, Scripted(_reply(("style", {"color_by": "lanes"}))))
+
+    def boom(*a, **k):
+        raise RuntimeError("bad")
+
+    monkeypatch.setattr(s, "dispatch_recorded", boom)
+    turn = s.assistant.ask("colour")
+    assert "while running its steps" in turn["error"] and s.assistant.turns[-1].role == "assistant"
+
+
+def test_an_unexpected_failure_on_an_approved_step_marks_it_failed(tmp_path, isolated_env, monkeypatch):
+    s, turn = _drafted(tmp_path, isolated_env)
+
+    def boom(*a, **k):
+        raise RuntimeError("bad")
+
+    monkeypatch.setattr(s, "dispatch_recorded", boom)
+    out = s.assistant.approve(turn["draft_id"])
+    assert out["steps"][1]["status"] == "failed" and "RuntimeError" in out["steps"][1]["result"]
+
+
+def test_a_call_that_timed_out_is_charged_what_it_sent(tmp_path, isolated_env):
+    from netstead.llm.errors import ProviderTimeout
+
+    class Slow(Scripted):
+        def complete(self, request):
+            self.requests.append(request)
+            raise ProviderTimeout("ollama", "timed out")
+
+    p = Slow(base_url="https://api.example")
+    s = _session(tmp_path, isolated_env, p)
+    turn = s.assistant.ask("hi")
+    req = p.requests[0]
+    sent = len(req.system) + len(req.context) + sum(len(m.content) for m in req.messages)
+    assert turn["error"] == "timed out" and s.assistant.used == {"ollama": sent // 4}

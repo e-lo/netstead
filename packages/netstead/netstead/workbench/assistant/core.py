@@ -19,10 +19,12 @@ from typing import TYPE_CHECKING, Any
 
 from netstead.config import is_local_url
 from netstead.llm import LLMError
+from netstead.llm.errors import BadResponse, ProviderTimeout
 from netstead.llm.structured import StructuredOutputError, request_tool_calls
 from netstead.llm.types import Completion, CompletionRequest, Message, ToolCall
 
 from ..actions import BaseAction, to_python
+from ..redact import describe_error
 from .echo import describe, model_echo, result_detail, result_text
 from .grounding import assistant_disclosure, build_grounding
 from .stub import StubPlanner
@@ -175,7 +177,9 @@ class _Turn:
 class _Metered:
     """Wraps a provider to count the tokens of every call it makes, repairs and failed answers included.
 
-    A call that reports no usage is counted as characters ÷ 4, as Decision 17 / Q11 say.
+    A call that reports no usage is counted as characters ÷ 4, as Decision 17 / Q11 say. So is what was sent on a
+    call that timed out or got an unreadable answer: the provider received it and may have charged for it. (A call
+    that never reached the provider, or was refused before any work, costs nothing.)
     """
 
     def __init__(self, provider: Any) -> None:
@@ -188,8 +192,12 @@ class _Metered:
         return getattr(self._provider, name)
 
     def complete(self, request: CompletionRequest) -> Completion:
-        completion = self._provider.complete(request)
         sent = len(request.system) + len(request.context) + sum(len(m.content) for m in request.messages)
+        try:
+            completion = self._provider.complete(request)
+        except (ProviderTimeout, BadResponse):
+            self.tokens += sent // 4
+            raise
         said = len(completion.text) + sum(len(json.dumps(c.arguments, default=str)) for c in completion.tool_calls)
         self.tokens += completion.input_tokens if completion.input_tokens is not None else sent // 4
         self.tokens += completion.output_tokens if completion.output_tokens is not None else said // 4
@@ -344,11 +352,19 @@ class Assistant:
             except (LLMError, StructuredOutputError, _OverBudget, ValueError) as exc:
                 reply.error = str(exc)
                 return self._finish(reply)
+            except Exception as exc:  # boundary: a bug or an odd provider never costs the turn (nor a 500)
+                logger.exception("the assistant could not plan an answer")
+                reply.error = f"the assistant failed: {describe_error(exc)}"
+                return self._finish(reply)
             finally:
                 if endpoint is not None and meter is not None:
                     self._charge(endpoint, meter.tokens)  # a failed answer still cost its tokens
             reply.text, reply.grounded, reply.notes = plan.text, plan.grounded, plan.notes
-            self._run(plan.calls, reply)
+            try:
+                self._run(plan.calls, reply)
+            except Exception as exc:  # boundary: steps already run stay listed (and in history); the rest are not
+                logger.exception("the assistant could not run its steps")
+                reply.error = f"the assistant failed while running its steps: {describe_error(exc)}"
             return self._finish(reply)
         finally:
             self._busy.release()
@@ -456,7 +472,13 @@ class Assistant:
                     failed = True
                     continue
                 action = pinned
-                entry = session.dispatch_recorded(action, via="assistant")
+                try:
+                    entry = session.dispatch_recorded(action, via="assistant")
+                except Exception as exc:  # boundary: never leave a step "drafted" (nor answer 500)
+                    logger.exception("the assistant could not run an approved step")
+                    step.update(self._step(action, "failed"), result=f"failed: {describe_error(exc)}")
+                    failed = True
+                    continue
                 step.update(self._step(action, "done" if entry.ok else "failed", entry))
                 failed = not entry.ok
                 result = entry.result if entry.ok else None
@@ -569,6 +591,11 @@ class Assistant:
         return next((t for t in self.turns if t.id == turn_id), None)
 
     def _check_budget(self, endpoint: _Endpoint) -> None:
+        """Refuse a remote ask once the session's budget is spent.
+
+        It is checked before the ask, so one ask can overrun it by what that ask costs: at most
+        ``llm.quality.max_repairs + 1`` calls, each up to its context plus ``assistant.output_token_limit``.
+        """
         budget = self._session.settings.assistant.remote_token_budget
         if endpoint.local:
             return  # counted and shown, never refused
