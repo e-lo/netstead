@@ -70,17 +70,20 @@ from .actions import (
     ClearSelection,
     CloseNetwork,
     DeleteRows,
+    DeleteSelection,
     EditCells,
     Navigate,
     OpenNetwork,
     PinAnchor,
     RunValidation,
     SaveNetwork,
+    SaveSelection,
     Select,
     SetActiveNetwork,
     SetSetting,
     Style,
     UndoEdit,
+    UseSelection,
     import_line,
     is_secret_name,
     to_python,
@@ -242,13 +245,24 @@ class _Nested:
     children: list[_Nested]
 
 
+@dataclass(frozen=True)
+class _View:
+    """The session's shared view state before an Action ran: what a failed Action puts back."""
+
+    active: str | None
+    selection: dict[str, Any] | None
+    style: dict[str, Any]
+    saved: dict[str, dict[str, Any]]
+    filters: dict[str, dict[str, Any]]
+
+
 @dataclass
 class _Running:
     """An Action whose handler is running (innermost last in ``Session._running``)."""
 
     action: BaseAction
     undo_mark: int  # ``len(Session._undo)`` when it started: a failure undoes everything after it
-    view: tuple[str | None, dict[str, Any] | None, dict[str, Any]]  # active, selection, style before it ran
+    view: _View  # the shared view state before it ran
     children: list[_Nested] = field(default_factory=list)
 
 
@@ -336,6 +350,8 @@ class Session:
         self.events = EventBus()
         self.active: str | None = None
         self.selection: dict[str, Any] | None = None
+        self.saved: dict[str, dict[str, Any]] = {}  # name -> a saved selection payload (SaveSelection)
+        self.filters: dict[str, dict[str, Any]] = {}  # net_id -> its Filter (P3 Task 10)
         self.style: dict[str, Any] = copy.deepcopy(DEFAULT_STYLE)
         self.history: list[HistoryEntry] = []
         self.edits: dict[str, EditLedger] = {}  # net_id -> its pending edits
@@ -601,7 +617,8 @@ class Session:
             except Exception as exc:  # boundary: recorded below, under the lock
                 failure = exc
         with self._lock:
-            running = _Running(action, len(self._undo), (self.active, self.selection, dict(self.style)))
+            view = _View(self.active, self.selection, dict(self.style), dict(self.saved), dict(self.filters))
+            running = _Running(action, len(self._undo), view)
             self._running.append(running)
             try:
                 if failure is not None:
@@ -640,16 +657,19 @@ class Session:
         """Undo what ``running`` (and every Action nested in it) changed; mark its nested entries rolled back.
 
         Restores the tables, version, lineage and sync stamps of each mutated network, unregisters
-        the networks it derived, and puts back the active network, selection and style. A plugin's
+        the networks it derived, and puts back the active network, selection, style, saved selections and
+        filters. A plugin's
         own state (its closure, files it wrote) is the plugin's to keep consistent.
         """
         while len(self._undo) > running.undo_mark:
             self._undo.pop().undo(self)
-        active, selection, style = running.view
+        view = running.view
         ids = self.registry.ids()
-        self.active = active if active in ids else (ids[0] if ids else None)
-        self.selection = selection if selection is None or selection.get("net_id") in ids else None
-        self.style = style
+        self.active = view.active if view.active in ids else (ids[0] if ids else None)
+        self.selection = view.selection if view.selection is None or view.selection.get("net_id") in ids else None
+        self.style = view.style
+        self.saved = view.saved
+        self.filters = {nid: f for nid, f in view.filters.items() if nid in ids}
         _mark_rolled_back(running.children, running.action.type)
 
     def _is_plugin_action(self, action_type: str) -> bool:
@@ -1021,11 +1041,7 @@ class Session:
             return
         if sel.get("intent") is not None:
             try:
-                intent = intent_from_payload(sel["intent"], sel["utterance"] or "")
-                result = resolve_frames(intent, handle.links_df(), handle.nodes_df())
-                self.selection = selection_payload(
-                    handle, result, utterance=sel["utterance"], parsed_by=sel["parsed_by"]
-                )
+                self.selection = self._resolve_again(handle, sel)
                 return
             except Exception:  # boundary: keep the edit; fall back to the ids it selected
                 logger.exception("re-resolving the selection's query on %s failed; keeping its ids", handle.id)
@@ -1052,6 +1068,19 @@ class Session:
             return
         result = resolve_frames(SelectionIntent(link_ids=kept), handle.links_df(), handle.nodes_df())
         self.selection = selection_payload(handle, result)
+
+    def _resolve_again(self, handle: NetworkHandle, sel: dict[str, Any]) -> dict[str, Any] | None:
+        """``sel`` resolved on ``handle`` as it is now (P2 R4's rule): a query again; ids minus the links now gone."""
+        if sel.get("intent") is not None:
+            intent = intent_from_payload(sel["intent"], sel["utterance"] or "")
+            result = resolve_frames(intent, handle.links_df(), handle.nodes_df())
+            return selection_payload(handle, result, utterance=sel["utterance"], parsed_by=sel["parsed_by"])
+        present = {json_scalar(v) for v in handle.links_df()["link_id"]}
+        kept = [i for i in sel["link_ids"] if i in present]
+        if not kept:
+            return None
+        result = resolve_frames(SelectionIntent(link_ids=kept), handle.links_df(), handle.nodes_df())
+        return selection_payload(handle, result)
 
     def _record_outside_action(self, net_id: str, note: str, origin: str, *, kind: str = "mutate") -> None:
         """Record a ``mutate`` or ``revert`` no Action covers, so nothing changes silently (not replayable)."""
@@ -1103,6 +1132,7 @@ class Session:
                 "active": self.active,
                 "selection": copy.deepcopy(self.selection),
                 "style": copy.deepcopy(self.style),
+                "saved_selections": [_saved_summary(n, s) for n, s in self.saved.items()],
                 "plugins": self._plugin_state(),
                 "edits": {nid: ledger.summary() for nid, ledger in self.edits.items()},
                 "issues": {
@@ -1488,6 +1518,45 @@ class Session:
         self.selection = selection_payload(handle, result, utterance=sel["utterance"], parsed_by=sel["parsed_by"])
         return self.selection
 
+    def _saved(self, name: str) -> dict[str, Any]:
+        try:
+            return self.saved[name]
+        except KeyError:
+            raise ActionError(f"no saved selection named {name!r}") from None
+
+    def _do_save_selection(self, action: SaveSelection) -> dict[str, Any]:
+        if not self.selection:
+            raise ActionError("nothing is selected")
+        if action.name in self.saved:
+            raise ActionError(f"a selection is already saved as {action.name!r}; delete it first")
+        self.saved = {**self.saved, action.name: copy.deepcopy(self.selection)}
+        return _saved_summary(action.name, self.saved[action.name])
+
+    def _do_use_selection(self, action: UseSelection) -> dict[str, Any]:
+        saved = self._saved(action.name)
+        if saved["net_id"] not in self.registry.ids():
+            raise ActionError(f"the network {saved['net_id']!r} is not open; open it to use {action.name!r}")
+        payload = self._resolve_again(self.registry.get(saved["net_id"]), saved)
+        if payload is None:
+            raise ActionError(f"none of the links saved as {action.name!r} exist any more")
+        self.selection = payload
+        return payload
+
+    def _do_delete_selection(self, action: DeleteSelection) -> None:
+        self._saved(action.name)
+        self.saved = {k: v for k, v in self.saved.items() if k != action.name}
+
+    def saved_selections(self) -> list[dict[str, Any]]:
+        """A summary of each saved selection (name, network, status, link count, utterance, query or ids)."""
+        with self._lock:
+            return [_saved_summary(name, sel) for name, sel in self.saved.items()]
+
+    def saved_selection(self, name: str) -> dict[str, Any] | None:
+        """A deep copy of the payload saved as ``name`` (``None`` if there is none), as it was when saved."""
+        with self._lock:
+            sel = self.saved.get(name)
+            return copy.deepcopy(sel) if sel is not None else None
+
     def _do_style(self, action: Style) -> dict[str, Any]:
         patch = action.model_dump(exclude_none=True, exclude={"type"})
         color_by = patch.get("color_by")
@@ -1717,6 +1786,18 @@ def _restore_stamps(handle: NetworkHandle, stamps: Mapping[str, Any]) -> None:
             stamped[name] = stamp
         else:
             tracker.mark_dirty(name)
+
+
+def _saved_summary(name: str, sel: dict[str, Any]) -> dict[str, Any]:
+    """What the state (and the Selection panel's list) shows of a saved selection."""
+    return {
+        "name": name,
+        "net_id": sel["net_id"],
+        "status": sel["status"],
+        "links": len(sel["link_ids"]),
+        "utterance": sel["utterance"],
+        "by": "query" if sel.get("intent") is not None else "ids",
+    }
 
 
 def _value_or_unset(settings: Settings, key: str) -> Any:

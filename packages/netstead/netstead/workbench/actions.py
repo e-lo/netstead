@@ -36,17 +36,20 @@ __all__ = [
     "ClearSelection",
     "CloseNetwork",
     "DeleteRows",
+    "DeleteSelection",
     "EditCells",
     "Navigate",
     "OpenNetwork",
     "PinAnchor",
     "RunValidation",
     "SaveNetwork",
+    "SaveSelection",
     "Select",
     "SetActiveNetwork",
     "SetSetting",
     "Style",
     "UndoEdit",
+    "UseSelection",
     "action_json_schema",
     "import_line",
     "is_secret_name",
@@ -432,6 +435,32 @@ class PinAnchor(BaseAction):
     node_id: NodeId | None = None
 
 
+#: A saved selection's name: letters, digits, space ``_ . -``; starts with a letter or digit.
+_SELECTION_NAME = r"^[A-Za-z0-9][A-Za-z0-9 _.-]{0,63}$"
+
+
+class SaveSelection(BaseAction):
+    """Save the current selection under ``name`` (refused if the name is taken: delete it first)."""
+
+    type: Literal["save_selection"] = "save_selection"
+    name: str = Field(pattern=_SELECTION_NAME)
+
+
+class UseSelection(BaseAction):
+    """Make a saved selection current again, resolved against its network as it is now."""
+
+    type: Literal["use_selection"] = "use_selection"
+    name: str = Field(pattern=_SELECTION_NAME)
+
+
+class DeleteSelection(BaseAction):
+    """Forget a saved selection."""
+
+    type: Literal["delete_selection"] = "delete_selection"
+    mutates: ClassVar[bool] = True  # it throws away something the user made: the assistant drafts it
+    name: str = Field(pattern=_SELECTION_NAME)
+
+
 Action = Annotated[
     OpenNetwork
     | BuildNetwork
@@ -448,7 +477,10 @@ Action = Annotated[
     | UndoEdit
     | RunValidation
     | SaveNetwork
-    | PinAnchor,
+    | PinAnchor
+    | SaveSelection
+    | UseSelection
+    | DeleteSelection,
     Field(discriminator="type"),
 ]
 #: The Actions every session understands, in registry order (``to_python`` imports them from ``netstead.workbench``).
@@ -470,6 +502,9 @@ CORE_ACTIONS: tuple[type[BaseAction], ...] = (
     RunValidation,
     SaveNetwork,
     PinAnchor,
+    SaveSelection,
+    UseSelection,
+    DeleteSelection,
 )
 
 
