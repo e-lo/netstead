@@ -14,9 +14,12 @@ from netstead.viz.styling import json_scalar
 
 from .registry import NetworkHandle
 
-__all__ = ["facility_forms", "payload_facility_forms", "selection_payload", "unparsed_payload"]
+__all__ = ["MAX_CANDIDATES", "facility_forms", "payload_facility_forms", "selection_payload", "unparsed_payload"]
 
 logger = logging.getLogger(__name__)
+
+#: Candidate nodes listed per anchor: enough to choose from, bounded for a pathological match.
+MAX_CANDIDATES = 10
 
 
 def facility_forms(result: Any) -> dict[str, Any]:
@@ -56,7 +59,9 @@ def _payload_facility_forms(payload: dict[str, Any]) -> dict[str, Any]:
     else:
         intent = SelectionIntent(link_ids=list(payload["link_ids"]))
     matches = {
-        a["role"]: AnchorMatch(anchor="", node_id=a["node_id"], kind=a.get("kind", ""), detail=a.get("detail", ""))
+        a["role"]: AnchorMatch(
+            anchor=a.get("anchor", ""), node_id=a["node_id"], kind=a.get("kind", ""), detail=a.get("detail", "")
+        )
         for a in [*(payload.get("anchors") or []), *(payload.get("anchors_unplaced") or [])]
     }
     result = SelectionResult(
@@ -77,17 +82,37 @@ def selection_payload(
     ``anchors`` are the from/to nodes the map can draw (with ``lon``/``lat``); ``anchors_unplaced`` are those
     whose node has no coordinates (same keys, no ``lon``/``lat``), kept for the facility forms.
 
+    Each anchor also carries its ``anchor`` text, ``confidence``, ``pinned``, and up to :data:`MAX_CANDIDATES`
+    ``candidates`` (``{node_id, lon, lat}``; no ``lon``/``lat`` without coordinates): the other nodes an ambiguous
+    anchor could be, for :class:`~netstead.workbench.actions.PinAnchor`.
+
     ``parsed_by`` is the parser's ``describe()`` (provider/model/mode, never a key); ``None`` for a
     selection by explicit link ids. ``intent`` is a query's parsed intent as tool arguments
     (:func:`~netstead.select.parse.payload_from_intent`), so an edit can resolve it again; ``None`` for a selection
     made by ids.
     """
     node_xy = handle.node_xy()
+
+    def placed(node_id: Any) -> dict[str, Any]:
+        spot = {"node_id": json_scalar(node_id)}
+        if node_id in node_xy:
+            spot["lon"], spot["lat"] = node_xy[node_id]
+        return spot
+
     anchors, unplaced = [], []
     for role, match in (("from", result.from_match), ("to", result.to_match)):
         if not match or match.node_id is None:
             continue
-        anchor = {"role": role, "node_id": json_scalar(match.node_id), "kind": match.kind, "detail": match.detail}
+        anchor = {
+            "role": role,
+            "node_id": json_scalar(match.node_id),
+            "kind": match.kind,
+            "detail": match.detail,
+            "anchor": match.anchor,
+            "confidence": round(float(match.confidence), 3),
+            "pinned": match.kind == "pinned",
+            "candidates": [placed(c) for c in match.candidates[:MAX_CANDIDATES]],
+        }
         if match.node_id in node_xy:
             lon, lat = node_xy[match.node_id]
             anchors.append({**anchor, "lon": lon, "lat": lat})
