@@ -273,6 +273,21 @@ def test_the_conversation_sent_back_carries_no_values(tmp_path, isolated_env):
     assert history[1].content == "done: select (resolved, 20 links)"
 
 
+def test_a_grounded_answer_in_words_never_reaches_a_less_trusted_provider(tmp_path, isolated_env):
+    local = Scripted(_reply(text="Ski Hill Drive has 20 links."), _reply(text="ok"))
+    s = _session(tmp_path, isolated_env, local)
+    s.assistant.ask("how long is ski hill drive?")
+    assert s.assistant.turns[1].grounded  # a local endpoint is grounded by default
+    s.assistant.ask("and?")
+    assert local.requests[1].messages[1].content == "Ski Hill Drive has 20 links."  # same tier: the words go back
+    remote = Scripted(_reply(text="ok"), base_url="https://api.example")
+    s.assistant._provider = remote  # the user switches to a remote provider (not grounded by default)
+    s.assistant.ask("thanks")
+    sent = [m.content for m in remote.requests[0].messages]
+    assert "Ski Hill Drive has 20 links." not in sent and sent[1] == "(answered in words)"
+    assert sent[0] == "how long is ski hill drive?"  # the user's own words are always sent
+
+
 def test_the_remote_budget_refuses_and_local_is_never_refused(tmp_path, isolated_env):
     remote = Scripted(_reply(text="a", tokens=(150_000, 60_000)), _reply(text="b"), base_url="https://api.example")
     s = _session(tmp_path, isolated_env, remote)

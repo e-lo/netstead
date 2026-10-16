@@ -98,6 +98,30 @@ class Plan:
     tokens: int = 0
     mode: str | None = None
     calls: list[_Call] = field(default_factory=list, repr=False)
+    grounded: bool = False  # the tiers its context carried (network content; project notes)
+    notes: bool = False
+
+
+@dataclass(frozen=True)
+class _Past:
+    """One earlier turn as the next call may see it.
+
+    ``content`` is always sendable (the user's own words, or our values-free echo). ``words`` is the model's own
+    sentence, which may repeat what its context held: it is sent only to a call whose tiers include the ones that
+    answer was made with (``grounded``, ``notes``), so a local model's grounded answer never reaches a remote one.
+    """
+
+    role: str
+    content: str
+    words: str = ""
+    grounded: bool = False
+    notes: bool = False
+
+    def message(self, grounded: bool, notes: bool) -> Message:
+        if self.content or not self.words:
+            return Message(self.role, self.content or "(no steps)")
+        allowed = (grounded or not self.grounded) and (notes or not self.notes)
+        return Message(self.role, self.words if allowed else "(answered in words)")
 
 
 @dataclass(frozen=True)
@@ -133,6 +157,8 @@ class _Turn:
     draft_id: int | None = None
     error: str | None = None
     ts: float = field(default_factory=time.time)
+    grounded: bool = False  # the tiers the answer's context carried (see _Past)
+    notes: bool = False
 
 
 class _Metered:
@@ -198,9 +224,10 @@ class Assistant:
         ``ValueError`` (the offline planner's call is not allowed here).
         """
         endpoint = self._endpoint()
-        return self._plan(text, history, endpoint, _Metered(endpoint.provider) if endpoint.provider else None)
+        past = tuple(_Past(m.role, m.content) for m in history)
+        return self._plan(text, past, endpoint, _Metered(endpoint.provider) if endpoint.provider else None)
 
-    def _plan(self, text: str, history: tuple[Message, ...], endpoint: _Endpoint, meter: _Metered | None) -> Plan:
+    def _plan(self, text: str, history: tuple[_Past, ...], endpoint: _Endpoint, meter: _Metered | None) -> Plan:
         session = self._session
         with session.consistent():  # the tools and the settings, as one snapshot (a plugin can't come or go halfway)
             specs = {s.tool.name: s for s in tool_specs(session)}
@@ -223,7 +250,7 @@ class Assistant:
             meter,
             model=endpoint.model or "default",
             tools=tuple(s.tool for s in specs.values()),
-            messages=(*history, Message("user", text)),
+            messages=(*(p.message(grounding.grounded, grounding.notes) for p in history), Message("user", text)),
             system=ASSISTANT_PROMPT,
             context=grounding.context,
             validate=validate,
@@ -235,7 +262,16 @@ class Assistant:
         )
         actions = [c.action for c in checked]
         return Plan(
-            actions, result.text, endpoint.name, endpoint.model, endpoint.local, meter.tokens, result.mode, checked
+            actions,
+            result.text,
+            endpoint.name,
+            endpoint.model,
+            endpoint.local,
+            meter.tokens,
+            result.mode,
+            checked,
+            grounding.grounded,
+            grounding.notes,
         )
 
     def _check(self, calls: tuple[ToolCall, ...], specs: dict[str, ToolSpec]) -> list[_Call]:
@@ -299,7 +335,7 @@ class Assistant:
             finally:
                 if endpoint is not None and meter is not None:
                     self._charge(endpoint, meter.tokens)  # a failed answer still cost its tokens
-            reply.text = plan.text
+            reply.text, reply.grounded, reply.notes = plan.text, plan.grounded, plan.notes
             self._run(plan.calls, reply)
             return self._finish(reply)
         finally:
@@ -483,15 +519,15 @@ class Assistant:
 
     # ------------------------------------------------------------------ conversation, budget, payload
 
-    def _history(self) -> tuple[Message, ...]:
-        """The last ``assistant.history_turns`` turns as the model sees them: the user's text, our values-free echo."""
+    def _history(self) -> tuple[_Past, ...]:
+        """The last ``assistant.history_turns`` turns: the user's text, our values-free echo, or the model's words."""
         keep = self._session.settings.assistant.history_turns * 2
         out = []
         for turn in self.turns[-keep:] if keep else []:
             if turn.role == "user":
-                out.append(Message("user", turn.text))
+                out.append(_Past("user", turn.text))
             else:
-                out.append(Message("assistant", model_echo(turn.steps) or turn.text or "(no steps)"))
+                out.append(_Past("assistant", model_echo(turn.steps), turn.text, turn.grounded, turn.notes))
         return tuple(out)
 
     def _add(self, turn: _Turn) -> None:
