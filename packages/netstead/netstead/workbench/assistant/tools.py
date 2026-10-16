@@ -203,7 +203,7 @@ def to_action(
 
 
 def _fill_selection_ids(view: ToolView, args: dict[str, Any]) -> None:
-    """Put the selection's link ids in ``args["ids"]`` (``on_selection``), or raise ``ValueError``."""
+    """Put the selection's link ids and network in ``args`` (``on_selection``), or raise ``ValueError``."""
     if "ids" in args:
         raise ValueError("give ids or on_selection, not both")
     if args.get("table", "link") != "link":
@@ -215,6 +215,7 @@ def _fill_selection_ids(view: ToolView, args: dict[str, Any]) -> None:
     if sel["net_id"] != target:
         raise ValueError(f"on_selection: the selection is on {sel['net_id']!r}, not {target!r}")
     args["ids"] = list(sel["link_ids"])
+    args["net_id"] = sel["net_id"]  # the ids belong to that network: approving later must edit it, whatever is active
 
 
 def _parse(session: Session, data: dict[str, Any]) -> BaseAction:

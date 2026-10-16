@@ -477,3 +477,14 @@ def test_a_failed_repair_call_still_charges_the_answer_before_it(tmp_path, isola
     s = _session(tmp_path, isolated_env, p)
     turn = s.assistant.ask("colour")
     assert turn["error"] == "down" and s.assistant.used == {"ollama/None": 730}
+
+
+def test_on_selection_pins_the_selections_network_so_approve_edits_only_it(tmp_path, isolated_env):
+    s, turn = _drafted(tmp_path, isolated_env)
+    assert s.assistant.draft.actions[0].net_id == "leavenworth"
+    assert "net_id='leavenworth'" in turn["steps"][1]["python"]
+    s.dispatch(OpenNetwork(source=SRC))  # B: a second copy, now the active network
+    assert s.active == "leavenworth-2"
+    out = s.assistant.approve(turn["draft_id"])
+    assert out["steps"][1]["status"] == "done"
+    assert s.network("leavenworth").version == 1 and s.network("leavenworth-2").version == 0
