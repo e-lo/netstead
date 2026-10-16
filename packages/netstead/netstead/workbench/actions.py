@@ -6,7 +6,8 @@ sees as tools (P3), so natural language yields validated Actions, never ids or
 code. ``mutates`` marks actions the assistant must draft-before-apply;
 ``runs_as_job`` marks actions whose slow work runs on a background job thread
 (see :mod:`netstead.workbench.jobs`); ``replay_overrides`` are fields forced in
-the ``to_python`` replay snippet.
+the ``to_python`` replay snippet, and ``replay_omits`` are fields it leaves out
+(a guard that only means something in the live session, such as ``DeleteRows.expected_version``).
 """
 
 from __future__ import annotations
@@ -77,6 +78,11 @@ class BaseAction(BaseModel):
     replay_omits: ClassVar[frozenset[str]] = frozenset()
     if TYPE_CHECKING:  # every concrete Action declares its own ``type`` field; not a field of the base
         type: str
+
+    @classmethod
+    def unknown_replay_omits(cls) -> list[str]:
+        """``replay_omits`` names that aren't fields of this Action (a typo would silently omit nothing)."""
+        return sorted(set(cls.replay_omits) - set(cls.model_fields))
 
     @classmethod
     def action_type(cls) -> str | None:
@@ -486,6 +492,8 @@ class ActionRegistry:
             raise ValueError(f'{model.__name__} needs a `type: Literal["<type>"] = "<type>"` field (one value)')
         if action_type in self._models:
             raise ValueError(f"action type {action_type!r} is already registered")
+        if unknown := model.unknown_replay_omits():
+            raise ValueError(f"{model.__name__}.replay_omits names no field: {', '.join(unknown)}")
         return action_type
 
     def has(self, action_type: str) -> bool:

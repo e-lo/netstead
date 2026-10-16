@@ -823,11 +823,7 @@ class Session:
         """
         with self._lock:
             handle = self._handle(net_id)
-            if expected_version is not None and handle.version != expected_version:
-                raise ActionError(
-                    f"{handle.id} changed since the edit was planned (version {expected_version}, now "
-                    f"{handle.version}); plan it again"
-                )
+            _check_version(handle, expected_version)
             if not edits:  # nothing to apply: no version bump, no pending edit, nothing recorded
                 return []
             draft = derived_copy(handle.roadway)  # shares the immutable table expressions; copies the wrappers
@@ -1553,7 +1549,9 @@ class Session:
 
     def _do_delete_rows(self, action: DeleteRows) -> dict[str, Any]:
         handle = self._edit_target(action)
-        # A confirmed delete plan's version: mutate refuses it if the network changed since the confirmation.
+        # A confirmed delete plan's version: refused here, before planning, if the network changed since the
+        # confirmation (so a stale delete of rows that have since gone says so, not "not found"); mutate checks too.
+        _check_version(handle, action.expected_version)
         version = handle.version if action.expected_version is None else action.expected_version
         plan = _planned(lambda: plan_delete(handle.roadway, action.table, action.ids, version=version))
         return self._apply_plan(handle, plan, action.note)  # the selection follows in mutate (R4)
@@ -1741,6 +1739,15 @@ def _refuse_inside_source(dest: Path, source: str) -> None:
     target = dest.resolve()
     if target == src or target.is_relative_to(src):
         raise ActionError("a saved copy can't go inside the network's own source folder; choose another folder")
+
+
+def _check_version(handle: NetworkHandle, expected_version: int | None) -> None:
+    """Refuse with :class:`ActionError` when ``handle`` is no longer at ``expected_version`` (``None``: no check)."""
+    if expected_version is not None and handle.version != expected_version:
+        raise ActionError(
+            f"{handle.id} changed since the edit was planned (version {expected_version}, now "
+            f"{handle.version}); plan it again"
+        )
 
 
 def _planned(planner: Callable[[], EditPlan]) -> EditPlan:

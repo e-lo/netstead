@@ -1194,3 +1194,24 @@ def test_a_plan_made_before_another_edit_is_refused(make_session):
     fresh = host.plan_update(None, "link", [1], {"lanes": 2})
     host.mutate(None, fresh.edits, note=fresh.summary, expected_version=fresh.version)
     assert session.edits["leavenworth"].last().source == "hello"
+
+
+# ---------------------------------------------------------------------------- replay_omits
+
+
+class TypoOmitAction(BaseAction):
+    type: Literal["hello.typo"] = "hello.typo"
+    replay_omits: ClassVar[frozenset[str]] = frozenset({"expected_versoin"})
+    expected_version: int | None = None
+
+
+def test_problems_refuses_replay_omits_that_name_no_field():
+    found = problems(make_hello(actions=(_spec(TypoOmitAction),)), ActionRegistry(), taken=())
+    assert "TypoOmitAction.replay_omits names no field: expected_versoin" in found, found
+
+
+def test_registering_an_action_whose_replay_omits_names_no_field_is_refused():
+    registry = ActionRegistry()
+    with pytest.raises(ValueError, match="replay_omits names no field: expected_versoin"):
+        registry.register(TypoOmitAction)
+    assert not registry.has("hello.typo")

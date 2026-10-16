@@ -265,6 +265,13 @@ def test_a_delete_confirmed_on_an_older_version_is_refused(session):
     assert "expected_version" not in session.history[-1].python  # a replay plans again
 
 
+def test_a_stale_delete_of_rows_already_gone_says_the_network_changed(session):
+    plan = session.delete_preview(handle(session), "link", [1])
+    session.dispatch(DeleteRows(ids=[1]))  # deleted elsewhere after the confirmation
+    with pytest.raises(ActionError, match=r"changed since the edit was planned.*plan it again"):
+        session.dispatch(DeleteRows(ids=[1], expected_version=plan["version"]))
+
+
 def test_deleting_a_node_a_link_uses_is_refused(session):
     with pytest.raises(ActionError, match="still used by link"):
         session.dispatch(DeleteRows(table="node", ids=[1]))
