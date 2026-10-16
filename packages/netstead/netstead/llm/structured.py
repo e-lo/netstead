@@ -276,7 +276,7 @@ def request_tool_calls(
         usage.append((completion.input_tokens, completion.output_tokens))
         try:
             calls, text = _many(completion, mode)
-            _check_calls(calls, text, by_name, max_calls)
+            _check_calls(calls, text, by_name, max_calls, completion.bad_tool_calls if mode == "tools" else ())
             if validate is not None:
                 validate(calls)
         except ValueError as exc:
@@ -295,8 +295,20 @@ def request_tool_calls(
     raise StructuredOutputError(f"the model's reply was still invalid after {max_repairs + 1} attempts: {error}")
 
 
-def _check_calls(calls: tuple[ToolCall, ...], text: str, by_name: dict[str, Tool], max_calls: int) -> None:
-    """Raise ``ValueError`` (naming the call) for an empty reply, too many calls, an unknown tool or bad arguments."""
+def _check_calls(
+    calls: tuple[ToolCall, ...],
+    text: str,
+    by_name: dict[str, Tool],
+    max_calls: int,
+    bad: tuple[tuple[int, str], ...] = (),
+) -> None:
+    """Raise ``ValueError`` (naming the call) for anything a repair should fix.
+
+    That is: a call whose arguments weren't a JSON object, an empty reply, too many calls, an unknown tool, or
+    arguments that don't match the tool's schema.
+    """
+    for position, name in bad:  # a truncated call must never become the reply text, nor vanish from a plan
+        raise ValueError(f"call {position} ({name}): arguments were not a JSON object")
     if not calls and not text.strip():
         raise ValueError("the reply was empty: call a tool or answer in one sentence")
     if len(calls) > max_calls:
@@ -343,8 +355,12 @@ def _many(completion: Completion, mode: Mode) -> tuple[tuple[ToolCall, ...], str
 
 
 def _echo_many(completion: Completion) -> str:
-    if completion.tool_calls:
-        return "; ".join(f"(called {c.name} with {json.dumps(c.arguments)})" for c in completion.tool_calls)[:2000]
+    if completion.tool_calls or completion.bad_tool_calls:
+        echoed = [f"(called {c.name} with {json.dumps(c.arguments)})" for c in completion.tool_calls]
+        echoed += [
+            f"(called {name} with arguments that were not a JSON object)" for _, name in completion.bad_tool_calls
+        ]
+        return "; ".join(echoed)[:2000]
     return completion.text[:2000] or "(empty reply)"
 
 

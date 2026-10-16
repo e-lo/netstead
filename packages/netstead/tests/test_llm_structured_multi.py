@@ -115,3 +115,51 @@ def test_gives_up_after_the_budget_and_never_retries_provider_errors():
 def test_unreported_usage_is_none():
     r = request_tool_calls(Scripted(_calls(text="hi", tokens=(None, None))), model="m", tools=(COUNT,), messages=ASK)
     assert r.input_tokens is None and r.output_tokens is None
+
+
+# ---------------------------------------------------------------------- tool calls whose arguments aren't JSON
+
+
+def _openai(fake_api, *replies):
+    """An OpenAI adapter behind a fake API answering each request with the next list of ``(tool, raw arguments)``."""
+    from netstead.llm.providers.openai import OpenAIProvider
+
+    for calls in replies:
+        raw = [
+            {"id": f"c{i}", "type": "function", "function": {"name": n, "arguments": a}}
+            for i, (n, a) in enumerate(calls)
+        ]
+        message = {"role": "assistant", "content": None, "tool_calls": raw}
+        body = {"choices": [{"index": 0, "finish_reason": "tool_calls", "message": message}], "usage": {}}
+        fake_api.add("POST", "/v1/chat/completions", body=body)
+    return OpenAIProvider(api_key="sk-proj-TESTKEYabcdefghijklmnopqrstuvwx", transport=fake_api.transport())
+
+
+@pytest.mark.usefixtures("no_network")
+def test_a_lone_call_with_truncated_arguments_is_repaired_not_taken_as_text(fake_api):
+    p = _openai(fake_api, [("count", '{"n": ')], [("count", '{"n": 3}')])
+    out = request_tool_calls(p, model="m", tools=(COUNT, NAME), messages=ASK)
+    assert out.calls == (ToolCall("count", {"n": 3}),) and out.text == "" and out.attempts == 2
+    repair = fake_api.body(1)["messages"][-1]["content"]
+    assert "call 1 (count): arguments were not a JSON object" in repair
+
+
+@pytest.mark.usefixtures("no_network")
+def test_a_bad_call_among_good_ones_is_repaired_never_dropped(fake_api):
+    p = _openai(
+        fake_api, [("count", '{"n": 3}'), ("name", '{"s": "thr')], [("count", '{"n": 3}'), ("name", '{"s": "x"}')]
+    )
+    out = request_tool_calls(p, model="m", tools=(COUNT, NAME), messages=ASK)
+    assert [c.name for c in out.calls] == ["count", "name"] and out.attempts == 2
+    assert "call 2 (name): arguments were not a JSON object" in fake_api.body(1)["messages"][-1]["content"]
+
+
+@pytest.mark.usefixtures("no_network")
+def test_the_forced_single_tool_path_still_salvages_or_repairs(fake_api):
+    from netstead.llm.structured import request_tool_call
+
+    p = _openai(fake_api, [("count", '{"n": 4} trailing words')])
+    assert request_tool_call(p, model="m", tool=COUNT, user="count").arguments == {"n": 4}  # salvaged, as before
+    p = _openai(type(fake_api)(), [("count", '{"n": ')], [("count", '{"n": 5}')])
+    out = request_tool_call(p, model="m", tool=COUNT, user="count")
+    assert out.arguments == {"n": 5} and out.attempts == 2

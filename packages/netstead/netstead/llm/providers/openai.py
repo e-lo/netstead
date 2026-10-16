@@ -96,15 +96,23 @@ def function_tools(request: CompletionRequest) -> list[dict[str, Any]]:
     ]
 
 
-def parse_function_calls(raw_calls: list[dict[str, Any]] | None) -> tuple[tuple[ToolCall, ...], str]:
-    """Tool calls from an OpenAI/Ollama message, plus any arguments that weren't a JSON object, as text.
+def parse_function_calls(
+    raw_calls: list[dict[str, Any]] | None,
+) -> tuple[tuple[ToolCall, ...], str, tuple[tuple[int, str], ...]]:
+    """Tool calls from an OpenAI/Ollama message; any arguments that weren't a JSON object, as text; and which.
 
-    Unparseable arguments are handed back as text instead of raising, so the structured-output
-    repair loop can show the model what went wrong.
+    Unparseable arguments are handed back as text instead of raising, so the structured-output repair loop can show
+    the model what went wrong. The third value names them, ``(position in the reply, 1-based, tool name)``, so a
+    reply with several calls can't lose one quietly.
+
+    >>> parse_function_calls([{"function": {"name": "a", "arguments": '{"n": 1}'}},
+    ...                       {"function": {"name": "b", "arguments": '{"n": '}}])
+    ((ToolCall(name='a', arguments={'n': 1}),), '{"n": ', ((2, 'b'),))
     """
     calls: list[ToolCall] = []
     leftovers: list[str] = []
-    for call in raw_calls or []:
+    bad: list[tuple[int, str]] = []
+    for position, call in enumerate(raw_calls or [], start=1):
         function = call["function"]
         raw = function.get("arguments")
         arguments = raw
@@ -117,7 +125,8 @@ def parse_function_calls(raw_calls: list[dict[str, Any]] | None) -> tuple[tuple[
             calls.append(ToolCall(function["name"], arguments))
         else:
             leftovers.append(str(raw))
-    return tuple(calls), "\n".join(leftovers)
+            bad.append((position, str(function.get("name", ""))))
+    return tuple(calls), "\n".join(leftovers), tuple(bad)
 
 
 class OpenAIProvider(HTTPProvider):
@@ -158,7 +167,7 @@ class OpenAIProvider(HTTPProvider):
         try:
             choice = data["choices"][0]
             message = choice["message"]
-            calls, leftover = parse_function_calls(message.get("tool_calls"))
+            calls, leftover, bad = parse_function_calls(message.get("tool_calls"))
             usage = data.get("usage") or {}
         except (KeyError, IndexError, TypeError, AttributeError) as exc:
             raise self._bad_shape(exc) from None
@@ -175,6 +184,7 @@ class OpenAIProvider(HTTPProvider):
             stop_reason=choice.get("finish_reason"),
             input_tokens=usage.get("prompt_tokens"),
             output_tokens=usage.get("completion_tokens"),
+            bad_tool_calls=bad,
         )
 
     def list_models(self) -> list[str]:
