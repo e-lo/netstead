@@ -89,6 +89,20 @@ class Host:
             sel["projectcard"] = payload_facility_forms(sel)
         return sel
 
+    def saved_selections(self) -> list[dict[str, Any]]:
+        """A summary of each saved selection: ``name``, ``net_id``, ``status``, ``links``, ``utterance``, ``by``."""
+        return self._session.saved_selections()
+
+    def saved_selection(self, name: str) -> dict[str, Any] | None:
+        """A copy of the selection saved as ``name``, plus its ``projectcard`` forms; ``None`` if there is none.
+
+        It is the payload as saved; ``UseSelection`` resolves it again on the network as it is now.
+        """
+        sel = self._session.saved_selection(name)
+        if sel is not None:
+            sel["projectcard"] = payload_facility_forms(sel)
+        return sel
+
     def network(self, net_id: str | None = None) -> NetworkHandle:
         """The handle for ``net_id`` (default: active). Read it; change it only via :meth:`mutate`."""
         return self._session.network(net_id)
