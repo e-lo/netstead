@@ -116,12 +116,15 @@
   .dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; }
   .anc { margin:0 0 6px; } .anc .mini, .cands .mini, .saved .mini { margin-left:4px; }
   .cands { margin:4px 0 0 14px; display:flex; flex-wrap:wrap; gap:4px; align-items:center; } .cands .mini { margin-left:0; }
-  .anc .pin { color:var(--accent); font-size:11px; }
   .warnbox { margin:8px 0; padding:8px 10px; border:1px solid rgb(240,170,60); border-left-width:4px; border-radius:6px;
     background:rgba(240,170,60,.12); color:var(--ink); font-size:12px; line-height:1.45; }
   .warnbox p { margin:0; } .warnbox p + p { margin-top:4px; }
   .saved .stale, .warn-note { color:rgb(240,170,60); }
   .label .mini { text-transform:none; letter-spacing:normal; margin-left:6px; }
+  .flt-cond select { flex:0 0 auto; }
+  .flt-cond input { flex:1; min-width:0; background:#0c0e12; color:var(--ink); border:1px solid var(--edge);
+                    border-radius:6px; padding:4px 6px; font-size:12.5px; }
+  .flt-cond input:disabled { opacity:.5; }
   #sel-export { flex-wrap:wrap; gap:6px; } #sel-export select { min-width:0; flex:1 1 9em; }
   .empty { color:var(--muted); }
   #details table { width:100%; border-collapse:collapse; }

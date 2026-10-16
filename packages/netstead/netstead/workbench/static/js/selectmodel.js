@@ -6,10 +6,12 @@ const anchorsOf = sel => (sel ? [...(sel.anchors || []), ...(sel.anchors_unplace
 const isPlaced = c => c.lon != null && c.lat != null;
 
 // One row per resolved anchor: its node, how it matched, whether it is pinned, and the other nodes it could be.
+// `canPin`: an ambiguous anchor can be pinned to the node the resolver chose, as well as to a candidate.
 export function anchorRows(sel) {
   return anchorsOf(sel).map(a => ({
     role: a.role, nodeId: a.node_id, kind: a.kind, detail: a.detail, anchor: a.anchor || "",
     pinned: Boolean(a.pinned), canUnpin: Boolean(a.pinned), unplaced: Boolean(a.unplaced),
+    canPin: !a.pinned && (a.candidates || []).length > 0,
     candidates: (a.candidates || []).map(c => ({ nodeId: c.node_id, placed: isPlaced(c) })),
   }));
 }

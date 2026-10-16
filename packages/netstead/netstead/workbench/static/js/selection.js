@@ -1,6 +1,6 @@
 // The Selection dock panel (every workspace): status, a stale-pin warning, anchors with their candidates (Pin /
-// Unpin), diagnostics, export, and saved selections; the "Anchor candidates" map layer; and the selection commands. Every server string is
-// escaped. Pinning, saving, using and deleting are Actions, so each is recorded.
+// Unpin), diagnostics, export, and saved selections; the "Anchor candidates" map layer; and the selection commands.
+// Every server string is escaped. Pinning, saving, using and deleting are Actions, so each is recorded.
 import { dispatch, getJSON } from "./api.js";
 import { addCommandTo } from "./commands.js";
 import { $, esc, toast } from "./dom.js";
@@ -51,13 +51,16 @@ const roleDot = role => `<span class="dot" style="background:${role === "from" ?
 function anchorHTML(r) {
   const unpin = r.canUnpin
     ? ` <button class="mini ghost" data-unpin="${esc(r.role)}" data-key="unpin-${esc(r.role)}">Unpin</button>` : "";
+  const keep = r.canPin
+    ? ` <button class="mini ghost" data-pin="${esc(r.role)}" data-node="${esc(JSON.stringify(r.nodeId))}" ` +
+      `data-key="pin-${esc(r.role)}-${esc(r.nodeId)}" title="Keep the resolver's choice">Pin node ${esc(r.nodeId)}</button>` : "";
   const cands = r.candidates.length ? `<div class="cands">Or: ${r.candidates.map(c =>
     `<button class="mini ghost" data-pin="${esc(r.role)}" data-node="${esc(JSON.stringify(c.nodeId))}" ` +
     `data-key="pin-${esc(r.role)}-${esc(c.nodeId)}" aria-label="${esc(`Pin the ${r.role} anchor to node ${c.nodeId}`)}">` +
     `node ${esc(c.nodeId)}${c.placed ? "" : " (not on the map)"}</button>`).join(" ")}</div>` : "";
   return `<div class="anc">${roleDot(r.role)}<b>${esc(r.role)}</b> · ${esc(r.anchor)} → node ${esc(r.nodeId)} · ` +
-    `${esc(r.kind)}${r.pinned ? ' <span class="pin">pinned</span>' : ""} <span class="diag">(${esc(r.detail)})</span>` +
-    `${r.unplaced ? ' <span class="diag">· not on the map</span>' : ""}${unpin}${cands}</div>`;
+    `${esc(r.kind)} <span class="diag">(${esc(r.detail)})</span>` +
+    `${r.unplaced ? ' <span class="diag">· not on the map</span>' : ""}${keep}${unpin}${cands}</div>`;
 }
 
 function savedHTML(x) {

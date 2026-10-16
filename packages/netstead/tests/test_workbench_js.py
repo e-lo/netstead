@@ -555,9 +555,10 @@ def test_anchor_rows_list_candidates_and_mark_unplaced_ones(node_module):
     assert [r["role"] for r in rows] == ["from", "to"]
     assert rows[1]["candidates"] == [{"nodeId": 61, "placed": True}, {"nodeId": 62, "placed": False}]
     assert rows[1]["canUnpin"] is False
+    assert rows[1]["canPin"] is True and rows[0]["canPin"] is False  # only an anchor with other candidates
     unplaced = {**SEL, "anchors": SEL["anchors"][:1], "anchors_unplaced": [{**SEL["anchors"][1], "pinned": True}]}
     rows = node_module("selectmodel.js", ["anchorRows"], f"anchorRows({json.dumps(unplaced)})")
-    assert rows[1]["unplaced"] is True and rows[1]["canUnpin"] is True
+    assert rows[1]["unplaced"] is True and rows[1]["canUnpin"] is True and rows[1]["canPin"] is False
 
 
 def test_candidate_points_are_only_placed_candidates(node_module):
