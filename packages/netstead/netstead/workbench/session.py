@@ -118,6 +118,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_STYLE: dict[str, Any] = {
     "color_by": "none",
+    "width_by": "none",
     "ramp": "YlOrRd",
     "offset": True,
     "show_direction": False,
@@ -1559,11 +1560,14 @@ class Session:
 
     def _do_style(self, action: Style) -> dict[str, Any]:
         patch = action.model_dump(exclude_none=True, exclude={"type"})
-        color_by = patch.get("color_by")
-        if color_by not in (None, "none"):
-            names = {c["name"] for c in styleable_columns(self._handle(None).links_df())}
-            if color_by not in names:
-                raise ActionError(f"cannot color by {color_by!r}; choose one of {sorted(names)}")
+        wanted = {k: patch[k] for k in ("color_by", "width_by") if patch.get(k) not in (None, "none")}
+        if wanted:
+            kinds = {c["name"]: c["kind"] for c in styleable_columns(self._handle(None).links_df())}
+            if "color_by" in wanted and wanted["color_by"] not in kinds:
+                raise ActionError(f"cannot color by {wanted['color_by']!r}; choose one of {sorted(kinds)}")
+            numeric = sorted(n for n, k in kinds.items() if k == "continuous")
+            if "width_by" in wanted and wanted["width_by"] not in numeric:
+                raise ActionError(f"cannot size by {wanted['width_by']!r}; choose a numeric column: {numeric}")
         for key, value in patch.items():
             self.style[key] = {**self.style[key], **value} if isinstance(value, dict) else value
         return copy.deepcopy(self.style)

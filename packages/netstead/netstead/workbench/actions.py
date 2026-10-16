@@ -158,10 +158,14 @@ class ClearSelection(BaseAction):
 
 
 class Style(BaseAction):
-    """Partially update the map style; omitted fields are unchanged."""
+    """Partially update the map style; omitted fields are unchanged.
+
+    ``width_by`` sizes links by a numeric column (``"none"`` for widths by lane count).
+    """
 
     type: Literal["style"] = "style"
     color_by: str | None = None
+    width_by: str | None = None
     ramp: Literal["YlOrRd", "Blues", "Viridis"] | None = None
     show: dict[Literal["links", "nodes", "labels", "selection"], bool] | None = None
     colors: dict[Literal["links", "nodes", "selection"], RGB] | None = None

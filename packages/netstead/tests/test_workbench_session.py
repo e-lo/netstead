@@ -899,3 +899,20 @@ def test_anchors_without_coordinates_keep_their_from_and_to(opened):
     forms = payload_facility_forms(sel)
     assert forms["resolved"]["from"] == {"model_node_id": 987654321}
     assert forms["resolved"]["to"] == {"model_node_id": 987654322}
+
+
+def test_style_width_by_a_numeric_column(opened):
+    assert opened.style["width_by"] == "none"
+    opened.dispatch(Style(width_by="lanes"))
+    assert opened.style["width_by"] == "lanes"
+    with pytest.raises(ActionError, match="cannot size by 'facility_type'"):
+        opened.dispatch(Style(width_by="facility_type"))
+    assert opened.style["width_by"] == "lanes"  # a refused Style changes nothing
+    opened.dispatch(Style(width_by="none"))
+    assert opened.style["width_by"] == "none"
+
+
+def test_an_old_style_snippet_is_unchanged():
+    from netstead.workbench.actions import to_python
+
+    assert to_python(Style(color_by="lanes")) == "app.do(Style(color_by='lanes'))"
