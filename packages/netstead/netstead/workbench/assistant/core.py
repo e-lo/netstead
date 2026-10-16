@@ -113,6 +113,7 @@ class Plan:
     calls: list[_Call] = field(default_factory=list, repr=False)
     grounded: bool = False  # the tiers its context carried (network content; project notes)
     notes: bool = False
+    attempts: int = 1  # model calls made (1 + repairs)
 
 
 @dataclass(frozen=True)
@@ -292,6 +293,7 @@ class Assistant:
             checked,
             grounding.grounded,
             grounding.notes,
+            result.attempts,
         )
 
     def _check(self, calls: tuple[ToolCall, ...], specs: dict[str, ToolSpec]) -> list[_Call]:

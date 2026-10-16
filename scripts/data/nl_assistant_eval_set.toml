@@ -1,0 +1,95 @@
+# Requests for scripts/eval_nl_assistant.py, on the Leavenworth fixture, with the steps a correct plan has.
+#
+# Each case: `utterance`; optional `select_first` (link ids selected before asking); and either `no_calls = true`
+# (the model should only answer) or one or more [[case.expect]] tables, in order. In an expect table, `type` is the
+# Action type and every other key is a field (dotted for nested: "query.facility.name") that must match; strings
+# compare without case, spaces or dashes. Only the keys given are checked.
+
+[[case]]
+utterance = "colour the links by lanes"
+[[case.expect]]
+type = "style"
+color_by = "lanes"
+
+[[case]]
+utterance = "colour by lanes and zoom to the selection"
+select_first = [1, 2]
+[[case.expect]]
+type = "style"
+color_by = "lanes"
+[[case.expect]]
+type = "navigate"
+to_selection = true
+
+[[case]]
+utterance = "select Ski Hill Drive"
+[[case.expect]]
+type = "select"
+"query.facility.name" = "Ski Hill Drive"
+
+[[case]]
+utterance = "select Cherry Street between Prospect Street and West Center Street, then save it as cherry"
+[[case.expect]]
+type = "select"
+"query.from_anchor" = "Prospect Street"
+"query.to_anchor" = "West Center Street"
+[[case.expect]]
+type = "save_selection"
+name = "cherry"
+
+[[case]]
+utterance = "only show links with 2 or more lanes"
+[[case.expect]]
+type = "filter"
+"where.0.col" = "lanes"
+"where.0.op" = "gte"
+"where.0.val" = 2
+
+[[case]]
+utterance = "remove the filter"
+[[case.expect]]
+type = "filter"
+
+[[case]]
+utterance = "make the lines thicker where there are more lanes"
+[[case.expect]]
+type = "style"
+width_by = "lanes"
+
+[[case]]
+utterance = "fly to link 170"
+[[case.expect]]
+type = "navigate"
+"record.table" = "link"
+"record.id" = 170
+
+[[case]]
+utterance = "set the speed limit to 25 on the selected links"
+select_first = [1, 2]
+[[case.expect]]
+type = "edit_cells"
+"values.free_speed" = 25
+
+[[case]]
+utterance = "delete the selected links"
+select_first = [5]
+[[case.expect]]
+type = "delete_rows"
+
+[[case]]
+utterance = "undo that last edit"
+[[case.expect]]
+type = "undo_edit"
+
+[[case]]
+utterance = "check the network for problems"
+[[case.expect]]
+type = "run_validation"
+
+[[case]]
+utterance = "what is a gore node?"
+no_calls = true
+
+[[case]]
+utterance = "open my network from the desktop"
+no_calls = true
