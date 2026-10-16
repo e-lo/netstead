@@ -946,6 +946,9 @@ def test_navigate_to_a_record(opened):
         opened.dispatch(Navigate(record={"table": "link", "id": 999_999_999}))
     with pytest.raises(ActionError, match="no node 'x'"):
         opened.dispatch(Navigate(record={"table": "node", "id": "x"}))
+    published.clear()
+    opened.dispatch(Navigate(record={"table": "link", "id": str(link_id)}))  # text, as a form or a model sends it
+    assert published[0]["record"] == {"table": "link", "id": link_id}
 
 
 def test_navigate_needs_exactly_one_target():
