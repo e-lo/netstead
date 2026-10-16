@@ -749,10 +749,16 @@ def test_the_pending_draft_and_the_badge(node_module):
 
 def test_budget_text(node_module):
     remote = {**ASSIST_PAYLOAD["status"], "local": False, "provider": "anthropic", "model": "h",
-              "used": {"anthropic/h": 12000}}  # fmt: skip
-    expr = f"[budgetText({json.dumps(ASSIST_PAYLOAD['status'])}), budgetText({json.dumps(remote)})]"
-    local, rem = node_module("assistmodel.js", ["budgetText"], expr)
-    assert local == "1,234 tokens used (local model: no limit)" and rem == "12,000 of 200,000 tokens used this session"
+              "used": {"anthropic/h": 12000, "openai/g": 3000}, "remote_used": 15000}  # fmt: skip
+    no_model = {**ASSIST_PAYLOAD["status"], "model": None, "used": {"ollama": 7}}
+    expr = (
+        f"[budgetText({json.dumps(ASSIST_PAYLOAD['status'])}), budgetText({json.dumps(remote)}),"
+        f" budgetText({json.dumps(no_model)}), usageKey('ollama', null), usageKey('ollama', 'q')]"
+    )
+    local, rem, bare, k1, k2 = node_module("assistmodel.js", ["budgetText", "usageKey"], expr)
+    assert local == "1,234 tokens used (local model: no limit)"
+    assert rem == "15,000 of 200,000 tokens used this session (all remote models)"  # every remote model counts
+    assert bare == "7 tokens used (local model: no limit)" and (k1, k2) == ("ollama", "ollama/q")  # as usage_key
 
 
 def test_the_command_bar_routes_enter_to_select_and_mod_enter_to_ask(node_module):

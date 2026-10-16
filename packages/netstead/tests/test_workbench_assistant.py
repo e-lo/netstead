@@ -299,7 +299,25 @@ def test_the_remote_budget_refuses_and_local_is_never_refused(tmp_path, isolated
     s2 = _session(tmp_path / "2", isolated_env, local)
     s2.assistant.ask("one")
     assert s2.assistant.ask("two")["error"] is None
-    assert s2.assistant.used == {"ollama/None": 210_000 + 120}
+    assert s2.assistant.used == {"ollama": 210_000 + 120}
+
+
+def test_the_remote_budget_is_one_per_session_whatever_the_model(tmp_path, isolated_env):
+    from netstead.workbench.assistant.core import _Endpoint
+
+    remote = Scripted(_reply(text="a", tokens=(150_000, 60_000)), _reply(text="b"), base_url="https://api.example")
+    s = _session(tmp_path, isolated_env, remote)
+    s.assistant.ask("one")
+    other = _Endpoint(remote, "anthropic", "another-model", False, s.llm)  # a different provider and model
+    monkey = s.assistant._endpoint
+    s.assistant._endpoint = lambda: other
+    try:
+        turn = s.assistant.ask("two")
+    finally:
+        s.assistant._endpoint = monkey
+    assert turn["error"] and "remote models" in turn["error"] and len(remote.requests) == 1
+    status = s.assistant.payload()["status"]
+    assert status["remote_used"] == 210_000 and status["used"] == {"ollama": 210_000}
 
 
 def test_a_failed_answer_is_still_charged(tmp_path, isolated_env):
@@ -308,7 +326,7 @@ def test_a_failed_answer_is_still_charged(tmp_path, isolated_env):
     s = _session(tmp_path, isolated_env, p)
     turn = s.assistant.ask("colour")
     assert turn["error"] and "still invalid" in turn["error"]
-    assert s.assistant.used == {"ollama/None": 1020}
+    assert s.assistant.used == {"ollama": 1020}
 
 
 def test_unreported_usage_is_counted_as_characters_over_four(tmp_path, isolated_env):
@@ -317,7 +335,7 @@ def test_unreported_usage_is_counted_as_characters_over_four(tmp_path, isolated_
     s.assistant.ask("hi")
     req = p.requests[0]
     sent = len(req.system) + len(req.context) + sum(len(m.content) for m in req.messages)
-    assert s.assistant.used["ollama/None"] == sent // 4 + 10
+    assert s.assistant.used["ollama"] == sent // 4 + 10
 
 
 def test_consistent_holds_the_session_lock_so_no_action_runs_meanwhile(tmp_path, isolated_env):
@@ -372,7 +390,7 @@ def test_the_payload_reads_no_key_and_lists_the_status(tmp_path, isolated_env):
     s = _session(tmp_path, isolated_env, Scripted(_reply(text="x"), base_url="https://api.example"))
     s.assistant.ask("hi")
     status = s.assistant.payload()["status"]
-    assert status["local"] is False and status["used"] == {"ollama/None": 120} and status["budget"] == 200_000
+    assert status["local"] is False and status["used"] == {"ollama": 120} and status["budget"] == 200_000
     assert "select" in status["tools"] and "open_network" not in status["tools"] and status["warnings"] == []
     assert status["sends"] and status["busy"] is False
 
@@ -511,7 +529,7 @@ def test_a_failed_repair_call_still_charges_the_answer_before_it(tmp_path, isola
     p = FailsOnRepair(_reply(("style", {"color_by": 3}), tokens=(700, 30)), base_url="https://api.example")
     s = _session(tmp_path, isolated_env, p)
     turn = s.assistant.ask("colour")
-    assert turn["error"] == "down" and s.assistant.used == {"ollama/None": 730}
+    assert turn["error"] == "down" and s.assistant.used == {"ollama": 730}
 
 
 def test_on_selection_pins_the_selections_network_so_approve_edits_only_it(tmp_path, isolated_env):

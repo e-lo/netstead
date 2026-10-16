@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 
     from ..session import Session
 
-__all__ = ["ASSISTANT_PROMPT", "Assistant", "AssistantBusy", "Plan"]
+__all__ = ["ASSISTANT_PROMPT", "Assistant", "AssistantBusy", "Plan", "usage_key"]
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +62,17 @@ _KEEPS_SELECTION = frozenset(
         "save_network",
     }
 )
+
+
+def usage_key(provider: str, model: str | None) -> str:
+    """The key tokens are counted under: ``provider/model``, or the provider alone when the model isn't known.
+
+    The panel builds the same key (``assistmodel.js``'s ``budgetText``).
+
+    >>> usage_key("ollama", "qwen2.5:7b"), usage_key("ollama", None)
+    ('ollama/qwen2.5:7b', 'ollama')
+    """
+    return f"{provider}/{model}" if model else provider
 
 
 class AssistantBusy(RuntimeError):
@@ -197,7 +208,8 @@ class Assistant:
         self._ids = itertools.count(1)
         self.turns: list[_Turn] = []
         self.draft: _Draft | None = None
-        self.used: dict[str, int] = {}  # "<provider>/<model>" -> tokens used this session
+        self.used: dict[str, int] = {}  # usage_key(provider, model) -> tokens used this session (shown per model)
+        self._remote_keys: set[str] = set()  # the keys charged by an endpoint that isn't local (the budget's sum)
         self._models: dict[str, str | None] = {}  # provider -> the model it last answered with (for the status)
 
     # ------------------------------------------------------------------ planning (no session lock held)
@@ -558,18 +570,26 @@ class Assistant:
 
     def _check_budget(self, endpoint: _Endpoint) -> None:
         budget = self._session.settings.assistant.remote_token_budget
+        if endpoint.local:
+            return  # counted and shown, never refused
         with self._lock:
-            spent = self.used.get(f"{endpoint.name}/{endpoint.model}", 0)
-        if not endpoint.local and spent >= budget:
+            spent = self._remote_used()
+        if spent >= budget:
             raise _OverBudget(
-                f"this session has used its {budget:,} tokens for {endpoint.name}; raise "
+                f"this session has used its {budget:,} tokens for remote models; raise "
                 "assistant.remote_token_budget in Settings, or switch to a local model"
             )
 
+    def _remote_used(self) -> int:
+        """Tokens spent this session on endpoints that aren't local, over every provider and model (the budget)."""
+        return sum(self.used.get(k, 0) for k in self._remote_keys)
+
     def _charge(self, endpoint: _Endpoint, tokens: int) -> None:
         with self._lock:
-            key = f"{endpoint.name}/{endpoint.model}"
+            key = usage_key(endpoint.name, endpoint.model)
             self.used[key] = self.used.get(key, 0) + tokens
+            if not endpoint.local:
+                self._remote_keys.add(key)
             self._models[endpoint.name] = endpoint.model
 
     def _status_endpoint(self) -> tuple[str, str | None, bool, list[str]]:
@@ -622,6 +642,7 @@ class Assistant:
                     "sends": sends,
                     "error": error,
                     "used": dict(self.used),
+                    "remote_used": self._remote_used(),
                     "budget": self._session.settings.assistant.remote_token_budget,
                     "busy": self._busy.locked(),
                     "tools": tools,

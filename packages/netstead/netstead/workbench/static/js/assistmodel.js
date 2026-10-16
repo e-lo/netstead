@@ -22,10 +22,17 @@ export const assistBadge = payload => (pendingDraft(payload) ? "1" : null);
 
 const count = n => Number(n || 0).toLocaleString("en-US");
 
+// The key tokens are counted under (core.usage_key): "provider/model", or the provider alone without a model.
+export const usageKey = (provider, model) => (model ? `${provider}/${model}` : provider);
+
+// A local model's use is shown per model; a remote one's against the session's budget, which every remote provider
+// and model share (`remote_used`).
 export function budgetText(status) {
-  const used = (status.used || {})[`${status.provider}/${status.model}`] || 0;
-  return status.local ? `${count(used)} tokens used (local model: no limit)`
-    : `${count(used)} of ${count(status.budget)} tokens used this session`;
+  if (status.local) {
+    const used = (status.used || {})[usageKey(status.provider, status.model)] || 0;
+    return `${count(used)} tokens used (local model: no limit)`;
+  }
+  return `${count(status.remote_used)} of ${count(status.budget)} tokens used this session (all remote models)`;
 }
 
 // The header box: Enter selects (unchanged); Ctrl+Enter or ⌘Enter asks the assistant (either modifier, on any
