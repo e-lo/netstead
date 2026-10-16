@@ -515,3 +515,106 @@ def test_an_empty_cell_parses_by_its_column_kind(node_module):
         ' catch (e) { return "refused"; } })()'
     )
     assert node_module("editmodel.js", ["parseCell", "cellSample"], refused) == "refused"
+
+
+SEL = {
+    "status": "ambiguous",
+    "net_id": "n",
+    "link_ids": [1, 2],
+    "intent": {"facility": {"name": "Cherry"}},
+    "anchors": [
+        {
+            "role": "from",
+            "node_id": 53,
+            "kind": "intersection",
+            "detail": "d",
+            "anchor": "Prospect",
+            "pinned": False,
+            "candidates": [],
+            "lon": 1,
+            "lat": 2,
+        },
+        {
+            "role": "to",
+            "node_id": 60,
+            "kind": "intersection",
+            "detail": "d",
+            "anchor": "West Center",
+            "pinned": False,
+            "candidates": [{"node_id": 61, "lon": 3, "lat": 4}, {"node_id": 62}],
+            "lon": 5,
+            "lat": 6,
+        },
+    ],
+    "anchors_unplaced": [],
+}
+
+
+def test_anchor_rows_list_candidates_and_mark_unplaced_ones(node_module):
+    rows = node_module("selectmodel.js", ["anchorRows"], f"anchorRows({json.dumps(SEL)})")
+    assert [r["role"] for r in rows] == ["from", "to"]
+    assert rows[1]["candidates"] == [{"nodeId": 61, "placed": True}, {"nodeId": 62, "placed": False}]
+    assert rows[1]["canUnpin"] is False
+    unplaced = {**SEL, "anchors": SEL["anchors"][:1], "anchors_unplaced": [{**SEL["anchors"][1], "pinned": True}]}
+    rows = node_module("selectmodel.js", ["anchorRows"], f"anchorRows({json.dumps(unplaced)})")
+    assert rows[1]["unplaced"] is True and rows[1]["canUnpin"] is True
+
+
+def test_candidate_points_are_only_placed_candidates(node_module):
+    pts = node_module("selectmodel.js", ["candidatePoints"], f"candidatePoints({json.dumps(SEL)})")
+    assert pts == [{"role": "to", "node_id": 61, "lon": 3, "lat": 4}]
+    assert node_module("selectmodel.js", ["candidatePoints"], "candidatePoints(null)") == []
+
+
+def test_export_choices_follow_status_and_kind(node_module):
+    expr = (
+        f"[exportChoices({json.dumps(SEL)}), exportChoices({json.dumps({**SEL, 'status': 'resolved'})}),"
+        f" exportChoices({json.dumps({**SEL, 'status': 'resolved', 'intent': None})}), exportChoices(null),"
+        f" exportChoices({json.dumps({**SEL, 'status': 'not_found'})})]"
+    )
+    amb, res, ids, none, lost = node_module("selectmodel.js", ["exportChoices"], expr)
+    assert amb == {"resolved": False, "query": False, "reason": "Pin the ambiguous anchors first."}
+    assert res == {"resolved": True, "query": True, "reason": ""}
+    assert ids["query"] is False and none["reason"] == "Nothing is selected."
+    assert lost["resolved"] is False and lost["reason"] == "Nothing was found to export."
+
+
+def test_selection_badge(node_module):
+    expr = (
+        f"[selectionBadge({json.dumps(SEL)}), selectionBadge({json.dumps({**SEL, 'status': 'resolved'})}),"
+        " selectionBadge(null)]"
+    )
+    assert node_module("selectmodel.js", ["selectionBadge"], expr) == ["?", 2, None]
+
+
+def test_link_widths_scale_a_numeric_property(node_module):
+    net = {"L": {"count": 3}, "linkStart": [0, 2, 4, 6], "linkLanes": [1, 1, 1]}
+    prop = {"name": "lanes", "kind": "continuous", "values": [1, None, 3], "min": 1, "max": 3}
+    expr = f"Array.from(buildLinkWidths({json.dumps(net)}, {{width_by: 'lanes'}}, {json.dumps(prop)}))"
+    assert node_module("palette.js", ["buildLinkWidths"], expr) == [1.5, 1.5, 1, 1, 10, 10]
+    n, p = json.dumps(net), json.dumps(prop)
+    off = f"[buildLinkWidths({n}, {{width_by: 'none'}}, {p}), buildLinkWidths({n}, {{width_by: 'lanes'}}, null)]"
+    assert node_module("palette.js", ["buildLinkWidths"], off) == [None, None]
+
+
+def test_unmatched_links_are_dimmed(node_module):
+    net = {"L": {"count": 2}, "linkStart": [0, 1, 2], "attrsIds": None}
+    expr = (
+        f"Array.from(dimUnmatched(new Uint8Array([9,9,9,222, 9,9,9,222]), {json.dumps(net)}, [10, 20], new Set([20])))"
+    )
+    assert node_module("palette.js", ["dimUnmatched"], expr) == [9, 9, 9, 40, 9, 9, 9, 222]
+
+
+def test_the_filtered_scope_adds_the_view_filter(node_module):
+    vf = {"table": "link", "where": [{"col": "lanes", "op": "gte", "val": 2}]}
+    expr = (
+        f"[combinedFilter([{{col:'name',op:'contains',val:'a'}}], 'filtered', 'link', {json.dumps(vf)}),"
+        f" combinedFilter([], 'all', 'link', {json.dumps(vf)}),"
+        f" combinedFilter([], 'filtered', 'node', {json.dumps(vf)}),"
+        " combinedFilter([], 'filtered', 'link', null)]"
+    )
+    on, off, other, none = node_module("linking.js", ["combinedFilter"], expr)
+    assert on == [{"col": "lanes", "op": "gte", "val": 2}, {"col": "name", "op": "contains", "val": "a"}]
+    assert off is None and other is None and none is None
+    hint = node_module("linking.js", ["scopeHint"], "[scopeHint('filtered', 0), scopeHint('filtered', 3)]")
+    assert hint == ["No link matches the filter (Layers → Filter links).", ""]
