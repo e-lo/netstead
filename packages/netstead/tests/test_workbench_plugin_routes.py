@@ -217,4 +217,4 @@ def test_actions_lists_core_and_plugin_actions_with_owner_and_schema(client):
 
 
 def test_plugins_report_host_api_1_2(client):
-    assert client.get("/api/plugins").json()["host_api"] == "1.3"
+    assert client.get("/api/plugins").json()["host_api"] == "1.4"

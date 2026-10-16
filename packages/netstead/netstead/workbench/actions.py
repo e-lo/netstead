@@ -73,7 +73,8 @@ class BaseAction(BaseModel):
     and its fields. ``mutates`` marks actions the assistant must draft before applying;
     ``runs_as_job`` (core only) runs the slow work on a background job thread; ``replay_overrides``
     are fields forced in the ``to_python`` replay snippet, and ``replay_omits`` are fields it leaves out
-    (a guard that only means something in the live session, such as a planned version).
+    (a guard that only means something in the live session, such as a planned version). ``assistant = False``
+    keeps an Action out of the natural-language assistant's tools, even when its plugin is opted in (Host API 1.4).
 
     Field values must round-trip through ``repr`` (str, numbers, bools, None, lists/dicts/tuples of
     those, nested pydantic models): "copy session as Python" writes each field as ``name=<repr(value)>``,
@@ -85,6 +86,7 @@ class BaseAction(BaseModel):
     runs_as_job: ClassVar[bool] = False
     replay_overrides: ClassVar[dict[str, Any]] = {}
     replay_omits: ClassVar[frozenset[str]] = frozenset()
+    assistant: ClassVar[bool] = True  # False keeps this Action out of the NL assistant's tools, even when opted in
     if TYPE_CHECKING:  # every concrete Action declares its own ``type`` field; not a field of the base
         type: str
 

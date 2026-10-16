@@ -690,10 +690,14 @@ class Session:
         self.filters = {nid: f for nid, f in view.filters.items() if nid in ids}
         _mark_rolled_back(running.children, running.action.type)
 
+    def action_owner(self, action_type: str) -> str | None:
+        """The plugin id that registered ``action_type`` (``None`` for a core Action)."""
+        plugin_id, _, rest = action_type.partition(".")
+        return plugin_id if rest and plugin_id in self.plugins else None
+
     def _is_plugin_action(self, action_type: str) -> bool:
         """Whether ``action_type`` belongs to an installed plugin (``"<plugin id>.<name>"``), not core."""
-        plugin_id, _, rest = action_type.partition(".")
-        return bool(rest) and plugin_id in self.plugins
+        return self.action_owner(action_type) is not None
 
     def _core_handler(self, action_type: str) -> Callable[..., Any]:
         """The handler-table entry for a core Action: calls ``_do_<type>``, looked up at call time.
