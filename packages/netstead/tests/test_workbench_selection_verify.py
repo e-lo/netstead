@@ -64,13 +64,20 @@ def test_pin_needs_a_query_selection_with_that_anchor(session):
         session.dispatch(PinAnchor(role="from", node_id=53))
 
 
+def _rename(session, link_ids, name):
+    plan = plan_update(session.network("leavenworth").roadway, "link", link_ids, {"name": name})
+    session.mutate("leavenworth", plan.edits, note=f"rename to {name}")
+
+
 def test_a_pin_survives_an_edit_re_resolution(session):
     session.dispatch(Select(utterance=CHERRY))
-    session.dispatch(PinAnchor(role="to", node_id=60))
-    handle = session.network("leavenworth")
-    plan = plan_update(handle.roadway, "link", [170], {"name": "Cherry Street"})
-    session.mutate("leavenworth", plan.edits, note="rename to the same")
-    assert session.selection["intent"]["to_node"] == 60 and session.selection["status"] == "resolved"
+    before = session.dispatch(PinAnchor(role="to", node_id=60))
+    assert "facility ['Cherry Street']: 8 link(s)" in before["diagnostics"]
+    _rename(session, [193, 195], "Cherry Lane")  # the Cherry Street block past node 61 leaves the facility
+    after = session.selection
+    assert after is not before and "facility ['Cherry Street']: 6 link(s)" in after["diagnostics"]  # resolved again
+    assert after["intent"]["to_node"] == 60 and _anchor(after, "to")["pinned"] is True
+    assert after["status"] == "resolved" and after["link_ids"] == [170, 182, 187]
 
 
 def test_pin_replays_and_has_its_own_import_line(session):
