@@ -25,6 +25,16 @@ __all__ = ["Interchanges", "classify_interchanges", "resolve_anchor", "resolve_s
 _MAX_RAMP_HOPS = 8
 
 
+def _column(links, name: str):
+    """``links[name]``, or an all-null column when the network has none.
+
+    ``ref`` and ``name`` are optional GMNS fields, so an anchor must not assume either.
+    """
+    if name in links.columns:
+        return links[name]
+    return pd.Series(None, index=links.index, dtype="object")
+
+
 @dataclass
 class Interchanges:
     """Mainline attach nodes on the requested carriageway, by ramp orientation."""
@@ -58,10 +68,10 @@ def _surface_links(links, anchor: str):
     """
     a_name = norm_name(anchor)
     a_ref = norm_ref(anchor)
-    norm = links["name"].fillna("").astype("string").str.lower().str.replace(r"[^a-z0-9]", "", regex=True)
+    norm = _column(links, "name").fillna("").astype("string").str.lower().str.replace(r"[^a-z0-9]", "", regex=True)
     hit = (norm == a_name) if a_name else pd.Series(False, index=links.index)
     if a_ref:
-        hit = hit | links["ref"].apply(lambda r: bool(a_ref & norm_ref(r)))
+        hit = hit | _column(links, "ref").apply(lambda r: bool(a_ref & norm_ref(r)))
     surf = links[hit.fillna(False)]
     return surf[~surf["facility_type"].isin(["motorway", "motorway_link"])]
 
@@ -126,10 +136,10 @@ def _anchor_links(links, anchor: str):
     """Links whose name OR ref matches the anchor (vectorized)."""
     a_name = norm_name(anchor)
     a_ref = norm_ref(anchor)
-    nm = links["name"].fillna("").astype("string").str.lower().str.replace(r"[^a-z0-9]", "", regex=True)
+    nm = _column(links, "name").fillna("").astype("string").str.lower().str.replace(r"[^a-z0-9]", "", regex=True)
     hit = (nm == a_name) if a_name else pd.Series(False, index=links.index)
     if a_ref:
-        hit = hit | links["ref"].apply(lambda r: bool(a_ref & norm_ref(r)))
+        hit = hit | _column(links, "ref").apply(lambda r: bool(a_ref & norm_ref(r)))
     return links[hit.fillna(False)]
 
 

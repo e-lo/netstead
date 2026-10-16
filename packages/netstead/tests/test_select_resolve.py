@@ -4,6 +4,7 @@ from importlib import resources
 
 import pandas as pd
 import pytest
+from netstead.fixtures import leavenworth
 from netstead.select.intent import Facility, SelectionIntent
 from netstead.select.resolve import resolve_frames
 
@@ -153,3 +154,46 @@ def test_fallback_note_survives_the_segment_path(rdu):
     assert r.status == "resolved"
     assert r.link_ids == golden.link_ids
     assert "treated name 'I 40' as a route number" in r.diagnostics
+
+
+@pytest.fixture(scope="module")
+def leav():
+    base = leavenworth.parquet_dir()
+    return pd.read_parquet(base / "link.parquet"), pd.read_parquet(base / "node.parquet")
+
+
+def _cherry(**pins):
+    return SelectionIntent(
+        facility=Facility(name="Cherry Street"),
+        from_anchor="Prospect Street",
+        to_anchor="West Center Street",
+        **pins,
+    )
+
+
+def test_surface_anchors_resolve_on_a_network_without_a_ref_column(leav):
+    links, nodes = leav
+    assert "ref" not in links.columns
+    r = resolve_frames(_cherry(), links, nodes)
+    assert r.status == "ambiguous" and r.link_ids == [170, 182, 187]
+    assert (r.from_match.node_id, r.from_match.candidates) == (53, [])
+    assert (r.to_match.node_id, r.to_match.candidates) == (60, [61])
+
+
+def test_rdu_anchors_do_not_raise_without_a_ref_column(rdu):
+    """A second network: RDU with ``ref`` dropped must not raise either (``_anchor_links`` reads the same columns).
+
+    The freeway path's ``_surface_links`` gets the same ``_column`` fix; RDU's freeway needs ``ref`` to find I-40
+    at all, so that path is covered by reading the diff, not by a test.
+    """
+    links, nodes = rdu
+    no_ref = links.drop(columns=["ref"])
+    intent = SelectionIntent(
+        facility=Facility(name="Page Road"), from_anchor="South Miami Boulevard", to_anchor="Airport Boulevard"
+    )
+    resolve_frames(intent, no_ref, nodes)  # the status depends on the fixture's names; raising is the bug
+
+
+def test_without_a_name_column_the_facility_matches_nothing(leav):
+    links, nodes = leav
+    assert resolve_frames(_cherry(), links.drop(columns=["name"]), nodes).status == "not_found"
