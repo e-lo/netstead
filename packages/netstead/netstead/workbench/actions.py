@@ -446,6 +446,7 @@ class PinAnchor(BaseAction):
 
     For an ambiguous selection made by a query: pick one of the anchor's ``candidates`` (or any node on the
     facility). The pin is kept in the selection's ``intent``, so it survives an edit and a saved selection's reuse.
+    A pin that resolves nothing (a node off the facility, or one with no path to the other anchor) is refused.
     """
 
     type: Literal["pin_anchor"] = "pin_anchor"

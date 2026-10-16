@@ -46,11 +46,31 @@ def test_pinning_the_chosen_candidate_makes_the_selection_resolved(session):
     assert sel["utterance"] == CHERRY  # still the query's selection
 
 
-def test_pinning_another_candidate_and_unpinning(session):
-    session.dispatch(Select(utterance=CHERRY))
-    assert session.dispatch(PinAnchor(role="to", node_id=61))["status"] == "not_found"
+def test_pinning_a_candidate_with_no_path_is_refused_and_unpinning(session):
+    ambiguous = session.dispatch(Select(utterance=CHERRY))
+    with pytest.raises(ActionError, match="no path between resolved anchor nodes"):
+        session.dispatch(PinAnchor(role="to", node_id=61))  # on West Center Street, but no Cherry Street path to it
+    assert session.selection == ambiguous  # rolled back: the ambiguous selection is kept
+    session.dispatch(PinAnchor(role="to", node_id=60))
     sel = session.dispatch(PinAnchor(role="to", node_id=None))
     assert sel["status"] == "ambiguous" and "to_node" not in sel["intent"]
+
+
+def test_a_pin_off_the_facility_is_refused(session):
+    ambiguous = session.dispatch(Select(utterance=CHERRY))
+    with pytest.raises(ActionError, match="node 83 is not on the facility for 'West Center Street'"):
+        session.dispatch(PinAnchor(role="to", node_id=83))
+    assert session.selection == ambiguous and not session.history[-1].ok
+
+
+def test_a_pin_by_text_id_finds_the_integer_node(session):
+    session.dispatch(Select(utterance=CHERRY))
+    sel = session.dispatch(PinAnchor(role="to", node_id="60"))
+    assert sel["status"] == "resolved" and sel["intent"]["to_node"] == 60
+    with pytest.raises(ActionError, match="no node 'abc' in leavenworth"):
+        session.dispatch(PinAnchor(role="to", node_id="abc"))
+    with pytest.raises(ActionError, match="no node 999999 in leavenworth"):
+        session.dispatch(PinAnchor(role="to", node_id=999_999))
 
 
 def test_pin_needs_a_query_selection_with_that_anchor(session):

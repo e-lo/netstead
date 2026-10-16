@@ -61,7 +61,7 @@ from netstead.select.parse import LLMParser, intent_from_payload, make_parser, p
 from netstead.select.prompt import PromptContext, close_match_hint, vocabulary_from_links
 from netstead.select.resolve import resolve_frames
 from netstead.viz.styling import json_scalar, styleable_columns
-from netstead.viz.tables import FilterError, filter_frame
+from netstead.viz.tables import FilterError, KeyTypeError, coerce_keys, filter_frame
 
 from . import build
 from .actions import (
@@ -1510,17 +1510,26 @@ class Session:
             raise ActionError("only a selection made by a query has anchors to pin; select with an utterance first")
         if not sel["intent"].get(f"{action.role}_anchor"):
             raise ActionError(f"the selection has no {action.role} anchor to pin")
+        handle = self._handle(sel["net_id"])
         args = dict(sel["intent"])
         if action.node_id is None:
             args.pop(f"{action.role}_node", None)
         else:
-            args[f"{action.role}_node"] = action.node_id
-        handle = self._handle(sel["net_id"])
+            args[f"{action.role}_node"] = _network_node(handle, action.node_id)
         try:
             intent = intent_from_payload(args, sel["utterance"] or "")
         except IntentError as exc:
             raise ActionError(str(exc)) from None
         result = resolve_frames(intent, handle.links_df(), handle.nodes_df())
+        if action.node_id is not None:  # a pin that resolves nothing is refused; the selection stays as it was
+            match = result.from_match if action.role == "from" else result.to_match
+            if match is None or match.node_id is None:
+                detail = match.detail if match is not None else f"node {action.node_id} is not on the facility"
+                raise ActionError(f"cannot pin the {action.role} anchor: {detail}")
+            if result.status == "not_found":
+                raise ActionError(
+                    f"cannot pin the {action.role} anchor to node {action.node_id}: {result.diagnostics[-1]}"
+                )
         self.selection = selection_payload(handle, result, utterance=sel["utterance"], parsed_by=sel["parsed_by"])
         return self.selection
 
@@ -1846,6 +1855,18 @@ def _restore_stamps(handle: NetworkHandle, stamps: Mapping[str, Any]) -> None:
             stamped[name] = stamp
         else:
             tracker.mark_dirty(name)
+
+
+def _network_node(handle: NetworkHandle, node_id: Any) -> Any:
+    """``node_id`` as ``handle``'s node key (``"60"`` is ``60`` on an integer key); ``ActionError`` if absent."""
+    keys = handle.nodes_df()["node_id"]
+    try:
+        (key,) = coerce_keys([node_id], keys.dtype)
+    except KeyTypeError:
+        key = None
+    if key is None or not keys.isin([key]).any():
+        raise ActionError(f"no node {node_id!r} in {handle.id}")
+    return json_scalar(key)
 
 
 def _saved_summary(name: str, sel: dict[str, Any]) -> dict[str, Any]:
