@@ -279,6 +279,8 @@ class _Running:
     undo_mark: int  # ``len(Session._undo)`` when it started: a failure undoes everything after it
     view: _View  # the shared view state before it ran
     children: list[_Nested] = field(default_factory=list)
+    via: str | None = None  # how the outermost Action arrived (``"assistant"``)
+    refused: str | None = None  # set when something inside it was refused that must fail it as a whole
 
 
 @dataclass
@@ -669,12 +671,17 @@ class Session:
                 failure = exc
         with self._lock:
             view = _View(self.active, self.selection, dict(self.style), dict(self.saved), dict(self.filters))
-            running = _Running(action, len(self._undo), view)
+            running = _Running(action, len(self._undo), view, via=None if self._running else via)
             self._running.append(running)
             try:
                 if failure is not None:
                     raise failure
+                self._refuse_unapproved(running)
                 result = handler(action, prepared) if prepare is not None else handler(action)
+                if running is self._running[0] and running.refused is None:
+                    running.refused = self._unapproved_change(running)
+                if running.refused is not None and running is self._running[0]:
+                    raise ActionError(running.refused)  # fails (and rolls back) the whole Action
                 ok, error, error_type = True, None, None
             except ActionError as exc:  # includes NotSupportedYet
                 result, ok, error, error_type = exc.payload, False, str(exc), type(exc).__name__
@@ -706,6 +713,33 @@ class Session:
                 return entry
             self._record_tree(entry, running.children, state=ok or changed)
             return entry
+
+    def _refuse_unapproved(self, running: _Running) -> None:
+        """Refuse a mutating Action nested in a read-only one the assistant ran (it was never approved).
+
+        The assistant runs a read-only Action at once and drafts a mutating one; a plugin's read-only handler that
+        dispatches a mutating Action through ``host.dispatch`` would skip that approval. The refusal is an
+        :class:`ActionError` for the nested Action, and it fails the outermost one too, so everything rolls back.
+        """
+        outer = self._running[0]
+        if running is outer or outer.via != "assistant" or outer.action.mutates or not running.action.mutates:
+            return
+        outer.refused = (
+            f"{outer.action.type} ran from the assistant without approval, so it can't dispatch "
+            f"{running.action.type}, which changes a network (mark {outer.action.type} as mutates)"
+        )
+        raise ActionError(outer.refused)
+
+    def _unapproved_change(self, running: _Running) -> str | None:
+        """Why a read-only Action the assistant ran must fail: it changed a network (``host.mutate``), or ``None``."""
+        if running.via != "assistant" or running.action.mutates:
+            return None
+        if any(isinstance(u, _Mutated) for u in self._undo[running.undo_mark :]):
+            return (
+                f"{running.action.type} ran from the assistant without approval, so it can't change a network "
+                f"(mark {running.action.type} as mutates)"
+            )
+        return None
 
     def _roll_back(self, running: _Running) -> None:
         """Undo what ``running`` (and every Action nested in it) changed; mark its nested entries rolled back.

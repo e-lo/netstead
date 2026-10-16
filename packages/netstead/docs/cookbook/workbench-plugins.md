@@ -336,6 +336,13 @@ class Rebuild(BaseAction):
 
 `assistant` needs Host API 1.4. Your browser commands are not offered to the assistant.
 
+Declare `mutates` honestly. An Action the assistant runs at once (one without `mutates = True`) can't change a
+network: if its handler dispatches a mutating Action through `host.dispatch`, or calls `host.mutate`, the Action fails
+with an `ActionError` ("ran from the assistant without approval") and everything it did is rolled back. The same
+Action dispatched by the user, Python or a script is unaffected. `host.submit_job` is not checked this way: a job runs
+after the handler has returned, so a plugin that starts one from a read-only Action is trusted not to change a
+network in it.
+
 The tools are built from the **session's** registry (`session.actions`), which holds the core Actions plus every
 loaded plugin's. The module-level `netstead.workbench.actions.action_json_schema` covers core Actions only.
 
