@@ -130,6 +130,7 @@ class CloseNetwork(BaseAction):
     """Close an open network."""
 
     type: Literal["close_network"] = "close_network"
+    mutates: ClassVar[bool] = True  # it throws away unsaved edits
     net_id: str
 
 
@@ -141,16 +142,23 @@ class SetActiveNetwork(BaseAction):
 
 
 class Select(BaseAction):
-    """Select features by natural-language utterance or explicit ids (``net_id`` defaults to active)."""
+    """Select features by natural-language utterance or explicit ids (``net_id`` defaults to active).
+
+    ``query`` is the parsed intent (the selection tool's arguments) for ``utterance``: with it no parser runs, so a
+    replay is exact. The assistant records its selections this way.
+    """
 
     type: Literal["select"] = "select"
     net_id: str | None = None
     component: Component = "roadway"
     utterance: str | None = None
     link_ids: list[int | str] | None = None
+    query: dict[str, Any] | None = None
 
     @model_validator(mode="after")
     def _one_target(self) -> Select:
+        if self.query is not None and self.utterance is None:
+            raise ValueError("query needs the utterance it was parsed from")
         if (self.utterance is None) == (self.link_ids is None):
             raise ValueError("give exactly one of utterance or link_ids")
         return self

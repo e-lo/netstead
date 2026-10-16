@@ -30,7 +30,9 @@ from netstead.llm.secrets import origin_of, settings_secret_problem
 from netstead.spec import DEFAULT_SPEC
 
 __all__ = [
+    "DEFAULT_ASSISTANT_ACTIONS",
     "PROVIDER_ALIASES",
+    "AssistantSettings",
     "LLMEndpointSettings",
     "LLMQualitySettings",
     "LLMSettings",
@@ -278,6 +280,44 @@ class CredentialSettings(_Section):
     keyring_hosts: list[str] = Field(default_factory=list)
 
 
+#: The core Actions the assistant may call by default (Q4 of the P3 plan). Opt-ins (``add_rows``, ``set_setting``,
+#: ``build_network``, ``delete_selection``) are added to ``assistant.actions``; ``open_network`` and
+#: ``close_network`` are never offered.
+DEFAULT_ASSISTANT_ACTIONS: tuple[str, ...] = (
+    "select",
+    "clear_selection",
+    "pin_anchor",
+    "save_selection",
+    "use_selection",
+    "style",
+    "filter",
+    "navigate",
+    "set_active_network",
+    "run_validation",
+    "edit_cells",
+    "delete_rows",
+    "undo_edit",
+    "save_network",
+)
+
+
+class AssistantSettings(_Section):
+    """The natural-language assistant: what it may call, what it remembers, what it may spend.
+
+    It uses the selection provider and model (``select.provider`` / ``select.model``) and the same ``llm.quality``
+    privacy gates. ``plugins`` lists plugin ids whose Actions it may call (none by default).
+    """
+
+    actions: list[str] = Field(default_factory=lambda: list(DEFAULT_ASSISTANT_ACTIONS))
+    plugins: list[str] = Field(default_factory=list)
+    max_steps: int = Field(default=6, ge=1, le=20)
+    history_turns: int = Field(default=6, ge=0, le=20)
+    max_turns: int = Field(default=50, ge=1, le=500)
+    output_token_limit: int = Field(default=1024, ge=128, le=8192)  # per call ("…_tokens" reads as a secret name)
+    context_max_chars: int = Field(default=12000, ge=1000, le=100_000)
+    remote_token_budget: int = Field(default=200_000, ge=0, le=10_000_000)
+
+
 class Settings(_Section):
     """All user-tunable netstead settings."""
 
@@ -289,6 +329,7 @@ class Settings(_Section):
     validation: ValidationSettings = Field(default_factory=ValidationSettings)
     select: SelectSettings = Field(default_factory=SelectSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
+    assistant: AssistantSettings = Field(default_factory=AssistantSettings)
     viz: VizSettings = Field(default_factory=VizSettings)
     app: AppSettings = Field(default_factory=AppSettings)
     credentials: CredentialSettings = Field(default_factory=CredentialSettings)

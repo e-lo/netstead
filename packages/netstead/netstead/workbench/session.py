@@ -243,6 +243,8 @@ class HistoryEntry:
     #: Set on an Action dispatched from inside another Action's handler (``host.dispatch``): the ``seq``
     #: of the Action that dispatched it. Replaying the parent repeats it, so scripts show it as a comment.
     parent_seq: int | None = None
+    #: How the Action arrived when not by the UI, Python or a plugin: ``"assistant"``. Scripts ignore it.
+    via: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """JSON-safe copy."""
@@ -593,10 +595,11 @@ class Session:
 
     do = dispatch
 
-    def dispatch_recorded(self, action: BaseAction | dict[str, Any]) -> HistoryEntry:
+    def dispatch_recorded(self, action: BaseAction | dict[str, Any], *, via: str | None = None) -> HistoryEntry:
         """Apply ``action``, record and publish it, and return the entry (never raises ``ActionError``).
 
-        A ``runs_as_job`` action is submitted as a background job and this call waits for it.
+        A ``runs_as_job`` action is submitted as a background job and this call waits for it. ``via`` marks how
+        it arrived (``"assistant"``) on the outermost entry; an Action nested in another keeps ``None``.
         """
         action = self._coerce(action)
         if action.runs_as_job:
@@ -608,7 +611,7 @@ class Session:
                     "(it would deadlock waiting for the session lock); a plugin does slow work with "
                     "host.submit_job instead"
                 )
-            job = self.submit(action)
+            job = self.submit(action, via=via)
             # Wait OUTSIDE the session lock: the job thread takes it in ``_commit`` and ``_finish``,
             # so waiting while holding it would deadlock. Never call this with the lock held.
             job.wait()
@@ -658,8 +661,11 @@ class Session:
                 self._roll_back(running)
             elif not self._running:
                 self._undo.clear()  # the outermost Action succeeded: nothing left to undo
-            entry = self._entry(action, ok=ok, result=result, error=error, error_type=error_type)
-            if self._running:  # nested: recorded when the outermost Action is, pointing at its parent
+            nested = bool(self._running)
+            entry = self._entry(
+                action, ok=ok, result=result, error=error, error_type=error_type, via=None if nested else via
+            )
+            if nested:  # nested: recorded when the outermost Action is, pointing at its parent
                 self._running[-1].children.append(_Nested(entry, running.children))
                 return entry
             self._record_tree(entry, running.children, state=ok or changed)
@@ -705,10 +711,10 @@ class Session:
             raise ValueError(f"action type {action.type!r} is not registered in this session")
         return action
 
-    def submit(self, action: BaseAction | dict[str, Any]) -> Job:
+    def submit(self, action: BaseAction | dict[str, Any], *, via: str | None = None) -> Job:
         """Start a ``runs_as_job`` action on a background job and return the :class:`Job` at once.
 
-        The history entry is recorded when the job finishes (so ``seq`` follows completion order).
+        The history entry is recorded when the job finishes (so ``seq`` follows completion order), with ``via``.
         """
         action = self._coerce(action)
         if not action.runs_as_job:
@@ -717,11 +723,13 @@ class Session:
         return self.jobs.submit(
             action.type,
             action.job_label(),
-            lambda ctx: self._commit(action, ctx, run(action, ctx)),
-            on_finish=lambda job: self._finish(action, job),
+            lambda ctx: self._commit(action, ctx, run(action, ctx), via=via),
+            on_finish=lambda job: self._finish(action, job, via=via),
         )
 
-    def _commit(self, action: BaseAction, ctx: JobContext, outcome: _Outcome) -> dict[str, Any]:
+    def _commit(
+        self, action: BaseAction, ctx: JobContext, outcome: _Outcome, *, via: str | None = None
+    ) -> dict[str, Any]:
         """Commit ``outcome`` and record the success entry in ONE critical section; return the job result.
 
         The outcome's ``commit`` registers a network, stores issues, or marks edits saved. Doing that and
@@ -732,11 +740,11 @@ class Session:
         """
         with self._lock:
             result = outcome.commit(self)
-            entry = self._record(action, ok=True, result=result, error=None, error_type=None)
+            entry = self._record(action, ok=True, result=result, error=None, error_type=None, via=via)
             self._committed[ctx.job_id] = entry.seq
         return result
 
-    def _finish(self, action: BaseAction, job: Job) -> None:
+    def _finish(self, action: BaseAction, job: Job, *, via: str | None = None) -> None:
         """Job callback: link the committed entry to the job, or record a failure/cancellation entry."""
         with self._lock:
             seq = self._committed.pop(job.id, None)
@@ -748,20 +756,36 @@ class Session:
                     result=job.result if ok else job.payload,
                     error=job.error,
                     error_type=job.error_type,
+                    via=via,
                 ).seq
         self.jobs.update(job, history_seq=seq)
 
     def _record(
-        self, action: BaseAction, *, ok: bool, result: Any, error: str | None, error_type: str | None
+        self,
+        action: BaseAction,
+        *,
+        ok: bool,
+        result: Any,
+        error: str | None,
+        error_type: str | None,
+        via: str | None = None,
     ) -> HistoryEntry:
         """Append and publish a history entry (then a ``state`` event on success). Call with the lock held."""
-        entry = self._entry(action, ok=ok, result=result, error=error, error_type=error_type)
+        entry = self._entry(action, ok=ok, result=result, error=error, error_type=error_type, via=via)
         entry.seq = len(self.history) + 1
         self._append(entry, state=ok)
         return entry
 
     @staticmethod
-    def _entry(action: BaseAction, *, ok: bool, result: Any, error: str | None, error_type: str | None) -> HistoryEntry:
+    def _entry(
+        action: BaseAction,
+        *,
+        ok: bool,
+        result: Any,
+        error: str | None,
+        error_type: str | None,
+        via: str | None = None,
+    ) -> HistoryEntry:
         """A history entry for ``action``, not yet numbered or appended."""
         return HistoryEntry(
             seq=0,
@@ -773,6 +797,7 @@ class Session:
             error_type=error_type,
             result=copy.deepcopy(result),
             ts=time.time(),
+            via=via,
         )
 
     def _record_tree(self, entry: HistoryEntry, children: list[_Nested], *, state: bool) -> None:
@@ -1391,10 +1416,10 @@ class Session:
         """Parse and resolve an utterance WITHOUT the session lock (an LLM call can take seconds).
 
         Takes the lock only to snapshot the network, parser, provider registry, settings and
-        examples. ``None`` (nothing to prepare) for link-id and non-roadway selections, which
-        :meth:`_do_select` handles under the lock. Provider failures raise :class:`ActionError`.
+        examples. ``None`` (nothing to prepare) for link-id, already-parsed (``query``) and non-roadway selections,
+        which :meth:`_do_select` handles under the lock. Provider failures raise :class:`ActionError`.
         """
-        if action.component != "roadway" or action.utterance is None:
+        if action.component != "roadway" or action.utterance is None or action.query is not None:
             return None
         with self._lock:
             self._handle(action.net_id)  # fail fast (no network open) before touching the keyring
@@ -1424,6 +1449,18 @@ class Session:
             intent = SelectionIntent(link_ids=list(action.link_ids or []))
             result = resolve_frames(intent, handle.links_df(), handle.nodes_df())
             self.selection = selection_payload(handle, result)
+            return self.selection
+        if action.query is not None:  # already parsed (the assistant, or a replay of it): no parser, exact
+            handle = self._handle(action.net_id)
+            try:
+                intent = intent_from_payload(action.query, action.utterance)
+            except IntentError as exc:
+                raise ActionError(f"the query is not a valid selection: {exc}") from None
+            except (AttributeError, TypeError):  # a field of the wrong shape (``facility`` not an object)
+                raise ActionError("the query is not a valid selection: a field has the wrong shape") from None
+            result = resolve_frames(intent, handle.links_df(), handle.nodes_df())
+            parsed_by = {"provider": None, "model": None, "mode": "query"}
+            self.selection = selection_payload(handle, result, utterance=action.utterance, parsed_by=parsed_by)
             return self.selection
         if prepared is None:  # called directly rather than through dispatch: parse here, under the lock
             prepared = self._prepare_select(action)

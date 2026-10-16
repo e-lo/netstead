@@ -295,3 +295,20 @@ def test_save_setting_refuses_a_plugin_secret_before_writing(tmp_path, isolated_
     with pytest.raises(SettingsError, match=r"plugins\.foo\.token"):
         save_setting("plugins.foo.token", "MARKER", scope="project", project_dir=tmp_path, environ=isolated_env)
     assert not (tmp_path / "netstead.toml").exists()
+
+
+def test_assistant_settings_defaults():
+    from netstead.config import DEFAULT_ASSISTANT_ACTIONS, Settings
+
+    a = Settings().assistant
+    assert a.actions == list(DEFAULT_ASSISTANT_ACTIONS) and a.plugins == []
+    assert "open_network" not in a.actions and "close_network" not in a.actions
+    assert (a.output_token_limit, a.history_turns, a.remote_token_budget) == (1024, 6, 200_000)
+    assert (a.context_max_chars, a.max_turns, a.max_steps) == (12000, 50, 6)
+
+
+def test_no_assistant_setting_reads_as_a_secret_name():
+    from netstead.config import AssistantSettings
+    from netstead.llm.secrets import is_secret_name
+
+    assert not [name for name in AssistantSettings.model_fields if is_secret_name(name)]

@@ -963,3 +963,49 @@ def test_navigate_record_replays():
 
     snippet = to_python(Navigate(record={"table": "node", "id": 7}))
     assert snippet == "app.do(Navigate(record={'table': 'node', 'id': 7}))"
+
+
+QUERY = {
+    "facility": {"ref": "I 40", "direction": "EB"},
+    "from_anchor": "South Miami Boulevard",
+    "to_anchor": "Airport Boulevard",
+}
+
+
+def test_select_with_a_query_needs_no_parser_and_replays_exactly(opened, monkeypatch):
+    def no_parser():
+        raise AssertionError("a query selection must not build or call a parser")
+
+    monkeypatch.setattr(opened, "_parser_snapshot", no_parser)
+    entry = opened.dispatch_recorded(Select(utterance="I-40 east, Miami to Airport", query=QUERY))
+    assert entry.ok and entry.result["status"] == "resolved" and entry.result["intent"] == QUERY
+    assert entry.result["parsed_by"] == {"provider": None, "model": None, "mode": "query"}
+    assert "query={" in entry.python
+
+
+def test_a_query_needs_its_utterance_and_must_be_a_valid_intent(opened):
+    with pytest.raises(ValueError, match="query needs the utterance"):
+        Select(query={"select_all": True})
+    with pytest.raises(ActionError, match="not a valid selection"):
+        opened.dispatch(Select(utterance="x", query={"facility": {}}))
+    with pytest.raises(ActionError, match="wrong shape"):
+        opened.dispatch(Select(utterance="x", query={"facility": "I 40"}))
+
+
+def test_a_select_without_a_query_copies_as_before(opened):
+    assert opened.dispatch_recorded(Select(utterance=UTTERANCE)).python == f"app.do(Select(utterance={UTTERANCE!r}))"
+
+
+def test_close_network_is_drafted_by_an_assistant():
+    assert CloseNetwork.mutates is True
+
+
+def test_history_entries_say_how_they_came(opened):
+    entry = opened.dispatch_recorded(Style(color_by="lanes"), via="assistant")
+    assert entry.via == "assistant" and entry.to_dict()["via"] == "assistant"
+    assert opened.dispatch_recorded(Style(color_by="none")).via is None
+
+
+def test_a_job_entry_says_how_it_came(opened):
+    entry = opened.dispatch_recorded({"type": "run_validation"}, via="assistant")
+    assert entry.ok and entry.via == "assistant" and opened.history[-1].via == "assistant"
