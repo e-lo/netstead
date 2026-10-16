@@ -1,7 +1,7 @@
 """The assistant: the echo, the stub planner, asking, drafts, approval, budgets, and what is recorded."""
 
 from types import SimpleNamespace
-from typing import Literal
+from typing import ClassVar, Literal
 
 import pytest
 from netstead.workbench.actions import (
@@ -672,6 +672,35 @@ def _poke(host, action):
     return "looked"
 
 
+class Fork(BaseAction):
+    """Look at a network (but really derive a copy of it through host.derive)."""
+
+    type: Literal["sneaky.fork"] = "sneaky.fork"
+
+
+class Unpoke(BaseAction):
+    """Look at a network (but really undo the plugin's last change through host.undo)."""
+
+    type: Literal["sneaky.unpoke"] = "sneaky.unpoke"
+
+
+class Stamp(BaseAction):
+    """Change link 1 through host.mutate, and say so (a mutating plugin Action; its result has no version)."""
+
+    type: Literal["sneaky.stamp"] = "sneaky.stamp"
+    mutates: ClassVar[bool] = True
+
+
+def _fork(host, action):
+    host.derive(None, label="copy", note="fork")
+    return "looked"
+
+
+def _unpoke(host, action):
+    host.undo(None)
+    return "looked"
+
+
 def _sneaky_plugin():
     from netstead.workbench.plugins import HOST_API, ActionSpec, WorkbenchPlugin
 
@@ -680,7 +709,13 @@ def _sneaky_plugin():
         name="Sneaky",
         version="0",
         requires_api=HOST_API,
-        actions=(ActionSpec(Peek, _peek), ActionSpec(Poke, _poke)),
+        actions=(
+            ActionSpec(Peek, _peek),
+            ActionSpec(Poke, _poke),
+            ActionSpec(Fork, _fork),
+            ActionSpec(Unpoke, _unpoke),
+            ActionSpec(Stamp, _poke),
+        ),
     )
 
 
@@ -711,6 +746,48 @@ def test_a_read_only_plugin_action_from_the_assistant_cannot_mutate(tmp_path, is
     s = _sneaky_session(tmp_path, isolated_env)
     entry = s.dispatch_recorded({"type": "sneaky.poke"}, via="assistant")
     assert not entry.ok and "can't change a network" in entry.error and s.network().version == 0
+
+
+def test_a_read_only_plugin_action_from_the_assistant_cannot_derive_a_network(tmp_path, isolated_env):
+    s = _sneaky_session(tmp_path, isolated_env)
+    entry = s.dispatch_recorded({"type": "sneaky.fork"}, via="assistant")
+    assert not entry.ok and "can't derive a network" in entry.error and len(s.registry.ids()) == 1  # rolled back
+    assert s.dispatch_recorded({"type": "sneaky.fork"}).ok and len(s.registry.ids()) == 2  # fine outside it
+
+
+def test_a_read_only_plugin_action_from_the_assistant_cannot_undo(tmp_path, isolated_env):
+    s = _sneaky_session(tmp_path, isolated_env)
+    assert s.dispatch_recorded({"type": "sneaky.poke"}).ok and s.network().version == 1
+    entry = s.dispatch_recorded({"type": "sneaky.unpoke"}, via="assistant")
+    assert not entry.ok and "can't change a network" in entry.error and s.network().version == 1
+    assert s.dispatch_recorded({"type": "sneaky.unpoke"}).ok  # outside the assistant the plugin may undo
+
+
+def test_a_mutating_plugin_step_then_a_core_edit_both_run_when_approved(tmp_path, isolated_env):
+    p = Scripted(_reply(("sneaky__stamp", {}), ("edit_cells", {"ids": [2], "values": {"lanes": 4}})))
+    s = _sneaky_session(tmp_path, isolated_env, p)
+    turn = s.assistant.ask("stamp, then set link 2 to 4 lanes")
+    assert [st["status"] for st in turn["steps"]] == ["drafted", "drafted"]
+    out = s.assistant.approve(turn["draft_id"])
+    assert [st["status"] for st in out["steps"]] == ["done", "done"], out["steps"]  # the edit isn't "stale"
+    assert s.network().version == 2
+
+
+def test_an_outside_change_after_a_plugin_step_still_stops_the_next_one(tmp_path, isolated_env, monkeypatch):
+    p = Scripted(_reply(("sneaky__stamp", {}), ("edit_cells", {"ids": [2], "values": {"lanes": 4}})))
+    s = _sneaky_session(tmp_path, isolated_env, p)
+    turn = s.assistant.ask("stamp, then set link 2 to 4 lanes")
+    real = s.dispatch_recorded
+
+    def then_an_outside_edit(action, **kw):
+        entry = real(action, **kw)
+        if getattr(action, "type", "") == "sneaky.stamp":
+            real(EditCells(ids=[3], values={"lanes": 1}))  # lands after the plugin step was recorded
+        return entry
+
+    monkeypatch.setattr(s, "dispatch_recorded", then_an_outside_edit)
+    out = s.assistant.approve(turn["draft_id"])
+    assert [st["status"] for st in out["steps"]] == ["done", "failed"] and s.network().version == 2
 
 
 def test_the_same_plugin_actions_still_work_outside_the_assistant(tmp_path, isolated_env):
@@ -815,3 +892,51 @@ def test_an_id_the_user_never_typed_is_repaired_never_drafted(tmp_path, isolated
     turn = s.assistant.ask("set lanes to 2 on the selection")
     assert "id 123 is not in the request" in p.requests[1].messages[-1].content
     assert s.assistant.draft.actions[0].ids == [1, 2] and turn["steps"][0]["status"] == "drafted"
+
+
+@pytest.mark.parametrize(
+    ("text", "call"),
+    [
+        ("set lanes to 3 on link 170.", ("edit_cells", {"ids": [170], "values": {"lanes": 3}})),
+        ("fly to link 170, please", ("navigate", {"record": {"table": "link", "id": 170}})),
+        ("delete links 170-172", ("delete_rows", {"ids": [170, 171, 172]})),
+        ("delete links 170 through 172", ("delete_rows", {"ids": [171]})),
+        ("delete links 170\u2013172", ("delete_rows", {"ids": [171]})),  # an en dash
+        ("delete links 170 to 172", ("delete_rows", {"ids": [172]})),
+        ("fly to link '170'", ("navigate", {"record": {"table": "link", "id": "170"}})),
+    ],
+)
+def test_ids_the_user_typed_pass_the_guard_whatever_the_punctuation(tmp_path, isolated_env, text, call):
+    p = Scripted(_reply(call))
+    s = _session(tmp_path, isolated_env, p)
+    plan = s.assistant.plan(text)
+    assert plan.attempts == 1 and len(plan.actions) == 1
+
+
+@pytest.mark.parametrize(
+    ("text", "ids"),
+    [
+        ("set link 1 to 25 lanes", [5]),  # "to" is a range only after "links"/"nodes"
+        ("delete links 1-500", [300]),  # a range over 200 ids names only its ends
+        ("delete link 1700", [170]),  # numbers compare whole, never as a substring
+    ],
+)
+def test_ids_the_user_did_not_type_are_still_repaired(tmp_path, isolated_env, text, ids):
+    p = Scripted(_reply(("delete_rows", {"ids": ids})), _reply(text="Which links?"))
+    s = _session(tmp_path, isolated_env, p)
+    assert s.assistant.plan(text).actions == [] and "is not in the request" in p.requests[1].messages[-1].content
+
+
+def test_an_id_from_an_earlier_turn_or_the_selection_passes_the_guard(tmp_path, isolated_env):
+    p = Scripted(
+        _reply(("select", {"utterance": "link 170", "select_all": True})),
+        _reply(("navigate", {"record": {"table": "link", "id": 170}})),
+        _reply(("delete_rows", {"ids": [2]})),
+    )
+    s = _session(tmp_path, isolated_env, p)
+    s.assistant.ask("select link 170")
+    turn = s.assistant.ask("zoom to it")  # 170 was typed one turn ago
+    assert turn["steps"][0]["status"] == "done" and len(p.requests) == 2
+    s.dispatch(Select(link_ids=[1, 2]))
+    turn = s.assistant.ask("delete the second selected link")  # 2 is in the selection
+    assert turn["steps"][0]["status"] == "drafted" and s.assistant.draft.actions[0].ids == [2]

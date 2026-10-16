@@ -246,10 +246,15 @@ class HistoryEntry:
     parent_seq: int | None = None
     #: How the Action arrived when not by the UI, Python or a plugin: ``"assistant"``. Scripts ignore it.
     via: str | None = None
+    #: Each open network's version just after this entry was recorded (read in the same critical section), so a
+    #: caller can tell its own change from one that landed after it. Not part of :meth:`to_dict`.
+    versions_after: dict[str, int] = field(default_factory=dict, repr=False)
 
     def to_dict(self) -> dict[str, Any]:
-        """JSON-safe copy."""
-        return asdict(self)
+        """JSON-safe copy (without ``versions_after``)."""
+        out = asdict(self)
+        del out["versions_after"]
+        return out
 
 
 @dataclass
@@ -731,12 +736,22 @@ class Session:
         raise ActionError(outer.refused)
 
     def _unapproved_change(self, running: _Running) -> str | None:
-        """Why a read-only Action the assistant ran must fail: it changed a network (``host.mutate``), or ``None``."""
+        """Why a read-only Action the assistant ran must fail, or ``None``.
+
+        It changed a network (``host.mutate``, or ``host.undo``, which reverts through the same path), or it opened
+        a derived copy of one (``host.derive``): each needs the user's approval, so the Action must be ``mutates``.
+        """
         if running.via != "assistant" or running.action.mutates:
             return None
-        if any(isinstance(u, _Mutated) for u in self._undo[running.undo_mark :]):
+        done = self._undo[running.undo_mark :]
+        if any(isinstance(u, _Mutated) for u in done):
             return (
                 f"{running.action.type} ran from the assistant without approval, so it can't change a network "
+                f"(mark {running.action.type} as mutates)"
+            )
+        if any(isinstance(u, _Derived) for u in done):
+            return (
+                f"{running.action.type} ran from the assistant without approval, so it can't derive a network "
                 f"(mark {running.action.type} as mutates)"
             )
         return None
@@ -903,6 +918,7 @@ class Session:
         publish (or ``state()``) is logged, never raised. Raising here would make a job's
         ``_finish`` record the same action a second time.
         """
+        entry.versions_after = {h.id: h.version for h in self.registry}
         self.history.append(entry)
         try:
             self.events.publish({"type": "history", "entry": entry.to_dict()})

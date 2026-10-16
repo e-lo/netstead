@@ -78,19 +78,57 @@ def usage_key(provider: str, model: str | None) -> str:
     return f"{provider}/{model}" if model else provider
 
 
-def _typed_ids_only(calls: tuple[ToolCall, ...], text: str) -> None:
-    """Raise ``ValueError`` (repaired) when a call names a link or node id the user didn't type.
+#: The longest typed range (``links 170-172``) whose ids all count as typed.
+MAX_TYPED_RANGE = 200
+_RANGE = re.compile(
+    r"(?<![\w.])(\d+)\s*(?:-|\u2013|\bthrough\b|\bthru\b)\s*(\d+)\b|\b(?:links|nodes)\s+(\d+)\s+to\s+(\d+)\b"
+)
+_NUMBER = re.compile(r"\d+")
+_TOKEN = re.compile(r"[A-Za-z0-9_]+(?:[.:-][A-Za-z0-9_]+)*")
 
-    Decision 14: the model never invents ids; it uses ``on_selection`` or ids from the request. Found in the
-    walk-through: with nothing selected, qwen2.5:7b drafted ``edit_cells(ids=[123])``.
 
-    >>> _typed_ids_only((ToolCall("navigate", {"record": {"table": "link", "id": 170}}),), "fly to link 170")
-    >>> _typed_ids_only((ToolCall("delete_rows", {"ids": [123]}),), "delete the selected links")
+def known_ids(*texts: str, ids: tuple[Any, ...] = ()) -> frozenset[str]:
+    """The ids ``texts`` name (numbers, small ranges, whole tokens), plus ``ids``, as :func:`_id_key` compares them.
+
+    >>> {"3", "170", "20", "21", "22"} <= known_ids("set lanes to 3 on link 170.", "delete links 20-22")
+    True
+    >>> "170." in known_ids("link 170."), "5" in known_ids("set link 1 to 25"), "7" in known_ids("node 007")
+    (False, False, True)
+    """
+    out: set[str] = set()
+    for text in texts:
+        out |= {str(int(n)) for n in _NUMBER.findall(text)}
+        out |= set(_TOKEN.findall(text))
+        for m in _RANGE.finditer(text):
+            lo, hi = (int(g) for g in (m.group(1, 2) if m.group(1) else m.group(3, 4)))
+            if 0 < hi - lo <= MAX_TYPED_RANGE:
+                out |= {str(n) for n in range(lo, hi + 1)}
+    return frozenset(out | {_id_key(i) for i in ids})
+
+
+def _id_key(value: Any) -> str:
+    """An id as :func:`known_ids` holds it: an integer (or a string of digits) by value, anything else as typed."""
+    if isinstance(value, bool):
+        return str(value)
+    if isinstance(value, int) or (isinstance(value, str) and value.isdigit()):
+        return str(int(value))
+    return str(value)
+
+
+def _typed_ids_only(calls: tuple[ToolCall, ...], known: frozenset[str]) -> None:
+    """Raise ``ValueError`` (repaired) when a call names a link or node id that isn't in ``known``.
+
+    Decision 14: the model never invents ids; it uses ``on_selection`` or ids the user gave. ``known`` is
+    :func:`known_ids` of the request, the user's recent turns and the current selection. Found in the walk-through:
+    with nothing selected, qwen2.5:7b drafted ``edit_cells(ids=[123])``. A heuristic that catches invented ids, not a
+    boundary: every mutating step is still a draft the user reads and approves.
+
+    >>> _typed_ids_only((ToolCall("navigate", {"record": {"table": "link", "id": 170}}),), known_ids("fly to link 170"))
+    >>> _typed_ids_only((ToolCall("delete_rows", {"ids": [123]}),), known_ids("delete the selected links"))
     Traceback (most recent call last):
     ...
     ValueError: call 1 (delete_rows): id 123 is not in the request; use on_selection, or ids the user typed
     """
-    typed = set(re.findall(r"[A-Za-z0-9_.-]+", text))
     for i, call in enumerate(calls, start=1):
         args = call.arguments
         given = list(args.get("ids") or []) if isinstance(args.get("ids"), list) else []
@@ -100,7 +138,7 @@ def _typed_ids_only(calls: tuple[ToolCall, ...], text: str) -> None:
         if isinstance(record, dict) and record.get("id") is not None:
             given.append(record["id"])
         for value in given:
-            if str(value) not in typed:
+            if _id_key(value) not in known:
                 raise ValueError(
                     f"call {i} ({call.name}): id {str(value)[:20]} is not in the request; "
                     "use on_selection, or ids the user typed"
@@ -291,9 +329,12 @@ class Assistant:
             session, provider=endpoint.name, endpoint_local=endpoint.local, registry=endpoint.registry
         )
         checked: list[_Call] = []
+        sel = session.selection_copy()
+        said = [p.content for p in history if p.role == "user"]
+        typed = known_ids(text, *said, ids=tuple(sel["link_ids"]) if sel else ())
 
         def validate(calls: tuple[ToolCall, ...]) -> None:
-            _typed_ids_only(calls, text)
+            _typed_ids_only(calls, typed)
             checked[:] = self._check(calls, specs)
 
         # As make_parser does: a catalog model marked tools = false starts in JSON mode (an injected provider has none).
@@ -515,10 +556,11 @@ class Assistant:
                 step.update(self._step(action, "done" if entry.ok else "failed", entry))
                 failed = not entry.ok
                 result = entry.result if entry.ok else None
-                if isinstance(result, dict) and isinstance(result.get("version"), int) and net is not None:
-                    # The version this step left (from its own result, so an outside edit landing just after it is
-                    # still caught by the next step): the next step's base.
-                    expected[str(result.get("net_id") or net)] = result["version"]
+                target = str(result.get("net_id") or net) if isinstance(result, dict) else net
+                if entry.ok and target is not None and target in entry.versions_after:
+                    # The version this step left, read when it was recorded (so an outside edit landing just after
+                    # it is still caught by the next step), whether or not its result says: the next step's base.
+                    expected[target] = entry.versions_after[target]
             with self._lock:
                 out = asdict(turn) if turn is not None else {"id": draft.turn_id, "steps": []}
             self._publish()
