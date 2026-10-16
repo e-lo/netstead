@@ -462,3 +462,18 @@ def test_every_change_publishes_an_assistant_event(tmp_path, isolated_env):
     s.assistant.reject(turn["draft_id"])
     s.assistant.clear()
     assert [e["type"] for e in seen] == ["assistant", "assistant"] and seen[-1]["assistant"]["turns"] == []
+
+
+def test_a_failed_repair_call_still_charges_the_answer_before_it(tmp_path, isolated_env):
+    from netstead.llm.errors import ProviderUnavailable
+
+    class FailsOnRepair(Scripted):
+        def complete(self, request):
+            if self.requests:
+                raise ProviderUnavailable("ollama", "down")
+            return super().complete(request)
+
+    p = FailsOnRepair(_reply(("style", {"color_by": 3}), tokens=(700, 30)), base_url="https://api.example")
+    s = _session(tmp_path, isolated_env, p)
+    turn = s.assistant.ask("colour")
+    assert turn["error"] == "down" and s.assistant.used == {"ollama/None": 730}

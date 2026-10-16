@@ -163,3 +163,25 @@ def test_the_forced_single_tool_path_still_salvages_or_repairs(fake_api):
     p = _openai(type(fake_api)(), [("count", '{"n": ')], [("count", '{"n": 5}')])
     out = request_tool_call(p, model="m", tool=COUNT, user="count")
     assert out.arguments == {"n": 5} and out.attempts == 2
+
+
+# ---------------------------------------------------------------------- a failed question still reports its tokens
+
+
+def test_a_question_that_never_became_valid_reports_its_tokens():
+    p = Scripted(_calls(("nope", {}), tokens=(30, 4)), _calls(("nope", {}), tokens=(40, 6)))
+    with pytest.raises(StructuredOutputError) as caught:
+        request_tool_calls(p, model="m", tools=(COUNT,), messages=ASK)
+    assert (caught.value.input_tokens, caught.value.output_tokens) == (70, 10)
+
+
+def test_a_failed_repair_call_reports_the_tokens_before_it():
+    from netstead.llm.errors import ProviderUnavailable
+
+    p = Scripted(_calls(("nope", {}), tokens=(30, 4)), ProviderUnavailable("scripted", "down"))
+    with pytest.raises(ProviderUnavailable) as caught:
+        request_tool_calls(p, model="m", tools=(COUNT,), messages=ASK)
+    assert (caught.value.input_tokens, caught.value.output_tokens) == (30, 4) and str(caught.value) == "down"
+    with pytest.raises(InvalidKey) as first:
+        request_tool_calls(Scripted(InvalidKey("scripted", "bad")), model="m", tools=(COUNT,), messages=ASK)
+    assert (first.value.input_tokens, first.value.output_tokens) == (0, 0)

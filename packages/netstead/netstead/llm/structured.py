@@ -14,7 +14,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 from typing import Any, Literal
 
-from .errors import ToolsUnsupported
+from .errors import LLMError, ToolsUnsupported
 from .types import Completion, CompletionRequest, LLMProvider, Message, Tool, ToolCall
 
 __all__ = [
@@ -40,7 +40,17 @@ REPAIR_PROMPT = "Your previous reply was not usable: {error}\nTry again: {how}"
 
 
 class StructuredOutputError(ValueError):
-    """The model never produced a valid tool call within the repair budget."""
+    """The model never produced a valid tool call within the repair budget.
+
+    ``input_tokens`` / ``output_tokens`` are what the failed attempts used (summed; ``None`` when a call didn't
+    report it), so a caller with a budget can count an answer that never became valid.
+    """
+
+    def __init__(self, message: str, input_tokens: int | None = None, output_tokens: int | None = None) -> None:
+        """Keep the message and the token use of every attempt."""
+        super().__init__(message)
+        self.input_tokens = input_tokens
+        self.output_tokens = output_tokens
 
 
 @dataclass(frozen=True)
@@ -272,7 +282,11 @@ def request_tool_calls(
     usage: list[tuple[int | None, int | None]] = []
     error = ""
     for attempt in range(1, max_repairs + 2):
-        completion, mode = _complete_many(provider, replace(base, messages=tuple(history)), tools, mode)
+        try:
+            completion, mode = _complete_many(provider, replace(base, messages=tuple(history)), tools, mode)
+        except LLMError as exc:  # a repair call failed: the attempts before it still cost tokens
+            _add_usage(exc, usage)
+            raise
         usage.append((completion.input_tokens, completion.output_tokens))
         try:
             calls, text = _many(completion, mode)
@@ -292,7 +306,18 @@ def request_tool_calls(
             ]
             continue
         return ToolCallsResult(calls, text, mode, attempt, *_sum_usage(usage))
-    raise StructuredOutputError(f"the model's reply was still invalid after {max_repairs + 1} attempts: {error}")
+    raise StructuredOutputError(
+        f"the model's reply was still invalid after {max_repairs + 1} attempts: {error}", *_sum_usage(usage)
+    )
+
+
+def _add_usage(exc: LLMError, usage: list[tuple[int | None, int | None]]) -> None:
+    """Give ``exc`` the token use of the attempts before it (``input_tokens`` / ``output_tokens``; ``None`` = unknown).
+
+    The provider's error is re-raised as itself (its type and message are what callers show); only the counts are
+    added, so a budget can count a question whose repair call failed. A first call that failed used nothing: 0.
+    """
+    exc.input_tokens, exc.output_tokens = _sum_usage(usage) if usage else (0, 0)  # type: ignore[attr-defined]
 
 
 def _check_calls(
