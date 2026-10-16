@@ -396,8 +396,18 @@ def _severity_counts(enriched: list[dict[str, Any]]) -> list[tuple[str, int]]:
     return [(sev, sev_counts[sev]) for sev in ("error", "warning", "info") if sev_counts.get(sev)]
 
 
-#: Characters that could end a ``<script>`` block (``</script>``, ``<!--``), as JSON string escapes.
-_SCRIPT_UNSAFE = str.maketrans({"<": "\\u003c", ">": "\\u003e"})
+#: Characters that could end a ``<script>`` block (``</script>``, ``<!--``), start an HTML
+#: comment/entity (``&``), or break a ``<script>`` body as a line terminator a JS parser
+#: treats specially (U+2028, U+2029) — escaped as JSON string escapes.
+_SCRIPT_UNSAFE = str.maketrans(
+    {
+        "<": "\\u003c",
+        ">": "\\u003e",
+        "&": "\\u0026",
+        "\u2028": "\\u2028",
+        "\u2029": "\\u2029",
+    }
+)
 
 
 def _script_json(value: Any) -> str:

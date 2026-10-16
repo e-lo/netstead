@@ -146,8 +146,9 @@ map with an **edit log** for triaging findings and replaying the fixes in Python
 - **Map and validation report pages keep data values inside their JSON.** The
   per-map payload is embedded in a `<script>` block; a finding message or a
   street name holding `</script>` could end that block and run as markup. The
-  payload now escapes `<` and `>` (`netstead.map`, used by the offline report
-  and the Workbench's report download).
+  payload now escapes `<`, `>`, `&`, and the U+2028/U+2029 line separators
+  (`netstead.map`, used by the offline report and the Workbench's report
+  download).
 
 ### Known limitations
 
