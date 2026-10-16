@@ -181,7 +181,7 @@ const NEVER = new Set(["open_network", "close_network"]); // never offered (tool
 // know (status.warnings: a typo, an uninstalled plugin) are listed; changing a switch drops them, since the server
 // refuses a list that still holds one.
 export function registerAssistantSettings() {
-  registerSection("assistant", "Assistant", "assistant-panel", () => renderAssistantSettings());
+  registerSection("assistant-tools", "Assistant: actions & plugins", "assistant-panel", () => renderAssistantSettings());
 }
 
 async function renderAssistantSettings(focusKey = null) {

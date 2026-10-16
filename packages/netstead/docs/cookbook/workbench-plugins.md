@@ -320,9 +320,9 @@ def retag(host: Host, action: Retag) -> list[dict]:
 ## Your Actions in the assistant
 
 A plugin's Actions are offered to the natural-language assistant only when the user turns the plugin on in
-**Settings → Assistant** (`assistant.plugins = ["<your id>"]`). Then each of your Actions is a tool, named
-`<id>__<name>` (a dot is not allowed in a tool name), with its JSON schema, and the first paragraph of its docstring
-as the description: write it for a model as well as a person. Actions with `mutates = True` are drafted for the user
+**Settings → Assistant: actions & plugins** (`assistant.plugins = ["<your id>"]`). Then each of your Actions is a
+tool, named `<id>__<name>` (a dot is not allowed in a tool name), with its JSON schema, and the first paragraph of its
+docstring as the description: write it for a model as well as a person. Actions with `mutates = True` are drafted for the user
 to approve; the others run at once, recorded with `via: "assistant"`.
 
 To keep an Action out even when the plugin is on (it needs a file path, or it only makes sense from your panel):

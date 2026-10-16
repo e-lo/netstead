@@ -534,7 +534,9 @@ def test_the_history_strip_marks_the_assistants_entries_but_scripts_do_not():
 
 def test_the_assistant_settings_section_is_registered():
     js = (JS_DIR / "assistant.js").read_text()
-    assert 'registerSection("assistant"' in js and '"assistant.plugins"' in js and '"assistant.actions"' in js
+    assert 'registerSection("assistant-tools"' in js and '"assistant.plugins"' in js and '"assistant.actions"' in js
+    # Not "assistant": that id is the generated form's own section (assistant.* settings), which must stay reachable.
+    assert 'registerSection("assistant",' not in js
     assert "status.warnings" in js  # unknown names in the allowlists are listed
     assert 'id="assistant-panel"' in (STATIC_DIR / "index.html").read_text()
     assert "registerAssistantSettings()" in (JS_DIR / "main.js").read_text()
