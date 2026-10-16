@@ -1,6 +1,6 @@
 # Netstead Workbench — unified front-end UX design
 
-Status: **accepted; P0, P1a, P1b implemented** (#211, #212); P2 implemented (PR pending); P3 next · Date: 2026-10-02 · Owner: netstead
+Status: **accepted; P0, P1a, P1b, P2 implemented** (#211, #212, #225); P3 next · Date: 2026-10-02 · Owner: netstead
 
 > **Amended by the [Workbench plugins design](2026-10-05-workbench-plugins-design.md) (PR #217):**
 > P2's `netstead.changes` package (NetworkChange, DraftCard, ProjectCard export) moves out of core into
@@ -352,7 +352,7 @@ P2 plan: [2026-10-07-workbench-p2-plan.md](2026-10-07-workbench-p2-plan.md): val
 (live warnings, cascading deletes, undo, Save a copy), built on plugins Parts 1 and 2. ProjectCard editing is the cards
 plugin's ([scope](2026-10-07-cards-plugin-scope.md)).
 
-Next: the P0 implementation plan (`docs/design/2026-10-02-workbench-p0-plan.md`).
+Next: P3, selection verification and the NL assistant (no plan yet).
 
 ## Verification
 - **Unit tests:**

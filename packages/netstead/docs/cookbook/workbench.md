@@ -273,9 +273,11 @@ Edits change the network you opened **in memory**. Nothing is written to disk un
 - **Fix…** opens the same editor from an issue, or from right-clicking a record that has one.
 - **Delete…** (Details, the record editor, or **Delete record…** in the palette) first runs a dry run and says
   what goes with the record: a link takes its lanes and time-of-day rows (`Delete 1 link row? This also deletes
-  2 lane rows, 1 link_tod row.`). Confirm to delete. A node a link still uses cannot be deleted: the refusal
-  names the links. The delete runs against the network version the dry run planned on: if anything changed the
-  network in between, it is refused and you confirm again.
+  2 lane rows, 1 link_tod row. Undo is in the Edits panel.`). Confirm to delete. A node a link still uses cannot
+  be deleted: the refusal names the links. The delete runs against the network version the dry run planned on:
+  if another Workbench action (or a plugin's or your Python's `mutate`) changed the network in between, it is
+  refused and you confirm again. A replayed delete has no dry run: it deletes the ids and whatever depends on
+  them in the network it runs against.
 - **Adding rows** is Python or the API only: `app.do(AddRows(table="node", rows=[{...}]))`.
 - Each edit is one action in the session history (so "copy as Python" replays it), bumps the network's version,
   and is listed in the **Edits** panel with what it changed.
@@ -483,4 +485,5 @@ uv run netstead select "I-40 EB between South Miami Boulevard and Airport Boulev
 Everything you do in the browser is a typed action: open, select, style, navigate, change a setting.
 The strip at the bottom shows the last action as Python. **Session as Python** shows the whole session as
 a script you can copy. Networks added from Python via `Session.add_network` aren't recorded as actions
-and so aren't replayed in that script.
+and so aren't replayed in that script. A replayed delete has no dry run: it deletes the ids and whatever depends on
+them in the network it runs against, which may be more (or fewer) rows than you confirmed in the browser.

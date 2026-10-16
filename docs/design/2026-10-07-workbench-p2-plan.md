@@ -1,6 +1,6 @@
 # Workbench P2 (Validate + Edit) Implementation Plan
 
-Status: **implemented (PR pending)** (branch `feat/workbench-p2-impl`) · Date: 2026-10-07 · Refreshed: 2026-10-10 · Implemented: 2026-10-11 · Owner: Elizabeth Sall
+Status: **implemented** (#225) · Date: 2026-10-07 · Refreshed: 2026-10-10 · Implemented: 2026-10-11 · Owner: Elizabeth Sall
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

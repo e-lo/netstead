@@ -1,6 +1,6 @@
 # Workbench Plugins, Part 2 (front-end slots): Implementation Plan
 
-Status: **implemented (PR pending)** (open questions decided 2026-10-10) · Date: 2026-10-08 · Owner: Elizabeth Sall · Parent: [Workbench plugins design](2026-10-05-workbench-plugins-design.md)
+Status: **implemented** (#223; open questions decided 2026-10-10) · Date: 2026-10-08 · Owner: Elizabeth Sall · Parent: [Workbench plugins design](2026-10-05-workbench-plugins-design.md)
 
 > **Implementation note (2026-10-10).** Tasks 0–19 are done on `feat/workbench-plugins-p2`, with two review
 > rounds folded in (batch 1's fixes after Task 6, batch 2's as "Part R" before Task 19). Where the code differs

@@ -138,8 +138,18 @@ Two rules keep "copy session as Python" working:
   valid Python (a numpy array, a datetime without an import, an open file) makes the copied script
   fail.
 
-The startup checks enforce the namespacing, the single `Literal`, importability and unique class
-names. The `repr` rule is yours to keep.
+Two optional class variables shape the replay line:
+
+- **`replay_omits: ClassVar[frozenset[str]]`** names fields the replay line leaves out. Use it for a
+  guard that only means something in the live session, such as `expected_version`: a version planned
+  in the browser is stale in a script run later, so the replay plans again. Core `DeleteRows` omits
+  its `expected_version` this way. A name that isn't one of the Action's fields is refused at install.
+- **`replay_overrides: ClassVar[dict[str, Any]]`** forces field values in the replay line, applied
+  after the defaults are dropped. Core `BuildNetwork` sets `{"approved": True}`, so a replayed build
+  doesn't stop to ask for the approval the user already gave.
+
+The startup checks enforce the namespacing, the single `Literal`, importability, unique class
+names and `replay_omits` field names. The `repr` rule is yours to keep.
 
 ### The plugin object
 
