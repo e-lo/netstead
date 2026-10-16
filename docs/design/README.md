@@ -88,7 +88,7 @@ Records on a branch go here, then move to the tables above when they merge.
 
 | Record | Kind | Branch | Status | Notes |
 |---|---|---|---|---|
-| [Workbench P3: selection verification + NL assistant](2026-10-16-workbench-p3-plan.md) | plan | `docs/workbench-p3-plan` | proposed | 28 tasks in two PRs: P3a (Tasks 0–14: pinning, saved selections, export, Style/Filter/Navigate) and P3b (Tasks 15–27: the assistant). 11 open questions at the top, each with a recommendation |
+| [Workbench P3: selection verification + NL assistant](2026-10-16-workbench-p3-plan.md) | plan | `docs/workbench-p3-plan` | accepted | 28 tasks in two PRs: P3a (Tasks 0–14: pinning, saved selections, export, Style/Filter/Navigate) and P3b (Tasks 15–27: the assistant). All 11 open questions decided 2026-10-16 |
 
 ## Gaps to close
 

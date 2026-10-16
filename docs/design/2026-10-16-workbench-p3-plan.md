@@ -1,6 +1,6 @@
 # Workbench P3 (Selection verification + NL assistant) Implementation Plan
 
-Status: **proposed** · Date: 2026-10-16 · Owner: Elizabeth Sall
+Status: **accepted** (decisions recorded 2026-10-16) · Date: 2026-10-16 · Owner: Elizabeth Sall
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or
 > superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -8,15 +8,17 @@ Status: **proposed** · Date: 2026-10-16 · Owner: Elizabeth Sall
 > **This plan has two parts, one PR each** (open question Q1). **P3a** (Tasks 0–14): selection verification, saved
 > selections, export, and the `Style` / `Filter` / `Navigate` Actions. **P3b** (Tasks 15–27): the natural-language
 > assistant and its plugin opt-in. P3b starts from `main` once P3a has merged: the assistant's tools include P3a's
-> Actions. Every open question below carries a recommendation; the tasks are written to those recommendations, and the
-> few places a different answer would change a task say so.
+> Actions. Every open question below was decided on 2026-10-16, each as recommended; the tasks are written to those
+> decisions.
 
 ## Open questions (each with a recommendation)
 
-Answer these before Task 0. A one-word "yes" to a recommendation is enough.
+All eleven are decided (2026-10-16). Q3, Q4, Q5 and Q6 were confirmed explicitly by the user; the rest take the
+plan's recommendation. Each question carries its decision line.
 
 **Q1. Split P3 into P3a and P3b?** The scope comes to 28 tasks (0–27), well past the ~20 a single PR should carry.
 *Recommendation: split.*
+**Decided 2026-10-16:** split into P3a and P3b (the recommendation).
 - **P3a** = Tasks 0–14. It is useful alone: a modeller can pin an ambiguous anchor, save and export a selection, and
   colour, size, filter and navigate the map, all recorded and replayable.
 - **P3b** = Tasks 15–27. It needs P3a's Actions as tools, and it carries all the LLM and privacy risk, so it gets its
@@ -25,6 +27,7 @@ Answer these before Task 0. A one-word "yes" to a recommendation is enough.
 
 **Q2. Which selection-verification surface: a dock panel in Inspect, a separate workspace, or both?**
 *Recommendation: one **Selection** dock panel in every workspace* (`workspace: "*"`, like Details, Issues and Edits).
+**Decided 2026-10-16:** a Selection dock panel in every workspace (the recommendation).
 - The selection is shared state. A plugin's Edit workspace acts on it (the cards plugin's "New change ▸ …"), so it
   should stay visible there too.
 - A separate workspace would hide the anchors exactly when you need them next to the map.
@@ -34,6 +37,8 @@ Answer these before Task 0. A one-word "yes" to a recommendation is enough.
 
 **Q3. Where does the assistant live: a dock panel, the command bar, or both?**
 *Recommendation: both, sharing one conversation.*
+**Decided 2026-10-16:** both, confirmed by the user: an Assistant dock panel plus the header box as a command
+bar, sharing one conversation.
 - An **Assistant** dock panel (`workspace: "*"`) holds the conversation, the pending draft (Approve / Reject /
   Edit…), the token use and the privacy note.
 - The header utterance box becomes the **command bar**. Enter still runs **Select**, unchanged (a deterministic
@@ -43,6 +48,7 @@ Answer these before Task 0. A one-word "yes" to a recommendation is enough.
 - Keeping Enter = Select means no existing behaviour, test or habit changes.
 
 **Q4. Which Actions are exposed to the LLM by default?** *Recommendation:*
+**Decided 2026-10-16:** the default exposure table below, confirmed by the user.
 
 | Default | Actions | How they run |
 |---|---|---|
@@ -57,6 +63,7 @@ Answer these before Task 0. A one-word "yes" to a recommendation is enough.
 
 **Q5. Draft-approval UX: one Action at a time, or a multi-step plan?**
 *Recommendation: a multi-step plan, approved as a whole.*
+**Decided 2026-10-16:** a multi-step plan approved as a whole, confirmed by the user.
 - A reply is an ordered list of steps.
 - The read-only steps **before** the first mutating step run at once.
 - The first mutating step, and every step after it, make up **one draft**, because later steps may depend on the
@@ -70,6 +77,7 @@ Answer these before Task 0. A one-word "yes" to a recommendation is enough.
 
 **Q6. Is the conversation persisted, or session-only?**
 *Recommendation: session-only.*
+**Decided 2026-10-16:** session-only, confirmed by the user.
 - It is held in memory and gone on restart. **Clear** empties it.
 - At most `assistant.max_turns` (50) turns are kept, and the last `assistant.history_turns` (6) are sent back to the
   model.
@@ -79,6 +87,7 @@ Answer these before Task 0. A one-word "yes" to a recommendation is enough.
 
 **Q7. Do plugin Actions get NL exposure by default?**
 *Recommendation: no. Opt in per plugin.*
+**Decided 2026-10-16:** plugins opt in (the recommendation).
 - The opt-in is `assistant.plugins = ["cards"]`, or a switch per plugin in Settings → Assistant.
 - An opted-in plugin's Actions follow the same rule as core's: `mutates` means drafted, anything else runs at once.
 - A plugin can keep an Action out even when the plugin is opted in, with `assistant: ClassVar[bool] = False`
@@ -92,6 +101,7 @@ Answer these before Task 0. A one-word "yes" to a recommendation is enough.
 - *Two calls:* the assistant passes a sub-utterance to `Select`, and the selection parser calls the model again.
 - *One call:* the assistant fills the selection intent itself, and the session records
   `Select(utterance=..., query={...})`.
+- **Decided 2026-10-16:** one LLM call (the recommendation).
 - *Recommendation: one call*, through a new optional `Select.query` (the parser's own tool arguments).
   - Replay needs no model and is exact.
   - It halves latency and cost.
@@ -101,6 +111,7 @@ Answer these before Task 0. A one-word "yes" to a recommendation is enough.
 
 **Q9. Do tool results go back to the model (an agent loop), or is each turn a one-shot plan?**
 *Recommendation: a one-shot plan per turn in P3.*
+**Decided 2026-10-16:** no tool-result loop; a one-shot plan per turn (the recommendation).
 - The model sees the scoped grounding and the conversation, and answers with text and/or tool calls.
 - Our code runs or drafts the calls, then writes the echo.
 - A follow-up question is a new turn, carrying our echo, not raw results.
@@ -111,6 +122,7 @@ Answer these before Task 0. A one-word "yes" to a recommendation is enough.
 - An agent loop (for example "find the busiest link, then zoom to it") is a later follow-up.
 
 **Q10. Which UI controls dispatch `Style` / `Filter` / `Navigate`?** *Recommendation:*
+**Decided 2026-10-16:** colour-by, width-by and the filter row dispatch Actions (the recommendation).
 - The Layers panel's **colour-by** (already a `style` action), the new **width-by**, and the new **filter** row
   dispatch their Actions, so they are recorded and shared.
 - The zoom buttons and zoom commands stay per-tab view changes, unrecorded, as they are today. A camera move per tab
@@ -119,6 +131,7 @@ Answer these before Task 0. A one-word "yes" to a recommendation is enough.
   history). The table gains a **Filtered** scope that applies the recorded `Filter`.
 
 **Q11. Token and cost limits?** *Recommendation:*
+**Decided 2026-10-16:** the token limits as proposed (the recommendation).
 - `assistant.max_output_tokens = 1024` per call.
 - `assistant.context_max_chars = 12000` for grounding.
 - `llm.quality.max_repairs` (default 1) bounds repair calls.
