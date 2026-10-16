@@ -64,6 +64,16 @@
         <div class="row"><select id="colorby"><option value="none">None (single color)</option></select></div>
         <div class="row" id="ramp-row" style="display:none"><span class="lbl">Ramp</span>
           <select id="ramp"><option>YlOrRd</option><option>Blues</option><option>Viridis</option></select></div>
+        <h4 style="margin-top:14px">Filter links</h4>
+        <div class="row"><select id="flt-col" aria-label="Filter column"></select>
+          <select id="flt-op" aria-label="Filter operator">
+            <option value="eq">=</option><option value="ne">≠</option><option value="lt">&lt;</option>
+            <option value="lte">≤</option><option value="gt">&gt;</option><option value="gte">≥</option>
+            <option value="contains">contains</option><option value="isnull">is empty</option><option value="notnull">is not empty</option>
+          </select>
+          <input id="flt-val" aria-label="Filter value" size="8"></div>
+        <div class="row"><button class="mini" id="flt-apply">Apply</button><button class="mini ghost" id="flt-clear">Clear</button>
+          <span id="flt-count" class="diag" role="status"></span></div>
         <div id="plugin-layers"></div>
       </div>
       <div class="panel" id="settings-panel">
@@ -74,6 +84,8 @@
           <label class="sw"><input type="checkbox" id="tg-direction"><span></span></label></div>
         <div class="row"><span class="lbl">Show legend</span>
           <label class="sw"><input type="checkbox" id="tg-legend"><span></span></label></div>
+        <div class="row"><span class="lbl">Width by</span>
+          <select id="widthby" aria-label="Width links by"><option value="none">Lane count</option></select></div>
       </div>
       <div id="legend"></div>
       <div id="boxsel"></div>
@@ -89,6 +101,7 @@
             <option value="selection">Selection</option>
             <option value="highlighted">Highlighted</option>
             <option value="related">Related</option>
+            <option value="filtered">Filtered</option>
           </select>
           <button class="mini ghost" id="tbl-hops" title="Follow keys one more step">Expand a hop</button></div>
         <div id="tbl-grid-wrap"><table id="tbl-grid"></table></div>

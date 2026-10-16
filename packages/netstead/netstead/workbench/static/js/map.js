@@ -3,7 +3,7 @@ import { $, esc } from "./dom.js";
 import { createClickGuard } from "./gesture.js";
 import { layerRegistry } from "./layers.js";
 import { widthForLanes } from "./netbuf.js";
-import { buildLinkColors } from "./palette.js";
+import { buildLinkColors, buildLinkWidths, dimUnmatched } from "./palette.js";
 import { commandContext, frozenCopy } from "./commands.js";
 import { CORE } from "./slots.js";
 import { activeSelection, store } from "./store.js";
@@ -20,7 +20,7 @@ const TOOLTIP_STYLE = { background: "#11151a", color: "#e6e8ec", fontSize: "12px
 
 let map = null, overlay = null;
 let handlers = { onLinkClick() {}, onNodeClick() {}, onBoxSelect() {}, onContextMenu() {}, onLayerError(e) { console.error(e); } };
-let colorCache = { key: null, colors: null };
+let colorCache = { key: null, colors: null }, widthCache = { key: null, widths: null };
 let labelsShown = true;
 // Whether the current style's layers exist (style.load fired). Not map.isStyleLoaded(): that also waits for
 // every tile source, so a label toggle right after a basemap swap would be dropped.
@@ -61,19 +61,34 @@ function wireContextMenu() {
 
 export function resizeSoon() { if (map) setTimeout(() => map.resize(), 60); }
 
+// Per-vertex link colours; links the recorded Filter does not match are dimmed. The Set is replaced (never changed)
+// when the filter or the network changes, so it can key the cache.
+let filterSeq = 0, lastFilterIds = null;
 function linkColors(s) {
   const st = s.server.style;
-  const key = JSON.stringify([s.netKey, st.color_by, st.ramp, st.colors.links, s.prop && s.prop.name]);
-  if (colorCache.key !== key) colorCache = { key, colors: buildLinkColors(s.net, st, s.prop) };
+  if (s.filterIds !== lastFilterIds) { lastFilterIds = s.filterIds; filterSeq++; }
+  const key = JSON.stringify([s.netKey, st.color_by, st.ramp, st.colors.links, s.prop && s.prop.name, filterSeq]);
+  if (colorCache.key !== key) {
+    const colors = buildLinkColors(s.net, st, s.prop);
+    colorCache = { key, colors: s.filterIds ? dimUnmatched(colors, s.net, s.attrs.link_id, s.filterIds) : colors };
+  }
   return colorCache.colors;
 }
 
-function baseLayers(net, style, colors) {
+// Per-vertex widths for `style.width_by`, or null (the lane-count widths).
+function linkWidths(s) {
+  const st = s.server.style, wp = s.widthProp;
+  const key = JSON.stringify([s.netKey, st.width_by, wp && wp.name, wp && wp.netKey]);
+  if (widthCache.key !== key) widthCache = { key, widths: buildLinkWidths(s.net, st, wp) };
+  return widthCache.widths;
+}
+
+function baseLayers(net, style, colors, widths) {
   const layers = [];
   if (style.show.links) {
     const props = { id: "links", _pathType: "open",
       data: { length: net.L.count, startIndices: net.linkStart,
-        attributes: { getPath: { value: net.linkPositions, size: 2 }, getWidth: { value: net.linkWidths, size: 1 },
+        attributes: { getPath: { value: net.linkPositions, size: 2 }, getWidth: { value: widths || net.linkWidths, size: 1 },
                       getColor: { value: colors, size: 4 } } },
       widthUnits: "pixels", widthMinPixels: 1, capRounded: true, jointRounded: true,
       pickable: true, autoHighlight: true, highlightColor: [255, 140, 59, 235],
@@ -157,7 +172,7 @@ function setLabels(show) {
 // Core's layer groups, bottom to top (layers.js CORE_ORDER). Each returns what render() used to push, or nothing.
 function registerCoreLayers() {
   const reg = (id, factory) => layerRegistry.register(CORE, "roadway", id, factory);
-  reg("base", c => baseLayers(c.net, c.style, linkColors(c.state)));
+  reg("base", c => baseLayers(c.net, c.style, linkColors(c.state), linkWidths(c.state)));
   reg("selection", c => (c.style.show.selection && c.selection ? selectionLayers(c.net, c.style, c.selection) : null));
   reg("related", c => (c.related ? relatedLayers(c.net, c.related) : null));
   reg("highlighted", c => (c.highlights.size ? idPathLayer(c.net, "highlighted", c.highlights, [...HIGHLIGHT_COLOR, 255], 2.5) : null));

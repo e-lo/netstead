@@ -1,4 +1,5 @@
-// Layers / map-settings panels and the legend. Every control change is a `style` action.
+// Layers / map-settings panels and the legend. Every control change is a recorded Action: `style` (colour, width,
+// switches) or `filter` (Layers → Filter links).
 import { dispatch } from "./api.js";
 import { $, esc, toast } from "./dom.js";
 import { hasOffset } from "./map.js";
@@ -29,6 +30,7 @@ export function wirePanels() {
   bl.onclick = () => open("l");
   $("colorby").onchange = e => style({ color_by: e.target.value });
   $("ramp").onchange = e => style({ ramp: e.target.value });
+  $("widthby").onchange = e => style({ width_by: e.target.value });
   for (const [id, , patch] of SWITCHES) $(id).onchange = e => style(patch(e.target.checked));
   for (const [id, key] of COLORS) $(id).onchange = e => style({ colors: { [key]: hex2rgb(e.target.value) } });
   if (!hasOffset()) $("tg-offset").disabled = true;
@@ -51,15 +53,55 @@ export function renderPluginLayers(list, hidden) {
     : "";
 }
 
+const option = (value, text) => Object.assign(document.createElement("option"), { value, textContent: text });
+
+// Colour by any property; width by a numeric one (or the lane count); filter on any.
 export function populateColorby(props) {
-  const sel = $("colorby");
+  const sel = $("colorby"), width = $("widthby"), col = $("flt-col"), picked = col.value;
   sel.innerHTML = '<option value="none">None (single color)</option>';
+  width.innerHTML = '<option value="none">Lane count</option>';
+  col.innerHTML = "";
   for (const p of props) {
-    const o = document.createElement("option");
-    o.value = p.name; o.dataset.kind = p.kind;
-    o.textContent = p.name + (p.kind === "continuous" ? " (num)" : "");
+    const o = option(p.name, p.name + (p.kind === "continuous" ? " (num)" : ""));
+    o.dataset.kind = p.kind;
     sel.appendChild(o);
+    if (p.kind === "continuous") width.appendChild(option(p.name, p.name));
+    col.appendChild(option(p.name, p.name));
   }
+  if (props.some(p => p.name === picked)) col.value = picked;
+}
+
+// A filter value as typed: a number when it reads as one, nothing for the empty / not-empty tests, else the text.
+export function filterValue(op, raw) {
+  if (op === "isnull" || op === "notnull") return null;
+  return raw !== "" && !Number.isNaN(Number(raw)) ? Number(raw) : raw;
+}
+
+export function wireFilter() {
+  const apply = () => {
+    const op = $("flt-op").value, col = $("flt-col").value;
+    if (!col) { toast("Open a network with link columns to filter."); return; }
+    dispatch({ type: "filter", where: [{ col, op, val: filterValue(op, $("flt-val").value.trim()) }] })
+      .catch(e => toast(e.message));
+  };
+  $("flt-apply").onclick = apply;
+  $("flt-val").onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); apply(); } };
+  $("flt-op").onchange = e => { $("flt-val").disabled = e.target.value === "isnull" || e.target.value === "notnull"; };
+  $("flt-clear").onclick = () => dispatch({ type: "filter", where: null }).catch(e => toast(e.message));
+}
+
+// The active network's recorded filter: its match count, and its one condition shown in the controls (a filter set
+// from Python or replayed reads the same as one applied here). Several conditions show as a count only.
+export function renderFilter(server) {
+  const f = server && server.filters && server.filters[server.active];
+  $("flt-count").textContent = f ? (f.count == null ? "filter no longer applies" : `${f.count.toLocaleString()} links match`) : "";
+  $("flt-clear").disabled = !f;
+  if (!f || f.where.length !== 1 || $("layers-panel").contains(document.activeElement)) return;
+  const [c] = f.where;
+  if ([...$("flt-col").options].some(o => o.value === c.col)) $("flt-col").value = c.col;
+  $("flt-op").value = c.op;
+  $("flt-val").value = c.val == null ? "" : Array.isArray(c.val) ? c.val.join(", ") : String(c.val);
+  $("flt-val").disabled = c.op === "isnull" || c.op === "notnull";
 }
 
 export function syncControls(st) {
@@ -67,6 +109,11 @@ export function syncControls(st) {
   $("ramp").value = st.ramp;
   const opt = $("colorby").selectedOptions[0];
   $("ramp-row").style.display = opt && opt.dataset.kind === "continuous" ? "flex" : "none";
+  const width = st.width_by || "none";
+  if (width !== "none" && ![...$("widthby").options].some(o => o.value === width)) {
+    $("widthby").appendChild(option(width, width)); // not loaded yet (properties arrive after the state)
+  }
+  $("widthby").value = width;
   for (const [id, get] of SWITCHES) $(id).checked = get(st);
   for (const [id, key] of COLORS) $(id).value = rgb2hex(st.colors[key]);
 }

@@ -1,12 +1,13 @@
 // Data-table view: a server-paged/sorted/filtered grid linked both ways to the map. A row click focuses
 // the record (never a recorded selection: see linking.js); the scope menu filters to the selection, the
-// highlights, or the records related to them; related rows are tinted; FK cells jump to their target.
+// highlights, the records related to them, or the links the recorded Filter matches; related rows are tinted; FK
+// cells jump to their target.
 import { dispatch, getJSON, netPath, postJSON } from "./api.js";
 import { openContextMenu } from "./ctxmenu.js";
 import { $, esc, toast } from "./dom.js";
 import { cellAction, cellEditable, cellSample, cellWarnings } from "./editmodel.js";
 import { recordIssues } from "./issuelist.js";
-import { clampOffset, coerceId, pageOffset, rowMarks, rowsRequest, scopeHint } from "./linking.js";
+import { clampOffset, coerceId, combinedFilter, pageOffset, rowMarks, rowsRequest, scopeHint } from "./linking.js";
 import { resizeSoon } from "./map.js";
 import { renderRelatedBadges } from "./related.js";
 import { activeSelection, store } from "./store.js";
@@ -146,8 +147,10 @@ function toggleSort(col) {
 
 function query() {
   const s = store.get();
-  const filter = Object.entries(TBL.filters).map(([col, val]) => ({ col, op: "contains", val }));
-  return { offset: TBL.offset, limit: TBL.limit, sort: TBL.sort, dir: TBL.dir, filter: filter.length ? filter : null,
+  const columnFilters = Object.entries(TBL.filters).map(([col, val]) => ({ col, op: "contains", val }));
+  const viewFilter = s.server && s.server.filters ? s.server.filters[s.server.active] : null;
+  return { offset: TBL.offset, limit: TBL.limit, sort: TBL.sort, dir: TBL.dir,
+    filter: combinedFilter(columnFilters, s.tableScope, TBL.name, viewFilter),
     ...rowsRequest({ scope: s.tableScope, table: TBL.name, selection: activeSelection(s), highlights: s.highlights,
       focus: s.focus, hops: s.relHops }) };
 }

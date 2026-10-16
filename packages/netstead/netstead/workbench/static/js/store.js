@@ -20,10 +20,12 @@ export const store = createStore({
   basemap: null,              // MapLibre style URL from /api/config (shared with the wizard's area map)
   netKey: null,               // "<id>@<version>" of the decoded active network
   net: null, attrs: null, properties: [], prop: null,
+  widthProp: null,            // the `style.width_by` column's values (per tab, derived from the server's style)
+  filterIds: null,            // Set of link ids the active network's recorded Filter matches (per tab, derived), or null
   highlightMode: false, highlights: new Set(), marker: null,
   focus: null,                // {table, id, from: "map" | "table"}: the one record last clicked (per tab, never recorded)
   related: null,              // last /related answer for focus + highlights (related.js)
-  tableScope: "all",          // all | selection | highlighted | related
+  tableScope: "all",          // all | selection | highlighted | related | filtered
   relHops: 1,                 // related-records depth ("Expand a hop" toggles 1 <-> 2)
   hiddenLayers: new Set(),    // titled overlay layers switched off in Layers → Overlays (per tab, never recorded)
   layerSeq: 0,                // bumped when a layer registers or goes, so Overlays and the map redraw

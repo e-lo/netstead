@@ -118,6 +118,7 @@
   .cands { margin:4px 0 0 14px; display:flex; flex-wrap:wrap; gap:4px; align-items:center; } .cands .mini { margin-left:0; }
   .anc .pin { color:var(--accent); font-size:11px; }
   .label .mini { text-transform:none; letter-spacing:normal; margin-left:6px; }
+  #sel-export { flex-wrap:wrap; gap:6px; } #sel-export select { min-width:0; flex:1 1 9em; }
   .empty { color:var(--muted); }
   #details table { width:100%; border-collapse:collapse; }
   #details td { padding:3px 6px; border-bottom:1px solid var(--edge); font-size:12px; vertical-align:top; }

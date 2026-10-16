@@ -17,7 +17,7 @@ import { onHistoryEntry, onLLMEvent, onLLMJob, refreshLLM, renderLLMPanel, wireL
 import { layerRegistry } from "./layers.js";
 import { fitBbox, fitLinks, fitNetwork, flyToNode, initMap, render, setBasemap } from "./map.js";
 import { decodeNetwork } from "./netbuf.js";
-import { populateColorby, renderLegend, renderPluginLayers, syncControls, wirePanels } from "./panels.js";
+import { populateColorby, renderFilter, renderLegend, renderPluginLayers, syncControls, wireFilter, wirePanels } from "./panels.js";
 import { commandReporters } from "./pluginload.js";
 import { loadPlugins, reportPluginError } from "./plugins.js";
 import { renderPluginsPanel, wirePluginsPanel } from "./pluginspanel.js";
@@ -64,15 +64,44 @@ async function loadColorProperty() {
   if (now.server.style.color_by === name && now.netKey === netKey) store.set({ prop: { ...p, netKey } });
 }
 
+// `style.width_by`'s column, fetched like the colour property (kept per decoded network version).
+async function loadWidthProperty() {
+  const { server, net, netKey, widthProp } = store.get();
+  const name = server.style.width_by || "none";
+  if (!net || name === "none") { if (widthProp) store.set({ widthProp: null }); return; }
+  if (widthProp && widthProp.name === name && widthProp.netKey === netKey) return;
+  const p = await getJSON(netPath(server.active, `property/${encodeURIComponent(name)}`));
+  const now = store.get();
+  if (now.server.style.width_by === name && now.netKey === netKey) store.set({ widthProp: { ...p, netKey } });
+}
+
+// The active network's recorded Filter as a set of matching link ids (for the map's dimming), refetched when the
+// filter or the network version changes; null without a filter.
+let filterKey = null;
+async function loadFilterIds() {
+  const { server, net, netKey } = store.get();
+  const f = net && server.filters ? server.filters[server.active] : null;
+  const key = f ? `${netKey}|${JSON.stringify(f.where)}` : null;
+  if (key === filterKey) return;
+  filterKey = key;
+  if (!key) { store.set({ filterIds: null }); return; }
+  const j = await getJSON(netPath(server.active, "filter"));
+  if (filterKey === key) store.set({ filterIds: j.where ? new Set(j.link_ids) : null });
+}
+
 async function onState(server) {
   store.set({ server });
-  try { await loadActiveNetwork(); await loadColorProperty(); } catch (e) { toast(e.message); }
+  try {
+    await loadActiveNetwork();
+    await Promise.all([loadColorProperty(), loadWidthProperty(), loadFilterIds()]);
+  } catch (e) { toast(e.message); }
 }
 
 function onNavigate(ev) {
   if (ev.bbox) fitBbox(ev.bbox);
   else if (ev.to_network) fitNetwork();
   else if (ev.to_selection) { const sel = activeSelection(store.get()); if (sel) fitLinks(sel.link_ids); }
+  else if (ev.record) { if (ev.record.table === "link") fitLinks([ev.record.id]); else flyToNode(ev.record.id); }
 }
 
 function onLinkClick(linkId) {
@@ -154,12 +183,22 @@ function onSelectionMaybeChanged(sel) {
   refreshRows({ restart: true });
 }
 
+// The table's Filtered scope lists what the recorded filter matches: reload when that filter changes.
+let lastFilterKey = null;
+function onFilterMaybeChanged(s) {
+  const f = s.server.filters && s.server.filters[s.server.active];
+  const key = JSON.stringify(f ? [s.server.active, f.where] : null);
+  if (key === lastFilterKey) return;
+  lastFilterKey = key;
+  if (s.tableScope === "filtered") refreshRows({ restart: true });
+}
+
 function wireStore() {
-  store.subscribe(["server", "net", "prop", "highlights", "marker", "focus", "related", "hiddenLayers", "layerSeq"], () => render());
+  store.subscribe(["server", "net", "prop", "widthProp", "filterIds", "highlights", "marker", "focus", "related", "hiddenLayers", "layerSeq"], () => render());
   store.subscribe(["layerSeq", "hiddenLayers"], s => renderPluginLayers(layerRegistry.toggleable(), s.hiddenLayers));
   store.subscribe(["server"], s => {
     renderHeader(s.server); syncControls(s.server.style); renderSelectionPanel(s);
-    onSelectionMaybeChanged(activeSelection(s));
+    onSelectionMaybeChanged(activeSelection(s)); renderFilter(s.server); onFilterMaybeChanged(s);
   });
   store.subscribe(["server", "prop"], s => renderLegend(s.server.style, s.prop));
   store.subscribe(["properties"], s => { populateColorby(s.properties); syncControls(s.server.style); });
@@ -199,7 +238,7 @@ async function boot() {
   registerEditCommands();
   wirePalette({ onError: whenError, onRunError: runError });
   wireActionForm();
-  wireStore(); wirePanels(); wireSide(); wireTable(); wireHeader(); wireHistory(); wireMapButtons(); wireJobs(); wireWizard(); wireLLM(); wireSettings(); wireIssues(); wireEdits(); wireSelectionPanel();
+  wireStore(); wirePanels(); wireFilter(); wireSide(); wireTable(); wireHeader(); wireHistory(); wireMapButtons(); wireJobs(); wireWizard(); wireLLM(); wireSettings(); wireIssues(); wireEdits(); wireSelectionPanel();
   registerIssueLayer(); // after wireStore: the layerSeq subscription that renders Overlays is in place
   registerSection("llm", "Language models", "llm-panel", () => renderLLMPanel());
   registerSection("plugins", "Plugins", "plugins-panel", () => renderPluginsPanel());

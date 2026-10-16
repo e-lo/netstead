@@ -463,3 +463,23 @@ def test_the_selection_panel_escapes_what_the_server_sends():
     assert "${esc(x.name)}" in js and "${esc(r.detail)}" in js and "node ${esc(c.nodeId)}" in js
     assert 'aria-label="${esc(`Pin the ${r.role} anchor to node ${c.nodeId}`)}' in js  # the label escaped whole
     assert "window.confirm(`Delete the saved selection" in js  # Delete asks first
+
+
+def test_layers_panel_has_width_by_and_a_filter_row():
+    html = (STATIC_DIR / "index.html").read_text()
+    for el in (
+        'id="widthby"',
+        'id="flt-col"',
+        'id="flt-op"',
+        'id="flt-val"',
+        'id="flt-apply"',
+        'id="flt-clear"',
+        'id="flt-count"',
+        'value="filtered"',
+    ):
+        assert el in html
+    panels = (JS_DIR / "panels.js").read_text()
+    assert 'type: "filter"' in panels and "width_by: e.target.value" in panels  # both are recorded Actions
+    main = (JS_DIR / "main.js").read_text()
+    assert "ev.record" in main and 'netPath(server.active, "filter")' in main
+    assert "combinedFilter(" in (JS_DIR / "table.js").read_text()
