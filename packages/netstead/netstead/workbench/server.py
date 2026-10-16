@@ -19,6 +19,7 @@ from .routes.edit import edit_router
 from .routes.io import io_router
 from .routes.llm import llm_router
 from .routes.network import network_router
+from .routes.select import select_router
 from .session import Session
 
 __all__ = ["STATIC_DIR", "build_app", "is_loopback_host"]
@@ -120,6 +121,7 @@ def build_app(session: Session) -> FastAPI:
     app.include_router(io_router(session))
     app.include_router(network_router(session))
     app.include_router(edit_router(session))
+    app.include_router(select_router(session))
     # Key writes are refused on an exposed bind: there is no auth beyond the loopback guard (design T10).
     app.include_router(llm_router(session, allow_key_writes=is_loopback_host(session.settings.app.host)))
     _mount_plugins(app, session)

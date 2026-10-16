@@ -6,7 +6,7 @@ import json
 import logging
 from typing import Any
 
-from netstead.select.emit import to_fragment, to_projectcard
+from netstead.select.emit import load_schema, to_fragment, to_projectcard
 from netstead.select.intent import SelectionIntent
 from netstead.select.parse import intent_from_payload, payload_from_intent
 from netstead.select.result import AnchorMatch, SelectionResult
@@ -14,7 +14,15 @@ from netstead.viz.styling import json_scalar
 
 from .registry import NetworkHandle
 
-__all__ = ["MAX_CANDIDATES", "facility_forms", "payload_facility_forms", "selection_payload", "unparsed_payload"]
+__all__ = [
+    "MAX_CANDIDATES",
+    "export_selection",
+    "facility_forms",
+    "fragment_problems",
+    "payload_facility_forms",
+    "selection_payload",
+    "unparsed_payload",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +61,8 @@ def payload_facility_forms(payload: dict[str, Any]) -> dict[str, Any] | None:
         return None
 
 
-def _payload_facility_forms(payload: dict[str, Any]) -> dict[str, Any]:
+def _result_from_payload(payload: dict[str, Any]) -> SelectionResult:
+    """The resolved :class:`SelectionResult` a payload describes (its ids, its query's intent, its anchors' nodes)."""
     if payload.get("intent") is not None:
         intent = intent_from_payload(payload["intent"], payload.get("utterance") or "")
     else:
@@ -64,14 +73,41 @@ def _payload_facility_forms(payload: dict[str, Any]) -> dict[str, Any]:
         )
         for a in [*(payload.get("anchors") or []), *(payload.get("anchors_unplaced") or [])]
     }
-    result = SelectionResult(
+    return SelectionResult(
         "resolved",
         intent,
         link_ids=list(payload["link_ids"]),
         from_match=matches.get("from"),
         to_match=matches.get("to"),
     )
-    return facility_forms(result)
+
+
+def _payload_facility_forms(payload: dict[str, Any]) -> dict[str, Any]:
+    return facility_forms(_result_from_payload(payload))
+
+
+def export_selection(payload: dict[str, Any], *, what: str, form: str) -> dict[str, Any]:
+    """A resolved selection payload as a GMNS fragment or a ProjectCard facility object, in ``form``.
+
+    Raises ``ValueError`` when the payload is not resolved, or for ``form="query"`` on a selection made by ids.
+    """
+    if payload.get("status") != "resolved":
+        raise ValueError("only a resolved selection can be exported; pin its ambiguous anchors first")
+    if form == "query" and payload.get("intent") is None:
+        raise ValueError("a selection made by ids has no query form; export the resolved form")
+    result = _result_from_payload(payload)
+    content = to_fragment(result, form=form) if what == "fragment" else to_projectcard(result, form=form)
+    return json.loads(json.dumps(content, default=json_scalar))
+
+
+def fragment_problems(fragment: dict[str, Any]) -> list[str] | None:
+    """Why ``fragment`` fails the GMNS selection schema (``[]`` when valid; ``None`` without ``jsonschema``)."""
+    try:
+        from jsonschema.validators import validator_for  # the [nl] extra
+    except ImportError:
+        return None
+    schema = load_schema()
+    return [error.message for error in validator_for(schema)(schema).iter_errors(fragment)]
 
 
 def selection_payload(
