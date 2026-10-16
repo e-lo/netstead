@@ -111,6 +111,20 @@ def test_a_save_belongs_to_its_source_not_just_its_network_id(session, rdu_sourc
     assert session.dispatch(UseSelection(name="two"))["link_ids"] == [1, 2]
 
 
+def test_exporting_a_save_whose_network_is_open_from_another_source_exports_it_unchecked(session, rdu_source):
+    session.dispatch(Select(link_ids=[1, 2]))
+    session.dispatch(SaveSelection(name="two"))
+    session.dispatch(CloseNetwork(net_id="leavenworth"))
+    session.dispatch(OpenNetwork(source=rdu_source, net_id="leavenworth"))  # another file, the same id
+    found = session.saved_selection_now("two")
+    assert found is not None
+    sel, notes = found
+    assert sel["link_ids"] == [1, 2] and sel["source"] == SRC  # as saved, not resolved on the other file
+    assert len(notes) == 1
+    why = r"'leavenworth' is open from another source \(.*rdu.*\)"
+    assert re.fullmatch(why + r": exported 'two' as saved \(version 0\), without checking it", notes[0])
+
+
 def test_a_save_keeps_what_using_and_exporting_need_not_the_whole_payload(session):
     sel = session.dispatch(Select(utterance="Ski Hill Drive"))
     session.dispatch(SaveSelection(name="ski"))

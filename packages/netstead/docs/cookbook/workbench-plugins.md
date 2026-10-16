@@ -396,7 +396,7 @@ export function activate(wb) {
 
 | Member | What it gives you |
 |---|---|
-| `wb.id`, `wb.hostApi` | This plugin's id, and the plugin API this netstead provides (`"1.2"`). |
+| `wb.id`, `wb.hostApi` | This plugin's id, and the plugin API this netstead provides (`"1.3"`). |
 | `wb.api.fetch(path, init)`, `wb.api.get(path)`, `wb.api.post(path, body)` | `fetch`, and JSON helpers, scoped to your router: `"/count"` is `/api/plugins/<id>/count`. A path must start with `/` and, once resolved (`%2e%2e` and `\` count as `..` and `/`), stay under that prefix; other hosts are refused. |
 | `wb.api.dispatch(action)` | Posts any Action (yours, another plugin's, core's) to `POST /api/actions` and resolves to its result. |
 | `wb.store.get()`, `wb.store.subscribe(keys, fn)` | The server state (`/api/state`), and a listener that fires when any of `keys` changes. Keys may be dotted (`"plugins.hello"`). `get()` and the listener's argument are a frozen copy: changing it throws (changes go through Actions). Returns an unsubscribe function. |

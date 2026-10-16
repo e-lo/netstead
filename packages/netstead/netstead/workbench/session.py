@@ -123,6 +123,8 @@ logger = logging.getLogger(__name__)
 MAX_SAVED_SELECTIONS = 50
 #: Filters whose matching link ids are kept, per network version: a slider or type-as-you-go must not grow memory.
 FILTER_CACHE_SIZE = 8
+#: Module-level because the filter maps live on network handles (which expose no lock) and are read outside the
+#: session lock (``filter_ids``); held only around dict operations, never across a query.
 _FILTER_CACHE_LOCK = threading.Lock()
 
 DEFAULT_STYLE: dict[str, Any] = {
@@ -1614,6 +1616,9 @@ class Session:
             payload, now = self._resolve_again(handle, saved), handle.version
         if payload is None:
             raise ValueError(f"none of the links saved as {name!r} exist any more")
+        # The version is the only marker a saved selection keeps, so an undo followed by a new edit (which lands on
+        # the saved version number with other data) goes without this note. The selection is still resolved on
+        # the network as it is now; only the note is missed.
         if now == saved["version"]:
             return payload, []
         return payload, [

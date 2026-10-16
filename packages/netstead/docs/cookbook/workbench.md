@@ -343,9 +343,9 @@ you opened, local or remote, is never written to, and a copy inside the source f
 
 - The **Selection** panel (every workspace) shows the selection's status, its anchors and diagnostics.
 - An **ambiguous** selection lists the other nodes each anchor could be, also drawn on the map as rings
-  (**Layers → Overlays → Anchor candidates**). Click one to pin the anchor to it, or **Pin node N** to keep the
-  resolver's own choice; the selection is resolved again. **Unpin** goes back to the resolver's choice. In Python:
-  `app.do(PinAnchor(role="to", node_id=60))`.
+  (**Layers → Overlays → Anchor candidates**). To pin the anchor to one, click one in the Selection panel, or
+  **Pin node N** to keep the resolver's own choice; the selection is resolved again. **Unpin** goes back to the
+  resolver's choice. In Python: `app.do(PinAnchor(role="to", node_id=60))`.
 - A pin that resolves nothing (a node off the facility, or one with no path to the other anchor) is refused, and
   the selection you were checking stays as it was.
 - A pin is part of the selection's query, so it survives an edit and a saved selection's reuse. When an edit takes
@@ -366,9 +366,9 @@ you opened, local or remote, is never written to, and a copy inside the source f
 
 - **Map display → Width by** sizes links by a numeric column (`app.do(Style(width_by="lanes"))`).
 - **Layers → Filter links** dims every link that doesn't match (`app.do(Filter(where=[{"col": "lanes", "op": "gte",
-  "val": 2}]))`); the table's **Filtered** scope lists the matching rows. `Filter(where=None)` clears it. Filters are
-  fields and operators only, never free text or SQL: `contains` matches a plain substring, and each value is read as
-  its column's type (`"2"` on `lanes` is 2; a value the column can't hold is refused).
+  "val": 2}]))`); the table's **Filtered** scope lists the matching links (the filter applies to links: on the node
+  table it lists every node). `Filter(where=None)` clears it. Filters are fields and operators only, never free
+  text or SQL: `contains` matches a plain substring, and each value is read as its column's type (`"2"` on `lanes` is 2; a value the column can't hold is refused).
 - `app.do(Navigate(record={"table": "link", "id": 170}))` flies the map to one link or node.
 
 ## Language models (natural-language selection)
