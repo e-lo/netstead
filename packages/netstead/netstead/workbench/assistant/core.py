@@ -29,7 +29,16 @@ from ..redact import describe_error
 from .echo import describe, model_echo, result_detail, result_text
 from .grounding import assistant_disclosure, build_grounding
 from .stub import StubPlanner
-from .tools import ToolSpec, ToolView, action_type_of, to_action, tool_specs, tool_view, warn_allowlist
+from .tools import (
+    ToolSpec,
+    ToolView,
+    action_type_of,
+    lenient_arguments,
+    to_action,
+    tool_specs,
+    tool_view,
+    warn_allowlist,
+)
 
 if TYPE_CHECKING:
     from netstead.llm import ProviderRegistry
@@ -182,6 +191,7 @@ class Plan:
     grounded: bool = False  # the tiers its context carried (network content; project notes)
     notes: bool = False
     attempts: int = 1  # model calls made (1 + repairs)
+    ignored: list[str] = field(default_factory=list)  # keys a read-only call carried that were left out (names only)
 
 
 @dataclass(frozen=True)
@@ -241,6 +251,7 @@ class _Turn:
     ts: float = field(default_factory=time.time)
     grounded: bool = False  # the tiers the answer's context carried (see _Past)
     notes: bool = False
+    ignored: list[str] = field(default_factory=list)  # see Plan.ignored: shown under the answer
 
 
 class _Metered:
@@ -332,6 +343,17 @@ class Assistant:
         sel = session.selection_copy()
         said = [p.content for p in history if p.role == "user"]
         typed = known_ids(text, *said, ids=tuple(sel["link_ids"]) if sel else ())
+        ignored: list[str] = []
+
+        def prepare(calls: tuple[ToolCall, ...]) -> tuple[ToolCall, ...]:
+            ignored.clear()  # each reply (a repair included) is prepared afresh
+            out = []
+            for i, call in enumerate(calls, start=1):
+                spec = specs.get(call.name)
+                args, dropped = lenient_arguments(spec, call.arguments) if spec else (call.arguments, [])
+                ignored.extend(f"call {i} ({call.name}): ignored {d}" for d in dropped)
+                out.append(ToolCall(call.name, args) if dropped else call)
+            return tuple(out)
 
         def validate(calls: tuple[ToolCall, ...]) -> None:
             _typed_ids_only(calls, typed)
@@ -347,6 +369,7 @@ class Assistant:
             system=ASSISTANT_PROMPT,
             context=grounding.context,
             validate=validate,
+            prepare=prepare,
             json_mode=known is not None and not known.tools,
             max_repairs=settings.llm.quality.max_repairs,
             max_tokens=settings.assistant.output_token_limit,
@@ -366,6 +389,7 @@ class Assistant:
             grounding.grounded,
             grounding.notes,
             result.attempts,
+            list(ignored),
         )
 
     def _check(self, calls: tuple[ToolCall, ...], specs: dict[str, ToolSpec]) -> list[_Call]:
@@ -433,7 +457,7 @@ class Assistant:
             finally:
                 if endpoint is not None and meter is not None:
                     self._charge(endpoint, meter.tokens)  # a failed answer still cost its tokens
-            reply.text, reply.grounded, reply.notes = plan.text, plan.grounded, plan.notes
+            reply.text, reply.grounded, reply.notes, reply.ignored = plan.text, plan.grounded, plan.notes, plan.ignored
             try:
                 self._run(plan.calls, reply)
             except Exception as exc:  # boundary: steps already run stay listed (and in history); the rest are not

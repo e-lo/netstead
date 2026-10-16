@@ -30,6 +30,7 @@ __all__ = [
     "ToolView",
     "action_type_of",
     "allowlist_problems",
+    "lenient_arguments",
     "offerable",
     "to_action",
     "tool_name",
@@ -65,6 +66,9 @@ _ON_SELECTION = {
     "description": "Act on the links of the current selection (table link) instead of listing ids.",
 }
 _DRAFTED = " (drafted for the user to approve)"
+#: Read-only tools whose every field means "unchanged" when left out (a partial update), so a malformed optional field
+#: may be dropped as well as an unknown one (:func:`lenient_arguments`).
+_PARTIAL_UPDATE = frozenset({"style"})
 #: The select tool's extra field: the selection's name in the user's words (``Select.utterance``).
 _UTTERANCE = {"type": "string", "description": "A short phrase naming the selection, in the user's words."}
 
@@ -211,6 +215,45 @@ def _flat(schema: dict[str, Any]) -> dict[str, Any]:
         return node
 
     return walk(schema)
+
+
+def lenient_arguments(spec: ToolSpec, arguments: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    """``arguments`` without the keys a read-only tool may ignore, and what was left out (key names, never values).
+
+    Small models add keys a tool doesn't have (``style(show=…)``, ``navigate(link=…)``). For a read-only tool these
+    are dropped: an unknown key always, and a malformed optional field too on a partial update (``style``, where a
+    field left out means "unchanged"). A mutating tool is never touched: what a draft would do is exactly what the
+    model asked, or the call goes back for repair. Nor is a call left with no arguments at all (it goes back too).
+
+    >>> spec = ToolSpec(Tool("navigate", "", {"properties": {"to_selection": {"type": "boolean"}}}), "navigate",
+    ...                 False, None)
+    >>> lenient_arguments(spec, {"to_selection": True, "zoom": 3})
+    ({'to_selection': True}, ['zoom (not a field of navigate)'])
+    """
+    if spec.mutates:
+        return arguments, []
+    schema = spec.tool.input_schema
+    props = schema.get("properties", {})
+    required = set(schema.get("required", ()))
+    kept: dict[str, Any] = {}
+    ignored: list[str] = []
+    for key, value in arguments.items():
+        name = str(key)[:40]
+        if key not in props:
+            ignored.append(f"{name} (not a field of {spec.tool.name})")
+        elif spec.action_type in _PARTIAL_UPDATE and key not in required and not _fits(value, props[key]):
+            ignored.append(f"{name} (not valid)")
+        else:
+            kept[key] = value
+    if not ignored or (arguments and not kept):
+        return arguments, []
+    return kept, ignored
+
+
+def _fits(value: Any, schema: dict[str, Any]) -> bool:
+    from jsonschema import Draft202012Validator  # the [nl] extra, as in netstead.llm.structured
+
+    return Draft202012Validator(schema).is_valid(value)
 
 
 def to_action(

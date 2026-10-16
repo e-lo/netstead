@@ -940,3 +940,56 @@ def test_an_id_from_an_earlier_turn_or_the_selection_passes_the_guard(tmp_path, 
     s.dispatch(Select(link_ids=[1, 2]))
     turn = s.assistant.ask("delete the second selected link")  # 2 is in the selection
     assert turn["steps"][0]["status"] == "drafted" and s.assistant.draft.actions[0].ids == [2]
+
+
+# ---------------------------------------------------------------------- leniency: read-only calls only
+
+
+def test_a_read_only_call_with_an_invented_field_is_accepted_without_it(tmp_path, isolated_env):
+    p = Scripted(_reply(("style", {"color_by": "lanes", "show": {"lanes": True}, "colors": "crimson", "glow": 1})))
+    s = _session(tmp_path, isolated_env, p)
+    turn = s.assistant.ask("colour by lanes")
+    assert len(p.requests) == 1 and turn["steps"][0]["status"] == "done"  # no repair round
+    assert s.history[-1].python == "app.do(Style(color_by='lanes'))"  # the copied script never sees them
+    assert turn["ignored"] == [
+        "call 1 (style): ignored show (not valid)",
+        "call 1 (style): ignored colors (not valid)",
+        "call 1 (style): ignored glow (not a field of style)",
+    ]
+    assert "crimson" not in " ".join(turn["ignored"])  # key names only, never a value
+
+
+def test_an_unknown_key_on_navigate_is_dropped_but_a_missing_target_is_still_repaired(tmp_path, isolated_env):
+    p = Scripted(
+        _reply(("navigate", {"link": 170, "to_network": False})),
+        _reply(("navigate", {"record": {"table": "link", "id": 170}})),
+    )
+    s = _session(tmp_path, isolated_env, p)
+    plan = s.assistant.plan("fly to link 170")
+    assert "give exactly one of" in p.requests[1].messages[-1].content
+    assert plan.actions == [Navigate(record={"table": "link", "id": 170})] and plan.ignored == []  # the repair's
+
+
+def test_a_call_left_with_nothing_is_repaired_not_accepted_empty(tmp_path, isolated_env):
+    p = Scripted(_reply(("style", {"show": {"lanes": True}})), _reply(("style", {"color_by": "lanes"})))
+    s = _session(tmp_path, isolated_env, p)
+    plan = s.assistant.plan("colour by lanes")
+    assert plan.attempts == 2 and plan.actions == [Style(color_by="lanes")]
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        ("edit_cells", {"on_selection": True, "values": {"lanes": 2}, "why": "x"}),
+        ("delete_rows", {"on_selection": True, "confirm": True}),
+        ("undo_edit", {"steps": 2}),
+        ("save_network", {"output_dir": "out", "output_format": "parquet", "name": "x", "overwrite": True}),
+    ],
+)
+def test_a_mutating_call_with_an_extra_key_is_never_drafted_as_is(tmp_path, isolated_env, call):
+    p = Scripted(_reply(call), _reply(text="I can't."))
+    s = _session(tmp_path, isolated_env, p)
+    s.dispatch(Select(link_ids=[1, 2]))
+    turn = s.assistant.ask("do it to the selection")
+    assert len(p.requests) == 2 and "Additional properties are not allowed" in p.requests[1].messages[-1].content
+    assert s.assistant.draft is None and turn["steps"] == [] and turn["ignored"] == []

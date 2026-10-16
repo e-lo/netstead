@@ -13,6 +13,7 @@ from netstead.workbench.assistant.grounding import (
     TRUNCATED,
     assistant_disclosure,
     build_grounding,
+    column_meanings,
     fact_paths,
 )
 
@@ -167,3 +168,31 @@ def test_a_network_closed_meanwhile_does_not_break_the_build(session, monkeypatc
     monkeypatch.setattr(session, "state", state_then_close)
     state = _state(build_grounding(session, provider="ollama", endpoint_local=True).context)
     assert state["networks"][0]["id"] == "leavenworth" and state["link_columns"] == []
+
+
+def test_column_meanings_are_schema_and_go_to_every_provider(session):
+    remote = _state(build_grounding(session, provider="anthropic", endpoint_local=False).context)
+    local = _state(build_grounding(session, provider="ollama", endpoint_local=True).context)
+    meanings = remote["column_meanings"]
+    for g in (remote, local):
+        assert len(json.dumps(g)) < 12000  # inside the default assistant.context_max_chars, with room to spare
+    assert meanings == local["column_meanings"] == column_meanings(remote["link_columns"])  # one tier: always sent
+    assert meanings["free_speed"].startswith("the speed limit: Free flow speed")
+    assert meanings["lanes"].startswith("the number of lanes: Number of permanent lanes")
+    assert set(meanings) <= set(remote["link_columns"]) and "osm_way_id" not in meanings  # not a GMNS field
+    assert "column_meanings" in ALWAYS_SENT and "column_meanings" not in GROUNDED
+
+
+def test_column_meanings_come_from_the_spec_never_from_the_network():
+    """The same words for any network: no value of a table can reach them (only a column's name picks one)."""
+    assert column_meanings(["lanes", "free_speed"]) == column_meanings(["free_speed", "lanes", "secret_col"])
+    assert column_meanings(["secret_col"]) == {}
+    assert all("<" not in v and not v.startswith(("Optional", "Required")) for v in column_meanings(
+        ["dir_flag", "length", "capacity", "allowed_uses", "parking"]).values())  # fmt: skip
+    assert all(len(v) <= 90 + len("the number of lanes: ") + 1 for v in column_meanings(["lanes", "directed"]).values())
+
+
+def test_column_meanings_give_way_before_the_column_names(session):
+    session.dispatch({"type": "set_setting", "key": "assistant.context_max_chars", "value": 1500})
+    state = _state(build_grounding(session, provider="anthropic", endpoint_local=False).context)
+    assert "column_meanings" not in state and "lanes" in state["link_columns"]

@@ -73,6 +73,12 @@ function turnElement(turn, draft) {
     text.textContent = turn.error ? `⚠ ${turn.error}` : turn.text; // model text: never markup
     el.appendChild(text);
   }
+  if ((turn.ignored || []).length) { // keys a read-only step carried that it doesn't have: left out, said here
+    const note = document.createElement("div");
+    note.className = "as-text diag";
+    note.textContent = `Left out: ${turn.ignored.join("; ")}`;
+    el.appendChild(note);
+  }
   const editable = draft && draft.turn_id === turn.id && draft.status === "pending";
   let drafted = 0;
   for (const r of stepRows(turn)) el.appendChild(stepElement(r, editable && r.status === "drafted" ? drafted++ : null));

@@ -240,6 +240,7 @@ def request_tool_calls(
     system: str = "",
     context: str = "",
     validate: Callable[[tuple[ToolCall, ...]], object] | None = None,
+    prepare: Callable[[tuple[ToolCall, ...]], tuple[ToolCall, ...]] | None = None,
     json_mode: bool = False,
     max_repairs: int = 1,
     max_tokens: int = 1024,
@@ -261,6 +262,7 @@ def request_tool_calls(
         system: The per-call part of the system prompt.
         context: The stable, cacheable part of the system prompt (sent first).
         validate: Extra check on the whole list of calls; raise ``ValueError`` to trigger a repair.
+        prepare: Rewrites each reply's calls before they are checked (e.g. dropping keys a tool may ignore).
         json_mode: Start in JSON mode (for models known to lack tool calling).
         max_repairs: Extra calls allowed after an invalid reply.
         max_tokens: Output token cap per call.
@@ -290,6 +292,8 @@ def request_tool_calls(
         usage.append((completion.input_tokens, completion.output_tokens))
         try:
             calls, text = _many(completion, mode)
+            if prepare is not None:
+                calls = prepare(calls)
             _check_calls(calls, text, by_name, max_calls, completion.bad_tool_calls if mode == "tools" else ())
             if validate is not None:
                 validate(calls)

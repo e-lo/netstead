@@ -15,11 +15,14 @@ ones, so the context and the note always describe the same call.
 
 from __future__ import annotations
 
+import functools
 import json
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from netstead.llm.context import assistant_context, find_project_context, read_capped
+from netstead.spec import DEFAULT_SPEC, load_gmns_spec
 from netstead.viz.styling import styleable_columns
 
 from ..paths import allowed_roots
@@ -38,6 +41,7 @@ __all__ = [
     "Grounding",
     "assistant_disclosure",
     "build_grounding",
+    "column_meanings",
     "fact_paths",
 ]
 
@@ -47,12 +51,19 @@ MAX_CATEGORY_VALUES = 10
 #: Marks a context that left something out to fit ``assistant.context_max_chars``.
 TRUNCATED = "[truncated] (some details were left out to fit assistant.context_max_chars)"
 #: The grounded extras in ``facts``, in the order they give way when the state is too long: (where, key).
-_SHED = ((None, "categories"), (None, "saved_selection_names"), ("selection", "link_ids"), ("validation", "codes"))
+_SHED = (
+    (None, "categories"),
+    (None, "saved_selection_names"),
+    ("selection", "link_ids"),
+    ("validation", "codes"),
+    (None, "column_meanings"),
+)
 #: Each fact the state can carry (``key`` or ``key.sub``), and the words the privacy note uses for it. A test checks
 #: that the note names exactly the facts a context carries, tier by tier.
 ALWAYS_SENT = {
     "networks": "the open networks' ids, names and sizes",
     "link_columns": "the active network's column names",
+    "column_meanings": "what the GMNS spec says those columns mean",
     "selection.status": "the selection's status",
     "selection.links": "the selection's size",
     "saved_selections": "how many selections are saved",
@@ -106,9 +117,45 @@ def _tiers(registry: ProviderRegistry, provider: str, endpoint_local: bool) -> t
     return grounded, notes
 
 
+#: The user's words for a GMNS column, where the spec's own words differ (small models guess ``speed_limit``).
+_PLAIN_WORDS = {"free_speed": "the speed limit", "lanes": "the number of lanes", "facility_type": "the road type"}
+#: The most characters of one column's meaning.
+_MEANING_CHARS = 90
+
+
+@functools.cache
+def _spec_meanings(version: str = DEFAULT_SPEC) -> dict[str, str]:
+    """Each GMNS link field's description, cleaned (no "Optional."/"Required.", no markup), first sentence only."""
+    link = next(r for r in load_gmns_spec(version).resources if r.name == "link")
+    out = {}
+    for f in link.table_schema.fields:
+        text = re.sub(r"<[^>]+>", " ", f.description or "")
+        text = re.sub(r"^\s*(Optional|Required)\.\s*", "", text)
+        text = re.split(r"(?<=[a-z)])\.\s", " ".join(text.split()), maxsplit=1)[0].rstrip(".")
+        out[f.name] = text if len(text) <= _MEANING_CHARS else text[:_MEANING_CHARS].rsplit(" ", 1)[0] + "…"
+    return out
+
+
+def column_meanings(columns: list[str]) -> dict[str, str]:
+    """What the GMNS spec says each of ``columns`` means (schema, not data: the same for every network).
+
+    A column the spec doesn't define is left out; the plain words a user says come first where they differ.
+
+    >>> column_meanings(["free_speed", "my_col"])
+    {'free_speed': 'the speed limit: Free flow speed, units defined by config file'}
+    """
+    spec = _spec_meanings()
+    out = {}
+    for col in columns:
+        if spec.get(col):
+            out[col] = f"{_PLAIN_WORDS[col]}: {spec[col]}" if col in _PLAIN_WORDS else spec[col]
+    return out
+
+
 def _facts(state: dict[str, Any], active: NetworkHandle | None) -> dict[str, Any]:
     """The structural facts, always sent (no record values, no user words: counts, column and network names)."""
     act = state["active"] or ""
+    columns = [str(c) for c in active.links_df().columns] if active is not None else []
     sel = state["selection"]
     flt = state["filters"].get(act)
     issues = state["issues"].get(act)
@@ -117,7 +164,8 @@ def _facts(state: dict[str, Any], active: NetworkHandle | None) -> dict[str, Any
             {"id": n["id"], "label": n["label"], "links": n["links"], "nodes": n["nodes"], "active": n["id"] == act}
             for n in state["networks"]
         ],
-        "link_columns": [str(c) for c in active.links_df().columns] if active is not None else [],
+        "link_columns": columns,
+        "column_meanings": column_meanings(columns) or None,
         "selection": {"status": sel["status"], "links": len(sel["link_ids"])} if sel else None,
         "saved_selections": len(state["saved_selections"]),
         "filter": {"links": flt["count"]} if flt else None,

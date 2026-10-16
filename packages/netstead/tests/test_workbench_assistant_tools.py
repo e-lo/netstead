@@ -9,7 +9,7 @@ from netstead.fixtures import leavenworth
 from netstead.select.parse import INTENT_TOOL, StubParser
 from netstead.workbench import Session
 from netstead.workbench.actions import BaseAction, OpenNetwork, Select
-from netstead.workbench.assistant.tools import NEVER, action_type_of, to_action, tool_specs
+from netstead.workbench.assistant.tools import NEVER, action_type_of, lenient_arguments, to_action, tool_specs
 from netstead.workbench.errors import ActionError
 from netstead.workbench.plugins import HOST_API, ActionSpec, WorkbenchPlugin
 
@@ -209,3 +209,40 @@ def test_a_core_action_marked_not_for_the_assistant_is_flagged_in_the_allowlist(
         "assistant.actions: 'open_network' is never offered to the assistant",
     ]
     assert "style" not in {s.action_type for s in tool_specs(session)}
+
+
+#: Every mutating Action the assistant can be allowed: leniency never applies to any of them.
+_MUTATING = ("edit_cells", "delete_rows", "add_rows", "save_network", "set_setting", "build_network", "undo_edit")
+
+
+def test_leniency_never_touches_a_mutating_tool(session):
+    _allow(session, "add_rows", "set_setting", "build_network", "delete_selection")
+    specs = _by_type(session)
+    for action_type in (*_MUTATING, "delete_selection"):
+        spec = specs[action_type]
+        assert spec.mutates
+        args = {"invented": 1, "net_id": {"bad": "shape"}}
+        assert lenient_arguments(spec, args) == (args, []), action_type  # unchanged: the repair sees it
+
+
+def test_leniency_on_read_only_tools_drops_unknown_keys_and_only_style_drops_malformed_ones(session):
+    specs = _by_type(session)
+    assert lenient_arguments(specs["navigate"], {"to_selection": True, "zoom": 12}) == (
+        {"to_selection": True},
+        ["zoom (not a field of navigate)"],
+    )
+    assert lenient_arguments(specs["style"], {"color_by": "lanes", "show": {"lanes": True}}) == (
+        {"color_by": "lanes"},
+        ["show (not valid)"],
+    )
+    bad_where = {"where": "lanes >= 2"}  # filter: leaving where out would clear the filter, so it's repaired
+    assert lenient_arguments(specs["filter"], bad_where) == (bad_where, [])
+    assert lenient_arguments(specs["style"], {"glow": 1}) == ({"glow": 1}, [])  # nothing left: repaired instead
+    assert lenient_arguments(specs["clear_selection"], {}) == ({}, [])
+
+
+def test_leniency_applies_to_a_read_only_plugin_action_and_never_to_a_mutating_one(session):
+    session.dispatch({"type": "set_setting", "key": "assistant.plugins", "value": ["loud"]})
+    specs = _by_type(session)
+    assert lenient_arguments(specs["loud.shout"], {"text": "hi", "volume": 11})[0] == {"text": "hi"}
+    assert lenient_arguments(specs["loud.wipe"], {"volume": 11}) == ({"volume": 11}, [])
