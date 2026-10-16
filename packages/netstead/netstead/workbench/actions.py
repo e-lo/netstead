@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal, get_args, g
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
 from netstead.llm.secrets import has_url_userinfo, is_secret_name, looks_like_secret
+from netstead.viz.tables import MAX_FILTER_CONDITIONS, MAX_IN_VALUES
 
 from .area import Area
 from .registry import Component, default_label
@@ -38,6 +39,9 @@ __all__ = [
     "DeleteRows",
     "DeleteSelection",
     "EditCells",
+    "Filter",
+    "FilterCond",
+    "FilterOp",
     "Navigate",
     "OpenNetwork",
     "PinAnchor",
@@ -475,6 +479,36 @@ class DeleteSelection(BaseAction):
     name: str = Field(pattern=_SELECTION_NAME)
 
 
+#: The operators a :class:`FilterCond` may use: exactly ``netstead.viz.tables.FILTER_OPS`` (a test pins it).
+FilterOp = Literal["eq", "ne", "lt", "lte", "gt", "gte", "in", "contains", "isnull", "notnull"]
+
+
+class FilterCond(BaseModel):
+    """One condition on a link column: ``col op val`` (``in`` takes a list; ``isnull``/``notnull`` take no value)."""
+
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+    col: str = Field(min_length=1, max_length=100)
+    op: FilterOp
+    val: CellValue | list[CellValue] = None
+
+    @model_validator(mode="after")
+    def _bounded(self) -> FilterCond:
+        if isinstance(self.val, list) and len(self.val) > MAX_IN_VALUES:
+            raise ValueError(f"an 'in' condition lists too many values (over {MAX_IN_VALUES:,})")
+        return self
+
+
+class Filter(BaseAction):
+    """Show only the links matching every condition: the map dims the rest; the table's Filtered scope lists them.
+
+    A constrained predicate over the link table's columns, never SQL. ``where=None`` (or empty) clears the filter.
+    """
+
+    type: Literal["filter"] = "filter"
+    net_id: str | None = None
+    where: list[FilterCond] | None = Field(default=None, max_length=MAX_FILTER_CONDITIONS)
+
+
 Action = Annotated[
     OpenNetwork
     | BuildNetwork
@@ -494,7 +528,8 @@ Action = Annotated[
     | PinAnchor
     | SaveSelection
     | UseSelection
-    | DeleteSelection,
+    | DeleteSelection
+    | Filter,
     Field(discriminator="type"),
 ]
 #: The Actions every session understands, in registry order (``to_python`` imports them from ``netstead.workbench``).
@@ -519,6 +554,7 @@ CORE_ACTIONS: tuple[type[BaseAction], ...] = (
     SaveSelection,
     UseSelection,
     DeleteSelection,
+    Filter,
 )
 
 

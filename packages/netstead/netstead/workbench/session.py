@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import copy
 import functools
+import json
 import logging
 import threading
 import time
@@ -60,6 +61,7 @@ from netstead.select.parse import LLMParser, intent_from_payload, make_parser, p
 from netstead.select.prompt import PromptContext, close_match_hint, vocabulary_from_links
 from netstead.select.resolve import resolve_frames
 from netstead.viz.styling import json_scalar, styleable_columns
+from netstead.viz.tables import FilterError, filter_frame
 
 from . import build
 from .actions import (
@@ -72,6 +74,7 @@ from .actions import (
     DeleteRows,
     DeleteSelection,
     EditCells,
+    Filter,
     Navigate,
     OpenNetwork,
     PinAnchor,
@@ -352,7 +355,7 @@ class Session:
         self.active: str | None = None
         self.selection: dict[str, Any] | None = None
         self.saved: dict[str, dict[str, Any]] = {}  # name -> a saved selection payload (SaveSelection)
-        self.filters: dict[str, dict[str, Any]] = {}  # net_id -> its Filter (P3 Task 10)
+        self.filters: dict[str, dict[str, Any]] = {}  # net_id -> its Filter: {table, where}
         self.style: dict[str, Any] = copy.deepcopy(DEFAULT_STYLE)
         self.history: list[HistoryEntry] = []
         self.edits: dict[str, EditLedger] = {}  # net_id -> its pending edits
@@ -1134,6 +1137,7 @@ class Session:
                 "selection": copy.deepcopy(self.selection),
                 "style": copy.deepcopy(self.style),
                 "saved_selections": [_saved_summary(n, s) for n, s in self.saved.items()],
+                "filters": {nid: {**f, "count": self._filter_count(nid, f)} for nid, f in self.filters.items()},
                 "plugins": self._plugin_state(),
                 "edits": {nid: ledger.summary() for nid, ledger in self.edits.items()},
                 "issues": {
@@ -1357,6 +1361,7 @@ class Session:
         self.issues.pop(action.net_id, None)
         if self.selection and self.selection["net_id"] == action.net_id:
             self.selection = None
+        self.filters = {nid: f for nid, f in self.filters.items() if nid != action.net_id}
         if self.active == action.net_id:
             ids = self.registry.ids()
             self.active = ids[0] if ids else None
@@ -1557,6 +1562,50 @@ class Session:
         with self._lock:
             sel = self.saved.get(name)
             return copy.deepcopy(sel) if sel is not None else None
+
+    def _do_filter(self, action: Filter) -> dict[str, Any] | None:
+        handle = self._handle(action.net_id)
+        if not action.where:
+            self.filters = {nid: f for nid, f in self.filters.items() if nid != handle.id}
+            return None
+        entry = {"table": "link", "where": [c.model_dump(mode="json") for c in action.where]}
+        ids = self._filter_ids(handle, entry)  # checks the columns and values now, so a bad filter is refused
+        self.filters = {**self.filters, handle.id: entry}
+        return {**entry, "count": len(ids)}
+
+    def _filter_ids(self, handle: NetworkHandle, entry: dict[str, Any]) -> list[Any]:
+        """The link ids ``entry`` matches on ``handle`` (cached per network version)."""
+        key = "filter:" + json.dumps(entry["where"], sort_keys=True)
+
+        def run() -> list[Any]:
+            try:
+                return [json_scalar(v) for v in filter_frame(handle.links_df(), entry["where"])["link_id"]]
+            except FilterError as exc:
+                raise ActionError(str(exc)) from None
+            except (TypeError, ValueError) as exc:  # a value that can't be compared with its column
+                raise ActionError(f"a filter value does not fit its column ({type(exc).__name__})") from None
+
+        return handle.cached(key, run)
+
+    def filter_entry(self, net_id: str) -> dict[str, Any] | None:
+        """A copy of ``net_id``'s stored ``Filter`` (``{table, where}``), or ``None`` when it has none."""
+        with self._lock:
+            entry = self.filters.get(net_id)
+            return copy.deepcopy(entry) if entry is not None else None
+
+    def filter_ids(self, net_id: str) -> list[Any] | None:
+        """The link ids ``net_id``'s filter matches now (``None`` when it has no filter)."""
+        with self._lock:
+            entry = self.filters.get(net_id)
+            handle = self.registry.get(net_id) if entry else None
+        return self._filter_ids(handle, entry) if entry and handle else None
+
+    def _filter_count(self, net_id: str, entry: dict[str, Any]) -> int | None:
+        """How many links a stored filter matches now; ``None`` when an edit made it unrunnable (a column went)."""
+        try:
+            return len(self._filter_ids(self.registry.get(net_id), entry))
+        except ActionError:
+            return None
 
     def _do_style(self, action: Style) -> dict[str, Any]:
         patch = action.model_dump(exclude_none=True, exclude={"type"})

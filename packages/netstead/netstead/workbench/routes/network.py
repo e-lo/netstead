@@ -26,6 +26,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from netstead.viz.buffers import network_attrs, pack_network
 from netstead.viz.styling import json_scalar, property_payload, styleable_columns
 from netstead.viz.tables import (
+    MAX_FILTER_CONDITIONS,
+    MAX_IN_VALUES,
     FilterError,
     KeyTypeError,
     coerce_keys,
@@ -37,6 +39,7 @@ from netstead.viz.tables import (
     table_schema,
 )
 
+from ..errors import ActionError
 from ..registry import NetworkHandle
 from ..related import (
     MAX_MAP_IDS,
@@ -59,9 +62,6 @@ __all__ = ["LocateQuery", "RelatedQuery", "RowsQuery", "network_router"]
 ScalarId = int | str
 #: Related-records answers remembered per network version (each holds up to MAX_SOURCE_IDS ids).
 RELATED_MEMO = 16
-#: Conditions accepted in one filter, and values in one ``in`` condition.
-MAX_FILTER_CONDITIONS = 50
-MAX_IN_VALUES = 10_000
 
 
 def _bounded_filter(spec: list[dict[str, Any]] | None) -> list[dict[str, Any]] | None:
@@ -217,6 +217,19 @@ def network_router(session: Session) -> APIRouter:
     @router.get("/properties")
     def properties(net_id: str, component: str) -> dict[str, Any]:
         return {"properties": styleable_columns(handle(net_id, component).links_df())}
+
+    @router.get("/filter")
+    def view_filter(net_id: str, component: str) -> dict[str, Any]:
+        """The network's ``Filter`` and the link ids it matches now (``where: null`` when there is none)."""
+        h = handle(net_id, component)
+        entry = session.filter_entry(h.id)
+        if entry is None:
+            return {"version": h.version, "where": None, "count": 0, "link_ids": []}
+        try:
+            ids = session.filter_ids(h.id) or []
+        except ActionError as exc:
+            raise HTTPException(409, str(exc)) from None
+        return {"version": h.version, "where": entry["where"], "count": len(ids), "link_ids": ids}
 
     @router.get("/property/{name}")
     def property_values(net_id: str, component: str, name: str) -> dict[str, Any]:

@@ -22,12 +22,16 @@ import numpy as np
 import pandas as pd
 
 __all__ = [
+    "FILTER_OPS",
     "GEOM_COLS",
+    "MAX_FILTER_CONDITIONS",
+    "MAX_IN_VALUES",
     "MAX_LIMIT",
     "FilterError",
     "KeyTypeError",
     "coerce_keys",
     "column_dtype",
+    "filter_frame",
     "locate_row",
     "page_table",
     "parse_ids",
@@ -52,6 +56,11 @@ _OPS = {
     "isnull": lambda s, v: s.isna(),
     "notnull": lambda s, v: s.notna(),
 }
+#: The filter operators every table filter accepts (the rows routes, and the Workbench's ``Filter``).
+FILTER_OPS: tuple[str, ...] = tuple(_OPS)
+#: Conditions accepted in one filter, and values in one ``in`` condition.
+MAX_FILTER_CONDITIONS = 50
+MAX_IN_VALUES = 10_000
 
 
 class FilterError(ValueError):
@@ -195,6 +204,11 @@ def _apply_filter(df: pd.DataFrame, spec: list[dict]) -> pd.DataFrame:
             raise FilterError(f"unknown operator {op!r}")
         df = df[_OPS[op](df[col], cond.get("val"))]
     return df
+
+
+def filter_frame(df: pd.DataFrame, spec: list[dict]) -> pd.DataFrame:
+    """The rows of ``df`` matching every condition in ``spec`` (raises :class:`FilterError`)."""
+    return _apply_filter(df, spec)
 
 
 def _clamp(offset: int, limit: int) -> tuple[int, int]:
