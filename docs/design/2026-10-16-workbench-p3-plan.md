@@ -1,7 +1,7 @@
 # Workbench P3 (Selection verification + NL assistant) Implementation Plan
 
-Status: **accepted** (decisions recorded 2026-10-16); **P3a implemented** (branch `feat/workbench-p3a`, PR pending);
-P3b not started · Date: 2026-10-16 · Owner: Elizabeth Sall
+Status: **accepted** (decisions recorded 2026-10-16); **P3a implemented** (#226); **P3b implemented** (branch
+`feat/workbench-p3b`, PR pending) · Date: 2026-10-16 · Owner: Elizabeth Sall
 
 > **P3a as built (2026-10-16).** Where the code differs from the snippets below:
 > - **Stale pins** (review I-1): the fallback payload of Decision 1 carries `stale_pins`, and a save keeps it. An
@@ -17,6 +17,37 @@ P3b not started · Date: 2026-10-16 · Owner: Elizabeth Sall
 > - The Selection panel has **Pin node N** for an ambiguous anchor's own node: a refused pin keeps the ambiguous
 >   selection, so the walk-through's "pin 61, then Unpin, then pin 60" became "pin 61 (refused), then pin 60".
 > - The filter column sits on its own row in Layers; the Filtered scope's empty hint names "Layers → Filter links".
+
+> **P3b as built (2026-10-16).** Where the code differs from the snippets below:
+> - **Batch 2 (Tasks 15–23):** `ToolView` (one snapshot of the active network, the open networks and the selection
+>   for `to_action`); `Plan.calls` (an `on_selection` after a selection-changing step is made again at draft time);
+>   draft statuses `superseded` and `stale`; `payload().status.warnings` (unknown allowlist names, never fatal).
+> - **Session lock:** the assistant reads several session fields through the new public `Session.consistent()`, never
+>   `session._lock`.
+> - **Task 24:** the Assistant panel is registered after Edits (`order: 30`). **Edit…** sits on each drafted step in
+>   the conversation (the user's decision), not in the draft bar. While an ask runs, the question shows with
+>   "Thinking…" and both Ask buttons read "Asking…". The history strip marks the assistant's entries
+>   (`#12 · assistant`); "Session as Python" is unchanged. With five core panels the dock's tab strip wraps to two rows.
+> - **Task 25:** the section is **Settings → Assistant: actions & plugins** (`registerSection("assistant-tools", …)`,
+>   element `#assistant-panel`): the id `assistant` belongs to the generated form's own section. It shows the token
+>   use and `status.warnings`; changing a switch drops unknown names (the server refuses a list that holds one).
+> - **Part R (review of batch 2):** approve pins each drafted edit or deletion to the version the step before left
+>   (`EditCells.expected_version`, omitted from scripts); a step without `net_id` follows the network active when it
+>   runs; an unknown `net_id` is repaired, and a draft on a closed network is stale; a read-only Action the assistant
+>   runs can't change a network (`host.dispatch` of a mutating Action, or `host.mutate`); a grounded turn's words go
+>   back only to a call at the same tier or higher; one remote budget per session across providers and models
+>   (`status.remote_used`, `usage_key`); every failure at the plan/run boundary is an error turn, never a 500; a
+>   timed-out call is charged what it sent.
+> - **Task 26:** `run_eval` / `report` / `EvalResult` split out of `main` (tested offline with a scripted provider),
+>   `Plan.attempts`, and `io.allowed_roots` set for the fixture. **qwen2.5:7b, local Ollama, 3 runs: 27/42 correct
+>   (64%), 36/42 valid, 6 repairs, 88k tokens.** Weak intents: a field the model invents (`style.show` on "colour …
+>   and zoom …", failing validation twice), a second step left out ("select …, then save it as …"), a column name
+>   guessed (`speed_limit` for `free_speed`), `navigate` with `link:` instead of `record:`, and a request for
+>   something never offered ("open my network from the desktop") answered with an invalid `set_active_network`
+>   instead of words (refused, never run). One round of prompt and schema hints (field descriptions, one call per
+>   part, "leave net_id out", a stricter repair prompt) scored 26/42 (62%): it fixed `navigate` but turned
+>   "select Ski Hill Drive" into a `filter`, so it was not kept. Next levers: fewer default tools, and a
+>   `free_speed`-style column glossary in the grounding.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or
 > superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
