@@ -153,10 +153,29 @@ def test_protected_settings_are_refused(session):
     spec = _by_type(session)["set_setting"]
     with pytest.raises(ValueError, match=r"can.t change llm\.ollama\.base_url"):
         to_action(session, spec, {"key": "llm.ollama.base_url", "value": "http://evil.example"})
-    for key in ("select.provider", "Assistant.actions", " app.host", "io.allowed_roots", "credentials", "plugins.x"):
+    protected = ("select.provider", "Assistant.actions", " app.host", "io.allowed_roots", "credentials", "plugins.x")
+    # Endpoints that would receive a bbox or the viewport: the basemap, Overpass/Nominatim, Overture's release.
+    protected += ("viz.basemap", "osm.overpass_url", "overture.release")
+    for key in protected:
         with pytest.raises(ValueError, match="protected setting"):
             to_action(session, spec, {"key": key, "value": "x"})
-    assert to_action(session, spec, {"key": "viz.basemap", "value": "esri"}).key == "viz.basemap"
+    assert to_action(session, spec, {"key": "build.buffer_m", "value": 500}).key == "build.buffer_m"
+
+
+def test_a_protected_key_shaped_like_a_secret_is_never_echoed(session):
+    _allow(session, "set_setting")
+    spec = _by_type(session)["set_setting"]
+    key = "llm.sk-ant-api03-" + "A" * 40
+    with pytest.raises(ValueError) as err:
+        to_action(session, spec, {"key": key, "value": "x"})
+    assert key not in str(err.value) and "sk-ant" not in str(err.value) and "llm.* settings" in str(err.value)
+
+
+def test_select_cannot_pin_nodes(session):
+    spec = _by_type(session)["select"]
+    for pin in ({"from_node": 53}, {"to_node": 60}):
+        with pytest.raises(ValueError, match="select can't pin nodes; use pin_anchor"):
+            to_action(session, spec, {"utterance": "Cherry", "facility": {"name": "Cherry Street"}, **pin})
 
 
 def test_invalid_arguments_become_a_value_error_without_the_input(session):

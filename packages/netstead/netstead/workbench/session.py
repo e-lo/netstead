@@ -401,9 +401,10 @@ class Session:
         #: One status per plugin seen at startup: loaded, disabled, incompatible or error (with the reason).
         self.plugin_status: list[PluginStatus] = []
         self._install_plugins(plugins)
-        for problem in self.assistant_setting_problems():
-            logger.warning("settings: %s (ignored)", problem)
         from .assistant.core import Assistant  # deferred: the assistant package imports this module
+        from .assistant.tools import warn_allowlist
+
+        warn_allowlist(self)  # an unknown name is warned about (a plugin may have been uninstalled), never fatal
 
         #: The natural-language assistant: one conversation, one pending draft (never persisted).
         self.assistant = Assistant(self, assistant_provider)

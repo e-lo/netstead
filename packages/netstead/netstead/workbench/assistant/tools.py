@@ -34,14 +34,27 @@ __all__ = [
     "tool_name",
     "tool_specs",
     "tool_view",
+    "warn_allowlist",
 ]
 
 logger = logging.getLogger(__name__)
 
 #: Actions never offered, whatever the settings say (paths the model would invent; unsaved edits thrown away).
 NEVER = frozenset({"open_network", "close_network"})
-#: Setting sections the assistant may never change (keys, endpoints, its own limits, the sandbox).
-PROTECTED_SETTINGS = ("llm", "select", "assistant", "app", "io", "credentials", "plugins")
+#: Setting sections the assistant may never change: keys, endpoints, its own limits, the sandbox, and the sections
+#: whose endpoint URLs would receive a bbox or a viewport (``osm``, ``overture``, ``viz``).
+PROTECTED_SETTINGS = (
+    "llm",
+    "select",
+    "assistant",
+    "app",
+    "io",
+    "credentials",
+    "plugins",
+    "osm",
+    "overture",
+    "viz",
+)
 #: Fields hidden from the model, per Action type: it never approves or accepts on the user's behalf.
 _HIDDEN = {"build_network": frozenset({"approved"}), "save_network": frozenset({"accept_warnings"})}
 #: The Actions whose ``ids`` the model may give as ``on_selection: true`` instead.
@@ -97,6 +110,25 @@ def action_type_of(name: str) -> str:
     return name.replace("__", ".")
 
 
+#: Allowlist problems already logged (each is logged once per process, however often the tools are listed).
+_WARNED: set[str] = set()
+
+
+def warn_allowlist(session: Session) -> list[str]:
+    """Log, once each, the names in ``assistant.actions`` / ``assistant.plugins`` this session doesn't know.
+
+    A plugin can be uninstalled after it was opted in, so an unknown name is warned about, never fatal. Returns the
+    problems (logged or not), for the Settings panel.
+    """
+    section = session.settings.assistant
+    problems = allowlist_problems(session, section.actions, section.plugins)
+    for problem in problems:
+        if problem not in _WARNED:
+            _WARNED.add(problem)
+            logger.warning("settings: %s (ignored)", problem)
+    return problems
+
+
 def tool_specs(session: Session) -> list[ToolSpec]:
     """The tools this session's assistant may call, in registry order (settings ``assistant.actions`` / ``plugins``).
 
@@ -104,6 +136,7 @@ def tool_specs(session: Session) -> list[ToolSpec]:
     plugin. Neither ever offers :data:`NEVER`, nor an Action that sets ``assistant = False``.
     """
     settings = session.settings.assistant
+    warn_allowlist(session)
     specs = []
     for action_type in session.actions.types():
         model = session.actions.model(action_type)
@@ -183,6 +216,8 @@ def to_action(
     """
     args = dict(arguments)
     if spec.action_type == "select":
+        if "from_node" in args or "to_node" in args:  # a model can't know node ids; the user pins in the panel
+            raise ValueError("select can't pin nodes; use pin_anchor")
         utterance = str(args.pop("utterance", "")).strip()
         if not utterance:
             raise ValueError("select needs a short utterance naming the selection")

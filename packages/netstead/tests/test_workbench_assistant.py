@@ -366,8 +366,11 @@ def test_unknown_names_in_the_allowlists_are_refused_when_set(tmp_path, isolated
     assert s.settings.assistant.actions == ["style", "add_rows"]
 
 
-def test_unknown_names_in_the_allowlists_are_warned_about_at_load(tmp_path, isolated_env, caplog):
-    with caplog.at_level("WARNING", logger="netstead.workbench.session"):
+def test_unknown_names_in_the_allowlists_are_warned_about_once_at_load(tmp_path, isolated_env, caplog, monkeypatch):
+    from netstead.workbench.assistant import tools
+
+    monkeypatch.setattr(tools, "_WARNED", set())
+    with caplog.at_level("WARNING", logger="netstead.workbench.assistant.tools"):
         s = Session(
             project_dir=tmp_path,
             environ=isolated_env,
@@ -375,8 +378,11 @@ def test_unknown_names_in_the_allowlists_are_warned_about_at_load(tmp_path, isol
             plugins=[],
             overrides={"assistant.plugins": ["cards"]},
         )
-    assert "no plugin with the id 'cards'" in caplog.text
-    assert s.assistant.payload()["status"]["warnings"] == ["assistant.plugins: there is no plugin with the id 'cards'"]
+        assert s.assistant.payload()["status"]["warnings"] == [
+            "assistant.plugins: there is no plugin with the id 'cards'"
+        ]
+        tools.tool_specs(s)  # listing the tools again logs nothing new
+    assert caplog.text.count("no plugin with the id 'cards'") == 1
 
 
 # ---------------------------------------------------------------------- approve, reject, clear
@@ -488,3 +494,13 @@ def test_on_selection_pins_the_selections_network_so_approve_edits_only_it(tmp_p
     out = s.assistant.approve(turn["draft_id"])
     assert out["steps"][1]["status"] == "done"
     assert s.network("leavenworth").version == 1 and s.network("leavenworth-2").version == 0
+
+
+def test_the_stub_planner_keeps_the_case_it_was_typed_in():
+    calls = (
+        StubPlanner().plan("Colour by Facility_Type and FILTER Name = Ski and set LANES to 3 on the selection").calls
+    )
+    assert calls[0].arguments == {"color_by": "Facility_Type"}
+    assert calls[1].arguments == {"where": [{"col": "Name", "op": "eq", "val": "Ski"}]}
+    assert calls[2].arguments == {"on_selection": True, "values": {"LANES": 3}}
+    assert StubPlanner().plan("Zoom to LINK 5").calls[0].arguments == {"record": {"table": "link", "id": 5}}

@@ -77,25 +77,26 @@ class StubPlanner:
 
     @staticmethod
     def _one(part: str) -> ToolCall | None:
-        p = part.lower()
-        if m := re.fullmatch(r"select (.+)", part, re.IGNORECASE):
+        """One step, matched without regard to case; names and values keep the case they were typed in."""
+        i = re.IGNORECASE
+        if m := re.fullmatch(r"select (.+)", part, i):
             return _select(m.group(1).strip())
-        if m := re.fullmatch(r"colou?r by (\w+)", p):
+        if m := re.fullmatch(r"colou?r by (\w+)", part, i):
             return ToolCall("style", {"color_by": m.group(1)})
-        if m := re.fullmatch(r"(?:width|size) by (\w+)", p):
+        if m := re.fullmatch(r"(?:width|size) by (\w+)", part, i):
             return ToolCall("style", {"width_by": m.group(1)})
-        if re.fullmatch(r"clear (?:the )?filter", p):
+        if re.fullmatch(r"clear (?:the )?filter", part, i):
             return ToolCall("filter", {})
-        if m := re.fullmatch(r"filter (\w+) (>=|<=|!=|>|<|=) (\S+)", part, re.IGNORECASE):
+        if m := re.fullmatch(r"filter (\w+) (>=|<=|!=|>|<|=) (\S+)", part, i):
             col, op, val = m.groups()
             return ToolCall("filter", {"where": [{"col": col, "op": _OPS[op], "val": _value(val)}]})
-        if re.fullmatch(r"zoom to (?:the )?selection", p):
+        if re.fullmatch(r"zoom to (?:the )?selection", part, i):
             return ToolCall("navigate", {"to_selection": True})
-        if m := re.fullmatch(r"zoom to (link|node) (\S+)", p):
-            return ToolCall("navigate", {"record": {"table": m.group(1), "id": _value(m.group(2))}})
-        if m := re.fullmatch(r"save (?:the )?selection as (.+)", part, re.IGNORECASE):
+        if m := re.fullmatch(r"zoom to (link|node) (\S+)", part, i):
+            return ToolCall("navigate", {"record": {"table": m.group(1).lower(), "id": _value(m.group(2))}})
+        if m := re.fullmatch(r"save (?:the )?selection as (.+)", part, i):
             return ToolCall("save_selection", {"name": m.group(1).strip()})
-        if m := re.fullmatch(r"set (\w+) to (\S+) on (?:the )?selection", p):
+        if m := re.fullmatch(r"set (\w+) to (\S+) on (?:the )?selection", part, i):
             return ToolCall("edit_cells", {"on_selection": True, "values": {m.group(1): _value(m.group(2))}})
         return None
 
