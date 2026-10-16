@@ -251,6 +251,15 @@ bar, sharing one conversation.
    - The resolver accepts a pin only on the facility: the directed carriageway for a freeway, the facility's nodes
      for a surface street. Otherwise the anchor is `unresolved`, with a diagnostic.
    - A pinned anchor has `kind = "pinned"` and no candidates.
+   - **Decided 2026-10-16 (review of batch 1):** a pin that resolves nothing is refused. `PinAnchor` to a node off
+     the facility, or to one with no path to the other anchor, is an `ActionError` quoting the anchor's detail or the
+     "no path" diagnostic, and rollback keeps the selection being verified. A node id given as text (`"60"`) is
+     matched against the network's node key.
+   - **Decided 2026-10-16 (review of batch 1):** when an edit (or `UseSelection` on the network as it is now) leaves
+     a pinned node off the facility, the selection is not lost. It falls back to the ids rule (its previous
+     `link_ids` minus those deleted), keeps the pin recorded in its `intent`, and adds the diagnostic "pinned node N
+     is no longer on the facility; kept the previous links". If none of its links is left, it clears, as the ids
+     rule does.
    - `INTENT_TOOL` (the LLM's schema) does not gain them, and its `additionalProperties: false` makes a model's
      attempt a schema error, which is repaired.
 2. **`PinAnchor` acts on the current selection**, as `UndoEdit` acts on the last edit. It needs a query selection

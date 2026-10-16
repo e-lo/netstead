@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import replace
 from typing import Any
 
 from netstead.select.emit import load_schema, to_fragment, to_projectcard
@@ -20,6 +21,7 @@ __all__ = [
     "facility_forms",
     "fragment_problems",
     "payload_facility_forms",
+    "payload_keeping_links",
     "selection_payload",
     "unparsed_payload",
 ]
@@ -108,6 +110,20 @@ def fragment_problems(fragment: dict[str, Any]) -> list[str] | None:
         return None
     schema = load_schema()
     return [error.message for error in validator_for(schema)(schema).iter_errors(fragment)]
+
+
+def payload_keeping_links(
+    handle: NetworkHandle, payload: dict[str, Any], link_ids: list[Any], *, diagnostics: list[str]
+) -> dict[str, Any]:
+    """``payload`` (a query selection) narrowed to ``link_ids``, with its status, intent, pins and anchors' nodes.
+
+    What an edit leaves of a pinned selection whose pinned node is no longer on its facility: the click rule's
+    links, not a lost selection, and the pin stays recorded so the user can see it and re-pin.
+    """
+    result = replace(
+        _result_from_payload(payload), status=payload["status"], link_ids=list(link_ids), diagnostics=diagnostics
+    )
+    return selection_payload(handle, result, utterance=payload["utterance"], parsed_by=payload.get("parsed_by"))
 
 
 def selection_payload(

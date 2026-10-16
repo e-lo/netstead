@@ -100,6 +100,27 @@ def test_a_pin_survives_an_edit_re_resolution(session):
     assert after["status"] == "resolved" and after["link_ids"] == [170, 182, 187]
 
 
+def test_an_edit_that_takes_the_pinned_node_off_the_facility_keeps_the_previous_links(session):
+    session.dispatch(Select(utterance=CHERRY))
+    session.dispatch(PinAnchor(role="to", node_id=60))
+    _rename(session, [187, 189], "Cherry Court")  # node 60 is no longer on Cherry Street
+    sel = session.selection
+    assert sel["link_ids"] == [170, 182, 187] and sel["intent"]["to_node"] == 60  # not lost; the pin is recorded
+    assert sel["utterance"] == CHERRY and _anchor(sel, "to")["pinned"] is True
+    assert sel["diagnostics"] == ["pinned node 60 is no longer on the facility; kept the previous links"]
+
+
+def test_the_fallback_drops_links_an_edit_deleted(session):
+    from netstead.workbench.editing import plan_delete
+
+    session.dispatch(Select(utterance=CHERRY))
+    session.dispatch(PinAnchor(role="to", node_id=60))
+    session.mutate("leavenworth", plan_delete(session.network().roadway, "link", [187, 189]).edits, note="drop")
+    sel = session.selection
+    assert sel["link_ids"] == [170, 182] and sel["intent"]["to_node"] == 60
+    assert "pinned node 60 is no longer on the facility" in sel["diagnostics"][0]
+
+
 def test_pin_replays_and_has_its_own_import_line(session):
     session.dispatch(Select(utterance=CHERRY))
     entry = session.dispatch_recorded(PinAnchor(role="to", node_id=60))

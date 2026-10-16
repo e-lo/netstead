@@ -105,7 +105,7 @@ from .plugins.host import Host, PluginSettingsError, validate_plugin_settings
 from .plugins.spec import HOST_API, WorkbenchPlugin, api_compatible, problems
 from .redact import describe_error, scrub
 from .registry import NetworkHandle, NetworkRegistry, as_pandas, derived_copy
-from .selection import selection_payload, unparsed_payload
+from .selection import payload_keeping_links, selection_payload, unparsed_payload
 
 __all__ = [
     "DEFAULT_STYLE",
@@ -1077,13 +1077,23 @@ class Session:
         self.selection = selection_payload(handle, result)
 
     def _resolve_again(self, handle: NetworkHandle, sel: dict[str, Any]) -> dict[str, Any] | None:
-        """``sel`` resolved on ``handle`` as it is now (P2 R4's rule): a query again; ids minus the links now gone."""
+        """``sel`` resolved on ``handle`` as it is now (P2 R4's rule): a query again; ids minus the links now gone.
+
+        A query whose pinned node is no longer on its facility falls back to the ids rule (its previous links that
+        still exist), keeping the pin and saying so in its diagnostics: an edit never silently loses it.
+        """
+        present = {json_scalar(v) for v in handle.links_df()["link_id"]}
+        kept = [i for i in sel["link_ids"] if i in present]
         if sel.get("intent") is not None:
             intent = intent_from_payload(sel["intent"], sel["utterance"] or "")
             result = resolve_frames(intent, handle.links_df(), handle.nodes_df())
-            return selection_payload(handle, result, utterance=sel["utterance"], parsed_by=sel["parsed_by"])
-        present = {json_scalar(v) for v in handle.links_df()["link_id"]}
-        kept = [i for i in sel["link_ids"] if i in present]
+            lost = _lost_pins(intent, result)
+            if not lost:
+                return selection_payload(handle, result, utterance=sel["utterance"], parsed_by=sel["parsed_by"])
+            if not kept:
+                return None
+            notes = [f"pinned node {node} is no longer on the facility; kept the previous links" for node in lost]
+            return payload_keeping_links(handle, sel, kept, diagnostics=notes)
         if not kept:
             return None
         result = resolve_frames(SelectionIntent(link_ids=kept), handle.links_df(), handle.nodes_df())
@@ -1874,6 +1884,16 @@ def _restore_stamps(handle: NetworkHandle, stamps: Mapping[str, Any]) -> None:
             stamped[name] = stamp
         else:
             tracker.mark_dirty(name)
+
+
+def _lost_pins(intent: SelectionIntent, result: Any) -> list[Any]:
+    """The nodes ``intent`` pins whose anchor no longer resolves in ``result`` (the node left the facility)."""
+    lost = []
+    for role in ("from", "to"):
+        pin, match = getattr(intent, f"{role}_node"), getattr(result, f"{role}_match")
+        if pin is not None and (match is None or match.node_id is None):
+            lost.append(pin)
+    return lost
 
 
 def _network_node(handle: NetworkHandle, node_id: Any) -> Any:
