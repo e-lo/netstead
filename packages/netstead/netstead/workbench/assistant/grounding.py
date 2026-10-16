@@ -1,13 +1,16 @@
 """What the assistant tells the model about the session, gated by the same privacy rules as selection.
 
-Structural facts (network ids, labels and sizes, column names, the selection's status and size, validation counts by
-severity, saved selection names, the map style's columns, the filter's size, the pending edit count) are always sent.
-Network content (street names, selected ids, issue counts by rule, category values) is sent only where
-``llm.quality.grounding`` is on for the provider and the endpoint really is local (or the user said ``on``). Project
-notes follow ``project_context``. Table rows, tool results and issue messages are never sent.
+Structural facts (network ids, labels and sizes, column names, the selection's status and size, how many selections
+are saved, validation counts by severity, the map style's columns, the filter's size, the pending edit count) are
+always sent. Network content and the user's own words (the selection's utterance, selected ids, saved selection
+names, issue counts by rule, category values, street names) are sent only where ``llm.quality.grounding`` is on for
+the provider and the endpoint really is local (or the user said ``on``). Project notes follow ``project_context``.
+Table rows, tool results and issue messages are never sent.
 
 Every part sits inside a ``<tag>…</tag>`` fence whose ``</`` are escaped, so text from a network or a project can
 never close it. The whole state stays under ``assistant.context_max_chars``: the grounded extras give way first.
+The privacy gates read the provider registry's settings (the snapshot the model is called with), never the live
+ones, so the context and the note always describe the same call.
 """
 
 from __future__ import annotations
@@ -27,7 +30,16 @@ if TYPE_CHECKING:
     from ..registry import NetworkHandle
     from ..session import Session
 
-__all__ = ["MAX_CATEGORY_VALUES", "MAX_GROUNDED_IDS", "Grounding", "assistant_disclosure", "build_grounding"]
+__all__ = [
+    "ALWAYS_SENT",
+    "GROUNDED",
+    "MAX_CATEGORY_VALUES",
+    "MAX_GROUNDED_IDS",
+    "Grounding",
+    "assistant_disclosure",
+    "build_grounding",
+    "fact_paths",
+]
 
 #: Selected link ids, and values per categorical column, the grounded tier sends at most.
 MAX_GROUNDED_IDS = 50
@@ -35,7 +47,28 @@ MAX_CATEGORY_VALUES = 10
 #: Marks a context that left something out to fit ``assistant.context_max_chars``.
 TRUNCATED = "[truncated] (some details were left out to fit assistant.context_max_chars)"
 #: The grounded extras in ``facts``, in the order they give way when the state is too long: (where, key).
-_SHED = ((None, "categories"), ("selection", "link_ids"), ("validation", "codes"))
+_SHED = ((None, "categories"), (None, "saved_selection_names"), ("selection", "link_ids"), ("validation", "codes"))
+#: Each fact the state can carry (``key`` or ``key.sub``), and the words the privacy note uses for it. A test checks
+#: that the note names exactly the facts a context carries, tier by tier.
+ALWAYS_SENT = {
+    "networks": "the open networks' ids, names and sizes",
+    "link_columns": "the active network's column names",
+    "selection.status": "the selection's status",
+    "selection.links": "the selection's size",
+    "saved_selections": "how many selections are saved",
+    "filter": "the filter's size",
+    "style": "the map style's columns",
+    "pending_edits": "the number of pending edits",
+    "validation.stale": "whether the validation is out of date",
+    "validation.counts": "validation counts by severity",
+}
+GROUNDED = {
+    "selection.utterance": "the selection's utterance",
+    "selection.link_ids": f"up to {MAX_GROUNDED_IDS} selected link ids",
+    "saved_selection_names": "saved selection names",
+    "validation.codes": "issue counts by rule",
+    "categories": f"up to {MAX_CATEGORY_VALUES} common values of each categorical column",
+}
 #: The least room worth giving a part cut to fit (below it, the part is left out).
 _MIN_PART = 200
 
@@ -60,18 +93,21 @@ def _fence(tag: str, value: Any) -> str:
     return f"<{tag}>{text.replace('</', chr(60) + chr(92) + '/')}</{tag}>"
 
 
-def _tiers(session: Session, registry: ProviderRegistry, provider: str, endpoint_local: bool) -> tuple[bool, bool]:
-    """``(grounded, notes)``: whether network content, and project notes, may go to ``provider`` now."""
+def _tiers(registry: ProviderRegistry, provider: str, endpoint_local: bool) -> tuple[bool, bool]:
+    """``(grounded, notes)``: whether network content, and project notes, may go to ``provider`` now.
+
+    Read from ``registry.settings`` (the snapshot the call is made with), never from the session's live settings.
+    """
     from ..session import follows_endpoint  # deferred: session.py is this package's caller
 
-    quality = session.settings.llm.quality
+    quality = registry.settings.quality
     grounded = registry.grounding_on(provider) and follows_endpoint(quality.grounding, endpoint_local)
     notes = registry.project_context_on(provider) and follows_endpoint(quality.project_context, endpoint_local)
     return grounded, notes
 
 
-def _facts(session: Session, state: dict[str, Any], active: NetworkHandle | None) -> dict[str, Any]:
-    """The structural facts, always sent (no record values: counts, names of columns and networks, statuses)."""
+def _facts(state: dict[str, Any], active: NetworkHandle | None) -> dict[str, Any]:
+    """The structural facts, always sent (no record values, no user words: counts, column and network names)."""
     act = state["active"] or ""
     sel = state["selection"]
     flt = state["filters"].get(act)
@@ -82,10 +118,8 @@ def _facts(session: Session, state: dict[str, Any], active: NetworkHandle | None
             for n in state["networks"]
         ],
         "link_columns": [str(c) for c in active.links_df().columns] if active is not None else [],
-        "selection": (
-            {"status": sel["status"], "links": len(sel["link_ids"]), "utterance": sel["utterance"]} if sel else None
-        ),
-        "saved_selections": [s["name"] for s in state["saved_selections"]],
+        "selection": {"status": sel["status"], "links": len(sel["link_ids"])} if sel else None,
+        "saved_selections": len(state["saved_selections"]),
         "filter": {"links": flt["count"]} if flt else None,
         "style": {"color_by": state["style"].get("color_by"), "width_by": state["style"].get("width_by")},
         "pending_edits": (state["edits"].get(act) or {}).get("pending", 0),
@@ -93,19 +127,45 @@ def _facts(session: Session, state: dict[str, Any], active: NetworkHandle | None
     }
 
 
-def _ground(session: Session, facts: dict[str, Any], state: dict[str, Any], active: NetworkHandle) -> None:
-    """Add the grounded extras to ``facts``: selected ids, issue counts by rule, and categorical values."""
+def _ground(facts: dict[str, Any], state: dict[str, Any], active: NetworkHandle, issue_set: Any) -> None:
+    """Add the grounded extras to ``facts``: the selection's words and ids, saved names, rule counts, categories."""
     sel = state["selection"]
     if facts["selection"] is not None and sel is not None:
+        if sel.get("utterance"):
+            facts["selection"]["utterance"] = sel["utterance"]
         facts["selection"]["link_ids"] = list(sel["link_ids"][:MAX_GROUNDED_IDS])
-    if facts["validation"] is not None and (issue_set := session.issue_set(active.id)) is not None:
+    if state["saved_selections"]:
+        facts["saved_selection_names"] = [s["name"] for s in state["saved_selections"]]
+    if facts["validation"] is not None and issue_set is not None:
         facts["validation"]["codes"] = issue_set.facets()["code"]
+    facts["categories"] = active.cached(f"categories:{MAX_CATEGORY_VALUES}", lambda: _categories(active))
+
+
+def _categories(active: NetworkHandle) -> dict[str, list[str]]:
+    """Each categorical link column's most common values (cached per network version by the caller)."""
     links = active.links_df()
-    facts["categories"] = {
+    return {
         str(c["name"]): [str(v) for v in links[c["name"]].dropna().value_counts().index[:MAX_CATEGORY_VALUES]]
         for c in styleable_columns(links)
         if c["kind"] == "categorical"
     }
+
+
+def fact_paths(facts: dict[str, Any]) -> set[str]:
+    """The facts a state carries, as :data:`ALWAYS_SENT` / :data:`GROUNDED` name them (``key`` or ``key.sub``).
+
+    >>> sorted(fact_paths({"networks": [], "selection": {"status": "resolved", "links": 2}, "filter": None}))
+    ['networks', 'selection.links', 'selection.status']
+    """
+    paths = set()
+    for key, value in facts.items():
+        if value is None:
+            continue
+        if key in ("selection", "validation") and isinstance(value, dict):
+            paths |= {f"{key}.{sub}" for sub in value}
+        else:
+            paths.add(key)
+    return paths
 
 
 def _state_text(facts: dict[str, Any], cap: int) -> tuple[str, bool]:
@@ -161,14 +221,16 @@ def build_grounding(
 
     registry = registry if registry is not None else session.llm
     settings = session.settings
-    quality, cap = settings.llm.quality, settings.assistant.context_max_chars
-    grounded, notes = _tiers(session, registry, provider, endpoint_local)
+    quality, cap = registry.settings.quality, settings.assistant.context_max_chars
+    grounded, notes = _tiers(registry, provider, endpoint_local)
     guide = assistant_context(quality.assistant_context_max_chars) if quality.assistant_context else ""
-    state = session.state()
-    active = session.registry.get(state["active"]) if state["active"] else None
-    facts = _facts(session, state, active)
+    with session._lock:  # package-internal: one snapshot, so a network closing meanwhile can't break the build
+        state = session.state()
+        active = session.registry.get(state["active"]) if state["active"] in session.registry.ids() else None
+        issue_set = session.issues.get(active.id) if active is not None else None
+    facts = _facts(state, active)  # a handle stays readable after its network is closed
     if grounded and active is not None:
-        _ground(session, facts, state, active)
+        _ground(facts, state, active, issue_set)
     text, cut = _state_text(facts, cap)
     parts = [text]
     if grounded and active is not None:
@@ -196,24 +258,22 @@ def assistant_disclosure(
 ) -> list[str]:
     """What one question to the assistant sends to ``provider``, in words (the panel's privacy note).
 
-    Built from the same gates as :func:`build_grounding`, so the note can't drift from what is sent.
+    Built from the same gates (and the same fact names) as :func:`build_grounding`, so the note can't drift from
+    what is sent.
     """
     registry = registry if registry is not None else session.llm
-    grounded, notes = _tiers(session, registry, provider, endpoint_local)
-    quality = session.settings.llm.quality
+    grounded, notes = _tiers(registry, provider, endpoint_local)
+    quality = registry.settings.quality
     items = [
         "your question and the recent conversation (as the assistant summarised it: action names and counts)",
         "the tool schemas (Action names and GMNS field names)",
-        "the open networks' names and sizes, the active network's column names, the selection's status and size, "
-        "validation counts by severity, saved selection names, the map style's columns, the filter's size and the "
-        "number of pending edits",
+        ", ".join(ALWAYS_SENT.values()),
     ]
     if quality.assistant_context:
         items.append("the GMNS assistant guide that ships with netstead")
     if grounded:
         items.append(
-            f"up to {quality.grounding_max_names} street names and route numbers, up to {MAX_GROUNDED_IDS} selected "
-            f"link ids, issue counts by rule, and up to {MAX_CATEGORY_VALUES} common values of each categorical column"
+            f"up to {quality.grounding_max_names} street names and route numbers, " + ", ".join(GROUNDED.values())
         )
     if notes:
         items.append("your project notes (NETSTEAD.md, or the ## netstead section of AGENTS.md/CLAUDE.md)")
