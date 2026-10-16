@@ -225,6 +225,8 @@ def intent_from_payload(payload: dict[str, Any], utterance: str) -> SelectionInt
         conditions=payload.get("conditions") or {},
         ignore_missing=bool(payload.get("ignore_missing", True)),
         utterance=utterance,
+        from_node=payload.get("from_node"),
+        to_node=payload.get("to_node"),
     )
 
 
@@ -241,6 +243,9 @@ def payload_from_intent(intent: SelectionIntent) -> dict[str, Any]:
         out["facility"] = {k: v for k, v in (("ref", fac.ref), ("name", fac.name), ("direction", fac.direction)) if v}
     for key in ("from_anchor", "to_anchor"):
         if value := getattr(intent, key):
+            out[key] = value
+    for key in ("from_node", "to_node"):
+        if (value := getattr(intent, key)) is not None:
             out[key] = value
     if intent.select_all:
         out["select_all"] = True

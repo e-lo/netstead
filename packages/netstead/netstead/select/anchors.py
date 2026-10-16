@@ -20,7 +20,7 @@ import pandas as pd
 from ._support import bounded_bfs, norm_name, norm_ref, to_py
 from .result import AnchorMatch
 
-__all__ = ["Interchanges", "classify_interchanges", "resolve_anchor", "resolve_surface_anchor"]
+__all__ = ["Interchanges", "classify_interchanges", "pinned_anchor", "resolve_anchor", "resolve_surface_anchor"]
 
 _MAX_RAMP_HOPS = 8
 
@@ -58,6 +58,17 @@ def classify_interchanges(links, directed_nodes: set, mainline_nodes: set) -> In
     gore = set(f[f_in_d & ~t_in_m].tolist())
     merge = set(t[t_in_d & ~f_in_m].tolist())
     return Interchanges(gore=gore, merge=merge)
+
+
+def pinned_anchor(anchor: str, node_id, allowed: set) -> AnchorMatch:
+    """``anchor`` pinned to ``node_id`` by the user: accepted when the node is one of ``allowed`` (on the facility).
+
+    >>> pinned_anchor("Main St", 7, {7, 8}).kind, pinned_anchor("Main St", 9, {7, 8}).node_id
+    ('pinned', None)
+    """
+    if node_id in allowed:
+        return AnchorMatch(anchor, to_py(node_id), [], 1.0, "pinned", f"pinned to node {node_id}")
+    return AnchorMatch(anchor, None, [], 0.0, "unresolved", f"node {node_id} is not on the facility for {anchor!r}")
 
 
 def _surface_links(links, anchor: str):

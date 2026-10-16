@@ -5,6 +5,7 @@ from importlib import resources
 import pandas as pd
 import pytest
 from netstead.fixtures import leavenworth
+from netstead.select.errors import IntentError
 from netstead.select.intent import Facility, SelectionIntent
 from netstead.select.resolve import resolve_frames
 
@@ -197,3 +198,30 @@ def test_rdu_anchors_do_not_raise_without_a_ref_column(rdu):
 def test_without_a_name_column_the_facility_matches_nothing(leav):
     links, nodes = leav
     assert resolve_frames(_cherry(), links.drop(columns=["name"]), nodes).status == "not_found"
+
+
+def test_pinning_the_chosen_candidate_resolves(leav):
+    links, nodes = leav
+    r = resolve_frames(_cherry(to_node=60), links, nodes)
+    assert r.status == "resolved" and r.link_ids == [170, 182, 187]
+    assert (r.to_match.node_id, r.to_match.kind, r.to_match.candidates) == (60, "pinned", [])
+    assert "pinned to node 60" in r.to_match.detail
+
+
+def test_pinning_another_candidate_re_resolves_and_may_find_no_path(leav):
+    links, nodes = leav
+    r = resolve_frames(_cherry(to_node=61), links, nodes)
+    assert r.status == "not_found" and r.to_match.node_id == 61
+    assert "no path between resolved anchor nodes" in r.diagnostics
+
+
+def test_a_pin_off_the_facility_is_unresolved(leav):
+    links, nodes = leav
+    r = resolve_frames(_cherry(from_node=999_999), links, nodes)
+    assert r.status == "not_found" and r.from_match.node_id is None
+    assert "not on the facility" in r.from_match.detail
+
+
+def test_a_pin_needs_its_anchor():
+    with pytest.raises(IntentError, match="from_node pins from_anchor"):
+        SelectionIntent(facility=Facility(name="X"), from_node=1)
