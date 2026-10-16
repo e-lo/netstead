@@ -220,8 +220,8 @@ Focus is a view. Clicking never changes the selection.
   command for a record (no issue, and no plugin command), right-click opens no menu: the map keeps its right-drag
   rotate and the row the browser's own menu.
 - **Workspaces and the dock.** When a plugin adds a workspace, tabs for each appear in the header; each keeps the
-  map / split / table view you left it in. The right drawer is a dock: when it holds more than one panel (core's
-  **Details** plus a plugin's), tabs appear at its top.
+  map / split / table view you left it in. The right drawer is a dock, with a tab per panel at its top: core's
+  **Details**, **Selection**, **Issues** and **Edits**, then any a plugin adds.
 - **Settings → Plugins** lists the installed [Workbench plugins](workbench-plugins.md): version, the plugin API
   each needs and whether it fits, and any error loading it. Its switch turns a plugin on or off; that applies the
   next time `netstead app` starts.
@@ -316,6 +316,10 @@ A selection follows an edit of links or nodes:
 An edit of lanes or time-of-day rows leaves the selection alone. Undo restores the links, but an id selection
 does not take back a link it lost.
 
+A query selection with a [pinned anchor](#verify-a-selection) whose node the edit takes off the facility is not
+lost: it keeps the links it had (minus any you deleted) and its `resolved` status, and keeps the pin. The Selection
+panel says **Stale pin** at its top: those links are no longer what the query gives. Re-pin the anchor, or Unpin it.
+
 ### Save a copy
 
 **Edits → Save a copy** (or **Save a copy…** in the palette): name the copy, pick a format, then **Choose
@@ -334,6 +338,38 @@ you opened, local or remote, is never written to, and a copy inside the source f
 - **Replay.** A replayed `SaveNetwork` writes the copy again (and fails if it is still there), and its
   `accept_warnings=True` accepts whatever warnings the network has when the replay runs. See
   [Every action is replayable](#every-action-is-replayable).
+
+## Verify a selection
+
+- The **Selection** panel (every workspace) shows the selection's status, its anchors and diagnostics.
+- An **ambiguous** selection lists the other nodes each anchor could be, also drawn on the map as rings
+  (**Layers → Overlays → Anchor candidates**). Click one to pin the anchor to it, or **Pin node N** to keep the
+  resolver's own choice; the selection is resolved again. **Unpin** goes back to the resolver's choice. In Python:
+  `app.do(PinAnchor(role="to", node_id=60))`.
+- A pin that resolves nothing (a node off the facility, or one with no path to the other anchor) is refused, and
+  the selection you were checking stays as it was.
+- A pin is part of the selection's query, so it survives an edit and a saved selection's reuse. When an edit takes
+  the pinned node off the facility, see [What the selection does after an edit](#what-the-selection-does-after-an-edit).
+- **Export** downloads a resolved selection as a GMNS fragment (checked against the selection schema) or a
+  ProjectCard facility object, in resolved form (link ids) or query form (name/ref + conditions, which a tool can
+  resolve again). With a stale pin, the resolved form downloads with a warning and the query form is refused:
+  the query no longer gives those links.
+- **Save selection…** keeps the selection under a name; **Use** brings it back, resolved on the network as it is
+  now. `app.do(SaveSelection(name="ski hill"))`, `app.do(UseSelection(name="ski hill"))`. **Export** on a saved
+  selection resolves it the same way without making it current, and warns when its network is not open (it then
+  exports it as saved). Saved selections last for the session (a replayed history saves them again).
+- A save belongs to the network it was made on: its id and its source's location (scheme, host and path, never a
+  URL's query string, so a re-signed link to the same file still matches). Networks added from Python all have the
+  source `<python>`, so two of those under the same id are not told apart.
+
+## Style, filter and navigate
+
+- **Map display → Width by** sizes links by a numeric column (`app.do(Style(width_by="lanes"))`).
+- **Layers → Filter links** dims every link that doesn't match (`app.do(Filter(where=[{"col": "lanes", "op": "gte",
+  "val": 2}]))`); the table's **Filtered** scope lists the matching rows. `Filter(where=None)` clears it. Filters are
+  fields and operators only, never free text or SQL: `contains` matches a plain substring, and each value is read as
+  its column's type (`"2"` on `lanes` is 2; a value the column can't hold is refused).
+- `app.do(Navigate(record={"table": "link", "id": 170}))` flies the map to one link or node.
 
 ## Language models (natural-language selection)
 

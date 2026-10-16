@@ -1,6 +1,22 @@
 # Workbench P3 (Selection verification + NL assistant) Implementation Plan
 
-Status: **accepted** (decisions recorded 2026-10-16) · Date: 2026-10-16 · Owner: Elizabeth Sall
+Status: **accepted** (decisions recorded 2026-10-16); **P3a implemented** (branch `feat/workbench-p3a`, PR pending);
+P3b not started · Date: 2026-10-16 · Owner: Elizabeth Sall
+
+> **P3a as built (2026-10-16).** Where the code differs from the snippets below:
+> - **Stale pins** (review I-1): the fallback payload of Decision 1 carries `stale_pins`, and a save keeps it. An
+>   export of the resolved form returns `warnings`; the query form is refused (409). The Selection panel shows a
+>   **Stale pin** warning at its top and turns the query form off.
+> - **Saved selections** (I-2, I-3): exporting one re-resolves it read-only when its network is open from the same
+>   source, else exports it as saved with a warning; a save stores the source's locator (no query string) and the
+>   network's `version`.
+> - **Filter** (I-4, I-5, S-1): a condition takes a list only for `in` and no value for `isnull`/`notnull`; values are
+>   read as their column's type (`coerce_filter_value`) and stored typed; `contains` is a plain substring
+>   (`regex=False`); each network version keeps the ids of its last 8 filters only.
+> - `Navigate.record` reads a text id as the key's type (S-3).
+> - The Selection panel has **Pin node N** for an ambiguous anchor's own node: a refused pin keeps the ambiguous
+>   selection, so the walk-through's "pin 61, then Unpin, then pin 60" became "pin 61 (refused), then pin 60".
+> - The filter column sits on its own row in Layers; the Filtered scope's empty hint names "Layers → Filter links".
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or
 > superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
