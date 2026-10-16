@@ -996,6 +996,70 @@ def test_a_mutating_call_with_an_extra_key_is_never_drafted_as_is(tmp_path, isol
     assert s.assistant.draft is None and turn["steps"] == [] and turn["ignored"] == []
 
 
+# ---------------------------------------------------------------------- a key another tool owns: split or repaired
+
+
+def test_a_key_one_read_only_tool_owns_is_split_into_its_own_call(tmp_path, isolated_env):
+    folded = (SKI_HILL[0], {**SKI_HILL[1], "color_by": "lanes"})  # "select Ski Hill Drive and colour by lanes"
+    p = Scripted(_reply(folded))
+    s = _session(tmp_path, isolated_env, p)
+    turn = s.assistant.ask("select Ski Hill Drive and colour by lanes")
+    assert len(p.requests) == 1 and [st["status"] for st in turn["steps"]] == ["done", "done"]  # no repair round
+    assert [e.action["type"] for e in s.history[-2:]] == ["select", "style"] and s.style["color_by"] == "lanes"
+    assert turn["split"] == ["call 1 (select): split color_by into a style call"] and turn["ignored"] == []
+    assert "lanes" not in " ".join(turn["split"])  # key names only, never a value
+
+    two = Scripted(_reply(SKI_HILL, ("style", {"color_by": "lanes"})))  # as if the model had made two calls
+    other = _session(tmp_path / "two", isolated_env, two)
+    other.assistant.ask("select Ski Hill Drive and colour by lanes")
+    assert [e.python for e in s.history[-2:]] == [e.python for e in other.history[-2:]]  # Copy as Python: the same
+
+
+def test_a_key_the_reply_already_calls_its_owner_for_is_left_out_not_split(tmp_path, isolated_env):
+    p = Scripted(_reply((SKI_HILL[0], {**SKI_HILL[1], "color_by": "lanes"}), ("style", {"color_by": "lanes"})))
+    s = _session(tmp_path, isolated_env, p)
+    plan = s.assistant.plan("select Ski Hill Drive and colour by lanes")
+    assert [type(a) for a in plan.actions] == [Select, Style] and plan.split == []
+    assert plan.ignored == ["call 1 (select): ignored color_by (not a field of select)"]
+
+
+def test_a_key_two_offered_tools_own_is_sent_back_for_repair(tmp_path, isolated_env):
+    p = Scripted(
+        _reply((SKI_HILL[0], {**SKI_HILL[1], "name": "cherry"})),
+        _reply(SKI_HILL, ("save_selection", {"name": "cherry"})),
+    )
+    s = _session(tmp_path, isolated_env, p)
+    s.dispatch({"type": "set_setting", "key": "assistant.compact_tools", "value": "off"})  # use_selection offered too
+    plan = s.assistant.plan("select Ski Hill Drive, then save it as cherry")
+    repair = p.requests[1].messages[-1].content
+    assert "name belongs to save_network, save_selection or use_selection, not select" in repair
+    assert "cherry" not in repair and plan.attempts == 2 and plan.split == []
+    assert [type(a) for a in plan.actions] == [Select, SaveSelection]
+
+
+def test_a_key_only_a_drafted_tool_owns_is_repaired_never_split_into_it(tmp_path, isolated_env):
+    p = Scripted(
+        _reply((SKI_HILL[0], {**SKI_HILL[1], "values": {"lanes": 3}})),
+        _reply(text="I can't."),
+    )
+    s = _session(tmp_path, isolated_env, p)
+    turn = s.assistant.ask("select Ski Hill Drive and set lanes to 3")
+    repair = p.requests[1].messages[-1].content
+    assert "values belongs to edit_cells, not select: make a separate edit_cells call for it" in repair
+    assert s.assistant.draft is None and turn["steps"] == [] and turn["split"] == []
+
+
+def test_a_split_that_does_not_fit_its_owner_is_repaired(tmp_path, isolated_env):
+    p = Scripted(
+        _reply((SKI_HILL[0], {**SKI_HILL[1], "color_by": {"col": "lanes"}})),
+        _reply(SKI_HILL, ("style", {"color_by": "lanes"})),
+    )
+    s = _session(tmp_path, isolated_env, p)
+    plan = s.assistant.plan("select Ski Hill Drive and colour by lanes")
+    assert "color_by belongs to style, not select" in p.requests[1].messages[-1].content
+    assert plan.attempts == 2 and plan.split == [] and [type(a) for a in plan.actions] == [Select, Style]
+
+
 # ---------------------------------------------------------------------- the compact tool set, per endpoint
 
 

@@ -33,7 +33,7 @@ from .tools import (
     ToolSpec,
     ToolView,
     action_type_of,
-    lenient_arguments,
+    prepare_calls,
     to_action,
     tool_specs,
     tool_view,
@@ -202,6 +202,7 @@ class Plan:
     notes: bool = False
     attempts: int = 1  # model calls made (1 + repairs)
     ignored: list[str] = field(default_factory=list)  # keys a read-only call carried that were left out (names only)
+    split: list[str] = field(default_factory=list)  # keys a read-only call carried, moved into a call of their own
 
 
 @dataclass(frozen=True)
@@ -262,6 +263,7 @@ class _Turn:
     grounded: bool = False  # the tiers the answer's context carried (see _Past)
     notes: bool = False
     ignored: list[str] = field(default_factory=list)  # see Plan.ignored: shown under the answer
+    split: list[str] = field(default_factory=list)  # see Plan.split: shown under the answer
 
 
 class _Metered:
@@ -355,16 +357,12 @@ class Assistant:
         said = [p.content for p in history if p.role == "user"]
         typed = known_ids(text, *said, ids=tuple(sel["link_ids"]) if sel else ())
         ignored: list[str] = []
+        split: list[str] = []
 
         def prepare(calls: tuple[ToolCall, ...]) -> tuple[ToolCall, ...]:
-            ignored.clear()  # each reply (a repair included) is prepared afresh
-            out = []
-            for i, call in enumerate(calls, start=1):
-                spec = specs.get(call.name)
-                args, dropped = lenient_arguments(spec, call.arguments) if spec else (call.arguments, [])
-                ignored.extend(f"call {i} ({call.name}): ignored {d}" for d in dropped)
-                out.append(ToolCall(call.name, args) if dropped else call)
-            return tuple(out)
+            prepared = prepare_calls(calls, specs)  # each reply (a repair included) is prepared afresh
+            ignored[:], split[:] = prepared.ignored, prepared.split
+            return prepared.calls
 
         def validate(calls: tuple[ToolCall, ...]) -> None:
             _typed_ids_only(calls, typed)
@@ -401,6 +399,7 @@ class Assistant:
             grounding.notes,
             result.attempts,
             list(ignored),
+            list(split),
         )
 
     def _check(self, calls: tuple[ToolCall, ...], specs: dict[str, ToolSpec]) -> list[_Call]:
@@ -468,7 +467,8 @@ class Assistant:
             finally:
                 if endpoint is not None and meter is not None:
                     self._charge(endpoint, meter.tokens)  # a failed answer still cost its tokens
-            reply.text, reply.grounded, reply.notes, reply.ignored = plan.text, plan.grounded, plan.notes, plan.ignored
+            reply.text, reply.grounded, reply.notes = plan.text, plan.grounded, plan.notes
+            reply.ignored, reply.split = plan.ignored, plan.split
             try:
                 self._run(plan.calls, reply)
             except Exception as exc:  # boundary: steps already run stay listed (and in history); the rest are not

@@ -43,11 +43,13 @@ This file is for the **netstead** package only. The underlying generic engine `c
     open one with `host.derive`.
   - **Small local models:** a read-only call's invented or (on `style`)
     malformed keys are left out instead of failing the answer, and listed under
-    it; mutating calls are never changed. The grounding carries the GMNS meaning
+    it; a key another offered read-only tool owns (`color_by` on `select`)
+    becomes a call of its own to that tool, listed as split (two owners, or a
+    mutating owner, go back for repair); mutating calls are never changed. The grounding carries the GMNS meaning
     of each link column (`free_speed` = the speed limit). With
     `assistant.compact_tools` (`auto`: on for a local endpoint) a model is
     offered only the read-only tools that apply now plus edit, delete and undo.
-    qwen2.5:7b on the eval: 27/45 (60%) -> 36/45 (80%).
+    qwen2.5:7b on the eval: 27/45 (60%) -> 39/45 (87%).
   - **Privacy tiers** follow the existing gates: structure always; street names,
     selected ids, issue counts by rule and column values only where grounding is
     on (by default a local model); never table rows or Action results. The panel

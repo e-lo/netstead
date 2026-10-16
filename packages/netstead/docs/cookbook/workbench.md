@@ -395,13 +395,16 @@ you opened, local or remote, is never written to, and a copy inside the source f
   model's answer that used them is not passed on to a remote one.
 - **Small local models** get help, and the panel says so. A read-only step with a field its tool doesn't have (or,
   for a style, a malformed one) runs without it, and the answer lists what was left out ("Left out: …"); a step that
-  changes a network is never changed this way, it is asked for again. The model sees what each GMNS column means
+  changes a network is never changed this way, it is asked for again. A field that belongs to another read-only tool
+  becomes a step of its own: "select Ski Hill Drive and colour by lanes" folded into one select is run as a select
+  and a style ("Split: …"); if the field could belong to more than one tool, or to one that changes a network, the
+  model is asked again. The model sees what each GMNS column means
   (`free_speed` is the speed limit). With `assistant.compact_tools = "auto"` (the default) a model on this machine is
   offered fewer tools: the read-only ones that apply now (no network switch with one network open, no saved selection
   to reuse when none is saved) plus edit, delete and undo. `"on"` does this for any model, `"off"` never; it never
   offers more than `assistant.actions` / `assistant.plugins` allow. Measured with `scripts/eval_nl_assistant.py` on
-  `qwen2.5:7b` (15 requests, 3 runs): 36/45 correct (80%), every answer valid. It still drops the second half of
-  "select Ski Hill Drive and colour by lanes" and of "select …, then save it as …": ask in two steps.
+  `qwen2.5:7b` (15 requests, 3 runs): 39/45 correct (87%), every answer valid. It still drops the second half of
+  "select …, then save it as …": ask in two steps.
 - **Limits:** `assistant.remote_token_budget` (200,000 tokens a session, shared by every remote provider and model;
   a local model is counted, never stopped), `output_token_limit`, `context_max_chars`, `max_steps`.
   **Settings → Assistant: actions & plugins** shows the use so far, chooses which actions it may call and which

@@ -7,7 +7,7 @@ through the same ``Assistant.plan`` the Workbench uses (tools, grounding, repair
 dispatched (only the case's own ``select_first`` selection is). A plan is "correct" when its steps have the expected
 Action types in order and every expected field matches; "valid" when the model's answer checked out at all (after
 any repairs). It prints a per-request table, totals (correct, valid, repairs, keys left out,
-tokens) and the misses.
+splits, tokens) and the misses.
 
 Options left out follow your netstead settings. It calls whichever provider you name: a remote provider spends real
 tokens (runs x requests calls, plus repairs). With a local Ollama, grounding is on by default, as in the app.
@@ -81,6 +81,7 @@ class EvalResult:
     tokens: int = 0
     repairs: int = 0
     ignored: int = 0  # keys left out of read-only calls (Plan.ignored)
+    split: int = 0  # read-only calls whose stray keys became a call of their own (Plan.split)
     dispatched: int = 0  # Actions the assistant dispatched: always 0 (planning only)
 
 
@@ -129,6 +130,7 @@ def run_eval(
                 out.tokens += plan.tokens
                 out.repairs += plan.attempts - 1
                 out.ignored += len(plan.ignored)
+                out.split += len(plan.split)
                 got = [a.model_dump(mode="json") for a in plan.actions]
                 problems = ["expected no steps"] if case.get("no_calls") and got else check(got, case["expect"])
                 ok += not problems
@@ -162,7 +164,7 @@ def report(result: EvalResult) -> str:
     lines.append("")
     lines.append(
         f"correct {total}/{n} ({100 * total / max(n, 1):.0f}%), valid {valid}/{n}, repairs {result.repairs}, "
-        f"keys left out {result.ignored}, "
+        f"keys left out {result.ignored}, splits {result.split}, "
         f"tokens {result.tokens:,}, dispatched by the assistant {result.dispatched}"
     )
     lines += [f"  MISS {utterance!r}: {why}" for utterance, why in result.misses]

@@ -56,7 +56,8 @@ Status: **accepted** (decisions recorded 2026-10-16); **P3a implemented** (#226)
 >   | HEAD (`2de0db6`, id guard from `9d753aa`) | 27/45 (60%) | 33/45 | 3 |
 >   | id guard rewritten (review I-1: numbers by value, ranges, recent turns, the selection) | 27/45 (60%) | 33/45 | 3 |
 >   | round 1: lenient read-only calls + GMNS column glossary | 30/45 (67%) | 39/45 | 3 |
->   | round 2: `assistant.compact_tools` + one example per confused tool + "one call for each part" | **36/45 (80%)** | **45/45** | 6 |
+>   | round 2: `assistant.compact_tools` + one example per confused tool + "one call for each part" | 36/45 (80%) | 45/45 | 6 |
+>   | round 3: a key another offered read-only tool owns is split into its own call | **39/45 (87%)** | **45/45** | 6 |
 >
 >   The guard cost nothing ("fly to link 170" failed on the argument shape, not the guard; the speed-limit edit was
 >   refused for an invented id 123 either way). Round 1 fixed "colour … and zoom …" (`style.show` left out); round 2
@@ -64,8 +65,17 @@ Status: **accepted** (decisions recorded 2026-10-16); **P3a implemented** (#226)
 >   `free_speed`). No request that passed before failed after either round, so both were kept. Still wrong: the two-part
 >   requests ("select Ski Hill Drive and colour by lanes" comes back as one `select` carrying `color_by`, which is
 >   left out and listed; "select Cherry …, then save it as cherry" drops the save), and "open my network from the
->   desktop" (now a harmless `clear_selection` instead of an invalid call). Next lever: a key that belongs to another
->   offered tool (`color_by` on `select`) goes back for repair ("call style as well") instead of being left out.
+>   desktop" (now a harmless `clear_selection` instead of an invalid call).
+>
+>   Round 3: a read-only call carrying a key that another offered tool owns (`color_by` on `select`) is split
+>   deterministically into a call to that tool, right after it, when exactly one offered tool owns every such key,
+>   that tool is read-only, the reply doesn't call it already and the new call fits its schema; anything else (two
+>   owners, a drafted owner such as `edit_cells`, a misfit) goes back for repair naming the owner. The turn lists it
+>   ("Split: call 1 (select): split color_by into a style call", key names only). It fixed the walk-through's "select
+>   Ski Hill Drive and colour by lanes" (now a `Select` and a recorded `Style`) at no extra tokens or round trips
+>   (106,164 tokens and 6 repairs, as in round 2); nothing that passed before failed, so it was kept. Still wrong:
+>   "select Cherry …, then save it as cherry" (the model omits the save altogether: no `name` or `save_as` key to
+>   split, and it picks the wrong street) and "open my network from the desktop".
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or
 > superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

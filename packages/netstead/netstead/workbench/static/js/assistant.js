@@ -79,6 +79,12 @@ function turnElement(turn, draft) {
     note.textContent = `Left out: ${turn.ignored.join("; ")}`;
     el.appendChild(note);
   }
+  if ((turn.split || []).length) { // keys a read-only step carried that another tool owns: made a step of their own
+    const note = document.createElement("div");
+    note.className = "as-text diag";
+    note.textContent = `Split: ${turn.split.join("; ")}`;
+    el.appendChild(note);
+  }
   const editable = draft && draft.turn_id === turn.id && draft.status === "pending";
   let drafted = 0;
   for (const r of stepRows(turn)) el.appendChild(stepElement(r, editable && r.status === "drafted" ? drafted++ : null));

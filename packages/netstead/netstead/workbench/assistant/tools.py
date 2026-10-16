@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import ValidationError
 
 from netstead.llm.secrets import looks_like_secret
-from netstead.llm.types import Tool
+from netstead.llm.types import Tool, ToolCall
 from netstead.select.parse import INTENT_TOOL, intent_from_payload
 
 from ..actions import BaseAction
@@ -26,6 +26,7 @@ if TYPE_CHECKING:
 __all__ = [
     "NEVER",
     "PROTECTED_SETTINGS",
+    "Prepared",
     "ToolSpec",
     "ToolView",
     "action_type_of",
@@ -33,6 +34,7 @@ __all__ = [
     "compact_drops",
     "lenient_arguments",
     "offerable",
+    "prepare_calls",
     "to_action",
     "tool_name",
     "tool_specs",
@@ -284,6 +286,95 @@ def lenient_arguments(spec: ToolSpec, arguments: dict[str, Any]) -> tuple[dict[s
     if not ignored or (arguments and not kept):
         return arguments, []
     return kept, ignored
+
+
+@dataclass(frozen=True)
+class Prepared:
+    """A reply's calls made ready to check, and what was changed (key names only, never values)."""
+
+    calls: tuple[ToolCall, ...]
+    ignored: list[str]  # keys a read-only call carried that were left out
+    split: list[str]  # keys a read-only call carried that were moved into a call of their own
+
+
+def prepare_calls(calls: tuple[ToolCall, ...], specs: dict[str, ToolSpec]) -> Prepared:
+    """``calls`` with each read-only call's stray keys split off, repaired or left out.
+
+    Small models fold a request's second part into its first call (``select(…, color_by="lanes")`` for "select X and
+    colour by lanes"). A key a read-only call doesn't have, but another offered tool does, is:
+
+    - split off into a call of its own, right after the original, when exactly one offered tool owns all such keys,
+      that tool is read-only, the reply doesn't call it already, and the new call matches its schema;
+    - otherwise sent back for repair, naming the tool(s) it belongs to (``ValueError``). A drafted tool is never
+      split into: what a draft does is what the model asked for, or nothing.
+
+    A key that also belongs to a tool the reply already calls, or to no offered tool at all, is left out as before
+    (:func:`lenient_arguments`). Mutating calls are never touched.
+    """
+    called = {call.name for call in calls}
+    out: list[ToolCall] = []
+    ignored: list[str] = []
+    split: list[str] = []
+    for i, call in enumerate(calls, start=1):
+        spec = specs.get(call.name)
+        if spec is None or spec.mutates:
+            out.append(call)
+            continue
+        stray = _stray_keys(spec, call.arguments, specs, called)
+        extra: ToolCall | None = None
+        args = call.arguments
+        if stray:
+            owners = sorted({o for names in stray.values() for o in names})
+            owner = specs[owners[0]] if len(owners) == 1 else None
+            moved = {k: call.arguments[k] for k in stray}
+            if owner is None or owner.mutates or not _fits(moved, owner.tool.input_schema):
+                raise ValueError(_belongs_message(i, call.name, stray, specs))
+            extra = ToolCall(owner.tool.name, moved)
+            args = {k: v for k, v in call.arguments.items() if k not in stray}
+            split.append(
+                f"call {i} ({call.name}): split {', '.join(str(k)[:40] for k in stray)} into a {owner.tool.name} call"
+            )
+        args, dropped = lenient_arguments(spec, args)
+        ignored.extend(f"call {i} ({call.name}): ignored {d}" for d in dropped)
+        out.append(call if args is call.arguments else ToolCall(call.name, args))
+        if extra is not None:
+            out.append(extra)
+    return Prepared(tuple(out), ignored, split)
+
+
+def _stray_keys(
+    spec: ToolSpec, arguments: dict[str, Any], specs: dict[str, ToolSpec], called: set[str]
+) -> dict[str, list[str]]:
+    """Each key of ``arguments`` that ``spec`` lacks but other offered tools have, with those tools' names.
+
+    A key that a tool the reply already calls also has is not stray: that part of the request is there already.
+    """
+    out: dict[str, list[str]] = {}
+    own = spec.tool.input_schema.get("properties", {})
+    for key in arguments:
+        if key in own:
+            continue
+        owners = [
+            s.tool.name for s in specs.values() if s is not spec and key in s.tool.input_schema.get("properties", {})
+        ]
+        if owners and not (called - {spec.tool.name}) & set(owners):
+            out[key] = owners
+    return out
+
+
+def _belongs_message(i: int, name: str, stray: dict[str, list[str]], specs: dict[str, ToolSpec]) -> str:
+    """The repair message for stray keys: which tool each belongs to (key and tool names only)."""
+    parts = []
+    for key, owners in stray.items():
+        if len(owners) == 1:
+            parts.append(f"{str(key)[:40]} belongs to {owners[0]}, not {name}: make a separate {owners[0]} call for it")
+        else:
+            tools = ", ".join(owners[:-1]) + f" or {owners[-1]}"
+            parts.append(
+                f"{str(key)[:40]} belongs to {tools}, not {name}: leave it out, or make a separate call to the tool "
+                "it belongs to"
+            )
+    return f"call {i} ({name}): " + "; ".join(parts)
 
 
 def _fits(value: Any, schema: dict[str, Any]) -> bool:
