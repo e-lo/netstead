@@ -377,3 +377,88 @@ def test_unknown_names_in_the_allowlists_are_warned_about_at_load(tmp_path, isol
         )
     assert "no plugin with the id 'cards'" in caplog.text
     assert s.assistant.payload()["status"]["warnings"] == ["assistant.plugins: there is no plugin with the id 'cards'"]
+
+
+# ---------------------------------------------------------------------- approve, reject, clear
+
+
+def _drafted(tmp_path, isolated_env, *more):
+    p = Scripted(_reply(SKI_HILL, ("edit_cells", {"on_selection": True, "values": {"lanes": 3}})), *more)
+    s = _session(tmp_path, isolated_env, p)
+    return s, s.assistant.ask("set ski hill drive to 3 lanes")
+
+
+def test_approve_runs_the_draft_and_records_it(tmp_path, isolated_env):
+    s, turn = _drafted(tmp_path, isolated_env)
+    before = s.network().version
+    out = s.assistant.approve(turn["draft_id"])
+    assert out["steps"][1]["status"] == "done" and s.history[-1].action["type"] == "edit_cells"
+    assert s.history[-1].via == "assistant" and s.assistant.draft.status == "approved"
+    assert s.network().version == before + 1 and out["steps"][1]["seq"] == s.history[-1].seq
+    with pytest.raises(ValueError, match="no pending draft"):
+        s.assistant.approve(turn["draft_id"])
+
+
+def test_approve_stops_at_the_first_failure(tmp_path, isolated_env):
+    p = Scripted(_reply(("edit_cells", {"ids": [1], "values": {"no_such_column": 3}}), ("undo_edit", {})))
+    s = _session(tmp_path, isolated_env, p)
+    turn = s.assistant.ask("x")
+    out = s.assistant.approve(turn["draft_id"])
+    assert [st["status"] for st in out["steps"]] == ["failed", "skipped"]
+    assert s.history[-1].action["type"] == "edit_cells" and not s.history[-1].ok
+
+
+def test_a_draft_is_stale_once_its_network_moved(tmp_path, isolated_env):
+    s, turn = _drafted(tmp_path, isolated_env)
+    s.dispatch({"type": "edit_cells", "ids": [1], "values": {"lanes": 1}})
+    with pytest.raises(ValueError, match="changed since"):
+        s.assistant.approve(turn["draft_id"])
+    assert s.assistant.draft.status == "stale" and s.assistant.turns[-1].steps[1]["status"] == "stale"
+    assert s.history[-1].action["values"] == {"lanes": 1}  # nothing of the draft ran
+
+
+def test_a_draft_on_the_active_network_is_stale_once_another_is_active(tmp_path, isolated_env):
+    p = Scripted(_reply(("edit_cells", {"ids": [1], "values": {"lanes": 3}})))
+    s = _session(tmp_path, isolated_env, p)
+    turn = s.assistant.ask("set link 1 to 3 lanes")
+    s.dispatch(OpenNetwork(source=SRC))  # a second copy, now the active network
+    assert s.active == "leavenworth-2"
+    with pytest.raises(ValueError, match="changed since"):
+        s.assistant.approve(turn["draft_id"])
+    assert all(h.version == 0 for h in s.registry)
+
+
+def test_reject_and_supersede(tmp_path, isolated_env):
+    s, turn = _drafted(tmp_path, isolated_env)
+    out = s.assistant.reject(turn["draft_id"])
+    assert s.assistant.draft.status == "rejected" and s.history[-1].action["type"] == "select"
+    assert [st["status"] for st in out["steps"]] == ["done", "rejected"]
+    with pytest.raises(ValueError, match="no pending draft"):
+        s.assistant.reject(turn["draft_id"])
+
+
+def test_clear_forgets_the_conversation_and_the_draft(tmp_path, isolated_env):
+    s, turn = _drafted(tmp_path, isolated_env)
+    s.assistant.clear()
+    assert s.assistant.turns == [] and s.assistant.draft is None
+    with pytest.raises(ValueError, match="no pending draft"):
+        s.assistant.approve(turn["draft_id"])
+    assert s.history[-1].action["type"] == "select"  # what ran stays in the session history
+
+
+def test_a_delete_from_a_draft_is_pinned_to_the_drafted_version(tmp_path, isolated_env):
+    p = Scripted(_reply(("delete_rows", {"ids": [5]})))
+    s = _session(tmp_path, isolated_env, p)
+    turn = s.assistant.ask("delete link 5")
+    s.assistant.approve(turn["draft_id"])
+    assert s.history[-1].ok and s.history[-1].action["expected_version"] == 0
+    assert "expected_version" not in s.history[-1].python
+
+
+def test_every_change_publishes_an_assistant_event(tmp_path, isolated_env):
+    s, turn = _drafted(tmp_path, isolated_env)
+    seen = []
+    s.events.publish = seen.append
+    s.assistant.reject(turn["draft_id"])
+    s.assistant.clear()
+    assert [e["type"] for e in seen] == ["assistant", "assistant"] and seen[-1]["assistant"]["turns"] == []

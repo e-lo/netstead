@@ -352,6 +352,82 @@ class Assistant:
                     return actions, str(exc), versions
         return actions, None, versions
 
+    # ------------------------------------------------------------------ the draft: approve, reject, clear
+
+    def approve(self, draft_id: int) -> dict[str, Any]:
+        """Run the pending draft's steps in order (stopping at the first failure); return the updated turn.
+
+        Raises ``ValueError`` when ``draft_id`` is not the pending draft, or when a network it touches changed
+        version (or, for a step on the active network, the active network changed) since the draft was made; the
+        draft is then ``stale``. Raises :class:`AssistantBusy` while a question is being answered.
+        """
+        if not self._busy.acquire(blocking=False):
+            raise AssistantBusy("the assistant is still answering")
+        try:
+            with self._lock:
+                draft = self._pending(draft_id)
+                turn = self._turn(draft.turn_id)
+            session = self._session
+            with session._lock:  # package-internal: the versions and the active network from one moment
+                now = {h.id: h.version for h in session.registry}
+                active = session.active
+            on_active = any(getattr(a, "net_id", None) is None for a in draft.actions)
+            touched = {getattr(a, "net_id", None) or draft.active for a in draft.actions} - {None}
+            moved = (on_active and active != draft.active) or any(now.get(n) != draft.versions.get(n) for n in touched)
+            with self._lock:
+                if self.draft is not draft or draft.status != "pending":  # cleared or replaced meanwhile
+                    raise ValueError(f"no pending draft {draft_id}")
+                if moved:
+                    self._close_draft(draft, "stale")
+                    stale = True
+                else:
+                    draft.status, stale = "approved", False
+            if stale:
+                self._publish()
+                raise ValueError("the network changed since this draft was made; ask again")
+            steps = [s for s in turn.steps if s["status"] == "drafted"] if turn is not None else []
+            failed = False
+            for i, action in enumerate(draft.actions):
+                step = steps[i] if i < len(steps) else {}
+                if failed:
+                    step["status"] = "skipped"
+                    continue
+                if action.type == "delete_rows" and getattr(action, "expected_version", None) is None:
+                    net = getattr(action, "net_id", None) or draft.active
+                    action = action.model_copy(update={"expected_version": draft.versions[net]})
+                entry = session.dispatch_recorded(action, via="assistant")
+                step.update(self._step(action, "done" if entry.ok else "failed", entry))
+                failed = not entry.ok
+            with self._lock:
+                out = asdict(turn) if turn is not None else {"id": draft.turn_id, "steps": []}
+            self._publish()
+            return out
+        finally:
+            self._busy.release()
+
+    def reject(self, draft_id: int) -> dict[str, Any]:
+        """Discard the pending draft; its steps are marked rejected. Raises ``ValueError`` if it isn't pending."""
+        with self._lock:
+            draft = self._pending(draft_id)
+            self._close_draft(draft, "rejected")
+            turn = self._turn(draft.turn_id)
+            out = asdict(turn) if turn is not None else {"id": draft.turn_id, "steps": []}
+        self._publish()
+        return out
+
+    def clear(self) -> None:
+        """Forget the conversation and any pending draft (what ran stays in the session history)."""
+        with self._lock:
+            self._supersede()
+            self.turns.clear()
+            self.draft = None
+        self._publish()
+
+    def _pending(self, draft_id: int) -> _Draft:
+        if self.draft is None or self.draft.id != draft_id or self.draft.status != "pending":
+            raise ValueError(f"no pending draft {draft_id}")
+        return self.draft
+
     def _unmade(self, call: _Call, status: str) -> dict[str, Any]:
         """A step that never ran nor was drafted; one whose ids were still a placeholder names no ids."""
         step = self._step(call.action, status)
