@@ -52,6 +52,7 @@ from ..related import (
     row_vias,
 )
 from ..session import Session
+from .common import network_handle
 
 __all__ = ["LocateQuery", "RelatedQuery", "RowsQuery", "network_router"]
 
@@ -142,14 +143,7 @@ def network_router(session: Session) -> APIRouter:
     router = APIRouter(prefix="/api/n/{net_id}/{component}")
 
     def handle(net_id: str, component: str) -> NetworkHandle:
-        if component == "transit":
-            raise HTTPException(501, "the transit component is not supported yet (phase P6)")
-        if component != "roadway":
-            raise HTTPException(404, f"unknown component {component!r}")
-        try:
-            return session.registry.get(net_id)
-        except KeyError as exc:
-            raise HTTPException(404, exc.args[0]) from exc
+        return network_handle(session, net_id, component)
 
     def table(h: NetworkHandle, name: str) -> Any:
         tables = h.tables()

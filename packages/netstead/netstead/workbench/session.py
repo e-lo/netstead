@@ -3,18 +3,18 @@
 UI clicks (``POST /api/actions``), Python (``session.dispatch(...)``), and, in
 P3, the NL assistant all funnel through ``dispatch``. Each call is recorded as a
 :class:`HistoryEntry` carrying its ``to_python`` replay snippet, and publishes
-``history`` + ``state`` events for the browser. Network *edits* are not actions
-here yet: in P2 they become ProjectCard-shaped ``NetworkChange`` objects.
+``history`` + ``state`` events for the browser. Network edits are Actions too (``EditCells``,
+``DeleteRows``, ``AddRows``, ``UndoEdit``); each one's mutation is a pending edit (see :mod:`.ledger`).
 
-Actions marked ``runs_as_job`` (``OpenNetwork``, ``BuildNetwork``) do their slow
-work on a background job thread *without* the session lock. :meth:`Session.submit`
-starts one and returns immediately (the HTTP path); :meth:`Session.dispatch` starts
-one and waits (Python, the CLI), so callers see the same blocking behaviour as before.
+Actions marked ``runs_as_job`` (``OpenNetwork``, ``BuildNetwork``, ``RunValidation``,
+``SaveNetwork``) do their slow work on a background job thread *without* the session lock.
+:meth:`Session.submit` starts one and returns immediately (the HTTP path); :meth:`Session.dispatch`
+starts one and waits (Python, the CLI), so callers see the same blocking behaviour as before.
 
-A successful job ends in :meth:`Session._commit`, which registers the loaded network
-*and* records its history entry in one critical section. History order therefore
-always matches registry order, even when two jobs overlap, so replaying the history
-reproduces the same network ids. Failed and cancelled jobs are recorded by
+A successful job ends in :meth:`Session._commit`, which commits the job's outcome (registers the
+loaded network, stores the issues, marks the edits saved) *and* records its history entry in one
+critical section. History order therefore always matches registry order, even when two jobs overlap,
+so replaying the history reproduces the same network ids. Failed and cancelled jobs are recorded by
 :meth:`Session._finish`.
 
 ``Select`` with an utterance may call a language model, which can take seconds. Its parse
@@ -37,8 +37,8 @@ from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
-from corral.editing import Edit, EditResult
-from corral.editing.apply import apply_edit
+from corral.editing import Edit, EditingError, EditResult, affected_rows
+from corral.editing.apply import apply_edit, reverse_edit
 from corral.engines.ibis_engine import IbisEngine
 
 from netstead import Network
@@ -55,33 +55,43 @@ from netstead.llm import LLMError, MissingKey, ProviderRegistry, build_registry
 from netstead.llm.context import assistant_context, find_project_context, read_capped
 from netstead.llm.secrets import redact_settings
 from netstead.select.intent import SelectionIntent
-from netstead.select.parse import LLMParser, make_parser, payload_from_intent
+from netstead.select.parse import LLMParser, intent_from_payload, make_parser, payload_from_intent
 from netstead.select.prompt import PromptContext, close_match_hint, vocabulary_from_links
 from netstead.select.resolve import resolve_frames
-from netstead.viz.styling import styleable_columns
+from netstead.viz.styling import json_scalar, styleable_columns
 
 from . import build
 from .actions import (
     ActionRegistry,
+    AddRows,
     BaseAction,
     BuildNetwork,
     ClearSelection,
     CloseNetwork,
+    DeleteRows,
+    EditCells,
     Navigate,
     OpenNetwork,
+    RunValidation,
+    SaveNetwork,
     Select,
     SetActiveNetwork,
     SetSetting,
     Style,
+    UndoEdit,
     import_line,
     is_secret_name,
     to_python,
 )
+from .editcheck import CheckResult, check_rows, referencing_keys, touched_keys
+from .editing import EditPlan, EditRefused, plan_add, plan_delete, plan_update, table_keys
 from .errors import ActionError, ApprovalRequired, JobCancelled, NotSupportedYet, PathNotAllowed
 from .estimate import Estimate, needs_approval
 from .events import EventBus
+from .issues import IssueSet, locate_issues, run_validation
 from .jobs import Job, JobContext, JobRunner
-from .paths import allowed_roots, open_locator
+from .ledger import CORE_SOURCE, PYTHON_SOURCE, EditLedger, PendingEdit
+from .paths import allowed_roots, open_locator, split_source
 from .plugins.discovery import PluginStatus, discover
 from .plugins.host import Host, PluginSettingsError, validate_plugin_settings
 from .plugins.spec import HOST_API, WorkbenchPlugin, api_compatible, problems
@@ -122,6 +132,82 @@ class _Loaded:
     label: str | None
     net_id: str | None = None
     extra: dict[str, Any] = field(default_factory=dict)  # merged into the job result after ``net_id``
+
+    def commit(self, session: Session) -> dict[str, Any]:
+        """Register the network and make it active (called under the session lock)."""
+        handle = session.registry.add(self.net, source=self.source, label=self.label, net_id=self.net_id)
+        handle.prime(**self.frames)
+        session.active = handle.id
+        return {"net_id": handle.id, **self.extra}
+
+
+@dataclass
+class _Validated:
+    """A validation job's issues, waiting to be stored for the network version they describe."""
+
+    handle: NetworkHandle
+    issues: IssueSet
+
+    def commit(self, session: Session) -> dict[str, Any]:
+        """Store the issue set (called under the session lock); the network may have been edited meanwhile.
+
+        A run that finishes after a newer one (overlapping validations) is ``superseded``: the newer set is
+        kept, so a stale result never replaces a current one.
+        """
+        h = self.handle
+        if h.id not in session.registry.ids() or session.registry.get(h.id) is not h:
+            raise ActionError(f"network {h.id!r} was closed while it was being validated")
+        held = session.issues.get(h.id)
+        superseded = held is not None and held.version > self.issues.version
+        if not superseded:
+            session.issues[h.id] = self.issues
+        return {
+            "net_id": h.id,
+            "version": self.issues.version,
+            "stale": h.version != self.issues.version,
+            "superseded": superseded,
+            "counts": self.issues.counts(),
+            "unknown_rules": list(self.issues.unknown_rules),
+        }
+
+
+@dataclass
+class _Saved:
+    """A save job's output, reported once the copy is in place."""
+
+    handle: NetworkHandle
+    version: int
+    output: str
+    notes: list[str]
+    edits: int
+    accepted: int
+
+    def commit(self, session: Session) -> dict[str, Any]:
+        """Mark the pending edits saved, if the network did not change while saving (called under the lock).
+
+        A network closed while saving (and perhaps reopened under the same id) is never marked: the copy holds
+        the edits of the network that was closed.
+        """
+        h = self.handle
+        closed = h.id not in session.registry.ids() or session.registry.get(h.id) is not h
+        edited = h.version != self.version
+        ledger = session.edits.get(h.id)
+        if ledger is not None and not edited and not closed:
+            ledger.mark_saved()
+        return {
+            "net_id": h.id,
+            "output": self.output,
+            "version": self.version,
+            "closed_while_saving": closed,
+            "edited_while_saving": edited,
+            "edits_saved": self.edits,
+            "accepted_warnings": self.accepted,
+            "notes": self.notes,
+        }
+
+
+#: What a job hands :meth:`Session._commit`: each kind commits itself under the session lock.
+_Outcome = _Loaded | _Validated | _Saved
 
 
 @dataclass
@@ -191,6 +277,20 @@ class _Derived:
             session.registry.remove(self.net_id)
 
 
+@dataclass
+class _LedgerMark:
+    """Undo record for a change to one network's pending-edit ledger inside an Action: the ledger before it."""
+
+    net_id: str
+    before: EditLedger | None  # a snapshot (``EditLedger.copy``); ``None``: the network had no ledger
+
+    def undo(self, session: Session) -> None:
+        if self.before is None:
+            session.edits.pop(self.net_id, None)
+        else:
+            session.edits[self.net_id] = self.before
+
+
 class Session:
     """Live workbench state: open networks, selection, style, settings, history."""
 
@@ -236,6 +336,8 @@ class Session:
         self.selection: dict[str, Any] | None = None
         self.style: dict[str, Any] = copy.deepcopy(DEFAULT_STYLE)
         self.history: list[HistoryEntry] = []
+        self.edits: dict[str, EditLedger] = {}  # net_id -> its pending edits
+        self.issues: dict[str, IssueSet] = {}  # net_id -> its last validation
         self._injected_parser = parser
         self._parser = parser
         #: The registry ``_parser`` was built from (an injected parser is paired with the current one):
@@ -249,7 +351,7 @@ class Session:
         #: holding the lock touches it, so "empty" means "not inside any Action" for that thread.
         self._running: list[_Running] = []
         #: What ``mutate``/``derive`` changed inside the running Actions, undone if one of them fails.
-        self._undo: list[_Mutated | _Derived] = []
+        self._undo: list[_Mutated | _Derived | _LedgerMark] = []
         #: The Actions this session understands: the core ones, plus any its plugins register.
         self.actions = ActionRegistry()
         #: ``type`` -> handler run under the lock. Core handlers are this class's ``_do_<type>`` methods
@@ -585,19 +687,17 @@ class Session:
             on_finish=lambda job: self._finish(action, job),
         )
 
-    def _commit(self, action: BaseAction, ctx: JobContext, loaded: _Loaded) -> dict[str, Any]:
-        """Register ``loaded`` and record the success entry in ONE critical section; return the job result.
+    def _commit(self, action: BaseAction, ctx: JobContext, outcome: _Outcome) -> dict[str, Any]:
+        """Commit ``outcome`` and record the success entry in ONE critical section; return the job result.
 
-        Doing both under one lock acquisition is what keeps history order equal to registry order:
+        The outcome's ``commit`` registers a network, stores issues, or marks edits saved. Doing that and
+        recording under one lock acquisition is what keeps history order equal to registry order:
         with separate acquisitions two overlapping jobs could register A, B but record B, A, and a
         replay would then hand out swapped ids. The caller's last ``ctx.stage`` was the final
         cancellation checkpoint, so nothing can cancel the job once this runs.
         """
         with self._lock:
-            handle = self.registry.add(loaded.net, source=loaded.source, label=loaded.label, net_id=loaded.net_id)
-            handle.prime(**loaded.frames)
-            self.active = handle.id
-            result = {"net_id": handle.id, **loaded.extra}
+            result = outcome.commit(self)
             entry = self._record(action, ok=True, result=result, error=None, error_type=None)
             self._committed[ctx.job_id] = entry.seq
         return result
@@ -689,52 +789,274 @@ class Session:
         return handle
 
     def mutate(
-        self, net_id: str | None, edits: Sequence[Edit], *, note: str, origin: str | None = None
+        self,
+        net_id: str | None,
+        edits: Sequence[Edit],
+        *,
+        note: str,
+        origin: str | None = None,
+        recheck: Mapping[str, Iterable[Any]] | None = None,
+        expected_version: int | None = None,
     ) -> list[EditResult]:
         """Apply corral ``edits`` to a network's roadway, in order and all-or-nothing; return their results.
 
+        ``expected_version`` (an :class:`~netstead.workbench.editing.EditPlan`'s ``version``) makes it refuse,
+        with :class:`ActionError` and nothing changed, when the network is no longer at that version: the
+        edits were planned against tables that have changed since.
+
         The edits run on a copy-on-write draft of the roadway, so the network itself never holds a
         half-applied state: a failing edit discards the draft and re-raises, leaving the tables, their
-        sync stamps and the caches as they were. On success the changed tables are swapped in at once,
-        the ``version`` is bumped (dropping caches), ``note`` is appended to the lineage, and ``state``
-        is published. Inside an Action, the change is undone if that Action (or one it is nested in)
-        fails. Outside any Action (a job, a plugin route, Python) nothing would record it, so it gets a
-        history entry of its own, ``<origin>.mutate``, whose ``python`` is a comment: it is visible but
-        not replayable. ``origin`` (a plugin id; default ``"python"``) also prefixes the lineage note.
-        The returned :class:`~corral.editing.EditResult` objects carry the rollback data
-        :func:`corral.editing.apply.reverse_edit` needs, so a caller can undo them later.
+        sync stamps, the caches and the pending edits as they were. On success the changed tables are
+        swapped in at once, the ``version`` is bumped (dropping caches), ``note`` is appended to the
+        lineage, and the change becomes a :class:`~netstead.workbench.ledger.PendingEdit` whose source is
+        ``origin`` (a plugin id), ``"workbench"`` (inside a core Action) or ``"python"`` (outside any
+        Action). The live checks then re-run over every key the network's pending edits touched (``recheck``
+        adds keys beyond the rows these edits touched), and ``state`` is published. Inside an Action, all of
+        it is undone if that Action (or one it is nested in) fails. Outside any Action (a job, a plugin
+        route, Python) nothing would record it, so it gets a history entry of its own, ``<origin>.mutate``,
+        whose ``python`` is a comment: it is visible but not replayable. ``origin`` (default ``"python"``
+        there) also prefixes the lineage note. The returned :class:`~corral.editing.EditResult` objects are
+        the pending edit's rollback data: undo it with :meth:`undo_last` (or :meth:`revert`, given them),
+        never by reversing them on the network yourself. The ledger records the version and each changed
+        table's expression, so it notices such a change (even one that left the version alone) and undo
+        then refuses rather than reverse the edit a second time.
         """
         with self._lock:
             handle = self._handle(net_id)
-            roadway = handle.roadway
-            draft = derived_copy(roadway)  # shares the immutable table expressions; copies the wrappers
+            _check_version(handle, expected_version)
+            if not edits:  # nothing to apply: no version bump, no pending edit, nothing recorded
+                return []
+            draft = derived_copy(handle.roadway)  # shares the immutable table expressions; copies the wrappers
             applied = [apply_edit(draft, edit) for edit in edits]
-            changed = {name: (draft.tables[name].expr, draft.tables[name].dirty) for name in {e.table for e in edits}}
-            if self._running:
-                tracker = roadway.dirty_tracker
-                self._undo.append(
-                    _Mutated(
-                        handle,
-                        tables={name: (roadway.tables[name].expr, roadway.tables[name].dirty) for name in changed},
-                        stamps={name: tracker.get_table_stamp(name) for name in changed} if tracker else {},
-                        version=handle.version,
-                        lineage=len(handle.lineage),
-                    )
-                )
-            handle.replace_tables(changed)
-            handle.lineage.append(f"{origin}: {note}" if origin else note)
-            if self._running:
-                self.events.publish({"type": "state", "state": self.state()})
-            else:
-                self._record_outside_action(handle.id, note, origin or "python")
+            self._swap(handle, draft, {e.table for e in edits}, note, origin)
+            touched = touched_keys(applied, table_keys(handle.roadway))
+            for table, keys in [*(recheck or {}).items(), *self._referencing(handle, applied).items()]:
+                touched.setdefault(table, set()).update(keys)
+            tables, removed = {e.table for e in edits}, _removed_links(applied, reverted=False)
+            exprs = _exprs(handle, tables)
+            self._ledger_for(handle.id).add(self._source(origin), note, handle.version, applied, touched, exprs)
+            self._settle(handle, note, origin, kind="mutate", first=touched, tables=tables, removed=removed)
         return applied
 
-    def _record_outside_action(self, net_id: str, note: str, origin: str) -> None:
-        """Record a ``mutate`` no Action covers, so nothing changes silently (not replayable: a comment)."""
+    def revert(
+        self, net_id: str | None, results: Sequence[EditResult], *, note: str, origin: str | None = None
+    ) -> None:
+        """Reverse the network's newest pending edit, given its ``results``: :meth:`mutate` run backwards.
+
+        The results are reversed newest first on a copy-on-write draft, which is swapped in the way a
+        mutation is: the version is bumped, ``note`` extends the lineage (prefixed with ``origin``), the
+        pending edit is dropped, the live checks re-run, and ``state`` is published. Inside an Action a
+        failure undoes it; outside one it is recorded as ``<origin>.revert`` (not replayable). Only the
+        newest pending edit can be reverted, since corral reverses an edit against the table that edit left
+        behind: anything else raises :class:`ActionError`, as does a network changed without the ledger
+        (in place, outside :meth:`mutate` and :meth:`revert`): its version moved, or one of the edit's tables
+        holds an expression other than the one the ledger recorded.
+        """
+        with self._lock:
+            handle = self._handle(net_id)
+            ledger = self.edits.get(handle.id)
+            last = ledger.last() if ledger else None
+            if last is None or not _same_results(results, last.results):
+                raise ActionError(f"only the newest change to {handle.id} can be reverted")
+            tables = {r.edit.table for r in last.results}
+            if ledger.unseen_change(handle.version, _exprs(handle, tables)):  # type: ignore[union-attr]  # ``last`` is set
+                raise ActionError(f"{handle.id} changed outside the Workbench since; undo is unavailable")
+            draft = derived_copy(handle.roadway)
+            for result in reversed(last.results):
+                reverse_edit(draft, result)
+            self._swap(handle, draft, tables, note, origin)
+            self._ledger_for(handle.id).pop(handle.version, _exprs(handle, tables))
+            removed = _removed_links(last.results, reverted=True)
+            self._settle(handle, note, origin, kind="revert", first=last.touched, tables=tables, removed=removed)
+
+    def undo_last(self, net_id: str | None, *, source: str = CORE_SOURCE) -> PendingEdit:
+        """Revert the network's newest pending edit, if ``source`` made it; return the entry undone.
+
+        Raises :class:`ActionError` when there is nothing to undo, or when the newest change came from
+        another source (core never undoes a plugin's change, nor a plugin core's).
+        """
+        with self._lock:
+            handle = self._handle(net_id)
+            ledger = self.edits.get(handle.id)
+            last = ledger.last() if ledger else None
+            if last is None:
+                raise ActionError(f"nothing to undo on {handle.id}")
+            if last.source != source:
+                who = "the Workbench" if last.source == CORE_SOURCE else last.source
+                raise ActionError(f"the last change to {handle.id} was made by {who} ({last.note}); undo it there")
+            origin = None if source in (CORE_SOURCE, PYTHON_SOURCE) else source
+            self.revert(handle.id, last.results, note=f"undo: {last.note}", origin=origin)
+        return last
+
+    def edit_check(self, net_id: str | None) -> CheckResult:
+        """The live edit warnings on a network now (empty before any edit)."""
+        with self._lock:
+            ledger = self.edits.get(self._handle(net_id).id)
+            return ledger.check if ledger else CheckResult()
+
+    def edits_payload(self, handle: NetworkHandle) -> dict[str, Any]:
+        """The Edits panel's data: pending edits (newest first), undo state, dirty state and the live warnings."""
+        with self._lock:
+            ledger = self.edits.get(handle.id) or EditLedger()
+            last = ledger.last()
+            return {
+                "net_id": handle.id,
+                "version": handle.version,
+                "entries": [e.view() for e in reversed(ledger.entries)],
+                **ledger.summary(),
+                "can_undo": bool(last and last.source == CORE_SOURCE),
+                "warnings": [w.to_dict() for w in ledger.check.warnings],  # the list, in place of the count
+            }
+
+    def delete_preview(self, handle: NetworkHandle, table: str, ids: Sequence[Any]) -> dict[str, Any]:
+        """What deleting ``ids`` from ``table`` would remove (rows per table), or why it is refused. Changes nothing.
+
+        Plans on a snapshot taken under the lock, then reads it without the lock, so the cascade's lookups never
+        hold up other actions.
+        """
+        with self._lock:
+            version, roadway = handle.version, derived_copy(handle.roadway)
+        try:
+            plan = plan_delete(roadway, table, ids, version=version)
+        except EditRefused as exc:
+            return {"table": table, "version": version, "refused": str(exc), "rows": {}, "summary": None}
+        return {"table": table, "version": version, "refused": None, "rows": dict(plan.rows), "summary": plan.summary}
+
+    def _swap(self, handle: NetworkHandle, draft: Network, names: Iterable[str], note: str, origin: str | None) -> None:
+        """Swap ``draft``'s tables ``names`` into ``handle`` in one step: bump the version, extend the lineage.
+
+        Inside an Action an undo record goes first, so a failing Action puts the tables, version, lineage and
+        sync stamps back (Part 1's rollback). Call with the lock held.
+        """
+        roadway = handle.roadway
+        changed = {name: (draft.tables[name].expr, draft.tables[name].dirty) for name in names}
+        if self._running:
+            tracker = roadway.dirty_tracker
+            self._undo.append(
+                _Mutated(
+                    handle,
+                    tables={name: (roadway.tables[name].expr, roadway.tables[name].dirty) for name in changed},
+                    stamps={name: tracker.get_table_stamp(name) for name in changed} if tracker else {},
+                    version=handle.version,
+                    lineage=len(handle.lineage),
+                )
+            )
+        handle.replace_tables(changed)
+        handle.lineage.append(f"{origin}: {note}" if origin else note)
+
+    def _ledger_for(self, net_id: str) -> EditLedger:
+        """``net_id``'s ledger, about to change: inside an Action its snapshot goes on the undo stack first."""
+        ledger = self.edits.get(net_id)
+        if self._running:
+            self._undo.append(_LedgerMark(net_id, ledger.copy() if ledger is not None else None))
+        if ledger is None:
+            ledger = self.edits[net_id] = EditLedger()
+        return ledger
+
+    def _source(self, origin: str | None) -> str:
+        """Who a mutation belongs to: its plugin, a core Action (``"workbench"``), or Python outside any Action."""
+        return origin or (CORE_SOURCE if self._running else PYTHON_SOURCE)
+
+    def _referencing(self, handle: NetworkHandle, applied: Sequence[EditResult]) -> dict[str, set[Any]]:
+        """Rows still pointing at rows ``applied`` deleted (to re-check); a failure only narrows the live check."""
+        if not any(r.edit.op == "delete_rows" for r in applied):
+            return {}
+        try:
+            return referencing_keys(handle.roadway, applied)
+        except Exception:  # boundary: a failing lookup must not undo a good edit; Run validation still works
+            logger.exception("finding rows that referenced deleted rows on %s failed", handle.id)
+            return {}
+
+    def _settle(
+        self,
+        handle: NetworkHandle,
+        note: str,
+        origin: str | None,
+        *,
+        kind: str,
+        first: Mapping[str, Iterable[Any]],
+        tables: set[str],
+        removed: set[Any] | None,
+    ) -> None:
+        """After a swap: re-run the live checks, move the selection, then publish (in an Action) or record."""
+        self._recheck(handle, first)
+        self._refresh_selection(handle, tables, removed)
+        if self._running:
+            self.events.publish({"type": "state", "state": self.state()})
+        else:
+            self._record_outside_action(handle.id, note, origin or PYTHON_SOURCE, kind=kind)
+
+    def _recheck(self, handle: NetworkHandle, first: Mapping[str, Iterable[Any]] | None = None) -> None:
+        """Re-run the live checks over every key the network's ledger touched (call with the lock held).
+
+        ``first`` (the newest change's keys) is checked before older ones, so the per-table cap never skips
+        it. It assigns ``ledger.check`` on the live ledger after :meth:`_ledger_for` snapshotted it, so a
+        rollback also restores the check that matched the old tables.
+        """
+        ledger = self.edits.get(handle.id)
+        if ledger is None:
+            return
+        try:
+            ledger.check = check_rows(handle.roadway, ledger.touched(), first=first)
+        except Exception:  # boundary: a failing check must not undo a good edit; Run validation still works
+            logger.exception("live edit check on %s failed", handle.id)
+            ledger.check = CheckResult(failed=True)
+
+    def _refresh_selection(self, handle: NetworkHandle, tables: set[str], removed: set[Any] | None) -> None:
+        """Keep the shared selection true to an edited network (call with the lock held, after a swap).
+
+        A selection made by a query (its payload keeps the parsed ``intent``) is resolved again; one made
+        by ids keeps them, minus the links that no longer exist, and is cleared when none is left. It is
+        deterministic, so a replayed session agrees; a failed Action restores the old one (``_roll_back``).
+        Only an edit of ``link`` or ``node`` can move it. ``removed`` is the link ids the edit took away
+        (``None``: unknown, so the link table is read). A failure here never fails the edit: the query
+        falls back to the ids rule, and that to no selection.
+        """
+        sel = self.selection
+        if not sel or sel["net_id"] != handle.id or sel["component"] != "roadway":
+            return
+        if not tables & {"link", "node"}:  # a lane or time-of-day edit cannot change which links match
+            return
+        if sel.get("intent") is not None:
+            try:
+                intent = intent_from_payload(sel["intent"], sel["utterance"] or "")
+                result = resolve_frames(intent, handle.links_df(), handle.nodes_df())
+                self.selection = selection_payload(
+                    handle, result, utterance=sel["utterance"], parsed_by=sel["parsed_by"]
+                )
+                return
+            except Exception:  # boundary: keep the edit; fall back to the ids it selected
+                logger.exception("re-resolving the selection's query on %s failed; keeping its ids", handle.id)
+                removed = None
+        try:
+            self._keep_selected_ids(handle, sel, tables, removed)
+        except Exception:  # boundary: keep the edit; an unknown selection is no selection
+            logger.exception("updating the selection on %s after an edit failed; clearing it", handle.id)
+            self.selection = None
+
+    def _keep_selected_ids(
+        self, handle: NetworkHandle, sel: dict[str, Any], tables: set[str], removed: set[Any] | None
+    ) -> None:
+        """The ids rule: keep the selected links that still exist; refresh anchors when nodes moved."""
+        if removed is None:
+            present = {json_scalar(v) for v in handle.links_df()["link_id"]}
+            kept = [i for i in sel["link_ids"] if i in present]
+        else:
+            kept = [i for i in sel["link_ids"] if i not in removed]
+        if kept == sel["link_ids"] and not ("node" in tables and sel["anchors"]):
+            return
+        if not kept:
+            self.selection = None
+            return
+        result = resolve_frames(SelectionIntent(link_ids=kept), handle.links_df(), handle.nodes_df())
+        self.selection = selection_payload(handle, result)
+
+    def _record_outside_action(self, net_id: str, note: str, origin: str, *, kind: str = "mutate") -> None:
+        """Record a ``mutate`` or ``revert`` no Action covers, so nothing changes silently (not replayable)."""
         text = " ".join(note.split())  # one line: it becomes a comment in a script
         entry = HistoryEntry(
             seq=len(self.history) + 1,
-            action={"type": f"{origin}.mutate", "net_id": net_id, "note": text},
+            action={"type": f"{origin}.{kind}", "net_id": net_id, "note": text},
             python=f"# {origin} changed {net_id} outside an Action: {text} (not replayable)",
             imports="",
             ok=True,
@@ -780,7 +1102,21 @@ class Session:
                 "selection": copy.deepcopy(self.selection),
                 "style": copy.deepcopy(self.style),
                 "plugins": self._plugin_state(),
+                "edits": {nid: ledger.summary() for nid, ledger in self.edits.items()},
+                "issues": {
+                    nid: {
+                        "version": s.version,
+                        "stale": s.version != self.registry.get(nid).version,
+                        "counts": s.counts(),
+                    }
+                    for nid, s in self.issues.items()
+                },
             }
+
+    def issue_set(self, net_id: str) -> IssueSet | None:
+        """The last validation of ``net_id`` (``None`` before any)."""
+        with self._lock:
+            return self.issues.get(net_id)
 
     def action_catalog(self) -> list[dict[str, Any]]:
         """Each registered Action, for the browser's generated forms and ``wb.hasAction``.
@@ -907,6 +1243,75 @@ class Session:
         }
         return _Loaded(loaded, frames, source=output, label=action.label or action.name, extra=extra)
 
+    def _job_run_validation(self, action: RunValidation, ctx: JobContext) -> _Validated:
+        with self._lock:
+            handle = self._handle(action.net_id)
+            version, rules = handle.version, self.settings.validation
+            # A snapshot of the tables at ``version``: an edit meanwhile swaps new expressions into the
+            # handle's own table wrappers, which this run must not see half-way through.
+            roadway = derived_copy(handle.roadway)
+        ctx.stage("validate", progress=0.05)
+        try:
+            report, unknown = run_validation(roadway, rules, quality=action.quality)
+            ctx.stage("locate", progress=0.85)
+            issues = locate_issues(report, roadway)
+        except ActionError:
+            raise
+        except Exception as exc:  # boundary: a crashing check is a reported failure, with its reason
+            logger.exception("workbench validation of %s failed", handle.id)
+            raise ActionError(f"validation failed: {type(exc).__name__}: {scrub(str(exc), limit=None)}") from exc
+        ctx.stage("store", progress=0.95)  # last cancellation checkpoint
+        return _Validated(handle, IssueSet(handle.id, version, issues, report, unknown, network=roadway))
+
+    def _job_save_network(self, action: SaveNetwork, ctx: JobContext) -> _Saved:
+        with self._lock:
+            handle = self._handle(action.net_id)
+            version, settings = handle.version, self.settings
+            ledger = self.edits.get(handle.id)
+            pending = len(ledger.entries) if ledger else 0
+            open_warnings = ledger.check.warnings if ledger else ()
+            crashed, truncated = (ledger.check.failed, ledger.check.truncated) if ledger else (False, False)
+            # A snapshot of the tables at ``version`` (an edit meanwhile must not reach this copy half-way).
+            roadway = derived_copy(handle.roadway)
+        if (crashed or truncated) and not action.accept_warnings:
+            # The live check did not cover every edited row, so "no warnings" proves nothing: confirm explicitly.
+            why = "failed" if crashed else "stopped early (too many edited rows to check)"
+            refused = ActionError(
+                f"the live edit check {why}, so the edits may break the network unnoticed; run validation to see "
+                "every issue, then save with accept_warnings=True"
+            )
+            refused.payload = {
+                "check_failed": True,
+                "truncated": truncated,
+                "count": len(open_warnings),
+                "warnings": [w.to_dict() for w in open_warnings[:50]],
+            }
+            raise refused
+        if open_warnings and not action.accept_warnings:
+            n = len(open_warnings)
+            refused = ActionError(
+                f"the network has {n} open edit warning{'s' if n != 1 else ''}; review them in the Issues panel, "
+                "then save with accept_warnings=True"
+            )
+            refused.payload = {
+                "check_failed": False,
+                "truncated": False,
+                "count": n,
+                "warnings": [w.to_dict() for w in open_warnings[:50]],
+            }
+            raise refused
+        dest = build.output_path(action.output_dir, action.name, action.output_format, settings, what="saves")
+        _refuse_inside_source(dest, handle.source)
+        build.remove_stale_partials(dest.parent)
+        with build.staging(dest) as tmp:
+            build.write_output(roadway, tmp, action.output_format, ctx)  # never warns OutOfSyncWarning
+            ctx.stage("save", progress=0.95)  # last cancellation checkpoint
+            build.promote(tmp, dest)
+        # What corral's OutOfSyncWarning would have said, without the source (it may be a presigned URL).
+        stale = sorted(n for n, t in roadway.tables.items() if t.dirty)
+        notes = [f"{len(stale)} table(s) differ from the source: {', '.join(stale)}"] if stale else []
+        return _Saved(handle, version, str(dest), notes, pending, len(open_warnings))
+
     def _do_close_network(self, action: CloseNetwork) -> None:
         self._handle(action.net_id)
         self.registry.remove(action.net_id)
@@ -915,6 +1320,8 @@ class Session:
                 handle.derived_from = f"{action.net_id} (closed)"
         # Its few-shot examples go too: a later network may reuse the id.
         self._examples = deque((e for e in self._examples if e[0] != action.net_id), maxlen=_MAX_EXAMPLES)
+        self.edits.pop(action.net_id, None)
+        self.issues.pop(action.net_id, None)
         if self.selection and self.selection["net_id"] == action.net_id:
             self.selection = None
         if self.active == action.net_id:
@@ -1108,6 +1515,62 @@ class Session:
             self.reset_llm()  # parser and adapters rebuild from the new provider/model/endpoint on next use
         return {"key": action.key, "value": value, "source": loaded.sources.get(action.key)}
 
+    def _edit_target(self, action: EditCells | DeleteRows | AddRows) -> NetworkHandle:
+        if action.component != "roadway":
+            raise NotSupportedYet("transit edits arrive with the transit component (phase P6)")
+        return self._handle(action.net_id)
+
+    def _apply_plan(self, handle: NetworkHandle, plan: EditPlan, note: str | None) -> dict[str, Any]:
+        """Apply ``plan`` as one pending edit and describe it, with the live warnings on the rows it touched."""
+        text = f"{plan.summary} ({note})" if note else plan.summary
+        try:
+            self.mutate(handle.id, plan.edits, note=text, recheck=plan.recheck, expected_version=plan.version)
+        except EditingError as exc:  # corral refused the payload; the draft was discarded, nothing changed
+            raise ActionError(f"the edit failed: {exc}") from exc
+        ledger = self.edits[handle.id]
+        entry = ledger.last()
+        assert entry is not None  # mutate just added it
+        return {
+            "net_id": handle.id,
+            "version": handle.version,
+            "summary": plan.summary,
+            "rows": dict(plan.rows),
+            "keys": list(plan.keys),
+            "warnings": [w.to_dict() for w in ledger.check.for_rows(entry.touched)],
+            "open_warnings": len(ledger.check.warnings),
+        }
+
+    def _do_edit_cells(self, action: EditCells) -> dict[str, Any]:
+        handle = self._edit_target(action)
+        plan = _planned(
+            lambda: plan_update(handle.roadway, action.table, action.ids, action.values, version=handle.version)
+        )
+        return self._apply_plan(handle, plan, action.note)
+
+    def _do_delete_rows(self, action: DeleteRows) -> dict[str, Any]:
+        handle = self._edit_target(action)
+        # A confirmed delete plan's version: refused here, before planning, if the network changed since the
+        # confirmation (so a stale delete of rows that have since gone says so, not "not found"); mutate checks too.
+        _check_version(handle, action.expected_version)
+        version = handle.version if action.expected_version is None else action.expected_version
+        plan = _planned(lambda: plan_delete(handle.roadway, action.table, action.ids, version=version))
+        return self._apply_plan(handle, plan, action.note)  # the selection follows in mutate (R4)
+
+    def _do_add_rows(self, action: AddRows) -> dict[str, Any]:
+        handle = self._edit_target(action)
+        plan = _planned(lambda: plan_add(handle.roadway, action.table, action.rows, version=handle.version))
+        return self._apply_plan(handle, plan, action.note)
+
+    def _do_undo_edit(self, action: UndoEdit) -> dict[str, Any]:
+        entry = self.undo_last(action.net_id)
+        handle = self._handle(action.net_id)
+        return {
+            "net_id": handle.id,
+            "version": handle.version,
+            "undone": entry.view(),
+            "open_warnings": len(self.edit_check(handle.id).warnings),
+        }
+
 
 #: Settings the action API refuses at every scope. ``io.allowed_roots`` is the sandbox for every local
 #: read and write; if an action (a browser click, a replayed script, the NL assistant) could widen it,
@@ -1126,7 +1589,6 @@ _RESTART_KEYS = ("app.host", "app.port", "app.console", "app.disabled_plugins")
 #: Sections in the schema that nothing reads yet (see the P1b plan, open question 8).
 _SECTION_NOTES = {
     "engine": "Not used by the workbench yet: networks open with DuckDB's own defaults.",
-    "validation": "Not used by the workbench yet: validation in the app arrives in phase P2.",
     "credentials": "Not used by the workbench yet: credential sources are shown by the URL check only.",
 }
 
@@ -1197,6 +1659,16 @@ def _json_schema_or_none(model: type[BaseAction]) -> dict[str, Any] | None:
         return None
 
 
+def _exprs(handle: NetworkHandle, tables: Iterable[str]) -> dict[str, Any]:
+    """Each of ``tables``' current expression on ``handle``'s roadway (what the ledger compares by identity)."""
+    return {name: handle.roadway.tables[name].expr for name in tables if name in handle.roadway.tables}
+
+
+def _same_results(given: Sequence[EditResult], held: Sequence[EditResult]) -> bool:
+    """Whether ``given`` are exactly the ``EditResult`` objects a pending edit holds (identity, in order)."""
+    return len(given) == len(held) and all(a is b for a, b in zip(given, held, strict=True))
+
+
 def _mark_rolled_back(children: list[_Nested], parent_type: str) -> None:
     """Nested entries that succeeded but were undone with their parent: history must not call them applied."""
     for child in children:
@@ -1233,6 +1705,57 @@ def _value_or_unset(settings: Settings, key: str) -> Any:
         if key.strip().lower().split(".", 1)[0] == "plugins":
             return None
         raise
+
+
+def _removed_links(results: Sequence[EditResult], *, reverted: bool) -> set[Any] | None:
+    """The link ids applying (or, ``reverted``, reversing) ``results`` removed; ``None`` when that is unknown.
+
+    Deleting rows (reversing an addition) removes their ids; adding rows (reversing a deletion) and setting
+    cells other than ``link_id`` remove none. Anything else (a key change, a whole-table replace) is unknown.
+    """
+    # e.g. undoing an add_rows deletes the rows it added, so reversed, add_rows is the op that removes links
+    removing, keeping = ("add_rows", "delete_rows") if reverted else ("delete_rows", "add_rows")
+    out: set[Any] = set()
+    for result in results:
+        edit = result.edit
+        if edit.table != "link" or edit.op == keeping:
+            continue
+        if edit.op == removing:
+            out.update(json_scalar(row.get("link_id")) for row in affected_rows(result))
+        elif edit.op != "update_rows" or "link_id" in ((edit.payload or {}).get("set") or {}):
+            return None
+    return out
+
+
+def _refuse_inside_source(dest: Path, source: str) -> None:
+    """Refuse a save that would land in the network's own (local) source: the source is never written to."""
+    try:
+        kind, path = split_source(source)
+    except PathNotAllowed:
+        return  # not a locator this session could have opened from disk
+    if kind != "local":
+        return
+    src = Path(path).expanduser().resolve()
+    target = dest.resolve()
+    if target == src or target.is_relative_to(src):
+        raise ActionError("a saved copy can't go inside the network's own source folder; choose another folder")
+
+
+def _check_version(handle: NetworkHandle, expected_version: int | None) -> None:
+    """Refuse with :class:`ActionError` when ``handle`` is no longer at ``expected_version`` (``None``: no check)."""
+    if expected_version is not None and handle.version != expected_version:
+        raise ActionError(
+            f"{handle.id} changed since the edit was planned (version {expected_version}, now "
+            f"{handle.version}); plan it again"
+        )
+
+
+def _planned(planner: Callable[[], EditPlan]) -> EditPlan:
+    """Run an edit planner; its refusal becomes a recorded :class:`ActionError` (nothing changed)."""
+    try:
+        return planner()
+    except EditRefused as exc:
+        raise ActionError(str(exc)) from exc
 
 
 def _follows_endpoint(mode: str, endpoint_local: bool) -> bool:

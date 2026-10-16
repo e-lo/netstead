@@ -103,6 +103,49 @@ def _concat_arrow(left: pa.Table, right: pa.Table) -> pa.Table:
     return pa.concat_tables([_aligned(left), _aligned(right)])
 
 
+def _null_safe(left: ibis.Table, right: ibis.Table, columns: list[str]) -> list[Any]:
+    """Join predicates that also match NULL to NULL (``=`` never does, so a row holding a null would never match).
+
+    ``right`` is built with ``left``'s types (:func:`_rows_like`), so no cast is needed; one is added only for a
+    column whose recorded rows could not take the current type.
+    """
+    out = []
+    for c in columns:
+        rhs = right[c] if right[c].type() == left[c].type() else right[c].cast(left[c].type())
+        out.append(left[c].identical_to(rhs))
+    return out
+
+
+def _rows_like(rows: list[dict], current: pa.Table, engine: Engine) -> pa.Table:
+    """Recorded rows as arrow, typed like ``current``'s columns (a NULL-only column keeps its real type).
+
+    Types are inferred from the rows, then each column ``current`` has is cast to its type with
+    ``safe=True``, so ``2.7`` in an integer column raises instead of landing as ``2``. A NULL-only
+    column (inferred ``null``) becomes typed nulls: inferring alone made an all-NULL timestamp,
+    decimal, binary or list column ``null`` (then ``string``), which no cast turns back into a list.
+    When a cast raises, the rows are read as the engine infers them, and a value the column's type
+    cannot take fails when the rows meet the table (a safe cast there too).
+    """
+    fields = {f.name: f for f in current.schema}
+    try:
+        inferred = pa.Table.from_pylist(rows)
+    except (pa.ArrowException, TypeError, ValueError):
+        return _arrow_of(engine.from_records(rows))
+    columns: list[pa.ChunkedArray | pa.Array] = []
+    try:
+        for name, column in zip(inferred.column_names, inferred.columns, strict=True):
+            field = fields.get(name)
+            if field is None or column.type == field.type:
+                columns.append(column)
+            elif pa.types.is_null(column.type):
+                columns.append(pa.nulls(len(column), field.type))
+            else:
+                columns.append(column.cast(field.type, safe=True))
+    except pa.ArrowException:
+        return _arrow_of(engine.from_records(rows))
+    return pa.table(dict(zip(inferred.column_names, columns, strict=True)))
+
+
 # ---------------------------------------------------------------------------
 # Op handlers — each returns (new_arrow, rollback_data, diff_counts)
 # ---------------------------------------------------------------------------
@@ -116,7 +159,7 @@ def _apply_add_rows(current: pa.Table, edit: Edit, engine: Engine) -> tuple[pa.T
     if not rows:
         return current, {"added_rows": []}, {"rows_added": 0, "rows_removed": 0, "rows_changed": 0}
 
-    new_arrow = _arrow_of(engine.from_records(rows))
+    new_arrow = _rows_like(rows, current, engine)  # typed like the table: a NULL-only list column stays a list
     combined = _concat_arrow(current, new_arrow)
     return (
         combined,
@@ -193,15 +236,19 @@ APPLY_OPS = {
 
 
 def _reverse_add_rows(current: pa.Table, rollback_data: dict, engine: Engine) -> pa.Table:
-    """Anti-join ``current`` against the recorded added rows on every shared column."""
+    """Anti-join ``current`` against the recorded added rows on every shared column.
+
+    Columns are compared null-safely (NULL matches NULL).
+    """
     added_rows = rollback_data.get("added_rows") or []
     if not added_rows:
         return current
-    added_arrow = _arrow_of(engine.from_records(added_rows))
+    added_arrow = _rows_like(added_rows, current, engine)
     join_cols = [c for c in current.column_names if c in added_arrow.column_names]
     if not join_cols:
         return current
-    return ibis.memtable(current).anti_join(ibis.memtable(added_arrow), predicates=join_cols).to_pyarrow()
+    left, right = ibis.memtable(current), ibis.memtable(added_arrow)
+    return left.anti_join(right, predicates=_null_safe(left, right, join_cols)).to_pyarrow()
 
 
 def _reverse_delete_rows(current: pa.Table, rollback_data: dict, engine: Engine) -> pa.Table:
@@ -209,25 +256,27 @@ def _reverse_delete_rows(current: pa.Table, rollback_data: dict, engine: Engine)
     deleted_rows = rollback_data.get("deleted_rows") or []
     if not deleted_rows:
         return current
-    return _concat_arrow(current, _arrow_of(engine.from_records(deleted_rows)))
+    return _concat_arrow(current, _rows_like(deleted_rows, current, engine))
 
 
 def _reverse_update_rows(current: pa.Table, rollback_data: dict, engine: Engine) -> pa.Table:
     """Restore pre-update values by anti-joining on identity (non-touched) columns + concat originals.
 
-    Best-effort when no identity columns survive — restores the original snapshot wholesale.
+    Best-effort when no identity columns survive — restores the original snapshot wholesale. Columns are compared
+    null-safely (NULL matches NULL).
     """
     original_rows = rollback_data.get("original_rows") or []
     touched = rollback_data.get("predicate_fields") or []
     if not original_rows:
         return current
-    original_arrow = _arrow_of(engine.from_records(original_rows))
+    original_arrow = _rows_like(original_rows, current, engine)
     if not touched:
         return current
     identity_cols = [c for c in current.column_names if c not in touched]
     if not identity_cols:
         return original_arrow
-    kept = ibis.memtable(current).anti_join(ibis.memtable(original_arrow), predicates=identity_cols).to_pyarrow()
+    left, right = ibis.memtable(current), ibis.memtable(original_arrow)
+    kept = left.anti_join(right, predicates=_null_safe(left, right, identity_cols)).to_pyarrow()
     return _concat_arrow(kept, original_arrow)
 
 
@@ -351,3 +400,25 @@ def reverse_edit(package: Package, result: EditResult) -> None:
     table.dirty = bool(result.rollback_data.get("_pre_edit_dirty", True))
     if package.dirty_tracker is not None:
         package.dirty_tracker.mark_dirty(result.edit.table)
+
+
+def affected_rows(result: EditResult) -> list[dict]:
+    """The rows an applied edit added, changed (as they were *before* the edit) or removed.
+
+    Read from the edit's rollback data, so callers never interpret that blob themselves. Empty for
+    ``replace_table`` (every row) and for an edit that matched nothing.
+
+    Examples:
+        >>> from corral.dataset import Package, Table
+        >>> from corral.editing import Edit
+        >>> from corral.engines.ibis_engine import IbisEngine
+        >>> e = IbisEngine()
+        >>> pkg = Package.from_tables({"x": Table(name="x", expr=e.from_records([{"a": 1}]), engine=e)})
+        >>> affected_rows(apply_edit(pkg, Edit(op="add_rows", table="x", payload={"rows": [{"a": 2}]})))
+        [{'a': 2}]
+    """
+    data = result.rollback_data or {}
+    for key in ("added_rows", "original_rows", "deleted_rows"):
+        if key in data:
+            return list(data[key] or [])
+    return []

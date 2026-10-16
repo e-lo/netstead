@@ -33,7 +33,7 @@ from corral.editing import (
     UnsupportedEditOp,
     rollback,
 )
-from corral.editing.apply import apply_edit
+from corral.editing.apply import affected_rows, apply_edit, reverse_edit
 from corral.engines.ibis_engine import IbisEngine
 from corral.validation.sync_state import DirtyTracker
 
@@ -468,3 +468,149 @@ def test_reverse_edit_preserves_dirty_dirty_flag() -> None:
         s.add_edit(Edit(op="add_rows", table="t", payload={"rows": [{"id": 99}]}))
     rollback(pkg, log_path)
     assert pkg["t"].dirty is True, "rollback must preserve pre-edit dirty=True state"
+
+
+def _with_nulls() -> Package:
+    e = IbisEngine()
+    rows = [{"id": 1, "name": "a", "v": 1.0}, {"id": 2, "name": None, "v": 2.0}, {"id": 3, "name": "c", "v": 3.0}]
+    return Package.from_tables({"x": Table(name="x", expr=e.from_records(rows), engine=e)})
+
+
+def _rows(pkg: Package) -> list[dict]:
+    return sorted(pkg.tables["x"].expr.to_pyarrow().to_pylist(), key=lambda r: r["id"])
+
+
+def test_reverse_update_restores_a_row_whose_other_columns_hold_null() -> None:
+    pkg = _with_nulls()
+    before = _rows(pkg)
+    r = apply_edit(
+        pkg, Edit(op="update_rows", table="x", payload={"predicate": lambda t: t.id == 2, "set": {"v": 9.0}})
+    )
+    reverse_edit(pkg, r)
+    assert _rows(pkg) == before  # not two copies of id 2
+
+
+def test_reverse_add_removes_an_added_row_that_holds_null() -> None:
+    pkg = _with_nulls()
+    before = _rows(pkg)
+    r = apply_edit(pkg, Edit(op="add_rows", table="x", payload={"rows": [{"id": 4, "name": None, "v": 4.0}]}))
+    reverse_edit(pkg, r)
+    assert _rows(pkg) == before
+
+
+def test_affected_rows_reads_each_op() -> None:
+    pkg = _with_nulls()
+    added = apply_edit(pkg, Edit(op="add_rows", table="x", payload={"rows": [{"id": 4, "name": "d", "v": 4.0}]}))
+    changed = apply_edit(
+        pkg, Edit(op="update_rows", table="x", payload={"predicate": lambda t: t.id == 1, "set": {"v": 5.0}})
+    )
+    removed = apply_edit(pkg, Edit(op="delete_rows", table="x", payload={"predicate": lambda t: t.id == 3}))
+    assert [r["id"] for r in affected_rows(added)] == [4]
+    assert affected_rows(changed) == [{"id": 1, "name": "a", "v": 1.0}]  # the values before the edit
+    assert [r["id"] for r in affected_rows(removed)] == [3]
+
+
+def _typed_with_nulls() -> Package:
+    """Columns whose NULLs used to break the reverse join: timestamp, decimal, binary and list."""
+    import datetime as _dt
+    from decimal import Decimal
+
+    import pyarrow as pa
+
+    e = IbisEngine()
+    arrow = pa.table(
+        {
+            "id": pa.array([1, 2, 3], pa.int64()),
+            "ts": pa.array([_dt.datetime(2026, 1, 1), None, _dt.datetime(2026, 1, 3)], pa.timestamp("us")),
+            "dec": pa.array([Decimal("1.25"), None, Decimal("3.50")], pa.decimal128(10, 2)),
+            "bin": pa.array([b"a", None, b"c"], pa.binary()),
+            "lst": pa.array([[1, 2], None, [3]], pa.list_(pa.int64())),
+            "v": pa.array([1.0, 2.0, 3.0], pa.float64()),
+        }
+    )
+    return Package.from_tables({"x": Table(name="x", expr=e.from_arrow(arrow), engine=e)})
+
+
+def test_reverse_update_restores_rows_with_typed_nulls() -> None:
+    pkg = _typed_with_nulls()
+    before = _rows(pkg)
+    r = apply_edit(
+        pkg, Edit(op="update_rows", table="x", payload={"predicate": lambda t: t.id == 2, "set": {"v": 9.0}})
+    )
+    reverse_edit(pkg, r)
+    assert _rows(pkg) == before
+
+
+def test_reverse_update_of_a_row_without_nulls_in_a_table_with_typed_columns() -> None:
+    pkg = _typed_with_nulls()
+    before = _rows(pkg)
+    r = apply_edit(
+        pkg, Edit(op="update_rows", table="x", payload={"predicate": lambda t: t.id == 1, "set": {"v": 9.0}})
+    )
+    reverse_edit(pkg, r)
+    assert _rows(pkg) == before
+
+
+def test_reverse_add_removes_rows_with_typed_nulls() -> None:
+    pkg = _typed_with_nulls()
+    before = _rows(pkg)
+    row = {"id": 4, "ts": None, "dec": None, "bin": None, "lst": None, "v": 4.0}
+    r = apply_edit(pkg, Edit(op="add_rows", table="x", payload={"rows": [row]}))
+    reverse_edit(pkg, r)
+    assert _rows(pkg) == before
+
+
+def test_reverse_delete_restores_rows_with_typed_nulls() -> None:
+    pkg = _typed_with_nulls()
+    before = _rows(pkg)
+    r = apply_edit(pkg, Edit(op="delete_rows", table="x", payload={"predicate": lambda t: t.id == 2}))
+    reverse_edit(pkg, r)
+    assert _rows(pkg) == before
+
+
+def _ints() -> Package:
+    import pyarrow as pa
+
+    e = IbisEngine()
+    arrow = pa.table(
+        {
+            "id": pa.array([1, 2], pa.int64()),
+            "lanes": pa.array([1, 2], pa.int32()),
+            "tags": pa.array([{"a": 1, "b": "x"}, None], pa.struct([("a", pa.int64()), ("b", pa.string())])),
+            "lst": pa.array([[1], None], pa.list_(pa.int64())),
+        }
+    )
+    return Package.from_tables({"x": Table(name="x", expr=e.from_arrow(arrow), engine=e)})
+
+
+def test_add_rows_refuses_a_float_that_an_int_column_would_truncate() -> None:
+    import pyarrow as pa
+
+    pkg = _ints()
+    before = _rows(pkg)
+    with pytest.raises(pa.ArrowInvalid):
+        apply_edit(pkg, Edit(op="add_rows", table="x", payload={"rows": [{"id": 3, "lanes": 2.7}]}))
+    assert _rows(pkg) == before
+
+
+def test_add_rows_takes_an_integral_float_and_keeps_the_column_type() -> None:
+    import pyarrow as pa
+
+    pkg = _ints()
+    apply_edit(pkg, Edit(op="add_rows", table="x", payload={"rows": [{"id": 3, "lanes": 3.0}]}))
+    assert pkg.tables["x"].expr.to_pyarrow().schema.field("lanes").type == pa.int32()
+    assert _rows(pkg)[-1]["lanes"] == 3
+
+
+def test_add_and_reverse_keep_typed_nulls_in_struct_and_list_columns() -> None:
+    import pyarrow as pa
+
+    pkg = _ints()
+    before = _rows(pkg)
+    rows = [{"id": 3, "lanes": None, "tags": None, "lst": None}, {"id": 4, "lanes": 1, "tags": {"a": 2, "b": "y"}}]
+    r = apply_edit(pkg, Edit(op="add_rows", table="x", payload={"rows": rows}))
+    schema = pkg.tables["x"].expr.to_pyarrow().schema
+    assert schema.field("tags").type == pa.struct([("a", pa.int64()), ("b", pa.string())])
+    assert schema.field("lst").type == pa.list_(pa.int64())
+    reverse_edit(pkg, r)
+    assert _rows(pkg) == before

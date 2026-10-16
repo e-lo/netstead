@@ -263,6 +263,13 @@ export function flyToNode(nodeId, { fly = true } = {}) {
   if (fly) map.flyTo({ center: [lon, lat], zoom: Math.max(map.getZoom(), 15), duration: 500 });
 }
 
+// Fly to a point that is not a feature (an issue that reported coordinates) and mark it.
+export function flyTo(lon, lat) {
+  if (!map) return;
+  store.set({ marker: { lon, lat } });
+  map.flyTo({ center: [lon, lat], zoom: Math.max(map.getZoom(), 15), duration: 500 });
+}
+
 // shift-drag box select over the links layer (deck region picking) adds to highlights
 function wireBoxSelect() {
   const mapEl = $("map"), box = $("boxsel");

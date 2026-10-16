@@ -1,9 +1,11 @@
 // Data-table view: a server-paged/sorted/filtered grid linked both ways to the map. A row click focuses
 // the record (never a recorded selection: see linking.js); the scope menu filters to the selection, the
 // highlights, or the records related to them; related rows are tinted; FK cells jump to their target.
-import { getJSON, netPath, postJSON } from "./api.js";
+import { dispatch, getJSON, netPath, postJSON } from "./api.js";
 import { openContextMenu } from "./ctxmenu.js";
 import { $, esc, toast } from "./dom.js";
+import { cellAction, cellEditable, cellSample, cellWarnings } from "./editmodel.js";
+import { recordIssues } from "./issuelist.js";
 import { clampOffset, coerceId, pageOffset, rowMarks, rowsRequest, scopeHint } from "./linking.js";
 import { resizeSoon } from "./map.js";
 import { renderRelatedBadges } from "./related.js";
@@ -18,6 +20,9 @@ let filterTimer = null, located = null;
 // Row reloads are coalesced (a box-select changes highlights, focus and related in one burst), and skipped
 // while the table is hidden: `dirty` makes the next showing reload.
 let rowsTimer = null, pendingRestart = false, dirty = false;
+// The cell open for editing ({td, html, busy}). Rows never re-render under it (that would drop what is being typed);
+// they catch up when it closes.
+let editing = null;
 
 const activeId = () => { const s = store.get().server; return s && s.active; };
 const fail = e => toast(e.message);
@@ -54,12 +59,31 @@ export function onNetworkChanged() {
   if (tableVisible()) loadTables().catch(fail);
 }
 
+// The same network at a new version (an edit or an undo): refresh the rail's row counts and the rows in place,
+// keeping the table, page, sort, filters and scope.
+export function onNetworkEdited() {
+  if (!TBL.loaded) return;
+  refreshRail().catch(fail);
+  refreshRows();
+}
+
+async function refreshRail() {
+  const id = activeId();
+  if (!id) return;
+  const j = await getJSON(netPath(id, "tables"));
+  const counts = new Map(j.tables.map(t => [t.name, t.rows]));
+  for (const el of document.querySelectorAll(".tbl-item")) {
+    const n = counts.get(el.dataset.name), rc = el.querySelector(".rc");
+    if (rc && n != null) rc.textContent = n.toLocaleString();
+  }
+}
+
 // Anything a page depends on changed (selection, highlights, focus, scope, hops, related): reload from the first page
 // when the set of rows may differ, else in place.
 export function refreshRows({ restart = false } = {}) {
   if (!TBL.schema) return;
   pendingRestart ||= restart;
-  if (!tableVisible()) { dirty = true; return; }
+  if (!tableVisible() || editing) { dirty = true; return; }
   clearTimeout(rowsTimer);
   rowsTimer = setTimeout(() => {
     if (!TBL.schema) return; // the network changed meanwhile
@@ -132,6 +156,7 @@ async function loadRows() {
   const seq = ++TBL.seq;
   const j = await postJSON(tablePath("rows"), query());
   if (seq !== TBL.seq) return; // superseded by a newer request
+  if (editing) { dirty = true; return; } // a cell opened while this page loaded: reload when it closes
   const offset = clampOffset(TBL.offset, TBL.limit, j.total);
   if (offset !== TBL.offset) { TBL.offset = offset; return loadRows(); } // the set shrank under this page
   TBL.total = j.total;
@@ -145,28 +170,49 @@ async function loadRows() {
   await revealFocus();
 }
 
-function cellHTML(value, fk) {
+// A grid cell. A navigable foreign key is a link to its row; in the focused row the value is plain text (a click
+// edits it) and a small ↗ does the jump.
+function cellHTML(value, fk, focused = false) {
   if (value === null) return '<span class="empty">·</span>';
   if (fk && fk.navigable) {
-    return `<a class="fk" href="#" data-ref="${esc(fk.ref_table)}" data-id="${esc(value)}" data-num="${typeof value === "number" ? 1 : ""}" ` +
-      `title="Go to ${esc(fk.ref_table)} ${esc(value)}">${esc(value)}</a>`;
+    const link = `<a class="fk${focused ? " go" : ""}" href="#" data-ref="${esc(fk.ref_table)}" data-id="${esc(value)}" ` +
+      `data-num="${typeof value === "number" ? 1 : ""}" title="Go to ${esc(fk.ref_table)} ${esc(value)}">${focused ? "↗" : esc(value)}</a>`;
+    return focused ? `${esc(value)} ${link}` : link;
   }
   return esc(value);
 }
 
 function renderRows(cols, rows, vias) {
+  TBL.cols = cols; TBL.rows = rows; // the page, for the cell editor
   const s = store.get(), pk = TBL.schema.primary_key, pkIdx = cols.indexOf(pk);
   const fks = new Map((TBL.schema.foreign_keys || []).map(f => [f.column, f]));
   const selection = activeSelection(s);
   const body = $("tbl-grid").tBodies[0];
+  const records = s.issues && s.issues.net_id === activeId() ? s.issues.records : null;
+  const warned = s.edits && s.edits.net_id === activeId() ? cellWarnings(s.edits.warnings, TBL.name) : {};
+  const schemaCols = new Map(TBL.schema.columns.map(c => [c.name, c]));
   body.innerHTML = rows.map((r, i) => {
     const pv = pkIdx >= 0 ? r[pkIdx] : null;
-    const marks = rowMarks({ table: TBL.name, id: pv, selection, highlights: s.highlights, focus: s.focus, via: vias[i] });
-    const title = vias[i] ? ` title="related via ${esc(vias[i])}"` : "";
-    const tds = r.map((v, c) => `<td>${cellHTML(v, fks.get(cols[c]))}</td>`).join("");
+    const nIss = recordIssues(records, TBL.name, pv).length, rw = warned[String(pv)];
+    const focused = Boolean(s.focus && s.focus.table === TBL.name && s.focus.id === pv);
+    const marks = rowMarks({ table: TBL.name, id: pv, selection, highlights: s.highlights, focus: s.focus, via: vias[i],
+      issues: nIss, warned: Boolean(rw) });
+    const tip = [vias[i] ? `related via ${vias[i]}` : "", nIss ? `${nIss} issue${nIss === 1 ? "" : "s"}` : "",
+      focused ? "click a cell to edit it" : ""].filter(Boolean).join(" · ");
+    const title = tip ? ` title="${esc(tip)}"` : "";
+    const tds = r.map((v, c) => {
+      const msgs = rw && rw[cols[c]];
+      const cls = [msgs ? "cw" : "", cellEditable(schemaCols.get(cols[c]), pk) ? "" : "ro"].filter(Boolean).join(" ");
+      return `<td data-c="${c}"${cls ? ` class="${cls}"` : ""}${msgs ? ` title="${esc(msgs.join("\n"))}"` : ""}>` +
+        `${cellHTML(v, fks.get(cols[c]), focused)}</td>`;
+    }).join("");
     return `<tr class="data ${marks.join(" ")}" data-pk="${pv == null ? "" : esc(pv)}"${title}>${tds}</tr>`;
   }).join("");
-  for (const tr of body.querySelectorAll("tr.data")) tr.onclick = () => rowClick(tr.dataset.pk);
+  for (const tr of body.querySelectorAll("tr.data")) tr.onclick = e => {
+    const td = e.target.closest("td[data-c]");
+    if (tr.classList.contains("focus") && td && !td.classList.contains("ro")) startCellEdit(tr, td);
+    else rowClick(tr.dataset.pk);
+  };
   for (const tr of body.querySelectorAll("tr.data")) tr.oncontextmenu = e => {
     if (tr.dataset.pk === "" || !TBL.schema.primary_key) return;
     const target = { table: TBL.name, id: coerceId(tr.dataset.pk, pkNumeric()) };
@@ -183,6 +229,51 @@ function renderRows(cols, rows, vias) {
 function rowClick(pkVal) {
   if (pkVal === "" || !TBL.schema || !TBL.schema.primary_key) return;
   store.set({ focus: { table: TBL.name, id: coerceId(pkVal, pkNumeric()), from: "table" } });
+}
+
+// Edit one cell of the focused row in place: Enter applies an EditCells action; Escape or leaving cancels. Text that
+// does not parse (a bad yes/no) is refused before anything is sent, and a refusal from the server keeps the input
+// open with what was typed: a failed entry never leaves the old value looking applied, nor sends it.
+function startCellEdit(tr, td) {
+  if (editing) return;
+  const c = Number(td.dataset.c), column = TBL.cols[c], row = TBL.rows[[...tr.parentNode.children].indexOf(tr)];
+  const col = TBL.schema.columns.find(x => x.name === column);
+  if (!row || !cellEditable(col, TBL.schema.primary_key)) return;
+  const current = row[c], id = coerceId(tr.dataset.pk, pkNumeric());
+  const me = editing = { td, html: td.innerHTML, busy: false };
+  td.innerHTML = `<input class="cell-in" aria-label="${esc(`${column} of ${TBL.name} ${id}`)}">`;
+  const input = td.querySelector("input");
+  input.value = current == null ? "" : String(current);
+  // Escape closes it at once; a blur closes it unless the input has the focus back (a refused entry re-focuses it).
+  const close = (now = false) => {
+    if (editing !== me || me.busy || (!now && document.activeElement === input)) return;
+    td.innerHTML = me.html;
+    editing = null;
+    if (dirty) refreshRows();
+  };
+  input.onclick = e => e.stopPropagation();
+  input.oncontextmenu = e => e.stopPropagation(); // the browser's own menu (paste) inside the input, not the row menu
+  input.onblur = () => setTimeout(close, 150);
+  input.onkeydown = async e => {
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(true); return; }
+    if (e.key !== "Enter" || me.busy) return;
+    e.preventDefault();
+    let action;
+    try { action = cellAction({ table: TBL.name, ids: [id], column, raw: input.value, current: cellSample(current, col.kind) }); }
+    catch (err) { toast(err.message); return; }
+    me.busy = true; input.disabled = true;
+    try {
+      await dispatch(action);
+      if (editing === me) editing = null; // the edit bumps the version: rows reload with the new value and warnings
+      refreshRows();
+    } catch (err) {
+      me.busy = false; input.disabled = false;
+      toast(err.message);
+      if (editing === me) input.focus();
+    }
+  };
+  input.focus();
+  input.select();
 }
 
 // FK navigation: open the referenced table and focus the referenced row (its map feature flies into view).

@@ -267,3 +267,251 @@ def test_sections_skip_the_free_form_plugins_table(node_module):
     payload = {**PAYLOAD, "schema": schema, "values": {**PAYLOAD["values"], "plugins": {"hello": {"count": 3}}}}
     secs = node_module("settingsform.js", ["sectionsFrom"], f"sectionsFrom({json.dumps(payload)})")
     assert "plugins" not in [s["name"] for s in secs]
+
+
+NET = (
+    "const net = {id2idx: new Map([[7, 0]]), nodeId2idx: new Map([[3, 1]]), linkStart: [0, 3],"
+    " linkPositions: [0, 0, 1, 1, 2, 2], nodePositions: [9, 9, 5, 6]};"
+)
+STATE = (
+    '{active: "a", issues: {a: {version: 1, stale: true, counts: {error: 1, warning: 2, info: 3}}},'
+    ' edits: {a: {pending: 2, unsaved: 2, dirty: true, warnings: 4, truncated: false, last_source: "workbench"},'
+    ' b: {pending: 1, unsaved: 0, dirty: false, warnings: 0, truncated: false, last_source: "cards"}}}'
+)
+
+
+def test_issues_query_string(node_module):
+    got = node_module(
+        "issuelist.js",
+        ["issuesQuery"],
+        'issuesQuery({severity: ["error", "warning"], table: "link", code: "", located: "yes", '
+        'record: {table: "link", id: 7}}, 100, 50)',
+    )
+    assert got == "offset=100&limit=50&severity=error%2Cwarning&table=link&located=yes&record=link%3A7"
+
+
+def test_anchor_positions(node_module):
+    expr = (
+        f"(() => {{ {NET} return [anchorPosition({{link: 7}}, net), anchorPosition({{node: 3}}, net), "
+        "anchorPosition({lonlat: [1, 2]}, net), anchorPosition({link: 99}, net), anchorPosition(null, net)]; })()"
+    )
+    assert node_module("issuelist.js", ["anchorPosition"], expr) == [[1, 1], [5, 6], [1, 2], None, None]
+
+
+def test_marker_points_keep_what_the_map_can_place(node_module):
+    expr = (
+        f"(() => {{ {NET} return markerPoints("
+        "[{i: 0, severity: 'warning', table: 'link', key: 7, anchor: {link: 7}},"
+        " {i: 1, severity: 'info', table: 'link', key: 99, anchor: {link: 99}}], net); })()"
+    )
+    assert node_module("issuelist.js", ["markerPoints"], expr) == [
+        {"i": 0, "severity": "warning", "table": "link", "key": 7, "position": [1, 1]}
+    ]
+
+
+def test_record_issues_and_the_status_line(node_module):
+    assert node_module("issuelist.js", ["recordIssues"], 'recordIssues({link: {"7": [0, 4]}}, "link", 7)') == [0, 4]
+    assert node_module("issuelist.js", ["recordIssues"], 'recordIssues(null, "link", 7)') == []
+    line = node_module(
+        "issuelist.js",
+        ["statusLine"],
+        "statusLine({version: 2, stale: true, counts: {error: 0, warning: 272, info: 16}})",
+    )
+    assert line == "Validated v2: 272 warnings, 16 info · the network changed since: re-run"
+    assert node_module("issuelist.js", ["statusLine"], "statusLine(null)") == "Not validated yet."
+    assert node_module("issuelist.js", ["rangeLabel"], "rangeLabel(100, 50, 288)") == "101\u2013150 of 288"
+
+
+def test_the_issues_badge_counts_issues_and_edit_warnings(node_module):
+    assert node_module("issuelist.js", ["issuesBadge"], f"issuesBadge({STATE})") == 10  # 6 issues + 4 warnings
+    assert node_module(
+        "issuelist.js", ["issuesBadge"], '[issuesBadge({active: "b", edits: {}}), issuesBadge(null)]'
+    ) == [
+        None,
+        None,
+    ]
+
+
+@pytest.mark.parametrize(
+    ("raw", "sample", "want"),
+    [
+        ("45", 40, 45),
+        ("abc", 40, "abc"),
+        ("true", True, True),
+        ("0", False, False),
+        (" x ", "y", "x"),
+        ("", 40, None),
+        ("  ", "y", None),
+        ("007", "1", "007"),
+    ],
+)
+def test_parse_cell(node_module, raw, sample, want):
+    got = node_module("editmodel.js", ["parseCell"], f"parseCell({json.dumps(raw)}, {json.dumps(sample)})")
+    assert got == want
+
+
+def test_a_bad_boolean_is_refused(node_module):
+    expr = '(() => { try { parseCell("maybe", true); return "accepted"; } catch (e) { return e.message; } })()'
+    assert "Enter true or false" in node_module("editmodel.js", ["parseCell"], expr)
+
+
+def test_cell_and_delete_actions(node_module):
+    fix = node_module(
+        "editmodel.js",
+        ["cellAction"],
+        'cellAction({table: "link", ids: [1], column: "free_speed", raw: "30", current: 40, note: "why"})',
+    )
+    assert fix == {"type": "edit_cells", "table": "link", "ids": [1], "values": {"free_speed": 30}, "note": "why"}
+    clear = node_module(
+        "editmodel.js",
+        ["cellAction"],
+        'cellAction({table: "link", ids: [1, 2], column: "name", raw: "", current: "Main"})',
+    )
+    assert clear == {"type": "edit_cells", "table": "link", "ids": [1, 2], "values": {"name": None}}
+    gone = node_module("editmodel.js", ["deleteAction"], 'deleteAction("link", [1])')
+    assert gone == {"type": "delete_rows", "table": "link", "ids": [1]}
+    planned = node_module("editmodel.js", ["deleteAction"], 'deleteAction("link", [1], {version: 0, note: "n"})')
+    assert planned == {"type": "delete_rows", "table": "link", "ids": [1], "note": "n", "expected_version": 0}
+
+
+def test_the_save_confirmation_says_when_the_live_check_failed(node_module):
+    def prompt(info):
+        return node_module("editmodel.js", ["savePrompt"], f"savePrompt({json.dumps(info)})")
+
+    assert prompt({"check_failed": False, "truncated": False, "warnings": []}) == ""
+    assert prompt(None) == ""
+    two = prompt({"check_failed": False, "truncated": False, "warnings": [{"message": "a"}, {"message": "b"}]})
+    assert two.startswith("2 edit warnings are still open:\n• a\n• b")
+    crashed = prompt({"check_failed": True, "truncated": False, "count": 0, "warnings": []})
+    assert crashed.startswith("The live edit check failed") and "warning" not in crashed.split("\n")[0]
+    assert crashed.endswith("Save the copy anyway?")
+    cut = prompt({"check_failed": True, "truncated": True, "count": 60, "warnings": [{"message": "w"}] * 50})
+    assert "stopped early" in cut and "found 60 warnings" in cut and "… and 50 more" in cut
+
+
+def test_what_a_finished_save_and_validation_say(node_module):
+    base = {"output": "/out/copy", "version": 3, "edits_saved": 2, "notes": ["1 table(s) differ from the source: link"]}
+
+    def saved(**extra):
+        return node_module("editmodel.js", ["savedText"], f"savedText({json.dumps({**base, **extra})})")
+
+    assert saved() == "Saved a copy to /out/copy (2 edits). 1 table(s) differ from the source: link"
+    assert "closed while saving" in saved(closed_while_saving=True)
+    assert "copy holds version 3" in saved(edited_while_saving=True)
+    expr = "[validatedText({superseded: true}), validatedText({superseded: false})]"
+    said = node_module("editmodel.js", ["validatedText"], expr)
+    assert said[0].startswith("A newer validation finished first") and said[1] == ""
+
+
+def test_the_record_schema_and_what_changed(node_module):
+    cols = (
+        '[{name: "link_id", kind: "num"}, {name: "name", kind: "str"}, {name: "lanes", kind: "num"},'
+        ' {name: "directed", kind: "bool"}, {name: "geometry", kind: "geom"}]'
+    )
+    schema = node_module("editmodel.js", ["recordSchema"], f'recordSchema({cols}, "link_id")')
+    assert list(schema["properties"]) == ["name", "lanes", "directed"]
+    assert schema["properties"]["lanes"] == {"title": "lanes", "anyOf": [{"type": "number"}, {"type": "null"}]}
+    one = node_module("editmodel.js", ["recordSchema"], f'recordSchema({cols}, "link_id", ["lanes"])')
+    assert list(one["properties"]) == ["lanes"]
+    changed = node_module(
+        "editmodel.js",
+        ["changedValues"],
+        'changedValues({name: "Main", lanes: 1, directed: true}, {lanes: 2, directed: true},'
+        ' ["name", "lanes", "directed"])',
+    )
+    assert changed == {"name": None, "lanes": 2}  # a field cleared in the form is left out of its value: null
+
+
+def test_cell_warnings_index_one_table(node_module):
+    expr = (
+        'cellWarnings([{table: "link", key: 1, column: "from_node_id", message: "m1"},'
+        ' {table: "node", key: 1, column: "ctrl_type", message: "m2"},'
+        ' {table: "link", key: 1, column: "directed", message: "m3"}], "link")'
+    )
+    assert node_module("editmodel.js", ["cellWarnings"], expr) == {"1": {"from_node_id": ["m1"], "directed": ["m3"]}}
+
+
+def test_delete_plan_text(node_module):
+    text = node_module(
+        "editmodel.js", ["deletePlanText"], 'deletePlanText({table: "link", rows: {lane: 2, link: 1}, refused: null})'
+    )
+    assert text == "Delete 1 link row? This also deletes 2 lane rows. Undo is in the Edits panel."
+    refused = node_module(
+        "editmodel.js", ["deletePlanText"], 'deletePlanText({table: "node", rows: {}, refused: "node 1 is still used"})'
+    )
+    assert refused == "node 1 is still used"
+
+
+def test_pending_lines_badges_and_undo(node_module):
+    lines = node_module(
+        "editmodel.js",
+        ["pendingLine"],
+        '[pendingLine({seq: 2, note: "link 1: lanes = 2", source: "workbench"}),'
+        ' pendingLine({seq: 3, note: "x", source: "cards"})]',
+    )
+    assert lines == ["#2 link 1: lanes = 2", "#3 x [cards]"]
+    badges = node_module(
+        "editmodel.js",
+        ["dirtyBadge"],
+        "[dirtyBadge({dirty: true, unsaved: 2}), dirtyBadge({dirty: true, unsaved: 0}),"
+        " dirtyBadge({dirty: false}), dirtyBadge(null)]",
+    )
+    assert badges == ["2 unsaved", "changed since saved", "", ""]
+    panel = node_module(
+        "editmodel.js", ["editsBadge"], f'[editsBadge({STATE}), editsBadge({{...{STATE}, active: "b"}})]'
+    )
+    assert panel == [{"text": "2", "dirty": True, "title": "2 unsaved"}, None]
+    blocked = node_module(
+        "editmodel.js",
+        ["undoBlocked"],
+        '[undoBlocked({pending: 1, last_source: "workbench"}), undoBlocked({pending: 1, last_source: "cards"}),'
+        ' undoBlocked({pending: 1, last_source: "python"}), undoBlocked({pending: 0})]',
+    )
+    assert blocked == [
+        "",
+        "The last change was made by cards; undo it there.",
+        "The last change was made from Python; undo it there.",
+        "Nothing to undo.",
+    ]
+    assert node_module("editmodel.js", ["editSummary"], f"editSummary({STATE}).unsaved") == 2
+
+
+@pytest.mark.parametrize(
+    ("prev", "nxt", "want"),
+    [
+        ("a@1", "a@2", "edited"),
+        ("a@1", "b@1", "switched"),
+        (None, "a@0", "switched"),
+        ("a@1", None, "switched"),
+        ("a@1", "a@1", "same"),
+        ("a-2@1", "a@2", "switched"),
+    ],
+)
+def test_net_change(node_module, prev, nxt, want):
+    assert node_module("linking.js", ["netChange"], f"netChange({json.dumps(prev)}, {json.dumps(nxt)})") == want
+
+
+def test_row_marks_flag_issues_and_edit_warnings(node_module):
+    expr = (
+        'rowMarks({table: "link", id: 1, selection: null, highlights: new Set(), focus: null, via: null,'
+        " issues: 2, warned: true})"
+    )
+    assert node_module("linking.js", ["rowMarks"], expr) == ["iss", "warn"]
+
+
+def test_only_non_key_scalar_cells_are_edited_in_place(node_module):
+    expr = (
+        '[{name: "link_id", kind: "num"}, {name: "name", kind: "str"}, {name: "geometry", kind: "geom"},'
+        ' {name: "directed", kind: "bool"}, undefined].map(c => cellEditable(c, "link_id"))'
+    )
+    assert node_module("editmodel.js", ["cellEditable"], expr) == [False, True, False, True, False]
+
+
+def test_an_empty_cell_parses_by_its_column_kind(node_module):
+    expr = '[cellSample(null, "num"), cellSample(null, "bool"), cellSample(null, "str"), cellSample(3, "str")]'
+    assert node_module("editmodel.js", ["cellSample"], expr) == [0, False, "", 3]
+    refused = (
+        '(() => { try { parseCell("maybe", cellSample(null, "bool")); return "sent"; }'
+        ' catch (e) { return "refused"; } })()'
+    )
+    assert node_module("editmodel.js", ["parseCell", "cellSample"], refused) == "refused"

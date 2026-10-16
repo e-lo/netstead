@@ -938,6 +938,7 @@ def test_host_selection_is_a_deep_copy(host_of):
     first = int(session.network().links_df()["link_id"].iloc[0])
     session.dispatch({"type": "select", "link_ids": [first]})
     copied = host.selection
+    assert copied.pop("projectcard")["picked"] is True  # host.selection adds the facility forms on read
     assert copied == session.selection and copied is not session.selection
     copied["link_ids"].append(-1)
     copied["net_id"] = "elsewhere"
@@ -1103,8 +1104,8 @@ def test_the_plugin_id_core_is_reserved(make_session):
 
 
 def test_a_plugin_built_for_api_1_0_installs_on_this_host(make_session):
-    """A minor bump only adds: a plugin that declares 1.0 still installs (and its Action registers) on 1.1."""
-    assert HOST_API == "1.1"
+    """A minor bump only adds: a plugin that declares 1.0 still installs (and its Action registers) on 1.2."""
+    assert HOST_API == "1.2"
     session = make_session(make_hello(requires_api="1.0"))
     assert _status(session, "hello").state == "loaded" and session.actions.has("hello.greet")
 
@@ -1119,3 +1120,98 @@ def test_the_action_catalog_drops_an_unloaded_plugins_actions(make_session):
     session.unload_plugin("hello", "its mount failed")
     types = {a["type"] for a in client.get("/api/actions").json()["actions"]}
     assert "hello.greet" not in types and "open_network" in types
+
+
+def test_host_selection_exposes_the_facility_form(make_session, rdu_source):
+    from netstead.workbench.actions import OpenNetwork, Select
+
+    session = make_session(make_hello())
+    session.dispatch(OpenNetwork(source=rdu_source))
+    first = int(session.registry.get("rdu-i40").links_df()["link_id"].iloc[0])
+    session.dispatch(Select(link_ids=[first]))
+    facility = session._hosts["hello"].selection["projectcard"]
+    assert facility["picked"] is True and facility["resolved"]["links"]["model_link_id"] == [first]
+
+
+class Retag(BaseAction):
+    type: Literal["tagger.retag"] = "tagger.retag"
+    mutates: ClassVar[bool] = True
+    link_id: int
+
+
+def test_host_1_2_plans_mutates_reports_and_undoes(make_session):
+    from netstead.fixtures import leavenworth
+    from netstead.workbench.actions import OpenNetwork
+    from netstead.workbench.plugins import EditRefused
+
+    def retag(host, action: Retag) -> list[str]:
+        plan = host.plan_update(None, "link", [action.link_id], {"from_node_id": 424242})
+        host.mutate(None, plan.edits, note=plan.summary)
+        return [w["code"] for w in host.edit_warnings()]
+
+    tagger = WorkbenchPlugin(
+        id="tagger", name="Tagger", version="0.1", requires_api="1.2", actions=(ActionSpec(Retag, retag),)
+    )
+    session = make_session(tagger)
+    session.dispatch(OpenNetwork(source=str(leavenworth.parquet_dir())))
+    assert session.dispatch(Retag(link_id=1)) == ["edit.fk_missing"]
+    assert session.edits["leavenworth"].last().source == "tagger"
+    host = session._hosts["tagger"]
+    assert host.undo()["source"] == "tagger" and host.edit_warnings() == []
+    assert session.history[-1].action["type"] == "tagger.revert"  # outside an Action: recorded, not replayable
+    with pytest.raises(EditRefused, match="does not fit"):
+        host.plan_update(None, "link", [1], {"lanes": 1.5})
+    assert host.plan_delete(None, "link", [1]).rows == {"lane": 1, "link": 1}
+    assert host.plan_add(None, "node", [{"node_id": 9001, "x_coord": -120.6, "y_coord": 47.6}]).rows == {"node": 1}
+
+
+def test_host_undo_refuses_core_s_change(make_session):
+    from netstead.fixtures import leavenworth
+    from netstead.workbench.actions import OpenNetwork
+    from netstead.workbench.editing import plan_update
+
+    session = make_session(make_hello())
+    session.dispatch(OpenNetwork(source=str(leavenworth.parquet_dir())))
+    plan = plan_update(session.network().roadway, "link", [1], {"lanes": 2})
+    session.mutate(None, plan.edits, note=plan.summary)  # Python's change, not hello's
+    with pytest.raises(ActionError, match="made by python"):
+        session._hosts["hello"].undo()
+
+
+def test_a_plan_made_before_another_edit_is_refused(make_session):
+    from netstead.fixtures import leavenworth
+    from netstead.workbench.actions import EditCells, OpenNetwork
+
+    session = make_session(make_hello())
+    session.dispatch(OpenNetwork(source=str(leavenworth.parquet_dir())))
+    host = session._hosts["hello"]
+    plan = host.plan_update(None, "link", [1], {"lanes": 2})
+    assert plan.version == 0
+    session.dispatch(EditCells(ids=[1], values={"lanes": 3}))  # lands between the plan and its mutate
+    with pytest.raises(ActionError, match="changed since the edit was planned"):
+        host.mutate(None, plan.edits, note=plan.summary, expected_version=plan.version)
+    assert len(session.edits["leavenworth"].entries) == 1
+    fresh = host.plan_update(None, "link", [1], {"lanes": 2})
+    host.mutate(None, fresh.edits, note=fresh.summary, expected_version=fresh.version)
+    assert session.edits["leavenworth"].last().source == "hello"
+
+
+# ---------------------------------------------------------------------------- replay_omits
+
+
+class TypoOmitAction(BaseAction):
+    type: Literal["hello.typo"] = "hello.typo"
+    replay_omits: ClassVar[frozenset[str]] = frozenset({"expected_versoin"})
+    expected_version: int | None = None
+
+
+def test_problems_refuses_replay_omits_that_name_no_field():
+    found = problems(make_hello(actions=(_spec(TypoOmitAction),)), ActionRegistry(), taken=())
+    assert "TypoOmitAction.replay_omits names no field: expected_versoin" in found, found
+
+
+def test_registering_an_action_whose_replay_omits_names_no_field_is_refused():
+    registry = ActionRegistry()
+    with pytest.raises(ValueError, match="replay_omits names no field: expected_versoin"):
+        registry.register(TypoOmitAction)
+    assert not registry.has("hello.typo")

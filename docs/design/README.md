@@ -54,7 +54,8 @@ architecture.md and this index in the same PR.
 |---|---|---|---|---|---|
 | [NL selection](2026-09-23-nl-selection-design.md) | design | 09-23 | implemented | #194 | extended by NL providers |
 | [Network viewer (`netstead.viz`)](2026-09-30-network-viewer-prd.md) | PRD | 09-30 | accepted; P1–P2 implemented | #194 | P3 (diff) and P4 (multimodal / GTFS) roll up under the Workbench design |
-| [Workbench (`netstead app`)](2026-10-02-netstead-workbench-design.md) | design | 10-02 | accepted; P0, P1a, P1b implemented | #211, #212 | next: P2 validate + fix; its change-log part is amended by the plugins design (PR #217) |
+| [Workbench (`netstead app`)](2026-10-02-netstead-workbench-design.md) | design | 10-02 | accepted; P0, P1a, P1b, P2 implemented | #211, #212, #225 | P2 is validate + edit, core only (the P2 plan's "Deviations" section lists what changed in review); next: P3 selection verification + NL assistant. Its change-log part is superseded by the plugins design: ProjectCards move to the cards plugin |
+| [Workbench plugins](2026-10-05-workbench-plugins-design.md) | design | 10-05 | accepted; Parts 1 and 2 implemented | #222, #223 (recorded in #217) | entry-point plugin API (`netstead.workbench.plugins`); core owns the network nouns; the in-core `changes/` package is superseded |
 | [NL providers (Anthropic / OpenAI / Gemini / Ollama)](2026-10-02-nl-providers-design.md) | design | 10-02 | implemented | #211 | `qwen3:4b` default not yet tested live |
 
 ### Implementation plans
@@ -68,6 +69,9 @@ architecture.md and this index in the same PR.
 | [Workbench P1a: Open / Import wizard](2026-10-02-workbench-p1a-plan.md) | Workbench design | implemented | #211 |
 | [Workbench P1b: inspect + settings](2026-10-05-workbench-p1b-plan.md) | Workbench design | implemented | #212 |
 | [NL providers](2026-10-02-nl-providers-plan.md) | NL providers design | implemented | #211 |
+| [Workbench plugins Part 1: Python plugin core](2026-10-05-workbench-plugins-p1-plan.md) | plugins design | implemented | #222 |
+| [Workbench plugins Part 2: front-end slots](2026-10-08-workbench-plugins-p2-plan.md) | plugins design | implemented | #223 |
+| [Workbench P2: validate + edit (core only)](2026-10-07-workbench-p2-plan.md) | Workbench design | implemented | #225 |
 
 ### Scopes
 
@@ -76,16 +80,11 @@ architecture.md and this index in the same PR.
 | [Data-table exploration view](data-table-exploration-scope.md) | 09-30 | Phases 0–1 implemented | #194 | Phase 2+ (cross-linking, export) not scheduled |
 | [Overture → GMNS pipeline](overture-to-gmns-pipeline-scope.md) | 09-30 | implemented | #196 | "Phase 2" attribute refinements listed in the scope |
 | [Benchmarking suite](benchmarking-suite-scope.md) | 09-30 | implemented (DuckDB-only) | #197 | nightly perf regression job: [#100](https://github.com/e-lo/netstead/issues/100) |
+| [Cards plugin (external ProjectCard editing)](2026-10-07-cards-plugin-scope.md) | 10-07 | proposed | — | `ignore_missing` defaults and importing the offline report's edit log are pending with the user |
 
 ## In flight (not on `main` yet)
 
-These records exist on branches. Add them to the tables above when they merge.
-
-| Record | Kind | Where | Status |
-|---|---|---|---|
-| `2026-10-05-workbench-plugins-design.md` — entry-point plugin API (`netstead.workbench.plugins`), core owns network nouns, ProjectCard editing moves to an external plugin repo | design | #222 (Part 1); Part 2 PR pending | accepted; Parts 1 and 2 implemented. **Amends the Workbench design:** the in-core `changes/` package it planned is superseded; core stays card-agnostic |
-| `2026-10-05-workbench-plugins-p1-plan.md` — Part 1, Python plugin core | plan | #222 | implemented (#222) |
-| `2026-10-08-workbench-plugins-p2-plan.md` — Part 2, front-end slots: the `activate(wb)` loader, workspace tabs, the dock (today's right drawer), commands (palette, map feature, table row, selection), the map layer registry, `wb.schemaForm`, Settings → Plugins | plan | branch `feat/workbench-plugins-p2` | implemented (PR pending); its 10 open questions decided 2026-10-10. Builds on Part 1 (#222); P2's drawer tabs register into its dock |
+None. Records on a branch go here, then move to the tables above when they merge.
 
 ## Gaps to close
 

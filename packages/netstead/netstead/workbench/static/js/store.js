@@ -16,7 +16,7 @@ export function createStore(initial) {
 }
 
 export const store = createStore({
-  server: null,               // {networks, active, selection, style}
+  server: null,               // {networks, active, selection, style, plugins, edits, issues}
   basemap: null,              // MapLibre style URL from /api/config (shared with the wizard's area map)
   netKey: null,               // "<id>@<version>" of the decoded active network
   net: null, attrs: null, properties: [], prop: null,
@@ -31,8 +31,13 @@ export const store = createStore({
   dockPanel: {},              // workspace id -> the dock panel showing in it
   commandSeq: 0,              // bumped when a command registers or goes, so menus re-check what applies
   pluginStatus: [],           // GET /api/plugins: each plugin's startup outcome
-  hostApi: null,              // the plugin API this netstead provides ("1.1")
+  hostApi: null,              // the plugin API this netstead provides ("1.2")
   pluginErrors: {},           // plugin id -> [{phase, message}] from the browser (activate, panel, command, layer…)
+  issues: null,               // /issues/markers for the active network: {net_id, version, markers, records}
+  issueFilter: { severity: [], table: "", code: "", located: "", thisRecord: false },
+  issueFocus: null,           // the issue number last picked in the list or on the map
+  fixTarget: null,            // {table, id, column, note}: what "Fix the picked issue…" edits (an issue or a warning)
+  edits: null,                // GET /edits for the active network: pending edits and live edit warnings
 });
 
 export function activeSelection(s) {

@@ -16,9 +16,11 @@ Public surface:
 * :class:`Session` — context manager; atomic on exception; persists
   the log to a parquet sidecar on commit.
 * :func:`rollback` — replay a persisted log to undo past edits.
+* :func:`affected_rows` — the rows an applied edit touched.
 * :class:`EditingError` (+ subclasses) — typed exceptions.
 """
 
+from .apply import affected_rows
 from .errors import (
     EditingError,
     InvalidPayload,
@@ -40,5 +42,6 @@ __all__ = [
     "Session",
     "UnknownTable",
     "UnsupportedEditOp",
+    "affected_rows",
     "rollback",
 ]

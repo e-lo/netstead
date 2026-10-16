@@ -9,15 +9,21 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .actions import (
+    AddRows,
     BuildNetwork,
     ClearSelection,
     CloseNetwork,
+    DeleteRows,
+    EditCells,
     Navigate,
     OpenNetwork,
+    RunValidation,
+    SaveNetwork,
     Select,
     SetActiveNetwork,
     SetSetting,
     Style,
+    UndoEdit,
 )
 from .area import BboxArea, PlaceArea, PointArea
 from .errors import ActionError, ApprovalRequired, JobCancelled, NotSupportedYet, PathNotAllowed
@@ -28,11 +34,14 @@ if TYPE_CHECKING:
 
 __all__ = [
     "ActionError",
+    "AddRows",
     "ApprovalRequired",
     "BboxArea",
     "BuildNetwork",
     "ClearSelection",
     "CloseNetwork",
+    "DeleteRows",
+    "EditCells",
     "JobCancelled",
     "Navigate",
     "NotSupportedYet",
@@ -40,11 +49,14 @@ __all__ = [
     "PathNotAllowed",
     "PlaceArea",
     "PointArea",
+    "RunValidation",
+    "SaveNetwork",
     "Select",
     "Session",
     "SetActiveNetwork",
     "SetSetting",
     "Style",
+    "UndoEdit",
     "build_app",
     "serve",
 ]

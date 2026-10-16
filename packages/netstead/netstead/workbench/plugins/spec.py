@@ -20,7 +20,8 @@ __all__ = ["HOST_API", "ActionSpec", "WorkbenchPlugin", "api_compatible", "probl
 #: The plugin API this netstead provides: ``major.minor``. A minor bump only adds; a major bump breaks.
 #: Provisional until netstead v1.0 (it may change without a major bump before then).
 #: 1.1: the browser host object ``wb`` (workspaces, dock panels, commands, map layers, schema forms).
-HOST_API = "1.1"
+#: 1.2: Host.undo, Host.edit_warnings and Host.plan_update/plan_delete/plan_add; every mutation is a pending edit.
+HOST_API = "1.2"
 
 #: A plugin id: the namespace for its Action types, routes, state, settings and static files (``fullmatch``).
 _PLUGIN_ID = re.compile(r"[a-z][a-z0-9_]*")
@@ -132,10 +133,12 @@ def _schema_problems(model: type[BaseAction], action_type: str) -> list[str]:
 
 
 def _replay_problems(model: type[BaseAction], names: Collection[str]) -> list[str]:
-    """Why a replayed script couldn't ``from <module> import <name>`` this class unambiguously."""
+    """Why a replayed script couldn't import this class unambiguously, or would omit a field that isn't there."""
     found: list[str] = []
     if model.__name__ in names:
         found.append(f"class name {model.__name__!r} is already used by another Action (or Session) in scripts")
     if model.__qualname__ != model.__name__ or model.__module__ == "__main__":
         found.append(f"{model.__qualname__} must be defined at the top level of an importable module")
+    if unknown := model.unknown_replay_omits():
+        found.append(f"{model.__name__}.replay_omits names no field: {', '.join(unknown)}")
     return found

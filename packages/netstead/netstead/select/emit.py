@@ -97,12 +97,15 @@ def to_projectcard(result: SelectionResult, *, form: str = "resolved") -> dict[s
     Resolved form maps ``link_id``/``node_id`` to ``model_link_id``/
     ``model_node_id``; query form emits ProjectCard's native ``select_links``
     fields (``all``/``name``/``ref``/``modes`` + conditions) directly.
+    ``links.ignore_missing`` is always written: the ProjectCard schema requires it.
     """
     if form == "query":
         pc: dict[str, Any] = {"links": _query_links(result.intent, "model_link_id")}
     else:
         frag = to_fragment(result, form="resolved")
         pc = {"links": {"model_link_id": frag["links"]["link_id"]}}
+    # ProjectCard's select_links requires the flag even at its default (the GMNS fragment omits a default true).
+    pc["links"]["ignore_missing"] = result.intent.ignore_missing
     if result.from_match and result.from_match.node_id is not None:
         pc["from"] = {"model_node_id": result.from_match.node_id}
     if result.to_match and result.to_match.node_id is not None:

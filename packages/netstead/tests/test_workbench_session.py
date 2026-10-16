@@ -1,5 +1,6 @@
 """Tests for the workbench Session (the action bus)."""
 
+import json
 import threading
 import time
 from pathlib import Path
@@ -177,8 +178,9 @@ def test_add_network_from_python(session, rdu_source):
 
 def test_state_shape(opened):
     st = opened.state()
-    assert set(st) == {"networks", "active", "selection", "style", "plugins"}
+    assert set(st) == {"networks", "active", "selection", "style", "plugins", "edits", "issues"}
     assert st["networks"][0]["links"] == 178
+    assert st["edits"] == {}  # no pending edits until something mutates the network
 
 
 def test_settings_payload(opened):
@@ -705,7 +707,7 @@ def test_settings_payload_marks_readonly_restart_and_unused_sections(opened):
     assert set(p["readonly"]) == {"io.allowed_roots"}
     assert "config file" in p["readonly"]["io.allowed_roots"]
     assert set(p["restart"]) == {"app.host", "app.port", "app.console", "app.disabled_plugins"}
-    assert set(p["notes"]) == {"engine", "validation", "credentials"}
+    assert set(p["notes"]) == {"engine", "credentials"}
 
 
 @pytest.mark.parametrize(
@@ -824,19 +826,76 @@ def test_mutate_rolls_back_every_table_of_a_cascade(opened):
 
 
 def test_mutate_results_can_be_reversed(opened):
-    """What P2's undo needs: each returned EditResult reverses its edit (on a row without NULLs here)."""
-    from corral.editing.apply import reverse_edit
-
+    """What P2's undo needs: the returned EditResults reverse the edit through ``Session.revert``."""
     handle = opened.registry.get("rdu-i40")
     full = handle.links_df().dropna()
     link = int(full["link_id"].iloc[0])
     before = _lanes(handle, link)
-    (result,) = opened.mutate(None, [_set_lanes(link, before + 1)], note="lanes+1")
-    reverse_edit(handle.roadway, result)
-    handle.bump()
+    results = opened.mutate(None, [_set_lanes(link, before + 1)], note="lanes+1")
+    opened.revert(None, results, note="undo: lanes+1")
     assert _lanes(handle, link) == before and len(handle.links_df()) == len(handle.links_df().drop_duplicates())
+    assert handle.version == 2 and opened.edits["rdu-i40"].entries == []
 
 
 def test_mutate_unknown_network_is_an_action_error(opened):
     with pytest.raises(ActionError, match="unknown network"):
         opened.mutate("nope", [], note="x")
+
+
+def test_a_selection_rebuilds_its_projectcard_facility(opened):
+    from netstead.workbench.selection import payload_facility_forms
+
+    first = int(opened.registry.get("rdu-i40").links_df()["link_id"].iloc[0])
+    sel = opened.dispatch(Select(link_ids=[first]))
+    assert "projectcard" not in sel and "projectcard" not in opened.state()["selection"]  # ids once, not 3 more times
+    forms = payload_facility_forms(sel)
+    assert forms["picked"] is True
+    assert forms["resolved"] == {"links": {"model_link_id": [first], "ignore_missing": True}}
+    assert forms["query"]["links"]["model_link_id"] == [first]
+    json.dumps(forms)  # plain JSON: no numpy scalars
+
+
+def test_a_query_selection_rebuilds_its_query_form(opened):
+    from netstead.workbench.selection import payload_facility_forms
+
+    sel = opened.dispatch(Select(utterance="I-40"))
+    if sel["status"] != "resolved":
+        pytest.skip("the stub parser did not resolve I-40 on this fixture")
+    forms = payload_facility_forms(sel)
+    assert forms["picked"] is False and forms["resolved"]["links"]["model_link_id"] == sel["link_ids"]
+    assert "model_link_id" not in forms["query"]["links"]  # a query selector, not the ids
+
+
+def test_an_unparsed_selection_has_no_facility(opened):
+    from netstead.workbench.selection import payload_facility_forms
+
+    sel = opened.dispatch(Select(utterance="zzzz not a road"))
+    assert sel["status"] != "resolved" and payload_facility_forms(sel) is None
+
+
+def test_a_payload_the_forms_cannot_be_rebuilt_from_gives_none(caplog):
+    from netstead.workbench.selection import payload_facility_forms
+
+    assert payload_facility_forms({"status": "resolved", "intent": None}) is None  # no link_ids
+    assert "facility forms failed" in caplog.text
+
+
+def test_anchors_without_coordinates_keep_their_from_and_to(opened):
+    from netstead.select.intent import SelectionIntent
+    from netstead.select.result import AnchorMatch, SelectionResult
+    from netstead.workbench.selection import payload_facility_forms, selection_payload
+
+    handle = opened.registry.get("rdu-i40")
+    first = int(handle.links_df()["link_id"].iloc[0])
+    result = SelectionResult(
+        "resolved",
+        SelectionIntent(link_ids=[first]),
+        link_ids=[first],
+        from_match=AnchorMatch(anchor="a", node_id=987654321, kind="node", detail=""),  # not in node_xy
+        to_match=AnchorMatch(anchor="b", node_id=987654322, kind="node", detail=""),
+    )
+    sel = selection_payload(handle, result)
+    assert sel["anchors"] == [] and [a["node_id"] for a in sel["anchors_unplaced"]] == [987654321, 987654322]
+    forms = payload_facility_forms(sel)
+    assert forms["resolved"]["from"] == {"model_node_id": 987654321}
+    assert forms["resolved"]["to"] == {"model_node_id": 987654322}

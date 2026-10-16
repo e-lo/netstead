@@ -1,5 +1,7 @@
 # Workbench Plugins, Part 1 (Python plugin core): Implementation Plan
 
+Status: **implemented** (#222) · Date: 2026-10-05 · Owner: Elizabeth Sall · Parent: [Workbench plugins design](2026-10-05-workbench-plugins-design.md)
+
 > **For agentic workers:** REQUIRED SUB-SKILL: use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to carry out this plan task by task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Let a separately installed pip package add Actions, handlers, settings, session state, an API router and static files to the Workbench. It does so through an entry point and a small, versioned `Host` API, without editing Workbench core.
@@ -14,7 +16,7 @@
 
 **Spec:** `docs/design/2026-10-05-workbench-plugins-design.md`.
 
-**Status:** implemented (PR pending). Depends on PR #211 (Workbench P0 + P1a) and PR #212 (P1b).
+**Depends on:** PR #211 (Workbench P0 + P1a) and PR #212 (P1b).
 
 **Implemented with these deviations:**
 - `BaseAction.action_type()` requires the exact shape `type: Literal["<type>"] = "<type>"` (one value), checked strictly rather than inferred loosely.

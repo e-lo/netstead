@@ -73,6 +73,13 @@ def test_payload_round_trips_through_the_intent():
     assert payload_from_intent(intent_from_payload(payload, "x")) == payload
 
 
+def test_ignore_missing_round_trips_and_its_default_is_left_out():
+    strict = {"facility": {"name": "Main Street"}, "ignore_missing": False}
+    assert intent_from_payload(strict, "x").ignore_missing is False
+    assert payload_from_intent(intent_from_payload(strict, "x")) == strict
+    assert "ignore_missing" not in payload_from_intent(intent_from_payload({"facility": {"name": "A"}}, "x"))
+
+
 def test_few_shot_payloads_never_carry_raw_line_separators():
     separators = (chr(0x2028), chr(0x2029), chr(0x85))
     context = PromptContext(examples=(("go", {"facility": {"name": "A".join(separators)}}),))

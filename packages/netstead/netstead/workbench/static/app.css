@@ -149,6 +149,7 @@
            background:#3a1517; color:#ffd7d5; border:1px solid var(--to); border-radius:8px; padding:8px 14px;
            font-size:12.5px; display:none; }
   #toast.show { display:block; }
+  #toast.info { background:#14262f; color:#d5ecff; border-color:#3b6b85; }
 
   /* ---- P1a: jobs + Open / Import wizard ---- */
   [hidden] { display:none !important; }
@@ -305,3 +306,29 @@
   #plugins-list th { text-align:left; color:var(--muted); font-weight:600; font-size:11px; padding:4px 6px; }
   #plugins-list td { padding:6px; border-bottom:1px solid var(--edge); vertical-align:top; font-size:12.5px; }
   #plugins-list .err { font-size:12px; margin-top:2px; }
+  /* ---- P2: validation and edits ---- */
+  a.btn { display:inline-block; text-decoration:none; padding:5px 10px; border-radius:8px; font-size:12px;
+          border:1px solid var(--edge); color:var(--ink); }
+  a.btn.off { opacity:.45; pointer-events:none; }
+  .iss-filters { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; font-size:12px; }
+  .iss-filters select { max-width:100%; background:#0c0e12; color:var(--ink); border:1px solid var(--edge); border-radius:6px; padding:3px 6px; }
+  #dock-issues .iss { display:flex; gap:8px; align-items:flex-start; padding:7px 6px; border-bottom:1px solid var(--edge);
+         cursor:pointer; font-size:12.5px; }
+  #dock-issues .iss:hover, #dock-issues .iss.on { background:#20242e; }
+  #dock-issues .iss .sev-dot { width:9px; height:9px; border-radius:50%; margin-top:4px; flex:none; }
+  .sev-error .sev-dot { background:rgb(224,82,77); } .sev-warning .sev-dot { background:rgb(240,170,60); }
+  .sev-info .sev-dot { background:rgb(90,150,220); }
+  .iss-body { flex:1; min-width:0; } .iss-msg { color:var(--muted); overflow-wrap:anywhere; }
+  .iss-pager { display:flex; align-items:center; gap:8px; margin:6px 0; font-size:12px; color:var(--muted); }
+  .row.wrap { flex-wrap:wrap; }
+  #tbl-grid tr.iss td:first-child { box-shadow:inset 3px 0 0 rgb(240,170,60); }
+  #tbl-grid td.cw { box-shadow:inset 0 -2px 0 rgb(240,170,60); }
+  #tbl-grid tr.warn td:first-child { box-shadow:inset 3px 0 0 rgb(224,120,60); }
+  #tbl-grid tr.focus td { cursor:text; } #tbl-grid tr.focus td.ro { cursor:default; }
+  #tbl-grid a.fk.go { text-decoration:none; opacity:.75; margin-left:2px; }
+  .cell-in { width:100%; min-width:64px; font:inherit; padding:1px 4px; }
+  .chg { padding:7px 0; border-bottom:1px solid var(--edge); font-size:12.5px; }
+  .chg.unsaved { box-shadow:inset 3px 0 0 var(--accent); padding-left:8px; }
+  .fix-editor { margin:6px 0; padding:8px; border:1px solid var(--edge); border-radius:8px; background:#0c0e12; }
+  .fix-editor .row { display:flex; gap:6px; align-items:center; margin:4px 0; }
+  .det-actions { display:flex; gap:6px; margin:6px 0; }

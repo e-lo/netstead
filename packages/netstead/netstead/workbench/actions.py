@@ -6,7 +6,8 @@ sees as tools (P3), so natural language yields validated Actions, never ids or
 code. ``mutates`` marks actions the assistant must draft-before-apply;
 ``runs_as_job`` marks actions whose slow work runs on a background job thread
 (see :mod:`netstead.workbench.jobs`); ``replay_overrides`` are fields forced in
-the ``to_python`` replay snippet.
+the ``to_python`` replay snippet, and ``replay_omits`` are fields it leaves out
+(a guard that only means something in the live session, such as ``DeleteRows.expected_version``).
 """
 
 from __future__ import annotations
@@ -26,18 +27,25 @@ from .registry import Component, default_label
 
 __all__ = [
     "CORE_ACTIONS",
+    "MAX_EDIT_IDS",
     "Action",
     "ActionRegistry",
+    "AddRows",
     "BaseAction",
     "BuildNetwork",
     "ClearSelection",
     "CloseNetwork",
+    "DeleteRows",
+    "EditCells",
     "Navigate",
     "OpenNetwork",
+    "RunValidation",
+    "SaveNetwork",
     "Select",
     "SetActiveNetwork",
     "SetSetting",
     "Style",
+    "UndoEdit",
     "action_json_schema",
     "import_line",
     "is_secret_name",
@@ -55,7 +63,8 @@ class BaseAction(BaseModel):
     A subclass declares ``type: Literal["<type>"] = "<type>"`` (plugins: ``"<plugin id>.<name>"``)
     and its fields. ``mutates`` marks actions the assistant must draft before applying;
     ``runs_as_job`` (core only) runs the slow work on a background job thread; ``replay_overrides``
-    are fields forced in the ``to_python`` replay snippet.
+    are fields forced in the ``to_python`` replay snippet, and ``replay_omits`` are fields it leaves out
+    (a guard that only means something in the live session, such as a planned version).
 
     Field values must round-trip through ``repr`` (str, numbers, bools, None, lists/dicts/tuples of
     those, nested pydantic models): "copy session as Python" writes each field as ``name=<repr(value)>``,
@@ -66,8 +75,14 @@ class BaseAction(BaseModel):
     mutates: ClassVar[bool] = False
     runs_as_job: ClassVar[bool] = False
     replay_overrides: ClassVar[dict[str, Any]] = {}
+    replay_omits: ClassVar[frozenset[str]] = frozenset()
     if TYPE_CHECKING:  # every concrete Action declares its own ``type`` field; not a field of the base
         type: str
+
+    @classmethod
+    def unknown_replay_omits(cls) -> list[str]:
+        """``replay_omits`` names that aren't fields of this Action (a typo would silently omit nothing)."""
+        return sorted(set(cls.replay_omits) - set(cls.model_fields))
 
     @classmethod
     def action_type(cls) -> str | None:
@@ -166,6 +181,19 @@ class Navigate(BaseAction):
         return self
 
 
+class RunValidation(BaseAction):
+    """Validate a network (spec, keys, structure, and the quality rules in Settings → validation) as a job."""
+
+    type: Literal["run_validation"] = "run_validation"
+    runs_as_job: ClassVar[bool] = True
+    net_id: str | None = None
+    quality: bool = True
+
+    def job_label(self) -> str:
+        """``validate <network>``."""
+        return f"validate {self.net_id or 'network'}"
+
+
 class SetSetting(BaseAction):
     """Change a setting (dotted key) for this session, or persist it to the user/project file.
 
@@ -239,6 +267,15 @@ def _values_under(value: Any, name: str) -> Iterator[Any]:
 
 #: Name suffixes that imply an output format; a ``BuildNetwork.name`` ending in one must match it.
 _OUTPUT_SUFFIXES = frozenset({".zip", ".duckdb", ".csv", ".parquet"})
+#: A file or folder name: letters, digits, ``_ . -``; no path separator, no leading dot.
+_NAME_PATTERN = r"^[A-Za-z0-9](?:[A-Za-z0-9_.-]*[A-Za-z0-9_-])?$"
+
+
+def _check_name(name: str, output_format: str) -> None:
+    """Refuse a name whose format suffix (``.zip``, ``.duckdb``, …) is not ``output_format``'s."""
+    suffix = PurePath(name).suffix.lower()
+    if suffix in _OUTPUT_SUFFIXES and suffix != f".{output_format}":
+        raise ValueError(f"name {name!r} ends in {suffix} but output_format is {output_format!r}")
 
 
 class BuildNetwork(BaseAction):
@@ -260,7 +297,7 @@ class BuildNetwork(BaseAction):
     input_file: str | None = None
     output_dir: str
     output_format: Literal["parquet", "csv", "duckdb", "zip"]
-    name: str = Field(pattern=r"^[A-Za-z0-9](?:[A-Za-z0-9_.-]*[A-Za-z0-9_-])?$", max_length=100)
+    name: str = Field(pattern=_NAME_PATTERN, max_length=100)
     network_type: str = "drive"
     extra_tags: list[str] | None = None
     spec_version: str | None = None
@@ -274,14 +311,108 @@ class BuildNetwork(BaseAction):
             raise ValueError("give exactly one of area or input_file")
         if self.overture_release is not None and self.source != "overture":
             raise ValueError("overture_release only applies to source='overture'")
-        suffix = PurePath(self.name).suffix.lower()
-        if suffix in _OUTPUT_SUFFIXES and suffix != f".{self.output_format}":
-            raise ValueError(f"name {self.name!r} ends in {suffix} but output_format is {self.output_format!r}")
+        _check_name(self.name, self.output_format)
         return self
 
     def job_label(self) -> str:
         """``build <name>``, named after the output."""
         return f"build {self.name}"
+
+
+#: Ids one ``EditCells`` / ``DeleteRows`` takes, and rows one ``AddRows`` takes.
+MAX_EDIT_IDS = 10_000
+#: A cell value: ``None`` clears the cell. The session coerces it to the column's storage type.
+CellValue = bool | int | float | str | None
+
+
+class EditCells(BaseAction):
+    """Set cells on rows of one table, picked by primary key (``None`` clears a cell).
+
+    Each value is coerced to its column's storage type; one that does not fit is refused, as are key columns
+    and unknown columns. What the spec says about the new values (required, type, enum, foreign keys,
+    duplicate keys) comes back as ``warnings``: they warn, they never block.
+    """
+
+    type: Literal["edit_cells"] = "edit_cells"
+    mutates: ClassVar[bool] = True
+    net_id: str | None = None
+    component: Component = "roadway"
+    table: str = "link"
+    ids: list[int | str] = Field(min_length=1, max_length=MAX_EDIT_IDS)
+    values: dict[str, CellValue] = Field(min_length=1)
+    note: str | None = Field(default=None, max_length=500)
+
+
+class DeleteRows(BaseAction):
+    """Delete rows of one table by key, with every row that depends on them through the spec's foreign keys.
+
+    A link takes its lanes and time-of-day rows with it. A node that a link still uses is refused.
+    ``POST …/table/<table>/delete-plan`` shows what would go, without deleting anything, and the network
+    ``version`` it planned on: pass that as ``expected_version`` and the deletion is refused if the network
+    changed since, so what goes is what was confirmed. The copied script leaves it out (a replay plans again).
+    """
+
+    type: Literal["delete_rows"] = "delete_rows"
+    mutates: ClassVar[bool] = True
+    replay_omits: ClassVar[frozenset[str]] = frozenset({"expected_version"})
+    net_id: str | None = None
+    component: Component = "roadway"
+    table: str = "link"
+    ids: list[int | str] = Field(min_length=1, max_length=MAX_EDIT_IDS)
+    note: str | None = Field(default=None, max_length=500)
+    expected_version: int | None = Field(default=None, ge=0)
+
+
+class AddRows(BaseAction):
+    """Append rows to one table (Python and the API; the app has no drawing tool). Each row needs its key."""
+
+    type: Literal["add_rows"] = "add_rows"
+    mutates: ClassVar[bool] = True
+    net_id: str | None = None
+    component: Component = "roadway"
+    table: str
+    rows: list[dict[str, CellValue]] = Field(min_length=1, max_length=MAX_EDIT_IDS)
+    note: str | None = Field(default=None, max_length=500)
+
+
+class UndoEdit(BaseAction):
+    """Revert the network's last edit, when the Workbench made it (a plugin undoes its own changes)."""
+
+    type: Literal["undo_edit"] = "undo_edit"
+    mutates: ClassVar[bool] = True
+    net_id: str | None = None
+
+
+class SaveNetwork(BaseAction):
+    """Write the open network, with its edits, as a new copy in ``output_dir``. The source is never written to.
+
+    The copy never overwrites anything and never lands inside the network's own source folder. While the
+    network has open edit warnings, or its live check failed or stopped early, the save is refused unless
+    ``accept_warnings``.
+
+    Replay: ``to_python`` renders a runnable call, as for ``BuildNetwork``, so a replayed script writes the
+    copy again. That fails with "already exists" while the earlier copy is there (a second replay always
+    does), and ``accept_warnings=True`` accepts the warnings the network has when the replay runs, not the
+    ones reviewed when it was recorded.
+    """
+
+    type: Literal["save_network"] = "save_network"
+    mutates: ClassVar[bool] = True
+    runs_as_job: ClassVar[bool] = True
+    net_id: str | None = None
+    output_dir: str
+    output_format: Literal["parquet", "csv", "duckdb", "zip"]
+    name: str = Field(pattern=_NAME_PATTERN, max_length=100)
+    accept_warnings: bool = False
+
+    @model_validator(mode="after")
+    def _name_matches_format(self) -> SaveNetwork:
+        _check_name(self.name, self.output_format)
+        return self
+
+    def job_label(self) -> str:
+        """``save <name>``."""
+        return f"save {self.name}"
 
 
 Action = Annotated[
@@ -293,10 +424,17 @@ Action = Annotated[
     | ClearSelection
     | Style
     | Navigate
-    | SetSetting,
+    | SetSetting
+    | EditCells
+    | DeleteRows
+    | AddRows
+    | UndoEdit
+    | RunValidation
+    | SaveNetwork,
     Field(discriminator="type"),
 ]
 #: The Actions every session understands, in registry order (``to_python`` imports them from ``netstead.workbench``).
+#: Append new core Actions at the end, here and in ``Action``; never reorder (``_SCRIPT_HEADER`` names the first nine).
 CORE_ACTIONS: tuple[type[BaseAction], ...] = (
     OpenNetwork,
     BuildNetwork,
@@ -307,6 +445,12 @@ CORE_ACTIONS: tuple[type[BaseAction], ...] = (
     Style,
     Navigate,
     SetSetting,
+    EditCells,
+    DeleteRows,
+    AddRows,
+    UndoEdit,
+    RunValidation,
+    SaveNetwork,
 )
 
 
@@ -348,6 +492,8 @@ class ActionRegistry:
             raise ValueError(f'{model.__name__} needs a `type: Literal["<type>"] = "<type>"` field (one value)')
         if action_type in self._models:
             raise ValueError(f"action type {action_type!r} is already registered")
+        if unknown := model.unknown_replay_omits():
+            raise ValueError(f"{model.__name__}.replay_omits names no field: {', '.join(unknown)}")
         return action_type
 
     def has(self, action_type: str) -> bool:
@@ -417,28 +563,48 @@ def _import_line(cls: type[BaseAction]) -> str:
     return f"from {module} import {cls.__name__}"
 
 
+#: The core Actions on a replayed script's first line, exactly as before P2 added core Actions, so a script that
+#: uses only these keeps its header byte for byte. A later core Action gets its own line, like a plugin's.
+_SCRIPT_HEADER = (
+    "OpenNetwork",
+    "BuildNetwork",
+    "CloseNetwork",
+    "SetActiveNetwork",
+    "Select",
+    "ClearSelection",
+    "Style",
+    "Navigate",
+    "SetSetting",
+)
+
+
 def script_imports(lines: Iterable[str]) -> list[str]:
     """The import lines heading a replayed session script, given its entries' :func:`import_line` values.
 
-    The first line is always ``Session`` plus every core Action from ``netstead.workbench`` (so a
-    core-only script is unchanged from before plugins existed); each other line follows once, in order.
+    The first line is always ``Session`` plus the nine original core Actions from ``netstead.workbench`` (so
+    a script using only those is unchanged from before plugins and P2 existed); each other line (a later core
+    Action's, a plugin Action's) follows once, in order.
 
     >>> script_imports(["from netstead.workbench import Select", "from hello import Greet"])[1:]
     ['from hello import Greet']
+    >>> script_imports(["from netstead.workbench import EditCells"])[1:]
+    ['from netstead.workbench import EditCells']
     """
-    core = {_import_line(model) for model in CORE_ACTIONS}
-    head = ", ".join(["Session", *(model.__name__ for model in CORE_ACTIONS)])
-    return [f"from netstead.workbench import {head}", *dict.fromkeys(ln for ln in lines if ln and ln not in core)]
+    covered = {f"from netstead.workbench import {name}" for name in _SCRIPT_HEADER}
+    head = ", ".join(["Session", *_SCRIPT_HEADER])
+    return [f"from netstead.workbench import {head}", *dict.fromkeys(ln for ln in lines if ln and ln not in covered)]
 
 
 def to_python(action: BaseAction) -> str:
     """The Python call that replays ``action`` against a live workbench handle named ``app``.
 
-    Top-level fields equal to their default are omitted; nested models (an ``area``) are written
-    in full, so their discriminator survives. ``replay_overrides`` are applied last.
+    Top-level fields equal to their default, and ``replay_omits``, are omitted; nested models (an ``area``)
+    are written in full, so their discriminator survives. ``replay_overrides`` are applied last.
     """
-    defaults = {name: f.get_default(call_default_factory=True) for name, f in type(action).model_fields.items()}
-    fields = {k: v for k, v in action.model_dump(exclude={"type"}).items() if v != defaults[k]}
-    fields.update(type(action).replay_overrides)
+    cls = type(action)
+    defaults = {name: f.get_default(call_default_factory=True) for name, f in cls.model_fields.items()}
+    dumped = action.model_dump(exclude={"type", *cls.replay_omits})
+    fields = {k: v for k, v in dumped.items() if v != defaults[k]}
+    fields.update(cls.replay_overrides)
     args = ", ".join(f"{k}={v!r}" for k, v in fields.items())
     return f"app.do({type(action).__name__}({args}))"

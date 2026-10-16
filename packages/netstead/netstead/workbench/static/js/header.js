@@ -1,6 +1,7 @@
 // Header: network switcher, Open / Import… and Recent, and the utterance box. All via actions.
 import { dispatch } from "./api.js";
 import { $, esc, toast } from "./dom.js";
+import { dirtyBadge } from "./editmodel.js";
 import { fitLinks } from "./map.js";
 import { derivedTitle, networkBadge } from "./tabs.js";
 import { openWizard } from "./wizard.js";
@@ -58,9 +59,10 @@ export function renderHeader(server) {
   const sel = $("net-select");
   sel.innerHTML = server.networks.length
     ? server.networks.map(n => {
-      const mark = networkBadge(n); // a base network's option is exactly as before
+      const mark = networkBadge(n); // a clean base network's option is exactly as before
+      const marks = [dirtyBadge((server.edits || {})[n.id]), mark].filter(Boolean).join(" • "); // unsaved edits first
       return `<option value="${esc(n.id)}"${n.id === server.active ? " selected" : ""}` +
-        `${mark ? ` title="${esc(derivedTitle(n, server.networks))}"` : ""}>${esc(n.label)}${mark ? ` • ${esc(mark)}` : ""}</option>`;
+        `${mark ? ` title="${esc(derivedTitle(n, server.networks))}"` : ""}>${esc(n.label)}${marks ? ` • ${esc(marks)}` : ""}</option>`;
     }).join("")
     : '<option value="">No network open</option>';
   sel.disabled = !server.networks.length;
