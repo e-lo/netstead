@@ -178,7 +178,7 @@ class NetworkMap:
         return template.render(
             uid=self.uid,
             height=self.height,
-            payload_json=json.dumps(self._payload()),
+            payload_json=_script_json(self._payload()),
         )
 
     def to_html(self) -> str:
@@ -394,3 +394,26 @@ def _severity_counts(enriched: list[dict[str, Any]]) -> list[tuple[str, int]]:
     """Per-severity counts in canonical display order."""
     sev_counts = Counter(e["severity"] for e in enriched)
     return [(sev, sev_counts[sev]) for sev in ("error", "warning", "info") if sev_counts.get(sev)]
+
+
+#: Characters that could end a ``<script>`` block (``</script>``, ``<!--``), start an HTML
+#: comment/entity (``&``), or break a ``<script>`` body as a line terminator a JS parser
+#: treats specially (U+2028, U+2029) — escaped as JSON string escapes.
+_SCRIPT_UNSAFE = str.maketrans(
+    {
+        "<": "\\u003c",
+        ">": "\\u003e",
+        "&": "\\u0026",
+        "\u2028": "\\u2028",
+        "\u2029": "\\u2029",
+    }
+)
+
+
+def _script_json(value: Any) -> str:
+    r"""``value`` as JSON that is safe inside an HTML ``<script>`` block (data values may hold ``</script>``).
+
+    >>> _script_json({"name": "</script><b>"})
+    '{"name": "\\u003c/script\\u003e\\u003cb\\u003e"}'
+    """
+    return json.dumps(value).translate(_SCRIPT_UNSAFE)
