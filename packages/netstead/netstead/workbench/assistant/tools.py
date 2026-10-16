@@ -84,12 +84,13 @@ class ToolView:
 
     active: str | None
     selection: dict[str, Any] | None
+    networks: frozenset[str] | None = None  # the open networks' ids (None: not checked)
 
 
 def tool_view(session: Session) -> ToolView:
     """A consistent snapshot of the session for :func:`to_action` (one critical section, a copied selection)."""
-    with session.consistent():  # the active id and the selection must come from the same moment
-        return ToolView(session.active, copy.deepcopy(session.selection))
+    with session.consistent():  # the active id, the open networks and the selection must come from the same moment
+        return ToolView(session.active, copy.deepcopy(session.selection), frozenset(session.registry.ids()))
 
 
 def tool_name(action_type: str) -> str:
@@ -215,6 +216,10 @@ def to_action(
     taken now, under the session lock), so the active network and the selection always agree.
     """
     args = dict(arguments)
+    view = view if view is not None else tool_view(session)
+    net_id = args.get("net_id")
+    if isinstance(net_id, str) and view.networks is not None and net_id not in view.networks:
+        raise ValueError(f"no open network is called {net_id[:60]!r}; leave net_id out for the active network")
     if spec.action_type == "select":
         if "from_node" in args or "to_node" in args:  # a model can't know node ids; the user pins in the panel
             raise ValueError("select can't pin nodes; use pin_anchor")
@@ -227,7 +232,7 @@ def to_action(
             raise ValueError("select: a field has the wrong shape (facility is an object)") from None
         return _parse(session, {"type": "select", "utterance": utterance, "query": args})
     if args.pop("on_selection", False):
-        _fill_selection_ids(view if view is not None else tool_view(session), args)
+        _fill_selection_ids(view, args)
     if spec.action_type == "set_setting":
         key = str(args.get("key", "")).strip()
         section = key.lower().split(".", 1)[0]

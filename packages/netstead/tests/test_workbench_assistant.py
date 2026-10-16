@@ -516,3 +516,94 @@ def test_the_stub_planner_keeps_the_case_it_was_typed_in():
     assert calls[1].arguments == {"where": [{"col": "Name", "op": "eq", "val": "Ski"}]}
     assert calls[2].arguments == {"on_selection": True, "values": {"LANES": 3}}
     assert StubPlanner().plan("Zoom to LINK 5").calls[0].arguments == {"record": {"table": "link", "id": 5}}
+
+
+# ---------------------------------------------------------------------- approve pins each step to the version before it
+
+
+def test_a_draft_that_edits_then_deletes_on_one_network_runs_both(tmp_path, isolated_env):
+    p = Scripted(_reply(("edit_cells", {"ids": [1], "values": {"lanes": 3}}), ("delete_rows", {"ids": [5]})))
+    s = _session(tmp_path, isolated_env, p)
+    turn = s.assistant.ask("set link 1 to 3 lanes, then delete link 5")
+    out = s.assistant.approve(turn["draft_id"])
+    assert [st["status"] for st in out["steps"]] == ["done", "done"]
+    edit, delete = s.history[-2], s.history[-1]
+    assert edit.ok and delete.ok and s.network().version == 2
+    assert edit.action["expected_version"] == 0 and delete.action["expected_version"] == 1
+    assert "expected_version" not in edit.python and "expected_version" not in delete.python
+
+
+def test_a_step_without_net_id_follows_the_network_made_active_by_an_earlier_step(tmp_path, isolated_env):
+    p = Scripted(
+        _reply(
+            ("edit_cells", {"ids": [1], "values": {"lanes": 3}}),
+            ("set_active_network", {"net_id": "leavenworth-2"}),
+            ("delete_rows", {"ids": [5]}),
+        )
+    )
+    s = _session(tmp_path, isolated_env, p)
+    s.dispatch(OpenNetwork(source=SRC))  # B
+    s.dispatch({"type": "set_active_network", "net_id": "leavenworth"})
+    turn = s.assistant.ask("edit A, switch to B, delete link 5 there")
+    out = s.assistant.approve(turn["draft_id"])
+    assert [st["status"] for st in out["steps"]] == ["done", "done", "done"]
+    assert s.network("leavenworth").version == 1 and s.network("leavenworth-2").version == 1
+    assert s.history[-1].action["expected_version"] == 0  # B's version, not A's
+
+
+def test_an_outside_edit_between_approved_steps_fails_the_next_step(tmp_path, isolated_env, monkeypatch):
+    p = Scripted(
+        _reply(
+            ("edit_cells", {"ids": [1], "values": {"lanes": 3}}), ("edit_cells", {"ids": [2], "values": {"lanes": 3}})
+        )
+    )
+    s = _session(tmp_path, isolated_env, p)
+    turn = s.assistant.ask("two edits")
+    real = s.dispatch_recorded
+    calls = []
+
+    def sneaky(action, via=None):
+        entry = real(action, via=via)
+        if not calls:
+            calls.append(1)
+            s.dispatch({"type": "edit_cells", "ids": [3], "values": {"lanes": 1}})  # lands between the two steps
+        return entry
+
+    monkeypatch.setattr(s, "dispatch_recorded", sneaky)
+    out = s.assistant.approve(turn["draft_id"])
+    assert [st["status"] for st in out["steps"]] == ["done", "failed"]
+    assert "changed since" in out["steps"][1]["result"]
+
+
+def test_an_edit_with_expected_version_refuses_a_moved_network_and_replays_without_it(tmp_path, isolated_env):
+    from netstead.workbench.actions import to_python
+    from netstead.workbench.errors import ActionError
+
+    s = _session(tmp_path, isolated_env)
+    s.dispatch(EditCells(ids=[1], values={"lanes": 2}))
+    with pytest.raises(ActionError, match="changed since"):
+        s.dispatch(EditCells(ids=[1], values={"lanes": 3}, expected_version=0))
+    assert to_python(EditCells(ids=[1], values={"lanes": 3}, expected_version=1)) == to_python(
+        EditCells(ids=[1], values={"lanes": 3})
+    )
+
+
+def test_an_unknown_net_id_is_repaired_and_never_drafted(tmp_path, isolated_env):
+    p = Scripted(_reply(("delete_rows", {"ids": [5], "net_id": "nope"})), _reply(("delete_rows", {"ids": [5]})))
+    s = _session(tmp_path, isolated_env, p)
+    turn = s.assistant.ask("delete link 5")
+    assert "no open network is called 'nope'" in p.requests[1].messages[-1].content
+    assert s.assistant.draft.actions[0].net_id is None and turn["steps"][0]["status"] == "drafted"
+
+
+def test_a_draft_on_a_network_closed_since_is_stale_not_a_crash(tmp_path, isolated_env):
+    from netstead.workbench.actions import CloseNetwork
+
+    p = Scripted(_reply(("edit_cells", {"ids": [1], "values": {"lanes": 3}, "net_id": "leavenworth-2"})))
+    s = _session(tmp_path, isolated_env, p)
+    s.dispatch(OpenNetwork(source=SRC))  # B, active
+    turn = s.assistant.ask("edit B")
+    s.dispatch(CloseNetwork(net_id="leavenworth-2"))
+    with pytest.raises(ValueError, match="changed since"):
+        s.assistant.approve(turn["draft_id"])
+    assert s.assistant.draft.status == "stale" and s.assistant.turns[-1].steps[0]["status"] == "stale"

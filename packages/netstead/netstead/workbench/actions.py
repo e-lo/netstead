@@ -362,17 +362,21 @@ class EditCells(BaseAction):
 
     Each value is coerced to its column's storage type; one that does not fit is refused, as are key columns
     and unknown columns. What the spec says about the new values (required, type, enum, foreign keys,
-    duplicate keys) comes back as ``warnings``: they warn, they never block.
+    duplicate keys) comes back as ``warnings``: they warn, they never block. With ``expected_version`` the edit is
+    refused if the network changed since that version (an approved assistant draft pins it); the copied script
+    leaves it out.
     """
 
     type: Literal["edit_cells"] = "edit_cells"
     mutates: ClassVar[bool] = True
+    replay_omits: ClassVar[frozenset[str]] = frozenset({"expected_version"})
     net_id: str | None = None
     component: Component = "roadway"
     table: str = "link"
     ids: list[int | str] = Field(min_length=1, max_length=MAX_EDIT_IDS)
     values: dict[str, CellValue] = Field(min_length=1)
     note: str | None = Field(default=None, max_length=500)
+    expected_version: int | None = Field(default=None, ge=0)
 
 
 class DeleteRows(BaseAction):

@@ -142,8 +142,10 @@ def test_on_selection_fills_the_ids_and_never_invents_them(session):
         to_action(session, spec, {"on_selection": True, "ids": [3], "values": {"lanes": 2}})
     with pytest.raises(ValueError, match="link table only"):
         to_action(session, spec, {"on_selection": True, "table": "node", "values": {"zone_id": 2}})
-    with pytest.raises(ValueError, match="selection is on 'leavenworth'"):
+    with pytest.raises(ValueError, match="no open network is called 'other'"):  # repaired, never drafted
         to_action(session, spec, {"on_selection": True, "net_id": "other", "values": {"lanes": 2}})
+    with pytest.raises(ValueError, match="no open network is called 'nope'"):
+        to_action(session, _by_type(session)["delete_rows"], {"ids": [5], "net_id": "nope"})
     deleted = to_action(session, _by_type(session)["delete_rows"], {"on_selection": True})
     assert deleted.ids == [1, 2]
 

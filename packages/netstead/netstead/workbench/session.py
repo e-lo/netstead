@@ -1856,6 +1856,7 @@ class Session:
 
     def _do_edit_cells(self, action: EditCells) -> dict[str, Any]:
         handle = self._edit_target(action)
+        _check_version(handle, action.expected_version)  # an approved draft's version (None: no check)
         plan = _planned(
             lambda: plan_update(handle.roadway, action.table, action.ids, action.values, version=handle.version)
         )
