@@ -184,3 +184,28 @@ def test_invalid_arguments_become_a_value_error_without_the_input(session):
     with pytest.raises(ValueError) as err:
         to_action(session, _by_type(session)["style"], {"ramp": "sk-ant-not-a-ramp"})
     assert "sk-ant" not in str(err.value) and str(err.value).startswith("ramp: ")
+
+
+def test_the_catalog_says_which_actions_may_be_offered(session):
+    session.dispatch({"type": "set_setting", "key": "assistant.plugins", "value": ["loud"]})
+    flags = {a["type"]: a["assistant"] for a in session.action_catalog()}
+    assert flags["style"] and flags["edit_cells"] and flags["loud.shout"]
+    assert not flags["open_network"] and not flags["close_network"] and not flags["loud.secret"]
+    assert {t for t, ok in flags.items() if ok} == {s.action_type for s in tool_specs(session)} | {
+        "add_rows",
+        "set_setting",
+        "build_network",
+        "delete_selection",
+    }  # offerable = offered once allowed
+
+
+def test_a_core_action_marked_not_for_the_assistant_is_flagged_in_the_allowlist(session, monkeypatch):
+    from netstead.workbench.actions import Style
+    from netstead.workbench.assistant.tools import allowlist_problems
+
+    monkeypatch.setattr(Style, "assistant", False)
+    assert allowlist_problems(session, ["style", "open_network"], []) == [
+        "assistant.actions: 'style' is never offered to the assistant",
+        "assistant.actions: 'open_network' is never offered to the assistant",
+    ]
+    assert "style" not in {s.action_type for s in tool_specs(session)}

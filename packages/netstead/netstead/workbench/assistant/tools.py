@@ -30,6 +30,7 @@ __all__ = [
     "ToolView",
     "action_type_of",
     "allowlist_problems",
+    "offerable",
     "to_action",
     "tool_name",
     "tool_specs",
@@ -145,7 +146,7 @@ def tool_specs(session: Session, *, warn: bool = True) -> list[ToolSpec]:
         model = session.actions.model(action_type)
         owner = session.action_owner(action_type)
         allowed = owner in settings.plugins if owner else action_type in settings.actions
-        if action_type in NEVER or not model.assistant or not allowed:
+        if not offerable(action_type, model) or not allowed:
             continue
         try:
             tool = _tool(action_type, model)
@@ -154,6 +155,11 @@ def tool_specs(session: Session, *, warn: bool = True) -> list[ToolSpec]:
             continue
         specs.append(ToolSpec(tool, action_type, model.mutates, owner))
     return specs
+
+
+def offerable(action_type: str, model: type[BaseAction]) -> bool:
+    """Whether an Action may be offered to the assistant at all (never :data:`NEVER`, nor ``assistant = False``)."""
+    return action_type not in NEVER and model.assistant
 
 
 def _tool(action_type: str, model: type[BaseAction]) -> Tool:
@@ -281,14 +287,18 @@ def allowlist_problems(session: Session, actions: list[str], plugins: list[str])
     known_plugins = {status.id for status in session.plugin_status} | set(session.plugins)
     for action_type in actions:
         name = repr(action_type[:60])
-        if action_type in NEVER:
-            problems.append(f"assistant.actions: {name} is never offered to the assistant")
-        elif not session.actions.has(action_type):
-            problems.append(f"assistant.actions: there is no Action named {name}")
+        if not session.actions.has(action_type):
+            problems.append(
+                f"assistant.actions: {name} is never offered to the assistant"
+                if action_type in NEVER
+                else f"assistant.actions: there is no Action named {name}"
+            )
         elif (owner := session.action_owner(action_type)) is not None:
             problems.append(
                 f"assistant.actions: {name} belongs to the plugin {owner!r}; opt the plugin in with assistant.plugins"
             )
+        elif not offerable(action_type, session.actions.model(action_type)):  # NEVER, or ``assistant = False``
+            problems.append(f"assistant.actions: {name} is never offered to the assistant")
     for plugin_id in plugins:
         if plugin_id not in known_plugins:
             problems.append(f"assistant.plugins: there is no plugin with the id {plugin_id[:60]!r}")

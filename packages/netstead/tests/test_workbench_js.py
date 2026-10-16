@@ -769,6 +769,13 @@ def test_the_command_bar_routes_enter_to_select_and_mod_enter_to_ask(node_module
     assert node_module("assistmodel.js", ["barRoute"], expr) == ["select", "ask", "ask", None]
 
 
-def test_toggle_list(node_module):
-    expr = "[toggleList(['a','b'], 'c', true), toggleList(['a','b'], 'a', false), toggleList(['a'], 'a', true)]"
-    assert node_module("assistmodel.js", ["toggleList"], expr) == [["a", "b", "c"], ["b"], ["a"]]
+def test_settings_switches_save_what_is_on_screen_and_list_only_offerable_actions(node_module):
+    expr = "switchedOn([{checked: true, id: 'a'}, {checked: false, id: 'b'}, {checked: true, id: 'c'}])"
+    assert node_module("assistmodel.js", ["switchedOn"], expr) == ["a", "c"]
+    actions = [
+        {"type": "style", "plugin": None, "assistant": True},
+        {"type": "open_network", "plugin": None, "assistant": False},  # the server says: never offered
+        {"type": "loud.shout", "plugin": "loud", "assistant": True},  # a plugin's: under Plugins instead
+    ]
+    got = node_module("assistmodel.js", ["offerableCore"], f"offerableCore({json.dumps(actions)}).map(a => a.type)")
+    assert got == ["style"]

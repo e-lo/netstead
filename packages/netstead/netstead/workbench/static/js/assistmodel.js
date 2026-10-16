@@ -1,4 +1,4 @@
-// The assistant's view rules: step rows, the pending draft, token use, the command bar's keys, list toggles.
+// The assistant's view rules: step rows, the pending draft, token use, the command bar's keys, Settings switches.
 // Import-free and DOM-free: unit-tested under node (tests/test_workbench_js.py). The DOM side sets every string
 // these return as text (or through esc()): summaries and results can carry model text and network values.
 
@@ -42,8 +42,9 @@ export function barRoute(e) {
   return e.ctrlKey || e.metaKey ? "ask" : "select";
 }
 
-export function toggleList(list, id, on) {
-  const has = list.includes(id);
-  if (on) return has ? [...list] : [...list, id];
-  return list.filter(x => x !== id);
-}
+// Settings → Assistant lists the core Actions the server says may ever be offered (`assistant` in /api/actions).
+export const offerableCore = actions => (actions || []).filter(a => !a.plugin && a.assistant);
+
+// The ids switched on right now, read from the switches themselves ([{checked, id}]), not from the last render: two
+// quick clicks each save what the user sees.
+export const switchedOn = boxes => boxes.filter(b => b.checked).map(b => b.id);

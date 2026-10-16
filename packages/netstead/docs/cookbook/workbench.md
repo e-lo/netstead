@@ -380,7 +380,8 @@ you opened, local or remote, is never written to, and a copy inside the source f
   (`colour by lanes`, `width by lanes`, `filter lanes >= 2`, `clear the filter`, `zoom to the selection`,
   `zoom to link 170`, `select <street>`, `save the selection as <name>`, `set lanes to 3 on the selection`).
 - Steps that only change the view or the selection run at once, and each is listed with its `app.do(...)` line.
-  Steps that change a network (edits, deletions, undo, saving a copy) wait in one **draft**: **Approve** runs them all
+  Steps that change a network or something you made (edits, deletions, undo, saving a copy, and, once you allow
+  them, changing a setting, building a network or deleting a saved selection) wait in one **draft**: **Approve** runs them all
   in order and stops at the first failure, **Reject** drops them, and a step's **Edit…** opens its form prefilled
   (running it from there is an ordinary action; the draft stays pending). A draft is refused once a network it
   touches has changed, and a new question replaces it.

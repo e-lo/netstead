@@ -8,7 +8,7 @@ import { dispatch, getJSON, postJSON } from "./api.js";
 import { openActionForm } from "./actform.js";
 import { addCommandTo } from "./commands.js";
 import { $, esc, toast } from "./dom.js";
-import { assistBadge, budgetText, pendingDraft, stepRows, toggleList } from "./assistmodel.js";
+import { assistBadge, budgetText, offerableCore, pendingDraft, stepRows, switchedOn } from "./assistmodel.js";
 import { registerSection } from "./settings.js";
 import { ALL_WORKSPACES, CORE, slots } from "./slots.js";
 import { store } from "./store.js";
@@ -148,9 +148,15 @@ async function editStep(i) {
 function decide(verdict) {
   const d = pendingDraft(store.get().assistant);
   if (!d) return;
+  const buttons = [...$("as-draft").querySelectorAll("button[data-draft]")];
+  for (const b of buttons) b.disabled = true; // one decision per draft: no second click while this one is in flight
   postJSON(`/api/assistant/drafts/${d.id}/${verdict}`, {})
     .catch(err => toast(err.message))
-    .finally(() => loadAssistant());
+    .finally(async () => {
+      await loadAssistant();
+      renderAssistant(store.get().assistant); // the bar (and its buttons) is gone or redrawn: focus moves on
+      $("as-input").focus();
+    });
 }
 
 export function wireAssistant() {
@@ -175,8 +181,6 @@ export async function loadAssistant() {
 
 // ------------------------------------------------------------------ Settings → Assistant
 
-const NEVER = new Set(["open_network", "close_network"]); // never offered (tools.NEVER): not listed
-
 // A switch per core Action and per plugin, each saved to the user's file as a set_setting. Names the session doesn't
 // know (status.warnings: a typo, an uninstalled plugin) are listed; changing a switch drops them, since the server
 // refuses a list that still holds one.
@@ -189,7 +193,7 @@ async function renderAssistantSettings(focusKey = null) {
   const [{ values }, { actions }, status] = await Promise.all([getJSON("/api/settings"), getJSON("/api/actions"),
     getJSON("/api/assistant").then(p => p.status)]);
   const allowed = values.assistant.actions, plugins = values.assistant.plugins;
-  const core = actions.filter(a => !a.plugin && !NEVER.has(a.type));
+  const core = offerableCore(actions);
   const known = store.get().pluginStatus || [];
   const warnings = status.warnings || [];
   const usage = status.provider === "stub" ? "The offline assistant uses no tokens." : budgetText(status);
@@ -214,12 +218,14 @@ async function renderAssistantSettings(focusKey = null) {
     const box = e.target;
     const id = box.dataset.act || box.dataset.plugin;
     if (!id) return;
-    const coreTypes = new Set(core.map(a => a.type)), pluginIds = new Set(known.map(p => p.id));
-    const [key, list] = box.dataset.act
-      ? ["assistant.actions", allowed.filter(t => coreTypes.has(t))]
-      : ["assistant.plugins", plugins.filter(p => pluginIds.has(p))];
-    dispatch({ type: "set_setting", key, value: toggleList(list, id, box.checked), scope: "user" })
-      .catch(err => toast(err.message))
+    const attr = box.dataset.act ? "act" : "plugin";
+    const inputs = [...el.querySelectorAll("input")];
+    const value = switchedOn([...el.querySelectorAll(`input[data-${attr}]`)]
+      .map(b => ({ checked: b.checked, id: b.dataset[attr] })));
+    for (const b of inputs) b.disabled = true; // until the save lands and the section is drawn again
+    dispatch({ type: "set_setting", key: attr === "act" ? "assistant.actions" : "assistant.plugins", value,
+      scope: "user" })
+      .catch(err => { toast(err.message); for (const b of inputs) b.disabled = false; })
       .finally(() => renderAssistantSettings(id).catch(err => toast(err.message)));
   };
 }

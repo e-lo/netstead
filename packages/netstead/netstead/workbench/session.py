@@ -1291,11 +1291,14 @@ class Session:
     def action_catalog(self) -> list[dict[str, Any]]:
         """Each registered Action, for the browser's generated forms and ``wb.hasAction``.
 
-        Each entry has ``type``, class ``name``, ``description`` (its docstring's first line), owning
-        ``plugin`` (``None`` for core), ``mutates`` and its JSON ``schema``. A schema that can't be generated
-        (install refuses such a plugin; this is defence in depth) is logged and listed as ``None``: one bad
-        model must not fail the catalog for every caller.
+        Each entry has ``type``, class ``name``, ``description`` (its docstring's first line), owning ``plugin``
+        (``None`` for core), ``mutates``, ``assistant`` (whether it may ever be offered to the assistant: never
+        ``open_network``/``close_network``, nor an Action with ``assistant = False``) and its JSON ``schema``. A
+        schema that can't be generated (install refuses such a plugin; this is defence in depth) is logged and
+        listed as ``None``: one bad model must not fail the catalog for every caller.
         """
+        from .assistant.tools import offerable  # deferred: the assistant package imports this module
+
         with self._lock:
             owner = {spec.model.action_type(): pid for pid, plugin in self.plugins.items() for spec in plugin.actions}
             models = [(t, self.actions.model(t)) for t in self.actions.types()]
@@ -1309,6 +1312,7 @@ class Session:
                     "description": doc[0] if doc else "",
                     "plugin": owner.get(action_type),
                     "mutates": model.mutates,
+                    "assistant": offerable(action_type, model),
                     "schema": _json_schema_or_none(model),
                 }
             )
