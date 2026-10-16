@@ -15,9 +15,18 @@ from dataclasses import dataclass, replace
 from typing import Any, Literal
 
 from .errors import ToolsUnsupported
-from .types import Completion, CompletionRequest, LLMProvider, Message, Tool
+from .types import Completion, CompletionRequest, LLMProvider, Message, Tool, ToolCall
 
-__all__ = ["JSON_MODE_INSTRUCTIONS", "REPAIR_PROMPT", "StructuredOutputError", "ToolResult", "request_tool_call"]
+__all__ = [
+    "ENVELOPE_SCHEMA",
+    "JSON_MODE_INSTRUCTIONS",
+    "REPAIR_PROMPT",
+    "StructuredOutputError",
+    "ToolCallsResult",
+    "ToolResult",
+    "request_tool_call",
+    "request_tool_calls",
+]
 
 Mode = Literal["tools", "json"]
 
@@ -168,3 +177,184 @@ def _echo(completion: Completion) -> str:
         call = completion.tool_calls[0]
         return f"(called {call.name} with {json.dumps(call.arguments)})"
     return completion.text[:2000] or "(empty reply)"
+
+
+#: JSON mode's reply shape for several tools: a sentence for the user and the calls. ``arguments`` stays an open object
+#: (each call is checked against its own tool afterwards), so a native JSON constraint (Ollama's ``format``) needs no
+#: ``anyOf``.
+ENVELOPE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "reply": {"type": "string"},
+        "calls": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"tool": {"type": "string"}, "arguments": {"type": "object"}},
+                "required": ["tool", "arguments"],
+            },
+        },
+    },
+    "required": ["calls"],
+}
+#: Appended to the system prompt in JSON mode for several tools.
+ENVELOPE_INSTRUCTIONS = (
+    "Reply with ONLY one JSON object, with no prose and no code fences: "
+    '{{"reply": "<one short sentence for the user>", '
+    '"calls": [{{"tool": "<tool name>", "arguments": {{...}}}}]}}. Use an empty calls list to only answer. '
+    "The tools, with their JSON schemas:\n{tools}"
+)
+
+
+@dataclass(frozen=True)
+class ToolCallsResult:
+    """Validated tool calls (in order), the model's text, the mode, the number of calls made, and token use.
+
+    ``input_tokens`` / ``output_tokens`` sum every call, or are ``None`` when any call didn't report them.
+    """
+
+    calls: tuple[ToolCall, ...]
+    text: str
+    mode: Mode
+    attempts: int
+    input_tokens: int | None
+    output_tokens: int | None
+
+
+def request_tool_calls(
+    provider: LLMProvider,
+    *,
+    model: str,
+    tools: tuple[Tool, ...],
+    messages: tuple[Message, ...],
+    system: str = "",
+    context: str = "",
+    validate: Callable[[tuple[ToolCall, ...]], object] | None = None,
+    json_mode: bool = False,
+    max_repairs: int = 1,
+    max_tokens: int = 1024,
+    max_calls: int = 8,
+    temperature: float | None = None,
+) -> ToolCallsResult:
+    """Offer ``tools`` (none forced) for the conversation ``messages``; validate every call; repair until valid.
+
+    A reply may be text only (no calls). Each call must name one of ``tools`` and match its schema; then
+    ``validate(calls)`` (raise ``ValueError`` to repair) sees the whole list. At most ``max_calls`` calls per reply.
+    A model without tool calling gets the JSON envelope (:data:`ENVELOPE_SCHEMA`) on the same provider and model.
+    Provider failures (:class:`~netstead.llm.errors.LLMError`) are never retried.
+
+    Args:
+        provider: Any :class:`~netstead.llm.types.LLMProvider`.
+        model: Model id.
+        tools: The tools offered; the model may call any of them, several times, or none.
+        messages: The conversation so far, ending with the user's turn.
+        system: The per-call part of the system prompt.
+        context: The stable, cacheable part of the system prompt (sent first).
+        validate: Extra check on the whole list of calls; raise ``ValueError`` to trigger a repair.
+        json_mode: Start in JSON mode (for models known to lack tool calling).
+        max_repairs: Extra calls allowed after an invalid reply.
+        max_tokens: Output token cap per call.
+        max_calls: The most tool calls one reply may carry.
+        temperature: Sampling temperature; ``None`` keeps the provider's default.
+
+    Returns:
+        The validated calls, the reply text, the mode used, the number of calls made, and the summed token use.
+
+    Raises:
+        StructuredOutputError: Still invalid after ``max_repairs`` repairs.
+    """
+    by_name = {tool.name: tool for tool in tools}
+    base = CompletionRequest(
+        model=model, messages=(), system=system, context=context, max_tokens=max_tokens, temperature=temperature
+    )
+    mode: Mode = "json" if json_mode else "tools"
+    history = list(messages)
+    usage: list[tuple[int | None, int | None]] = []
+    error = ""
+    for attempt in range(1, max_repairs + 2):
+        completion, mode = _complete_many(provider, replace(base, messages=tuple(history)), tools, mode)
+        usage.append((completion.input_tokens, completion.output_tokens))
+        try:
+            calls, text = _many(completion, mode)
+            _check_calls(calls, text, by_name, max_calls)
+            if validate is not None:
+                validate(calls)
+        except ValueError as exc:
+            error = str(exc)
+            how = (
+                "call the tools again with corrected arguments."
+                if mode == "tools"
+                else "reply with only the corrected JSON object."
+            )
+            history += [
+                Message("assistant", _echo_many(completion)),
+                Message("user", REPAIR_PROMPT.format(error=error, how=how)),
+            ]
+            continue
+        return ToolCallsResult(calls, text, mode, attempt, *_sum_usage(usage))
+    raise StructuredOutputError(f"the model's reply was still invalid after {max_repairs + 1} attempts: {error}")
+
+
+def _check_calls(calls: tuple[ToolCall, ...], text: str, by_name: dict[str, Tool], max_calls: int) -> None:
+    """Raise ``ValueError`` (naming the call) for an empty reply, too many calls, an unknown tool or bad arguments."""
+    if not calls and not text.strip():
+        raise ValueError("the reply was empty: call a tool or answer in one sentence")
+    if len(calls) > max_calls:
+        raise ValueError(f"at most {max_calls} tool calls per reply")
+    for i, call in enumerate(calls, start=1):
+        tool = by_name.get(call.name)
+        if tool is None:
+            raise ValueError(f"call {i}: there is no tool named {call.name!r}; use one of {sorted(by_name)}")
+        try:
+            _check_schema(call.arguments, tool.input_schema)
+        except ValueError as exc:
+            raise ValueError(f"call {i} ({call.name}): {exc}") from None
+
+
+def _complete_many(
+    provider: LLMProvider, base: CompletionRequest, tools: tuple[Tool, ...], mode: Mode
+) -> tuple[Completion, Mode]:
+    if mode == "tools":
+        try:
+            return provider.complete(replace(base, tools=tools, force_tool=None)), "tools"
+        except ToolsUnsupported:
+            pass  # same provider, same model: the JSON envelope instead
+    listing = json.dumps([{"name": t.name, "description": t.description, "schema": t.input_schema} for t in tools])
+    # As in request_tool_call, the instructions go in the per-call part so the cacheable ``context`` stays identical.
+    system = f"{base.system}\n\n{ENVELOPE_INSTRUCTIONS.format(tools=listing)}".strip()
+    return provider.complete(replace(base, system=system, json_schema=ENVELOPE_SCHEMA)), "json"
+
+
+def _many(completion: Completion, mode: Mode) -> tuple[tuple[ToolCall, ...], str]:
+    if mode == "tools":
+        calls = tuple(ToolCall(c.name, _drop_nulls(dict(c.arguments))) for c in completion.tool_calls)
+        return calls, completion.text
+    parsed = _json_object(completion.text)
+    if parsed is None:
+        raise ValueError("the reply was not a JSON object")
+    raw = parsed.get("calls")
+    if not isinstance(raw, list) or not all(
+        isinstance(c, dict) and isinstance(c.get("tool"), str) and isinstance(c.get("arguments"), dict) for c in raw
+    ):
+        raise ValueError('"calls" must be a list of {"tool": name, "arguments": {...}}')
+    reply = parsed.get("reply")
+    calls = tuple(ToolCall(c["tool"], _drop_nulls(c["arguments"])) for c in raw)
+    return calls, reply if isinstance(reply, str) else ""
+
+
+def _echo_many(completion: Completion) -> str:
+    if completion.tool_calls:
+        return "; ".join(f"(called {c.name} with {json.dumps(c.arguments)})" for c in completion.tool_calls)[:2000]
+    return completion.text[:2000] or "(empty reply)"
+
+
+def _sum_usage(usage: list[tuple[int | None, int | None]]) -> tuple[int | None, int | None]:
+    """Total input and output tokens; ``None`` for a side when any call didn't report it.
+
+    >>> _sum_usage([(10, 5), (3, 2)]), _sum_usage([(10, 5), (None, 2)])
+    ((13, 7), (None, 7))
+    """
+    ins, outs = [u[0] for u in usage], [u[1] for u in usage]
+    total_in = None if any(n is None for n in ins) else sum(n for n in ins if n is not None)
+    total_out = None if any(n is None for n in outs) else sum(n for n in outs if n is not None)
+    return total_in, total_out
