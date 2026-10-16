@@ -1,5 +1,8 @@
-// Header: network switcher, Open / Import… and Recent, and the utterance box. All via actions.
+// Header: network switcher, Open / Import… and Recent, and the utterance box (the command bar: Enter selects, as
+// it always has; Ask, Ctrl+Enter or ⌘Enter sends the text to the assistant). All via actions.
 import { dispatch } from "./api.js";
+import { ask } from "./assistant.js";
+import { barRoute } from "./assistmodel.js";
 import { $, esc, toast } from "./dom.js";
 import { dirtyBadge } from "./editmodel.js";
 import { fitLinks } from "./map.js";
@@ -86,5 +89,11 @@ export function wireHeader() {
     $("go").disabled = false;
   };
   $("go").onclick = select;
-  $("utterance").onkeydown = e => { if (e.key === "Enter") select(); };
+  $("ask").onclick = () => ask($("utterance").value, { fromBar: true });
+  $("utterance").onkeydown = e => {
+    if (e.isComposing) return;
+    const route = barRoute(e);
+    if (route === "select") select();
+    else if (route === "ask") { e.preventDefault(); ask($("utterance").value, { fromBar: true }); }
+  };
 }

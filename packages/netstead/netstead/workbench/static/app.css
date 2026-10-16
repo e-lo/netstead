@@ -344,3 +344,24 @@
   .fix-editor { margin:6px 0; padding:8px; border:1px solid var(--edge); border-radius:8px; background:#0c0e12; }
   .fix-editor .row { display:flex; gap:6px; align-items:center; margin:4px 0; }
   .det-actions { display:flex; gap:6px; margin:6px 0; }
+
+  /* the Assistant dock panel and the command bar's Ask */
+  #ask { background:none; color:var(--ink); border:1px solid var(--edge); }
+  #as-log { display:flex; flex-direction:column; gap:8px; margin:8px 0; }
+  .as-turn { display:flex; flex-direction:column; gap:4px; }
+  .as-text { white-space:pre-wrap; overflow-wrap:anywhere; }
+  .as-turn.user .as-text { align-self:flex-end; max-width:90%; color:var(--muted); background:#0c0e12;
+                           border:1px solid var(--edge); border-radius:8px; padding:4px 8px; }
+  .as-step { border-left:3px solid var(--edge); padding:2px 0 2px 8px; font-size:12.5px; }
+  .as-step.done { border-left-color:var(--from); }
+  .as-step.drafted { border-left-color:rgb(240,170,60); }
+  .as-step.failed { border-left-color:var(--to); }
+  .as-step.failed .as-label { color:var(--to); }
+  .as-step.rejected, .as-step.superseded, .as-step.stale, .as-step.skipped { opacity:.7; }
+  .as-label { font-weight:600; }
+  .as-step .mini { margin-left:4px; padding:1px 6px; }
+  .as-step code { display:block; margin-top:2px; font:11.5px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;
+                  color:var(--muted); white-space:pre-wrap; overflow-wrap:anywhere; }
+  .as-draftbar { padding:6px 8px; border:1px solid rgb(240,170,60); border-radius:6px; gap:6px; align-items:center; }
+  #as-input { width:100%; resize:vertical; background:#0c0e12; color:var(--ink); border:1px solid var(--edge);
+              border-radius:7px; padding:6px 8px; font:inherit; }
