@@ -130,3 +130,16 @@ def test_context_joins_the_system_turn_and_temperature_goes_in_options(fake_api)
     body = fake_api.body()
     assert body["messages"][0] == {"role": "system", "content": "GUIDE\n\nsys"}
     assert body["options"] == {"num_predict": 300, "temperature": 0.0}
+
+
+def test_the_multi_tool_json_envelope_uses_native_format(fake_api):
+    from netstead.llm.structured import ENVELOPE_SCHEMA, request_tool_calls
+
+    content = '{"reply": "ok", "calls": [{"tool": "emit", "arguments": {"x": 2}}]}'
+    fake_api.add("POST", "/api/chat", body={**REPLY, "message": {"role": "assistant", "content": content}})
+    out = request_tool_calls(
+        _provider(fake_api), model="qwen3:8b", tools=(TOOL,), messages=(Message("user", "hi"),), json_mode=True
+    )
+    body = fake_api.body()
+    assert body["format"] == ENVELOPE_SCHEMA and "tools" not in body
+    assert out.mode == "json" and out.calls[0].arguments == {"x": 2} and out.text == "ok"

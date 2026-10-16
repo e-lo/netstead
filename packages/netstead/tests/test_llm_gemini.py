@@ -99,3 +99,11 @@ def test_context_joins_the_system_instruction_and_temperature_is_sent(fake_api):
     body = fake_api.body()
     assert body["systemInstruction"] == {"parts": [{"text": "GUIDE\n\nsys"}]}
     assert body["generationConfig"] == {"maxOutputTokens": 200, "temperature": 0.0}
+
+
+def test_unforced_tools_keep_geminis_default_calling_mode(fake_api):
+    fake_api.add("POST", PATH, body=REPLY)
+    done = _provider(fake_api).complete(replace(REQUEST, force_tool=None))
+    body = fake_api.body()
+    assert "toolConfig" not in body and body["tools"][0]["functionDeclarations"][0]["name"] == "emit"
+    assert done.tool_calls[0].name == "emit"
