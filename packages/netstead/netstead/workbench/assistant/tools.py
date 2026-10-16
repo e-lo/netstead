@@ -130,14 +130,16 @@ def warn_allowlist(session: Session) -> list[str]:
     return problems
 
 
-def tool_specs(session: Session) -> list[ToolSpec]:
+def tool_specs(session: Session, *, warn: bool = True) -> list[ToolSpec]:
     """The tools this session's assistant may call, in registry order (settings ``assistant.actions`` / ``plugins``).
 
     A core Action is offered when ``assistant.actions`` lists it; a plugin's when ``assistant.plugins`` lists the
-    plugin. Neither ever offers :data:`NEVER`, nor an Action that sets ``assistant = False``.
+    plugin. Neither ever offers :data:`NEVER`, nor an Action that sets ``assistant = False``. ``warn=False`` skips
+    the allowlist check, for a caller that has just made it (:func:`warn_allowlist`).
     """
     settings = session.settings.assistant
-    warn_allowlist(session)
+    if warn:
+        warn_allowlist(session)
     specs = []
     for action_type in session.actions.types():
         model = session.actions.model(action_type)

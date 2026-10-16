@@ -768,3 +768,40 @@ def test_a_call_that_timed_out_is_charged_what_it_sent(tmp_path, isolated_env):
     req = p.requests[0]
     sent = len(req.system) + len(req.context) + sum(len(m.content) for m in req.messages)
     assert turn["error"] == "timed out" and s.assistant.used == {"ollama": sent // 4}
+
+
+# ---------------------------------------------------------------------- more edges (review of batch 2, S-5)
+
+
+def test_approve_after_the_turn_was_dropped_by_max_turns(tmp_path, isolated_env):
+    p = Scripted(_reply(("edit_cells", {"ids": [1], "values": {"lanes": 3}})))
+    s = _session(tmp_path, isolated_env, p)
+    turn = s.assistant.ask("edit link 1")
+    with s.assistant._lock:  # as if later turns had pushed it out (assistant.max_turns); the draft stays pending
+        s.assistant.turns.clear()
+    out = s.assistant.approve(turn["draft_id"])
+    assert out == {"id": turn["id"], "steps": []} and s.history[-1].ok and s.history[-1].action["type"] == "edit_cells"
+
+
+def test_a_protected_setting_is_refused_again_when_the_draft_is_made(tmp_path, isolated_env):
+    from netstead.workbench.assistant.core import _Call
+    from netstead.workbench.assistant.tools import tool_specs
+
+    s = _session(tmp_path, isolated_env)
+    s.dispatch(SetSetting(key="assistant.actions", value=["set_setting", "edit_cells"], scope="session"))
+    spec = {x.action_type: x for x in tool_specs(s)}["set_setting"]
+    harmless = SetSetting(key="viz.max_rows", value=1, scope="session")  # stands in for what passed earlier
+    call = _Call(spec, {"key": "llm.ollama.base_url", "value": "http://evil.example"}, harmless)
+    actions, problem, _ = s.assistant._draft_actions([call])
+    assert actions == [] and "protected setting" in problem
+
+
+def test_the_payload_works_out_the_allowlist_problems_once(tmp_path, isolated_env, monkeypatch):
+    from netstead.workbench.assistant import tools
+
+    s = _session(tmp_path, isolated_env)
+    calls = []
+    real = tools.allowlist_problems
+    monkeypatch.setattr(tools, "allowlist_problems", lambda *a: calls.append(1) or real(*a))
+    s.assistant.payload()
+    assert len(calls) == 1

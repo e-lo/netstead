@@ -28,7 +28,7 @@ from ..redact import describe_error
 from .echo import describe, model_echo, result_detail, result_text
 from .grounding import assistant_disclosure, build_grounding
 from .stub import StubPlanner
-from .tools import ToolSpec, ToolView, action_type_of, to_action, tool_specs, tool_view
+from .tools import ToolSpec, ToolView, action_type_of, to_action, tool_specs, tool_view, warn_allowlist
 
 if TYPE_CHECKING:
     from netstead.llm import ProviderRegistry
@@ -646,8 +646,8 @@ class Assistant:
         except (LLMError, KeyError) as exc:
             name, model, local, sends = self._session.settings.select.provider, None, False, []
             error = str(exc)
-        tools = [s.tool.name for s in tool_specs(self._session)]
-        warnings = self._session.assistant_setting_problems()
+        warnings = warn_allowlist(self._session)  # the allowlist problems, worked out once per payload
+        tools = [s.tool.name for s in tool_specs(self._session, warn=False)]
         with self._lock:
             draft = None
             if self.draft is not None:

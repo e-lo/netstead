@@ -64,3 +64,15 @@ def test_a_cross_origin_ask_is_refused(setup):
     s, client = setup
     r = client.post("/api/assistant/ask", json={"text": "colour by lanes"}, headers={"Origin": "https://evil.example"})
     assert r.status_code == 403 and s.assistant.turns == []
+
+
+def test_approve_is_409_when_stale_and_422_for_a_bad_id(setup):
+    s, client = setup
+    s.dispatch({"type": "select", "link_ids": [1, 2]})
+    turn = client.post("/api/assistant/ask", json={"text": "set lanes to 3 on the selection"}).json()
+    s.dispatch({"type": "edit_cells", "ids": [1], "values": {"lanes": 1}})
+    r = client.post(f"/api/assistant/drafts/{turn['draft_id']}/approve")
+    assert r.status_code == 409 and "changed since" in r.json()["detail"]
+    assert client.get("/api/assistant").json()["draft"]["status"] == "stale"
+    assert client.post("/api/assistant/drafts/abc/approve").status_code == 422
+    assert client.post("/api/assistant/drafts/abc/reject").status_code == 422
