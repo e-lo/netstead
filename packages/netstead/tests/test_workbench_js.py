@@ -711,3 +711,58 @@ def test_focus_moves_to_unpin_after_a_pin(node_module):
         "[unpinAfterPin('pin-to-60'), unpinAfterPin('pin-from-a-b'), unpinAfterPin('unpin-to'), unpinAfterPin('use-x')]"
     )
     assert node_module("selectmodel.js", ["unpinAfterPin"], expr) == ["unpin-to", "unpin-from", None, None]
+
+
+ASSIST_PAYLOAD = {
+    "turns": [
+        {"id": 1, "role": "user", "text": "set lanes", "steps": [], "draft_id": None, "error": None},
+        {"id": 2, "role": "assistant", "text": "", "draft_id": 3, "error": None, "steps": [
+            {"summary": "select “x”", "python": "app.do(Select(...))", "status": "done", "result": "resolved: 2 links"},
+            {"summary": "set lanes = 3 on 2 links", "python": "app.do(EditCells(...))", "status": "drafted",
+             "result": ""},
+        ]},
+    ],
+    "draft": {"id": 3, "turn_id": 2, "status": "pending", "actions": [{"type": "edit_cells"}]},
+    "status": {"provider": "ollama", "model": "qwen2.5:7b", "local": True, "used": {"ollama/qwen2.5:7b": 1234},
+               "budget": 200000, "busy": False, "sends": ["a"], "error": None},
+}  # fmt: skip
+
+
+def test_step_rows_and_status_labels(node_module):
+    rows = node_module("assistmodel.js", ["stepRows"], f"stepRows({json.dumps(ASSIST_PAYLOAD['turns'][1])})")
+    assert [r["label"] for r in rows] == ["Done", "Awaiting approval"]
+    assert rows[0]["result"] == "resolved: 2 links"
+    expr = "stepRows({steps: [{status: 'superseded'}, {status: 'stale'}, {status: 'odd'}]}).map(r => r.label)"
+    assert node_module("assistmodel.js", ["stepRows"], expr) == [
+        "Replaced by a newer question", "Out of date: the network changed", "odd"
+    ]  # fmt: skip
+    assert node_module("assistmodel.js", ["stepRows"], "stepRows({})") == []
+
+
+def test_the_pending_draft_and_the_badge(node_module):
+    p = json.dumps(ASSIST_PAYLOAD)
+    stale = json.dumps({**ASSIST_PAYLOAD, "draft": {**ASSIST_PAYLOAD["draft"], "status": "stale"}})
+    expr = f"[pendingDraft({p}), assistBadge({p}), assistBadge({{turns: [], draft: null}}), assistBadge({stale})]"
+    draft, badge, none, gone = node_module("assistmodel.js", ["pendingDraft", "assistBadge"], expr)
+    assert draft == {"id": 3, "steps": 1} and badge == "1" and none is None and gone is None
+
+
+def test_budget_text(node_module):
+    remote = {**ASSIST_PAYLOAD["status"], "local": False, "provider": "anthropic", "model": "h",
+              "used": {"anthropic/h": 12000}}  # fmt: skip
+    expr = f"[budgetText({json.dumps(ASSIST_PAYLOAD['status'])}), budgetText({json.dumps(remote)})]"
+    local, rem = node_module("assistmodel.js", ["budgetText"], expr)
+    assert local == "1,234 tokens used (local model: no limit)" and rem == "12,000 of 200,000 tokens used this session"
+
+
+def test_the_command_bar_routes_enter_to_select_and_mod_enter_to_ask(node_module):
+    expr = (
+        "[barRoute({key:'Enter'}), barRoute({key:'Enter', ctrlKey:true}),"
+        " barRoute({key:'Enter', metaKey:true}), barRoute({key:'a'})]"
+    )
+    assert node_module("assistmodel.js", ["barRoute"], expr) == ["select", "ask", "ask", None]
+
+
+def test_toggle_list(node_module):
+    expr = "[toggleList(['a','b'], 'c', true), toggleList(['a','b'], 'a', false), toggleList(['a'], 'a', true)]"
+    assert node_module("assistmodel.js", ["toggleList"], expr) == [["a", "b", "c"], ["b"], ["a"]]
