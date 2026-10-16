@@ -176,7 +176,7 @@ class Assistant:
     def _endpoint(self) -> _Endpoint:
         """The endpoint for the current settings. Building a remote provider reads its key: never under a lock."""
         session = self._session
-        with session._lock:  # package-internal: the registry and the settings must be one snapshot
+        with session.consistent():  # the registry and the settings must be one snapshot
             registry, select = session.llm, session.settings.select
         if self._provider is not None:
             local = is_local_url(getattr(self._provider, "base_url", "") or "")
@@ -199,7 +199,7 @@ class Assistant:
 
     def _plan(self, text: str, history: tuple[Message, ...], endpoint: _Endpoint, meter: _Metered | None) -> Plan:
         session = self._session
-        with session._lock:  # the tools and the settings, as one snapshot (a plugin can't come or go halfway)
+        with session.consistent():  # the tools and the settings, as one snapshot (a plugin can't come or go halfway)
             specs = {s.tool.name: s for s in tool_specs(session)}
             settings = session.settings
         if meter is None:
@@ -342,7 +342,7 @@ class Assistant:
         """
         session = self._session
         actions: list[BaseAction] = []
-        with session._lock:  # package-internal: every step, and the versions approve re-checks, from one moment
+        with session.consistent():  # every step, and the versions approve re-checks, from one moment
             view = tool_view(session)
             versions = ({h.id: h.version for h in session.registry}, session.active)
             for call in drafted:
@@ -368,7 +368,7 @@ class Assistant:
                 draft = self._pending(draft_id)
                 turn = self._turn(draft.turn_id)
             session = self._session
-            with session._lock:  # package-internal: the versions and the active network from one moment
+            with session.consistent():  # the versions and the active network from one moment
                 now = {h.id: h.version for h in session.registry}
                 active = session.active
             on_active = any(getattr(a, "net_id", None) is None for a in draft.actions)
@@ -507,7 +507,7 @@ class Assistant:
     def _status_endpoint(self) -> tuple[str, str | None, bool, list[str]]:
         """``(provider, model, local, what is sent)`` for the panel, without reading a key or probing a server."""
         session = self._session
-        with session._lock:
+        with session.consistent():
             registry, select = session.llm, session.settings.select
         if self._provider is not None:
             name, model = self._provider.name, None

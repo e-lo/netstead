@@ -88,7 +88,7 @@ class ToolView:
 
 def tool_view(session: Session) -> ToolView:
     """A consistent snapshot of the session for :func:`to_action` (one critical section, a copied selection)."""
-    with session._lock:  # package-internal: the active id and the selection must come from the same moment
+    with session.consistent():  # the active id and the selection must come from the same moment
         return ToolView(session.active, copy.deepcopy(session.selection))
 
 

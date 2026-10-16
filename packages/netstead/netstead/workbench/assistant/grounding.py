@@ -224,7 +224,7 @@ def build_grounding(
     quality, cap = registry.settings.quality, settings.assistant.context_max_chars
     grounded, notes = _tiers(registry, provider, endpoint_local)
     guide = assistant_context(quality.assistant_context_max_chars) if quality.assistant_context else ""
-    with session._lock:  # package-internal: one snapshot, so a network closing meanwhile can't break the build
+    with session.consistent():  # one snapshot, so a network closing meanwhile can't break the build
         state = session.state()
         active = session.registry.get(state["active"]) if state["active"] in session.registry.ids() else None
         issue_set = session.issues.get(active.id) if active is not None else None

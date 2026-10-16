@@ -33,7 +33,8 @@ import logging
 import threading
 import time
 from collections import OrderedDict, deque
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any
@@ -415,6 +416,17 @@ class Session:
     def settings(self) -> Settings:
         """The currently resolved settings."""
         return self.loaded.settings
+
+    @contextmanager
+    def consistent(self) -> Iterator[None]:
+        """Hold the session lock for a block of reads that must come from one moment (no Action runs meanwhile).
+
+        For front doors such as the assistant, which read several fields (the registry and the settings, the
+        networks' versions and the selection) together. Keep the block short: never call a model, read a key or
+        wait on a job inside it. Dispatching from inside it is allowed (the lock is re-entrant) but defeats the point.
+        """
+        with self._lock:
+            yield
 
     def parser(self) -> Any:
         """The NL parser for ``select.provider``/``select.model`` (built once and cached; an injected parser wins).

@@ -303,6 +303,18 @@ def test_unreported_usage_is_counted_as_characters_over_four(tmp_path, isolated_
     assert s.assistant.used["ollama/None"] == sent // 4 + 10
 
 
+def test_consistent_holds_the_session_lock_so_no_action_runs_meanwhile(tmp_path, isolated_env):
+    import threading
+
+    s = _session(tmp_path, isolated_env, Scripted(_reply(text="x")))
+    other: list[bool] = []
+    with s.consistent():
+        t = threading.Thread(target=lambda: other.append(s._lock.acquire(blocking=False)))
+        t.start()
+        t.join()
+    assert other == [False]
+
+
 def test_one_question_at_a_time(tmp_path, isolated_env):
     s = _session(tmp_path, isolated_env, Scripted(_reply(text="x")))
     assert s.assistant._busy.acquire(blocking=False)
