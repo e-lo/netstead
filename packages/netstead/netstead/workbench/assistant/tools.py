@@ -23,7 +23,18 @@ from ..actions import BaseAction
 if TYPE_CHECKING:
     from ..session import Session
 
-__all__ = ["NEVER", "PROTECTED_SETTINGS", "ToolSpec", "action_type_of", "to_action", "tool_name", "tool_specs"]
+__all__ = [
+    "NEVER",
+    "PROTECTED_SETTINGS",
+    "ToolSpec",
+    "ToolView",
+    "action_type_of",
+    "allowlist_problems",
+    "to_action",
+    "tool_name",
+    "tool_specs",
+    "tool_view",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +63,20 @@ class ToolSpec:
     action_type: str
     mutates: bool
     plugin: str | None
+
+
+@dataclass(frozen=True)
+class ToolView:
+    """What :func:`to_action` reads from the session, taken at one moment: the active network and the selection."""
+
+    active: str | None
+    selection: dict[str, Any] | None
+
+
+def tool_view(session: Session) -> ToolView:
+    """A consistent snapshot of the session for :func:`to_action` (one critical section, a copied selection)."""
+    with session._lock:  # package-internal: the active id and the selection must come from the same moment
+        return ToolView(session.active, copy.deepcopy(session.selection))
 
 
 def tool_name(action_type: str) -> str:
@@ -146,12 +171,15 @@ def _flat(schema: dict[str, Any]) -> dict[str, Any]:
     return walk(schema)
 
 
-def to_action(session: Session, spec: ToolSpec, arguments: dict[str, Any]) -> BaseAction:
+def to_action(
+    session: Session, spec: ToolSpec, arguments: dict[str, Any], *, view: ToolView | None = None
+) -> BaseAction:
     """The Action a tool call stands for; ``ValueError`` (never echoing a value) for anything the assistant can't do.
 
-    ``select`` becomes ``Select(utterance=…, query=…)``; ``on_selection: true`` becomes the current selection's link
-    ids (refused when nothing is selected, or when the selection is on another network); a ``set_setting`` under
-    :data:`PROTECTED_SETTINGS` is refused.
+    ``select`` becomes ``Select(utterance=…, query=…)``; ``on_selection: true`` becomes the selection's link ids
+    (refused when nothing is selected, or when the selection is on another network); a ``set_setting`` under
+    :data:`PROTECTED_SETTINGS` is refused. ``view`` is the session as the call should see it (default: a snapshot
+    taken now, under the session lock), so the active network and the selection always agree.
     """
     args = dict(arguments)
     if spec.action_type == "select":
@@ -164,7 +192,7 @@ def to_action(session: Session, spec: ToolSpec, arguments: dict[str, Any]) -> Ba
             raise ValueError("select: a field has the wrong shape (facility is an object)") from None
         return _parse(session, {"type": "select", "utterance": utterance, "query": args})
     if args.pop("on_selection", False):
-        _fill_selection_ids(session, args)
+        _fill_selection_ids(view if view is not None else tool_view(session), args)
     if spec.action_type == "set_setting":
         key = str(args.get("key", "")).strip()
         section = key.lower().split(".", 1)[0]
@@ -174,16 +202,16 @@ def to_action(session: Session, spec: ToolSpec, arguments: dict[str, Any]) -> Ba
     return _parse(session, {"type": spec.action_type, **args})
 
 
-def _fill_selection_ids(session: Session, args: dict[str, Any]) -> None:
-    """Put the current selection's link ids in ``args["ids"]`` (``on_selection``), or raise ``ValueError``."""
+def _fill_selection_ids(view: ToolView, args: dict[str, Any]) -> None:
+    """Put the selection's link ids in ``args["ids"]`` (``on_selection``), or raise ``ValueError``."""
     if "ids" in args:
         raise ValueError("give ids or on_selection, not both")
     if args.get("table", "link") != "link":
         raise ValueError("on_selection works on the link table only")
-    sel = session.selection_copy()
+    sel = view.selection
     if not sel or not sel["link_ids"]:
         raise ValueError("on_selection: nothing is selected; select links first")
-    target = args.get("net_id") or session.active
+    target = args.get("net_id") or view.active
     if sel["net_id"] != target:
         raise ValueError(f"on_selection: the selection is on {sel['net_id']!r}, not {target!r}")
     args["ids"] = list(sel["link_ids"])
@@ -198,3 +226,27 @@ def _parse(session: Session, data: dict[str, Any]) -> BaseAction:
         skip = 1 if len(session.actions.types()) > 1 else 0
         where = "; ".join(f"{'.'.join(str(p) for p in e['loc'][skip:]) or '(top level)'}: {e['msg']}" for e in errors)
         raise ValueError(where) from None
+
+
+def allowlist_problems(session: Session, actions: list[str], plugins: list[str]) -> list[str]:
+    """What is wrong with ``assistant.actions`` / ``assistant.plugins`` for this session (empty when nothing).
+
+    An unknown Action type, one that is never offered, a plugin's Action listed among the core ones, and an
+    unknown plugin id would otherwise be ignored without a word.
+    """
+    problems = []
+    known_plugins = {status.id for status in session.plugin_status} | set(session.plugins)
+    for action_type in actions:
+        name = repr(action_type[:60])
+        if action_type in NEVER:
+            problems.append(f"assistant.actions: {name} is never offered to the assistant")
+        elif not session.actions.has(action_type):
+            problems.append(f"assistant.actions: there is no Action named {name}")
+        elif (owner := session.action_owner(action_type)) is not None:
+            problems.append(
+                f"assistant.actions: {name} belongs to the plugin {owner!r}; opt the plugin in with assistant.plugins"
+            )
+    for plugin_id in plugins:
+        if plugin_id not in known_plugins:
+            problems.append(f"assistant.plugins: there is no plugin with the id {plugin_id[:60]!r}")
+    return problems

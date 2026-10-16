@@ -10,6 +10,7 @@ from netstead.select.parse import INTENT_TOOL, StubParser
 from netstead.workbench import Session
 from netstead.workbench.actions import BaseAction, OpenNetwork, Select
 from netstead.workbench.assistant.tools import NEVER, action_type_of, to_action, tool_specs
+from netstead.workbench.errors import ActionError
 from netstead.workbench.plugins import HOST_API, ActionSpec, WorkbenchPlugin
 
 SRC = str(leavenworth.parquet_dir())
@@ -70,12 +71,16 @@ def test_the_default_allowlist(session):
     assert drafted == {"edit_cells", "delete_rows", "undo_edit", "save_network"}
 
 
-def test_opt_ins_are_drafted_and_open_close_are_never_offered(session):
-    _allow(session, "add_rows", "set_setting", "build_network", "delete_selection", *NEVER)
+def test_opt_ins_are_drafted_and_open_close_are_never_offered(session, tmp_path, isolated_env):
+    _allow(session, "add_rows", "set_setting", "build_network", "delete_selection")
     specs = _by_type(session)
     assert {"add_rows", "set_setting", "build_network", "delete_selection"} <= set(specs)
     assert all(specs[t].mutates for t in ("add_rows", "set_setting", "build_network", "delete_selection"))
-    assert not NEVER & set(specs)
+    with pytest.raises(ActionError, match="never offered"):  # refused when set
+        _allow(session, *NEVER)
+    listed = {"assistant.actions": [*DEFAULT_ASSISTANT_ACTIONS, *NEVER]}  # from a file: warned about, never offered
+    other = Session(project_dir=tmp_path, environ=isolated_env, parser=StubParser(), plugins=[], overrides=listed)
+    assert not NEVER & {s.action_type for s in tool_specs(other)}
 
 
 def test_a_plugin_opt_in_respects_assistant_false(session):

@@ -335,6 +335,7 @@ class Session:
         llm_transport: Any = None,
         keyring: Any = "auto",
         plugins: Iterable[WorkbenchPlugin] | None = None,
+        assistant_provider: Any = None,
     ) -> None:
         """Load settings (raises :class:`~netstead.config.SettingsError` on bad config) and start empty.
 
@@ -344,7 +345,8 @@ class Session:
         the same for the LLM providers; the defaults use the network and the OS keyring.
         ``plugins``: plugins to install (default ``None``: discover the installed
         ``netstead.workbench.plugins`` entry points). A plugin that can't install is recorded in
-        :attr:`plugin_status`, never raised.
+        :attr:`plugin_status`, never raised. ``assistant_provider`` (tests, scripts) replaces the
+        assistant's provider, like ``parser`` does for selection.
         """
         self.project_dir = project_dir
         self._environ = environ
@@ -399,6 +401,12 @@ class Session:
         #: One status per plugin seen at startup: loaded, disabled, incompatible or error (with the reason).
         self.plugin_status: list[PluginStatus] = []
         self._install_plugins(plugins)
+        for problem in self.assistant_setting_problems():
+            logger.warning("settings: %s (ignored)", problem)
+        from .assistant.core import Assistant  # deferred: the assistant package imports this module
+
+        #: The natural-language assistant: one conversation, one pending draft (never persisted).
+        self.assistant = Assistant(self, assistant_provider)
 
     # ------------------------------------------------------------------ public API
 
@@ -569,6 +577,21 @@ class Session:
                 logger.exception("workbench plugin %r state() failed", plugin_id)
                 out[plugin_id] = {"error": describe_error(exc)}
         return out
+
+    def assistant_setting_problems(self, settings: Settings | None = None) -> list[str]:
+        """Names in ``assistant.actions`` / ``assistant.plugins`` this session doesn't know (each would be ignored)."""
+        from .assistant.tools import allowlist_problems  # deferred: the assistant package imports this module
+
+        section = (settings or self.settings).assistant
+        return allowlist_problems(self, section.actions, section.plugins)
+
+    def _check_assistant_settings(self, key: str, settings: Settings) -> None:
+        """Raise :class:`ActionError` when setting ``key`` puts a name this session doesn't know in the allowlists."""
+        if key not in ("assistant", "assistant.actions", "assistant.plugins"):
+            return  # a bad value already in a file is warned about at load; it must not block other settings
+        problems = self.assistant_setting_problems(settings)
+        if problems:
+            raise ActionError("; ".join(problems))
 
     def _check_plugin_settings(self, settings: Settings) -> None:
         """Raise :class:`ActionError` if ``settings`` breaks any installed plugin's settings model."""
@@ -1770,15 +1793,17 @@ class Session:
                 overrides = {**self._overrides, action.key: action.value}
                 loaded = load_settings(project_dir=self.project_dir, overrides=overrides, environ=self._environ)
                 self._check_plugin_settings(loaded.settings)
+                self._check_assistant_settings(key, loaded.settings)
                 self._overrides = overrides
             else:
-                if key.split(".", 1)[0] == "plugins":  # check first: a saved file a plugin rejects breaks startup
+                if key.split(".", 1)[0] in ("plugins", "assistant"):  # check first: never save what is refused
                     preview = load_settings(
                         project_dir=self.project_dir,
                         overrides={**self._overrides, action.key: action.value},
                         environ=self._environ,
                     )
                     self._check_plugin_settings(preview.settings)
+                    self._check_assistant_settings(key, preview.settings)
                 save_setting(
                     action.key, action.value, scope=action.scope, project_dir=self.project_dir, environ=self._environ
                 )
