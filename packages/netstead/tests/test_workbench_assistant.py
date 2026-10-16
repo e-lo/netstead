@@ -234,7 +234,7 @@ def test_on_selection_after_a_selection_change_inside_the_draft_is_repaired(tmp_
                  ("edit_cells", {"on_selection": True, "values": {"lanes": 3}}))  # fmt: skip
     p = Scripted(bad, _reply(text="Ask in two steps."))
     s = _session(tmp_path, isolated_env, p)
-    turn = s.assistant.ask("x")
+    turn = s.assistant.ask("set link 1 to 1 lane, then select ski hill drive and edit it")
     assert turn["steps"] == [] and turn["text"] == "Ask in two steps."
     assert "on_selection can't follow" in p.requests[1].messages[-1].content
 
@@ -455,7 +455,7 @@ def test_approve_runs_the_draft_and_records_it(tmp_path, isolated_env):
 def test_approve_stops_at_the_first_failure(tmp_path, isolated_env):
     p = Scripted(_reply(("edit_cells", {"ids": [1], "values": {"no_such_column": 3}}), ("undo_edit", {})))
     s = _session(tmp_path, isolated_env, p)
-    turn = s.assistant.ask("x")
+    turn = s.assistant.ask("set link 1, then undo")
     out = s.assistant.approve(turn["draft_id"])
     assert [st["status"] for st in out["steps"]] == ["failed", "skipped"]
     assert s.history[-1].action["type"] == "edit_cells" and not s.history[-1].ok
@@ -579,7 +579,7 @@ def test_a_step_without_net_id_follows_the_network_made_active_by_an_earlier_ste
     s = _session(tmp_path, isolated_env, p)
     s.dispatch(OpenNetwork(source=SRC))  # B
     s.dispatch({"type": "set_active_network", "net_id": "leavenworth"})
-    turn = s.assistant.ask("edit A, switch to B, delete link 5 there")
+    turn = s.assistant.ask("edit link 1 on A, switch to B, delete link 5 there")
     out = s.assistant.approve(turn["draft_id"])
     assert [st["status"] for st in out["steps"]] == ["done", "done", "done"]
     assert s.network("leavenworth").version == 1 and s.network("leavenworth-2").version == 1
@@ -593,7 +593,7 @@ def test_an_outside_edit_between_approved_steps_fails_the_next_step(tmp_path, is
         )
     )
     s = _session(tmp_path, isolated_env, p)
-    turn = s.assistant.ask("two edits")
+    turn = s.assistant.ask("edit links 1 and 2")
     real = s.dispatch_recorded
     calls = []
 
@@ -637,7 +637,7 @@ def test_a_draft_on_a_network_closed_since_is_stale_not_a_crash(tmp_path, isolat
     p = Scripted(_reply(("edit_cells", {"ids": [1], "values": {"lanes": 3}, "net_id": "leavenworth-2"})))
     s = _session(tmp_path, isolated_env, p)
     s.dispatch(OpenNetwork(source=SRC))  # B, active
-    turn = s.assistant.ask("edit B")
+    turn = s.assistant.ask("edit link 1 on B")
     s.dispatch(CloseNetwork(net_id="leavenworth-2"))
     with pytest.raises(ValueError, match="changed since"):
         s.assistant.approve(turn["draft_id"])
@@ -805,3 +805,13 @@ def test_the_payload_works_out_the_allowlist_problems_once(tmp_path, isolated_en
     monkeypatch.setattr(tools, "allowlist_problems", lambda *a: calls.append(1) or real(*a))
     s.assistant.payload()
     assert len(calls) == 1
+
+
+def test_an_id_the_user_never_typed_is_repaired_never_drafted(tmp_path, isolated_env):
+    invented = _reply(("edit_cells", {"ids": [123], "values": {"lanes": 2}}))
+    p = Scripted(invented, _reply(("edit_cells", {"on_selection": True, "values": {"lanes": 2}})))
+    s = _session(tmp_path, isolated_env, p)
+    s.dispatch(Select(link_ids=[1, 2]))
+    turn = s.assistant.ask("set lanes to 2 on the selection")
+    assert "id 123 is not in the request" in p.requests[1].messages[-1].content
+    assert s.assistant.draft.actions[0].ids == [1, 2] and turn["steps"][0]["status"] == "drafted"

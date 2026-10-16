@@ -12,6 +12,7 @@ from __future__ import annotations
 import itertools
 import json
 import logging
+import re
 import threading
 import time
 from dataclasses import asdict, dataclass, field
@@ -75,6 +76,35 @@ def usage_key(provider: str, model: str | None) -> str:
     ('ollama/qwen2.5:7b', 'ollama')
     """
     return f"{provider}/{model}" if model else provider
+
+
+def _typed_ids_only(calls: tuple[ToolCall, ...], text: str) -> None:
+    """Raise ``ValueError`` (repaired) when a call names a link or node id the user didn't type.
+
+    Decision 14: the model never invents ids; it uses ``on_selection`` or ids from the request. Found in the
+    walk-through: with nothing selected, qwen2.5:7b drafted ``edit_cells(ids=[123])``.
+
+    >>> _typed_ids_only((ToolCall("navigate", {"record": {"table": "link", "id": 170}}),), "fly to link 170")
+    >>> _typed_ids_only((ToolCall("delete_rows", {"ids": [123]}),), "delete the selected links")
+    Traceback (most recent call last):
+    ...
+    ValueError: call 1 (delete_rows): id 123 is not in the request; use on_selection, or ids the user typed
+    """
+    typed = set(re.findall(r"[A-Za-z0-9_.-]+", text))
+    for i, call in enumerate(calls, start=1):
+        args = call.arguments
+        given = list(args.get("ids") or []) if isinstance(args.get("ids"), list) else []
+        if args.get("node_id") is not None:
+            given.append(args["node_id"])
+        record = args.get("record")
+        if isinstance(record, dict) and record.get("id") is not None:
+            given.append(record["id"])
+        for value in given:
+            if str(value) not in typed:
+                raise ValueError(
+                    f"call {i} ({call.name}): id {str(value)[:20]} is not in the request; "
+                    "use on_selection, or ids the user typed"
+                )
 
 
 class AssistantBusy(RuntimeError):
@@ -263,6 +293,7 @@ class Assistant:
         checked: list[_Call] = []
 
         def validate(calls: tuple[ToolCall, ...]) -> None:
+            _typed_ids_only(calls, text)
             checked[:] = self._check(calls, specs)
 
         # As make_parser does: a catalog model marked tools = false starts in JSON mode (an injected provider has none).
