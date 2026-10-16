@@ -494,8 +494,16 @@ class FilterCond(BaseModel):
 
     @model_validator(mode="after")
     def _bounded(self) -> FilterCond:
-        if isinstance(self.val, list) and len(self.val) > MAX_IN_VALUES:
-            raise ValueError(f"an 'in' condition lists too many values (over {MAX_IN_VALUES:,})")
+        if self.op in ("isnull", "notnull"):
+            if self.val is not None:
+                raise ValueError(f"'{self.op}' takes no value")
+        elif isinstance(self.val, list):
+            if self.op != "in":
+                raise ValueError(f"only 'in' takes a list of values; '{self.op}' takes one")
+            if len(self.val) > MAX_IN_VALUES:
+                raise ValueError(f"an 'in' condition lists too many values (over {MAX_IN_VALUES:,})")
+        elif self.val is None:
+            raise ValueError(f"'{self.op}' needs a value (to match empty cells, use 'isnull')")
         return self
 
 

@@ -32,7 +32,7 @@ import json
 import logging
 import threading
 import time
-from collections import deque
+from collections import OrderedDict, deque
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
@@ -61,7 +61,7 @@ from netstead.select.parse import LLMParser, intent_from_payload, make_parser, p
 from netstead.select.prompt import PromptContext, close_match_hint, vocabulary_from_links
 from netstead.select.resolve import resolve_frames
 from netstead.viz.styling import json_scalar, styleable_columns
-from netstead.viz.tables import FilterError, KeyTypeError, coerce_keys, filter_frame
+from netstead.viz.tables import FilterError, KeyTypeError, coerce_filter_value, coerce_keys, filter_frame
 
 from . import build
 from .actions import (
@@ -121,6 +121,9 @@ logger = logging.getLogger(__name__)
 
 #: Selections one session keeps saved (``SaveSelection`` refuses another: delete one first).
 MAX_SAVED_SELECTIONS = 50
+#: Filters whose matching link ids are kept, per network version: a slider or type-as-you-go must not grow memory.
+FILTER_CACHE_SIZE = 8
+_FILTER_CACHE_LOCK = threading.Lock()
 
 DEFAULT_STYLE: dict[str, Any] = {
     "color_by": "none",
@@ -1634,24 +1637,30 @@ class Session:
         if not action.where:
             self.filters = {nid: f for nid, f in self.filters.items() if nid != handle.id}
             return None
-        entry = {"table": "link", "where": [c.model_dump(mode="json") for c in action.where]}
+        entry = {"table": "link", "where": _typed_where(handle, action.where)}
         ids = self._filter_ids(handle, entry)  # checks the columns and values now, so a bad filter is refused
         self.filters = {**self.filters, handle.id: entry}
         return {**entry, "count": len(ids)}
 
     def _filter_ids(self, handle: NetworkHandle, entry: dict[str, Any]) -> list[Any]:
-        """The link ids ``entry`` matches on ``handle`` (cached per network version)."""
-        key = "filter:" + json.dumps(entry["where"], sort_keys=True)
-
-        def run() -> list[Any]:
-            try:
-                return [json_scalar(v) for v in filter_frame(handle.links_df(), entry["where"])["link_id"]]
-            except FilterError as exc:
-                raise ActionError(str(exc)) from None
-            except (TypeError, ValueError) as exc:  # a value that can't be compared with its column
-                raise ActionError(f"a filter value does not fit its column ({type(exc).__name__})") from None
-
-        return handle.cached(key, run)
+        """The link ids ``entry`` matches on ``handle``: the last :data:`FILTER_CACHE_SIZE` kept per version."""
+        key = json.dumps(entry["where"], sort_keys=True)
+        recent = handle.cached("filter-ids", OrderedDict)  # one bounded map per network version
+        with _FILTER_CACHE_LOCK:
+            if key in recent:
+                recent.move_to_end(key)
+                return recent[key]
+        try:
+            ids = [json_scalar(v) for v in filter_frame(handle.links_df(), entry["where"])["link_id"]]
+        except FilterError as exc:
+            raise ActionError(str(exc)) from None
+        except (TypeError, ValueError) as exc:  # a value that can't be compared with its column
+            raise ActionError(f"a filter value does not fit its column ({type(exc).__name__})") from None
+        with _FILTER_CACHE_LOCK:
+            recent[key] = ids
+            while len(recent) > FILTER_CACHE_SIZE:
+                recent.popitem(last=False)
+        return ids
 
     def filter_entry(self, net_id: str) -> dict[str, Any] | None:
         """A copy of ``net_id``'s stored ``Filter`` (``{table, where}``), or ``None`` when it has none."""
@@ -1934,6 +1943,31 @@ def _network_node(handle: NetworkHandle, node_id: Any) -> Any:
     if key is None or not keys.isin([key]).any():
         raise ActionError(f"no node {node_id!r} in {handle.id}")
     return json_scalar(key)
+
+
+def _typed_where(handle: NetworkHandle, where: Sequence[Any]) -> list[dict[str, Any]]:
+    """A ``Filter``'s conditions with each value as its column's type (``"2"`` on ``lanes`` is ``2``).
+
+    Raises ``ActionError`` for a column the link table does not have, or a value its column cannot hold, so a
+    filter is refused at dispatch rather than matching nothing.
+    """
+    links = handle.links_df()
+    out = []
+    for cond in where:
+        c = cond.model_dump(mode="json")
+        if c["col"] not in links.columns:
+            raise ActionError(f"unknown column {c['col']!r}")
+        if c["op"] != "contains":  # contains matches text: any value reads as a substring
+            dtype = links[c["col"]].dtype
+            try:
+                if isinstance(c["val"], list):
+                    c["val"] = [coerce_filter_value(v, dtype) for v in c["val"]]
+                else:
+                    c["val"] = coerce_filter_value(c["val"], dtype)
+            except FilterError as exc:
+                raise ActionError(f"cannot filter {c['col']!r} by {c['op']}: {exc}") from None
+        out.append(c)
+    return out
 
 
 def _saved_entry(handle: NetworkHandle, sel: dict[str, Any]) -> dict[str, Any]:
