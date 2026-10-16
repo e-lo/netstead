@@ -74,6 +74,7 @@
           <input id="flt-val" aria-label="Filter value" size="8"></div>
         <div class="row"><button class="mini" id="flt-apply">Apply</button><button class="mini ghost" id="flt-clear">Clear</button>
           <span id="flt-count" class="diag" role="status"></span></div>
+        <div id="flt-note" class="diag" hidden></div>
         <div id="plugin-layers"></div>
       </div>
       <div class="panel" id="settings-panel">
@@ -129,7 +130,7 @@
     <div id="sel-stale" class="warnbox" role="alert" hidden></div>
     <div id="sel-cmds-wrap" hidden><button class="mini ghost" id="sel-cmds" aria-haspopup="menu" aria-expanded="false">Selection actions &#9662;</button></div>
     <div class="label">Anchors</div>
-    <div id="anchors"><span class="empty">—</span></div>
+    <div id="anchors" tabindex="-1"><span class="empty">—</span></div>
     <div class="label">Diagnostics</div>
     <div id="diag"><span class="empty">—</span></div>
     <div class="label">Export</div>
@@ -142,7 +143,7 @@
     <div class="label">Fragment</div>
     <pre id="fragment">—</pre>
     <div class="label">Saved selections <button class="mini ghost" id="sel-save">Save selection…</button></div>
-    <div id="sel-saved"><span class="empty">None saved.</span></div>
+    <div id="sel-saved" tabindex="-1"><span class="empty">None saved.</span></div>
     </section>
     <section class="dock-pane" id="dock-issues" data-panel="issues" role="tabpanel" aria-labelledby="dtab-issues" hidden>
       <div id="iss-fixer"></div>

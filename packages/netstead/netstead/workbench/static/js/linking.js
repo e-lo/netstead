@@ -40,8 +40,10 @@ export function rowsRequest({ scope, table, selection, highlights, focus, hops =
   return tint;
 }
 
-// The grid's empty-state hint for a scope (blank when there are rows).
-export function scopeHint(scope, total) {
+// The grid's hint for a scope: why it is empty (blank when there are rows), or, for the Filtered scope on a table
+// other than links, that the recorded filter doesn't narrow it.
+export function scopeHint(scope, total, table = "link") {
+  if (scope === "filtered" && table !== "link") return "Filtered applies to links: every row is listed.";
   if (total) return "";
   if (scope === "selection") return "Nothing selected.";
   if (scope === "highlighted") return "Nothing highlighted: turn on Highlight links, then click or shift-drag.";

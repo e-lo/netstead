@@ -5,7 +5,7 @@ import { dispatch, getJSON } from "./api.js";
 import { addCommandTo } from "./commands.js";
 import { $, esc, toast } from "./dom.js";
 import { addLayer } from "./map.js";
-import { anchorRows, candidatePoints, exportChoices, selectionBadge, staleNotes } from "./selectmodel.js";
+import { anchorRows, candidatePoints, exportChoices, selectionBadge, staleNotes, unpinAfterPin } from "./selectmodel.js";
 import { ALL_WORKSPACES, CORE, slots } from "./slots.js";
 import { activeSelection, store } from "./store.js";
 import { addPanel, showPanel } from "./workspaces.js";
@@ -14,6 +14,13 @@ const FROM_COLOR = [53, 196, 106], TO_COLOR = [224, 82, 77];
 const HINT = '<span class="empty">Type an utterance and press Select, or set highlighted links as the selection.</span>';
 const run = action => dispatch(action).catch(e => toast(e.message));
 let panel = null;
+// The last export's note (schema verdict and warnings), kept for the selection it was made under so a state push
+// redraws it rather than wiping it: {key, text, warned}.
+let exportNote = null;
+const selectionKey = s => {
+  const sel = activeSelection(s);
+  return sel ? JSON.stringify([s.server && s.server.active, sel.status, sel.link_ids, sel.intent || null, sel.stale_pins || []]) : null;
+};
 
 export function registerSelectionPanel() {
   panel = addPanel(CORE, { id: "selection", title: "Selection", workspace: ALL_WORKSPACES, order: 1,
@@ -38,12 +45,15 @@ function saveSelection() {
 }
 
 // Replace `el`'s markup, keeping keyboard focus on the button with the same data-key (state arrives after each
-// Pin, Use or Delete, and the list is redrawn under the user's focus).
-function redraw(el, html) {
+// Pin, Use or Delete, and the list is redrawn under the user's focus). When that button is gone, focus goes to
+// the button `fallback(key)` names, else to `el` itself, never to <body>.
+function redraw(el, html, fallback = () => null) {
   const key = el.contains(document.activeElement) ? document.activeElement.dataset.key : null;
   el.innerHTML = html;
-  const again = key ? [...el.querySelectorAll("[data-key]")].find(b => b.dataset.key === key) : null;
-  if (again) again.focus();
+  if (!key) return;
+  const find = k => [...el.querySelectorAll("[data-key]")].find(b => b.dataset.key === k);
+  const again = find(key) || find(fallback(key));
+  if (again) again.focus(); else el.focus();
 }
 
 const roleDot = role => `<span class="dot" style="background:${role === "from" ? "#35c46a" : "#e0524d"}"></span>`;
@@ -81,7 +91,7 @@ export function renderSelectionPanel(s) {
   const stale = staleNotes(sel);
   $("sel-stale").hidden = !stale.length;
   $("sel-stale").innerHTML = stale.map(t => `<p><b>Stale pin.</b> ${esc(t)}</p>`).join("");
-  redraw($("anchors"), anchorRows(sel).map(anchorHTML).join("") || '<span class="empty">—</span>');
+  redraw($("anchors"), anchorRows(sel).map(anchorHTML).join("") || '<span class="empty">—</span>', unpinAfterPin);
   const diags = sel ? sel.diagnostics : [];
   $("diag").innerHTML = diags.length ? diags.map(d => `<div class="diag">• ${esc(d)}</div>`).join("") : '<span class="empty">—</span>';
   $("fragment").textContent = sel && sel.fragment ? JSON.stringify(sel.fragment, null, 2) : "—";
@@ -89,8 +99,9 @@ export function renderSelectionPanel(s) {
   $("sel-export-go").disabled = !choice.resolved;
   $("sel-export-form").querySelector('[value="query"]').disabled = !choice.query;
   if (!choice.query && $("sel-export-form").value === "query") $("sel-export-form").value = "resolved";
-  $("sel-export-note").textContent = choice.reason;
-  $("sel-export-note").classList.toggle("warn-note", stale.length > 0);
+  const note = exportNote && exportNote.key === selectionKey(s) ? exportNote : { text: choice.reason, warned: stale.length > 0 };
+  $("sel-export-note").textContent = note.text;
+  $("sel-export-note").classList.toggle("warn-note", note.warned);
   const saved = (s.server && s.server.saved_selections) || [];
   redraw($("sel-saved"), saved.length ? saved.map(savedHTML).join("") : '<span class="empty">None saved.</span>');
   $("sel-save").disabled = !(sel && sel.link_ids.length);
@@ -110,14 +121,16 @@ function saveFile(filename, content) {
 async function download(name) {
   const params = new URLSearchParams({ what: $("sel-export-what").value, form: $("sel-export-form").value });
   if (name) params.set("name", name);
+  const key = selectionKey(store.get());
   try {
     const j = await getJSON(`/api/selection/export?${params}`);
     saveFile(j.filename, j.content);
     const checked = j.valid === false ? `Schema problems: ${j.problems.join("; ")}.` :
       j.valid ? "Valid against the GMNS selection schema." : `Downloaded ${j.filename}.`;
-    const warned = (j.warnings || []).map(w => ` Warning: ${w}.`).join("");
-    $("sel-export-note").textContent = checked + warned;
-    $("sel-export-note").classList.toggle("warn-note", Boolean(warned));
+    const warnings = (j.warnings || []).map(w => ` Warning: ${w}.`).join("");
+    exportNote = { key, text: checked + warnings, warned: Boolean(warnings) || j.valid === false };
+    toast(exportNote.text, exportNote.warned ? "error" : "info");
+    renderSelectionPanel(store.get());
   } catch (e) { toast(e.message); }
 }
 

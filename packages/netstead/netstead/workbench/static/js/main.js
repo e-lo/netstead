@@ -76,7 +76,8 @@ async function loadWidthProperty() {
 }
 
 // The active network's recorded Filter as a set of matching link ids (for the map's dimming), refetched when the
-// filter or the network version changes; null without a filter.
+// filter or the network version changes; null without a filter. A failed fetch drops the dimming (never stale ids)
+// and is tried again on the next state.
 let filterKey = null;
 async function loadFilterIds() {
   const { server, net, netKey } = store.get();
@@ -85,7 +86,14 @@ async function loadFilterIds() {
   if (key === filterKey) return;
   filterKey = key;
   if (!key) { store.set({ filterIds: null }); return; }
-  const j = await getJSON(netPath(server.active, "filter"));
+  let j;
+  try {
+    j = await getJSON(netPath(server.active, "filter"));
+  } catch (e) {
+    if (filterKey === key) { filterKey = null; store.set({ filterIds: null }); }
+    toast(`Couldn't load the filter's links: ${e.message}`);
+    return;
+  }
   if (filterKey === key) store.set({ filterIds: j.where ? new Set(j.link_ids) : null });
 }
 

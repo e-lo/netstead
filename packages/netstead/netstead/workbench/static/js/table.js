@@ -167,7 +167,7 @@ async function loadRows() {
   const to = Math.min(TBL.offset + TBL.limit, j.total);
   $("tbl-total").textContent = `· ${j.total.toLocaleString()} row(s)`;
   $("tbl-range").textContent = j.total ? `${TBL.offset + 1}–${to} of ${j.total.toLocaleString()}` : "0";
-  $("tbl-hint").textContent = scopeHint(store.get().tableScope, j.total);
+  $("tbl-hint").textContent = scopeHint(store.get().tableScope, j.total, TBL.name);
   $("tbl-prev").disabled = TBL.offset <= 0;
   $("tbl-next").disabled = to >= j.total;
   await revealFocus();

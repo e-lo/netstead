@@ -53,3 +53,6 @@ export function selectionBadge(sel) {
   if (!sel) return null;
   return sel.status === "ambiguous" ? "?" : sel.link_ids.length;
 }
+
+// Where keyboard focus goes once a Pin's button is gone: that anchor's Unpin ("pin-<role>-<node>" -> "unpin-<role>").
+export const unpinAfterPin = key => (key.startsWith("pin-") ? `unpin-${key.split("-")[1]}` : null);

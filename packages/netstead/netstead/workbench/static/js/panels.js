@@ -2,6 +2,7 @@
 // switches) or `filter` (Layers → Filter links).
 import { dispatch } from "./api.js";
 import { $, esc, toast } from "./dom.js";
+import { filterKey, filterValue, filterView, takesNoValue } from "./filtermodel.js";
 import { hasOffset } from "./map.js";
 import { RAMPS, catColor, fmt, hex2rgb, rgb, rgb2hex } from "./palette.js";
 import { store } from "./store.js";
@@ -71,37 +72,38 @@ export function populateColorby(props) {
   if (props.some(p => p.name === picked)) col.value = picked;
 }
 
-// A filter value as typed: a number when it reads as one, nothing for the empty / not-empty tests, else the text.
-export function filterValue(op, raw) {
-  if (op === "isnull" || op === "notnull") return null;
-  return raw !== "" && !Number.isNaN(Number(raw)) ? Number(raw) : raw;
-}
-
 export function wireFilter() {
   const apply = () => {
     const op = $("flt-op").value, col = $("flt-col").value;
     if (!col) { toast("Open a network with link columns to filter."); return; }
-    dispatch({ type: "filter", where: [{ col, op, val: filterValue(op, $("flt-val").value.trim()) }] })
+    dispatch({ type: "filter", where: [{ col, op, val: filterValue(op, $("flt-val").value) }] })
       .catch(e => toast(e.message));
   };
   $("flt-apply").onclick = apply;
   $("flt-val").onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); apply(); } };
-  $("flt-op").onchange = e => { $("flt-val").disabled = e.target.value === "isnull" || e.target.value === "notnull"; };
+  $("flt-op").onchange = e => { $("flt-val").disabled = takesNoValue(e.target.value); };
   $("flt-clear").onclick = () => dispatch({ type: "filter", where: null }).catch(e => toast(e.message));
 }
 
-// The active network's recorded filter: its match count, and its one condition shown in the controls (a filter set
-// from Python or replayed reads the same as one applied here). Several conditions show as a count only.
+// The active network's recorded filter: its match count, and its condition in the controls (or, when the controls
+// can't send it back, named read-only). The controls change only when the recorded filter does, and never while
+// one of them is being edited.
+let shownFilter = null;
 export function renderFilter(server) {
-  const f = server && server.filters && server.filters[server.active];
-  $("flt-count").textContent = f ? (f.count == null ? "filter no longer applies" : `${f.count.toLocaleString()} links match`) : "";
-  $("flt-clear").disabled = !f;
-  if (!f || f.where.length !== 1 || $("layers-panel").contains(document.activeElement)) return;
-  const [c] = f.where;
-  if ([...$("flt-col").options].some(o => o.value === c.col)) $("flt-col").value = c.col;
+  const v = filterView(server);
+  $("flt-count").textContent = v.count;
+  $("flt-clear").disabled = !v.canClear;
+  $("flt-note").textContent = v.note;
+  $("flt-note").hidden = !v.note;
+  const key = filterKey(server);
+  if (key === shownFilter || ["flt-col", "flt-op", "flt-val"].includes(document.activeElement && document.activeElement.id)) return;
+  shownFilter = key;
+  if (!v.controls) return;
+  const c = v.controls;
+  if (c.col != null && [...$("flt-col").options].some(o => o.value === c.col)) $("flt-col").value = c.col;
   $("flt-op").value = c.op;
-  $("flt-val").value = c.val == null ? "" : Array.isArray(c.val) ? c.val.join(", ") : String(c.val);
-  $("flt-val").disabled = c.op === "isnull" || c.op === "notnull";
+  $("flt-val").value = c.val;
+  $("flt-val").disabled = c.valDisabled;
 }
 
 export function syncControls(st) {

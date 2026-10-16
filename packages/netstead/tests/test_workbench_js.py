@@ -619,6 +619,11 @@ def test_the_filtered_scope_adds_the_view_filter(node_module):
     assert off is None and other is None and none is None
     hint = node_module("linking.js", ["scopeHint"], "[scopeHint('filtered', 0), scopeHint('filtered', 3)]")
     assert hint == ["No link matches the filter (Layers → Filter links).", ""]
+    nodes = node_module(
+        "linking.js", ["scopeHint"], "[scopeHint('filtered', 0, 'node'), scopeHint('filtered', 40, 'node')]"
+    )
+    assert nodes == ["Filtered applies to links: every row is listed."] * 2
+    assert node_module("linking.js", ["scopeHint"], "scopeHint('all', 40, 'node')") == ""
 
 
 def test_a_stale_pin_is_named_and_turns_off_the_query_form(node_module):
@@ -630,3 +635,79 @@ def test_a_stale_pin_is_named_and_turns_off_the_query_form(node_module):
     assert choice["resolved"] is True and choice["query"] is False and "re-pinned" in choice["reason"]
     fresh = {**stale, "stale_pins": []}
     assert node_module("selectmodel.js", ["staleNotes"], f"staleNotes({json.dumps(fresh)})") == []
+
+
+@pytest.mark.parametrize(
+    ("op", "raw", "want"),
+    [
+        ("eq", "007", "007"),  # a text key stays text: the server reads it as the column's type
+        ("gte", " 2 ", "2"),
+        ("contains", "Main St", "Main St"),
+        ("eq", "", ""),
+        ("isnull", "anything", None),
+        ("notnull", "", None),
+    ],
+)
+def test_a_filter_value_is_sent_as_typed(node_module, op, raw, want):
+    assert node_module("filtermodel.js", ["filterValue"], f"filterValue({json.dumps(op)}, {json.dumps(raw)})") == want
+
+
+def _filter_server(where, count=12):
+    return {"active": "n1", "filters": {"n1": {"table": "link", "where": where, "count": count}}}
+
+
+def test_a_recorded_filter_is_restored_into_the_controls(node_module):
+    one = _filter_server([{"col": "ref", "op": "eq", "val": "007"}])
+    empty = _filter_server([{"col": "name", "op": "isnull", "val": None}], count=None)
+    view, nulls = node_module(
+        "filtermodel.js", ["filterView"], f"[filterView({json.dumps(one)}), filterView({json.dumps(empty)})]"
+    )
+    assert view == {
+        "mode": "controls",
+        "count": "12 links match",
+        "canClear": True,
+        "note": "",
+        "controls": {"col": "ref", "op": "eq", "val": "007", "valDisabled": False},
+    }
+    assert nulls["controls"] == {"col": "name", "op": "isnull", "val": "", "valDisabled": True}
+    assert nulls["count"] == "filter no longer applies"
+
+
+def test_no_filter_resets_the_controls(node_module):
+    for server in ({"active": "n1", "filters": {}}, {"active": "n1", "filters": {"n2": {"where": []}}}, None):
+        view = node_module("filtermodel.js", ["filterView"], f"filterView({json.dumps(server)})")
+        assert view == {
+            "mode": "none",
+            "count": "",
+            "canClear": False,
+            "note": "",
+            "controls": {"op": "eq", "val": "", "valDisabled": False},
+        }
+
+
+def test_a_filter_the_controls_cannot_send_back_is_shown_read_only(node_module):
+    in_list = _filter_server([{"col": "ref", "op": "in", "val": ["a", "<b>"]}])
+    several = _filter_server([{"col": "lanes", "op": "gte", "val": 2}, {"col": "name", "op": "notnull", "val": None}])
+    a, b = node_module(
+        "filtermodel.js", ["filterView"], f"[filterView({json.dumps(in_list)}), filterView({json.dumps(several)})]"
+    )
+    assert a["mode"] == "readonly" and "controls" not in a and a["canClear"] is True
+    assert a["note"] == "Set from Python: ref in a, <b>."  # escaped by the panel (textContent)
+    assert b["note"] == "Set from Python: lanes ≥ 2 and name is not empty."
+
+
+def test_the_filter_key_changes_only_with_the_recorded_filter(node_module):
+    s1 = _filter_server([{"col": "lanes", "op": "gte", "val": 2}])
+    s2 = {**s1, "filters": {"n1": {**s1["filters"]["n1"], "count": 99}}}
+    s3 = _filter_server([{"col": "lanes", "op": "gte", "val": 3}])
+    none, other = {"active": "n1", "filters": {}}, {"active": "n2", "filters": {}}
+    expr = f"[{', '.join(f'filterKey({json.dumps(s)})' for s in (s1, s2, s3, none, other))}]"
+    k1, k2, k3, kn, ko = node_module("filtermodel.js", ["filterKey"], expr)
+    assert k1 == k2 and k1 != k3 and kn != ko and kn != k1
+
+
+def test_focus_moves_to_unpin_after_a_pin(node_module):
+    expr = (
+        "[unpinAfterPin('pin-to-60'), unpinAfterPin('pin-from-a-b'), unpinAfterPin('unpin-to'), unpinAfterPin('use-x')]"
+    )
+    assert node_module("selectmodel.js", ["unpinAfterPin"], expr) == ["unpin-to", "unpin-from", None, None]
