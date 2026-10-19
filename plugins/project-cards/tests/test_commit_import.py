@@ -1,5 +1,10 @@
 """project_cards.commit writes a projectcard-valid YAML file (warnings confirmed first); .import applies one."""
 
+import errno
+import io
+import os
+import sys
+from pathlib import Path
 from typing import ClassVar, Literal
 
 import pytest
@@ -90,10 +95,138 @@ def test_commit_refusals(session, tmp_path):
     assert "project: Taken" in taken.read_text(encoding="utf-8")
 
 
-def test_a_replayed_commit_confirms_and_overwrites(session, tmp_path):
+def replay(session, other):
+    namespace = {"app": other}
+    for entry in session.history:
+        if entry.parent_seq is None and entry.ok:
+            exec(entry.imports, namespace)  # our own recorded "copy as Python" lines
+            exec(entry.python, namespace)
+
+
+def test_a_replayed_commit_confirms_warnings_but_does_not_overwrite(session, make_session, tmp_path):
     session.dispatch(AddChange(change=lanes(1, 2)))
-    session.dispatch(CommitCard(path=str(tmp_path / "c.yml"), project="C"))
-    assert "confirm_warnings=True" in session.history[-1].python and "overwrite=True" in session.history[-1].python
+    path = tmp_path / "c.yml"
+    session.dispatch(CommitCard(path=str(path), project="C"))
+    python = session.history[-1].python
+    assert "confirm_warnings=True" in python and "overwrite" not in python
+    with pytest.raises(ActionError, match="already exists"):  # core's save_network convention: never clobber
+        replay(session, make_session(open_network=False))
+    path.unlink()
+    replay(session, make_session(open_network=False))
+    assert "project: C" in path.read_text(encoding="utf-8")
+
+
+def test_a_replayed_import_reproduces_the_network_and_the_draft(session, make_session, tmp_path):
+    path = write(DraftCard(project="Imported", changes=[lanes(1, 3)]), tmp_path / "card.yml")
+    session.dispatch(ImportCard(path=path))
+    other = make_session(open_network=False)
+    replay(session, other)
+    assert cell(other, 1, "lanes") == [3] and cards_state(other)["drafts"][NET]["project"] == "Imported"
+
+
+class _DiskFull:
+    """A file whose every write fails as a full disk does (after the file was opened, so truncated)."""
+
+    def __init__(self, f):
+        self._f = f
+
+    def write(self, data):
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self._f.close()
+
+    def __getattr__(self, name):
+        return getattr(self._f, name)
+
+
+@pytest.fixture
+def disk_full(monkeypatch, tmp_path):
+    """``disk_full()``: from then on, every file opened for writing under ``tmp_path`` fails to write."""
+    real = io.open
+
+    def opening(file, mode="r", *args, **kwargs):
+        f = real(file, mode, *args, **kwargs)
+        ours = isinstance(file, int) or str(tmp_path.resolve()) in str(Path(file).resolve())  # an fd: a temp file
+        return _DiskFull(f) if ours and any(m in mode for m in "wxa") else f
+
+    return lambda: monkeypatch.setattr(io, "open", opening)
+
+
+def files(folder):
+    return sorted(p.name for p in folder.iterdir() if p.name != "user")
+
+
+def test_a_failed_overwrite_keeps_the_previous_file(session, tmp_path, disk_full):
+    session.dispatch(AddChange(change=lanes(1, 2)))
+    path = tmp_path / "c.yml"
+    path.write_bytes(b"keep me")
+    disk_full()
+    with pytest.raises(ActionError, match=r"could not write .*No space left"):
+        session.dispatch(CommitCard(path=str(path), project="C", overwrite=True))
+    assert path.read_bytes() == b"keep me" and files(tmp_path) == ["c.yml"]
+
+
+def test_a_failed_write_removes_the_folders_it_made(session, tmp_path, disk_full):
+    session.dispatch(AddChange(change=lanes(1, 2)))
+    disk_full()
+    with pytest.raises(ActionError, match="could not write"):
+        session.dispatch(CommitCard(path=str(tmp_path / "a" / "b" / "c.yml"), project="C"))
+    assert not (tmp_path / "a").exists()
+
+
+def test_a_filesystem_without_hard_links_still_never_overwrites(session, tmp_path, monkeypatch):
+    def no_links(src, dst):
+        raise OSError(errno.EPERM, "Operation not permitted")
+
+    monkeypatch.setattr(os, "link", no_links)
+    session.dispatch(AddChange(change=lanes(1, 2)))
+    path = tmp_path / "c.yml"
+    session.dispatch(CommitCard(path=str(path), project="C"))
+    assert "project: C" in path.read_text(encoding="utf-8")
+    assert files(tmp_path) == ["c.yml"]  # no temporary file left behind
+    session.dispatch(AddChange(change=lanes(2, 2)))
+    with pytest.raises(ActionError, match="already exists"):
+        session.dispatch(CommitCard(path=str(path), project="D"))
+
+
+needs_permissions = pytest.mark.skipif(
+    sys.platform == "win32" or os.geteuid() == 0, reason="needs POSIX permissions that bind (not root)"
+)
+
+
+@pytest.fixture
+def locked(tmp_path):
+    """``locked(path, mode)``: chmod ``path`` for the test, restored afterwards so ``tmp_path`` can be removed."""
+    done = []
+
+    def lock(path, mode):
+        done.append((path, path.stat().st_mode))
+        path.chmod(mode)
+
+    yield lock
+    for path, mode in reversed(done):
+        path.chmod(mode)
+
+
+@needs_permissions
+def test_an_unreadable_card_is_an_action_error(session, tmp_path, locked):
+    path = write(DraftCard(project="Locked", changes=[lanes(1, 3)]), tmp_path / "card.yml")
+    locked(tmp_path / "card.yml", 0)
+    with pytest.raises(ActionError, match=r"could not read .*card\.yml: Permission denied"):
+        session.dispatch(ImportCard(path=path))
+
+
+@needs_permissions
+def test_a_folder_that_cannot_be_searched_is_an_action_error(session, tmp_path, locked):
+    session.dispatch(AddChange(change=lanes(1, 2)))
+    (tmp_path / "shut").mkdir()
+    locked(tmp_path / "shut", 0)
+    with pytest.raises(ActionError, match=r"could not write .*Permission denied"):
+        session.dispatch(CommitCard(path=str(tmp_path / "shut" / "c.yml"), project="C"))
 
 
 class AddToCatalog(BaseAction):
@@ -102,9 +235,11 @@ class AddToCatalog(BaseAction):
     path: str
 
 
-def _catalog(added, fail=False):
+def _catalog(added, fail=False, before_failing=None):
     def add(host, action):
         if fail:
+            if before_failing is not None:
+                before_failing()
             raise ActionError("the catalog is read-only")
         added.append(action.path)
         return "added"
@@ -140,6 +275,36 @@ def test_a_failing_catalog_restores_the_file_it_overwrote(make_session, tmp_path
     with pytest.raises(ActionError, match="read-only"):
         session.dispatch(CommitCard(path=str(path), project="C", overwrite=True))
     assert path.read_text(encoding="utf-8") == "keep me"
+
+
+def test_a_failing_catalog_removes_the_folders_the_commit_made(make_session, tmp_path):
+    session = make_session(_catalog([], fail=True))
+    session.dispatch(AddChange(change=lanes(1, 2)))
+    with pytest.raises(ActionError, match="read-only"):
+        session.dispatch(CommitCard(path=str(tmp_path / "a" / "b" / "c.yml"), project="C"))
+    assert not (tmp_path / "a").exists()
+
+
+@needs_permissions
+def test_a_restore_that_fails_keeps_the_catalogs_error_and_says_so(make_session, tmp_path, locked):
+    folder = tmp_path / "cards"
+    folder.mkdir()
+    session = make_session(_catalog([], fail=True, before_failing=lambda: locked(folder, 0o500)))
+    session.dispatch(AddChange(change=lanes(1, 2)))
+    path = folder / "c.yml"
+    path.write_text("keep me", encoding="utf-8")
+    with pytest.raises(ActionError, match=r"read-only; the file at .*c\.yml could not be restored"):
+        session.dispatch(CommitCard(path=str(path), project="C", overwrite=True))
+
+
+@needs_permissions
+def test_a_new_file_that_cannot_be_removed_keeps_the_catalogs_error_and_says_so(make_session, tmp_path, locked):
+    folder = tmp_path / "cards"
+    folder.mkdir()
+    session = make_session(_catalog([], fail=True, before_failing=lambda: locked(folder, 0o500)))
+    session.dispatch(AddChange(change=lanes(1, 2)))
+    with pytest.raises(ActionError, match=r"read-only; the file at .*c\.yml could not be removed"):
+        session.dispatch(CommitCard(path=str(folder / "c.yml"), project="C"))
 
 
 def write(card, path):
@@ -231,3 +396,12 @@ def test_import_refusals(session, tmp_path):
     toml.write_text('project = "t"\n', encoding="utf-8")
     with pytest.raises(NotSupportedYet, match="TOML"):
         session.dispatch(ImportCard(path=str(toml)))
+
+
+@needs_permissions
+def test_a_card_in_a_folder_that_cannot_be_searched_is_an_action_error(session, tmp_path, locked):
+    (tmp_path / "shut").mkdir()
+    path = write(DraftCard(project="Shut", changes=[lanes(1, 3)]), tmp_path / "shut" / "card.yml")
+    locked(tmp_path / "shut", 0)
+    with pytest.raises(ActionError, match=r"^(?!internal error).*card\.yml"):  # a user-facing error, not a crash
+        session.dispatch(ImportCard(path=path))

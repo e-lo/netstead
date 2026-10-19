@@ -15,6 +15,7 @@ from netstead.workbench.plugins import ActionError, ActionSpec, Host
 from .actions import AddChange, ClosePreview, CommitCard, ImportCard, PreviewChange, UndoChange
 from .card import Dependencies, read_card_file
 from .errors import CardError
+from .files import undo_write, write_file
 from .flow import as_action_errors, check_card_shape, complete_change, is_open, refuse_transit, target_network
 from .lower import Applied, apply_change, describe, mark_after
 from .mapping import FieldMap
@@ -84,8 +85,10 @@ class Handlers:
     def commit(self, host: Host, action: CommitCard) -> dict[str, Any]:
         """Check, write and record the draft as a card; dispatch ``catalog.add_card`` when a catalog is installed.
 
-        The file is written only after every check passes, and is removed (or its previous content restored) when
-        the catalog refuses the card, so a failed commit leaves the disk and the draft as they were.
+        The file is written only after every check passes, atomically (``files.write_file``: an existing file is
+        replaced only with ``overwrite``, and a failed write leaves it intact), and is removed (or its previous
+        content restored) with the folders the commit made when the catalog refuses the card, so a failed commit
+        leaves the disk and the draft as they were. A restore that fails too is named in the catalog's error.
         """
         with as_action_errors():
             net = target_network(host, self.state, action.net_id)
@@ -111,23 +114,20 @@ class Handlers:
                 raise CardError(f"not a valid ProjectCard: {problems[0]}")
             text = card.to_yaml(self.mapping)
         path = host.writable(action.path)  # PathNotAllowed (an ActionError) outside io.allowed_roots
-        if path.exists() and not action.overwrite:
-            raise ActionError(f"{path} already exists; commit with overwrite=True to replace it")
-        try:
-            previous = path.read_bytes() if path.exists() else None
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(text, encoding="utf-8")
-        except OSError as exc:
-            raise ActionError(f"could not write {path}: {exc.strerror or exc}") from exc
+        with as_action_errors():
+            written = write_file(path, text.encode("utf-8"), overwrite=action.overwrite)
         catalog = host.has_action("catalog.add_card")
         if catalog:
             try:
                 host.dispatch({"type": "catalog.add_card", "path": str(path)})
-            except Exception:  # boundary: another plugin failed; the file must not outlive a failed commit
-                if previous is None:
-                    path.unlink(missing_ok=True)
-                else:
-                    path.write_bytes(previous)
+            except Exception as exc:  # boundary: another plugin failed; the file must not outlive a failed commit
+                failed = undo_write(written)
+                if failed is None:
+                    raise
+                note = f"the file at {path} could not be {failed}"
+                if isinstance(exc, ActionError):
+                    raise ActionError(f"{exc}; {note}") from exc
+                exc.add_note(note)
                 raise
         card_id = self.state.commit(net, card, str(path))
         host.publish("committed", {"net_id": net, "card_id": card_id, "path": str(path)})
@@ -150,7 +150,11 @@ class Handlers:
             net = target_network(host, self.state, action.net_id)
         path = host.writable(action.path)  # the allowed-roots check (the Host has no read-only variant)
         with as_action_errors():
-            if not path.is_file():
+            try:
+                is_file = path.is_file()
+            except OSError as exc:  # a folder on the way that cannot be searched
+                raise CardError(f"could not read {path}: {exc.strerror or exc}") from exc
+            if not is_file:
                 raise CardError(f"{action.path} is not a file")
             incoming = read_card_file(path, self.mapping)
             if not incoming.changes:

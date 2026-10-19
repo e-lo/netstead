@@ -269,3 +269,19 @@ def test_a_replayed_session_reproduces_the_network(session, make_session):
     assert links.loc[links.link_id == 1, "free_speed"].tolist() == [30.0]
     assert links.loc[links.link_id.isin([1, 5, 6, 8]), "lanes"].tolist() == [2, 2, 2, 2]
     assert other.state()["plugins"]["project_cards"]["drafts"][NET]["count"] == 2
+
+
+def test_a_replayed_saved_selection_change_reproduces_the_network(session, make_session):
+    session.dispatch(Select(utterance="Benton Street"))
+    session.dispatch(SaveSelection(name="benton"))
+    session.dispatch(ClearSelection())
+    session.dispatch(AddChange(saved_selection="benton", change=props(lanes={"set": 2})))
+    other = make_session(open_network=False)
+    namespace = {"app": other}
+    for entry in session.history:
+        if entry.parent_seq is None and entry.ok:
+            exec(entry.imports, namespace)
+            exec(entry.python, namespace)
+    links = other.network(NET).links_df()
+    assert links.loc[links.link_id.isin([1, 5, 6, 8]), "lanes"].tolist() == [2, 2, 2, 2]
+    assert other.state()["plugins"]["project_cards"]["drafts"][NET]["count"] == 1

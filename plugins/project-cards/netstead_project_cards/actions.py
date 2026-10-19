@@ -64,8 +64,9 @@ class CommitCard(BaseAction):
 
     type: Literal["project_cards.commit"] = "project_cards.commit"
     mutates: ClassVar[bool] = True
-    # The user confirmed in the live session; a replayed script writes the same card again without stopping.
-    replay_overrides: ClassVar[dict[str, Any]] = {"confirm_warnings": True, "overwrite": True}
+    # The user confirmed the warnings in the live session. Like core's save_network, a replayed script never
+    # replaces a file the user did not ask it to: ``overwrite`` is replayed as given.
+    replay_overrides: ClassVar[dict[str, Any]] = {"confirm_warnings": True}
     net_id: str | None = None
     path: str = Field(min_length=1, max_length=1000)
     project: str = Field(min_length=1, max_length=200)
