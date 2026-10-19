@@ -92,5 +92,5 @@ The signal, segment, and curb tables hang off `link` and `node` with the same sh
 
 * [Schema reference](spec.md) — auto-generated field-level reference per table.
 * [What is GMNS?](../what-is-gmns.md) — design context for the spec.
-* [Visual tour](../visual-tour.md) — see several of these tables rendered in a notebook.
+* [Python tour (notebook)](../python-tour.md) — see several of these tables rendered in a notebook.
 * [Glossary](glossary.md) — GMNS terms used above (TOD, segment, movement, …).

@@ -20,6 +20,7 @@ Examples:
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -69,7 +70,8 @@ def _type_of(schema: dict[str, Any]) -> str:
 
 
 def _default_cell(schema: dict[str, Any]) -> str:
-    return f"`{escape_md(repr(schema['default']))}`" if "default" in schema else ""
+    """The field's default as JSON (``"asc"``, ``0``, ``null``), or empty when it has none."""
+    return f"`{escape_md(json.dumps(schema['default']))}`" if "default" in schema else ""
 
 
 def _operations(spec: dict[str, Any]) -> list[tuple[str, str, dict[str, Any]]]:
@@ -97,12 +99,10 @@ def _request_body(op: dict[str, Any]) -> str:
 
 def _operation_md(path: str, method: str, op: dict[str, Any], level: int) -> list[str]:
     lines = [f"{'#' * level} `{method} {path}`", ""]
-    description = op.get("description") or ""
-    if description:
-        for para in paragraphs(description):
-            lines += [escape_md(para), ""]
-    elif op.get("summary"):
-        lines += [escape_md(op["summary"]) + ".", ""]
+    # Only a real description is worth printing: FastAPI's fallback summary
+    # is the handler's function name, which says nothing the path doesn't.
+    for para in paragraphs(op.get("description") or ""):
+        lines += [escape_md(para, collapse=False), ""]
     params = op.get("parameters", [])
     if params:
         lines += ["| Parameter | In | Type | Required | Default |", "|---|---|---|---|---|"]
@@ -125,9 +125,8 @@ def _operation_md(path: str, method: str, op: dict[str, Any], level: int) -> lis
 
 def _schema_md(name: str, schema: dict[str, Any], level: int) -> list[str]:
     lines = [f"{'#' * level} `{name}`", ""]
-    if schema.get("description"):
-        for para in paragraphs(schema["description"]):
-            lines += [escape_md(para), ""]
+    for para in paragraphs(schema.get("description") or ""):
+        lines += [escape_md(para, collapse=False), ""]
     props = schema.get("properties", {})
     required = set(schema.get("required", []))
     if props:

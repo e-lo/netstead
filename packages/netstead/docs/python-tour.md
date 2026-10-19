@@ -59,7 +59,8 @@ You should see:
 
 In a notebook, evaluating `net` on its own renders an HTML summary card with the spec version, the 9 tables with their row counts, and a preview of the first rows.
 
-<!-- screenshot pending: Network summary card (net._repr_html_()) — spec 0.97, 9 tables, 339 links / 121 nodes, first-rows preview -->
+![Network summary card](assets/screenshots/leavenworth-network-card.png){ .screenshot }
+*Network summary card (net._repr_html_()) — spec 0.97, 9 tables, 339 links / 121 nodes, first-rows preview*
 
 ### 2. Render the network as a map
 
@@ -86,7 +87,7 @@ import folium
 nodes = net.nodes.to_pandas()
 center = [nodes["y_coord"].mean(), nodes["x_coord"].mean()]
 
-m = folium.Map(location=center, zoom_start=15, tiles="cartodbpositron")
+m = folium.Map(location=center, zoom_start=15, tiles="OpenStreetMap")
 for shape in links["shape"]:
     coords = [(y, x) for x, y in shape.coords]  # folium wants (lat, lon)
     folium.PolyLine(coords, color="#1f77b4", weight=2, opacity=0.8).add_to(m)
@@ -95,7 +96,8 @@ m  # in a notebook, this renders the map inline
 
 You should see the downtown Leavenworth grid — a compact, walkable core wrapped around Highway 2 / Front Street, surrounded by a few residential tertiary streets.
 
-<!-- screenshot pending: Folium map of the full Leavenworth fixture — downtown grid around Highway 2 with residential streets fanning out -->
+![Folium map of the full Leavenworth fixture](assets/screenshots/leavenworth-folium-map.png){ .screenshot }
+*Folium map of the full Leavenworth fixture — downtown grid around Highway 2 with residential streets fanning out*
 
 If `folium` isn't available, the static matplotlib fallback gives an equivalent view (without basemap tiles):
 <!-- doctest: skip -->
@@ -126,7 +128,8 @@ report  # in a notebook, the _repr_html_ renders a styled card
 
 You should see a card with no ERRORs, 1 WARNING and 16 INFO findings. The WARNING is `fk.unverifiable` — `node.zone_id` can't be checked because the fixture ships no `zone` table; the INFOs are `structural.missing_optional_resource`, one per optional GMNS table the fixture doesn't include. No ERRORs, but that WARNING makes `report.is_clean` `False`.
 
-<!-- screenshot pending: Validation report card — 0 ERRORs, 1 WARNING fk.unverifiable, 16 INFO structural.missing_optional_resource across 9 tables -->
+![Validation report card](assets/screenshots/leavenworth-validation-report.png){ .screenshot }
+*Validation report card — 0 ERRORs, 1 WARNING fk.unverifiable, 16 INFO structural.missing_optional_resource across 9 tables*
 
 In a non-notebook context, drop down to the text representation:
 <!-- doctest: skip -->
@@ -151,7 +154,8 @@ qreport  # _repr_html_ renders severity-grouped findings
 
 You should see a card of WARNING findings (no ERRORs): 271 links with `facility_type=residential` carry `free_speed=40`, above the default 35 mph threshold of `quality.high_speed_residential` — useful for seeing what a real finding looks like, with its `fix_hint`.
 
-<!-- screenshot pending: Quality report card — 271 WARNING quality.high_speed_residential findings (residential links with free_speed=40, default 35 mph threshold) -->
+![Quality report card](assets/screenshots/leavenworth-quality-report.png){ .screenshot }
+*Quality report card — 271 WARNING quality.high_speed_residential findings (residential links with free_speed=40, default 35 mph threshold)*
 
 To see the top findings in detail, iterate over `qreport.issues`:
 <!-- doctest: skip -->
@@ -183,7 +187,8 @@ with Session(net) as s:
 
 You should see an `EditResult` card: the op and table (`replace_table → link`), `+0 added / -0 removed / ~339 changed`, the session id, and the timestamp. The card counts rows, not vertices — the vertex diff is computed below. `mode="redundant_only"` drops near-collinear interior vertices up to `tolerance` (in CRS units — degrees here, so `1e-6` is roughly 0.1 m; `0.0` keeps everything that isn't exactly collinear); `mode="douglas_peucker"` is the lossy alternative.
 
-<!-- screenshot pending: EditResult card for the simplify-geometry edit — replace_table → link, +0 / -0 / ~339, session id, timestamp -->
+![EditResult card for the simplify-geometry edit](assets/screenshots/leavenworth-simplify-edit-result.png){ .screenshot }
+*EditResult card for the simplify-geometry edit — replace_table → link, +0 / -0 / ~339, session id, timestamp*
 
 To visualise before-and-after on one map, keep the decoded shapes from step 2 as the "before" set and read the now-inline `link.geometry` column as the "after" set:
 <!-- doctest: skip -->
@@ -193,7 +198,7 @@ links_before = links[["link_id", "shape"]].copy()
 links_after = net.links.to_pandas()          # geometry is inline after the edit
 links_after["shape"] = links_after["geometry"].map(wkb.loads)
 
-m = folium.Map(location=center, zoom_start=15, tiles="cartodbpositron")
+m = folium.Map(location=center, zoom_start=15, tiles="OpenStreetMap")
 for shape in links_before["shape"]:
     folium.PolyLine([(y, x) for x, y in shape.coords],
                     color="#888", weight=4, opacity=0.4).add_to(m)
@@ -235,7 +240,7 @@ Render the scope side-by-side with the original to see the contrast — full net
 scoped_links = scoped.links.to_pandas().join(geoms[["geometry"]], on="geometry_id")
 scoped_links["shape"] = scoped_links["geometry"].map(wkb.loads)
 
-m = folium.Map(location=center, zoom_start=15, tiles="cartodbpositron")
+m = folium.Map(location=center, zoom_start=15, tiles="OpenStreetMap")
 # Full network, faint
 for shape in links["shape"]:
     folium.PolyLine([(y, x) for x, y in shape.coords],
@@ -249,7 +254,8 @@ m
 
 You should see a small green subgraph centred on one intersection, with the rest of the network greyed out as context.
 
-<!-- screenshot pending: Scoped subgraph (200 m network buffer around node 1, green) over the full Leavenworth network (grey) -->
+![Scoped subgraph](assets/screenshots/leavenworth-scoped-map.png){ .screenshot }
+*Scoped subgraph (200 m network buffer around node 1, green) over the full Leavenworth network (grey)*
 
 ## Variations you might try
 

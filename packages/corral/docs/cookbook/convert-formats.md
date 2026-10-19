@@ -24,7 +24,7 @@ Expected:
 ```json
 {
   "source": "packages/netstead/netstead/fixtures/leavenworth/csv",
-  "dest": "./leavenworth.parquet",
+  "dest": "leavenworth.parquet",
   "format": "parquet",
   "engine": "IbisEngine",
   "table_count": 9,

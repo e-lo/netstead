@@ -78,7 +78,9 @@ FIND_REPLACE: dict[str, str] = {
     "(../../skills/)": "(https://github.com/e-lo/netstead/tree/main/skills/)",
 }
 
-_md_heading_re = {n: re.compile(rf"(#{{{n}}}\s)(.*)") for n in range(1, 6)}
+# Anchored to the line start so "## x" is not also matched as an H1 (the
+# unanchored form shifted every included heading several levels).
+_md_heading_re = {n: re.compile(rf"^(#{{{n}}}\s)(.*)", re.MULTILINE) for n in range(1, 6)}
 
 # Static fallback nav matching packages/netstead/mkdocs.yml. The
 # live-nav extractor below prefers env.conf["nav"] and only falls
@@ -292,7 +294,7 @@ On the default loopback bind the server answers `400` to any request whose `Host
 [Explore in the Workbench](../cookbook/workbench.md#quick-start) for what that means when you
 expose the app.
 
-### Plugins
+### Plugin routes
 
 Each installed plugin's router is mounted under `/api/plugins/<id>/` and its static files under
 `/plugins/<id>/`. Those routes depend on what is installed, so they are not listed here;

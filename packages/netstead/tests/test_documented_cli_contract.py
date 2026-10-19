@@ -323,7 +323,7 @@ _JSON_EXAMPLE_RE = re.compile(
     flags=re.DOTALL | re.MULTILINE,
 )
 _SINGLE_COMMAND_RE = re.compile(r"^\s*(?:\$\s+)?(?:uv\s+run\s+)?(netstead|corral)\s+(.+?)\s*$")
-_SKIP_MARKER = re.compile(r"^\s*<!--\s*doctest:\s*skip\s*-->\s*$")
+_SKIP_MARKER = re.compile(r"^\s*<!--\s*doctest:\s*skip\b.*?-->\s*$")
 # A bare `...` used as a JSON value — not valid JSON, so it is rewritten
 # to the string wildcard "..." before parsing.
 _BARE_ELLIPSIS_RE = re.compile(r'(?<![\w"])\.\.\.(?![\w"])')
@@ -422,25 +422,29 @@ _JSON_EXAMPLES = _collect_json_examples()
     ids=[f"{doc}:{ln}" for doc, ln, _, _, _ in _JSON_EXAMPLES],
 )
 def test_documented_cli_json_output_matches(
-    doc: Path, line_no: int, package: str, argv: list[str], documented: str
+    doc: Path, line_no: int, package: str, argv: list[str], documented: str, tmp_path: Path
 ) -> None:
     """A documented ``--json`` example must print the JSON the page shows.
 
     Runs the command through the package's own CLI entry point
     (``<pkg>.cli.app:app``, the same object the ``netstead`` / ``corral``
-    console scripts call) from the repo root, so the relative fixture
-    paths in the docs resolve. Compares parsed JSON, not text, so key
-    order and indentation don't matter; ``"..."`` on the documented side
-    is a wildcard for values that vary (timings, paths).
+    console scripts call). The working directory is a scratch dir with
+    ``packages/`` symlinked to the repo's, so the relative fixture paths
+    in the docs resolve while any output the command writes (``corral
+    convert … ./out.parquet``) lands in the scratch dir, not the repo.
+    Compares parsed JSON, not text, so key order and indentation don't
+    matter; ``"..."`` on the documented side is a wildcard for values
+    that vary (timings, paths).
     """
     try:
         expected = json.loads(_BARE_ELLIPSIS_RE.sub('"..."', documented))
     except json.JSONDecodeError as exc:
         pytest.fail(f"Documented Expected JSON in {doc} (fence line {line_no}) does not parse: {exc}\n{documented}")
 
+    (tmp_path / "packages").symlink_to(REPO_ROOT / "packages", target_is_directory=True)
     proc = subprocess.run(
         [sys.executable, "-c", f"from {package}.cli.app import app; app()", *argv],
-        cwd=REPO_ROOT,
+        cwd=tmp_path,
         capture_output=True,
         text=True,
         timeout=600,
@@ -448,7 +452,8 @@ def test_documented_cli_json_output_matches(
     )
     display = f"{package} {' '.join(argv)}"
     assert proc.returncode == 0, (
-        f"Documented command failed (exit {proc.returncode}): {display}\n  documented in: {doc}:{line_no}\n{proc.stderr}"
+        f"Documented command failed (exit {proc.returncode}): {display}\n"
+        f"  documented in: {doc}:{line_no}\n{proc.stderr}"
     )
     try:
         actual = json.loads(proc.stdout)

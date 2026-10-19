@@ -65,6 +65,16 @@ plugins:
       type: date
       fallback_to_build_date: true
       enable_git_follow: false
+      # A page that is not committed yet has no git log. `strict: false`
+      # logs that at INFO rather than WARNING (which `mkdocs build
+      # --strict` would turn into a failed build). Sequential processing
+      # computes a page's first and last timestamps back to back, so an
+      # uncommitted page gets one fallback timestamp for both instead of
+      # two pool runs seconds apart ("First revision timestamp is older
+      # than last revision timestamp"). In CI every page is tracked, so
+      # neither path is taken there.
+      strict: false
+      enable_parallel_processing: false
   - mkdocstrings:
       handlers:
         python:
@@ -77,16 +87,22 @@ plugins:
             merge_init_into_class: true
   - macros                              # for the netstead spec macros (local_frictionless_spec, etc.)
   - mermaid2:
+      # The library is loaded by the plugin (only on pages with a diagram)
+      # rather than via `extra_javascript`, which the plugin deprecates.
+      version: 9.4.3
+      javascript: https://unpkg.com/mermaid@9.4.3/dist/mermaid.min.js
       arguments:
         theme: |
             ^(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light'
         securityLevel: 'loose'
   - htmlproofer:
+      # External URLs are not validated: github.com answers CI runners
+      # with 429 and some hosts block bots with 403, which would fail the
+      # strict build on network weather rather than on the docs. Internal
+      # links and anchors are still checked.
+      validate_external_urls: false
       raise_error_excludes:
         404: ['*']
-
-extra_javascript:
-  - https://unpkg.com/mermaid@9.4.3/dist/mermaid.min.js
 
 extra_css:
   - assets/stylesheets/extra.css
@@ -135,9 +151,12 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Quickstart: quickstart.md
+  - "Quickstart: Python": quickstart.md
+  - "Quickstart: Workbench": quickstart-workbench.md
+  - Install and troubleshoot: install.md
   - What is GMNS?: what-is-gmns.md
   - Visual tour: visual-tour.md
+  - Python tour: python-tour.md
   - The Workbench and other tools: workbench-and-other-tools.md
   - Status and roadmap: roadmap.md
   - Changelog: changelog.md

@@ -25,16 +25,18 @@ Expected:
 {
   "source": "packages/netstead/netstead/fixtures/leavenworth/csv",
   "engine": "IbisEngine",
-  "total_seconds": 0.555,
+  "total_seconds": "...",
   "phases": [
-    {"phase": "load",         "seconds": 0.112},
-    {"phase": "validate",     "seconds": 0.130},
-    {"phase": "links_count",  "seconds": 0.002},
-    {"phase": "nodes_count",  "seconds": 0.001},
-    {"phase": "is_connected", "seconds": 0.309}
+    {"phase": "load",         "seconds": "..."},
+    {"phase": "validate",     "seconds": "..."},
+    {"phase": "links_count",  "seconds": "..."},
+    {"phase": "nodes_count",  "seconds": "..."},
+    {"phase": "is_connected", "seconds": "..."}
   ]
 }
 ```
+
+The `"..."` values are timings in seconds (floats such as `0.112`); they vary by machine and run, so they're elided here.
 
 ## Step-by-step
 

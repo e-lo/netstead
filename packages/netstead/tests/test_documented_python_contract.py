@@ -115,7 +115,9 @@ _RST_BLOCK_RE = re.compile(
 #     ```python
 #     ...code that needs S3 creds...
 #     ```
-_SKIP_MARKER = re.compile(r"^\s*<!--\s*doctest:\s*skip\s*-->\s*$")
+# The marker may carry a reason after `skip`, e.g.
+# `<!-- doctest: skip — needs S3 credentials -->`.
+_SKIP_MARKER = re.compile(r"^\s*<!--\s*doctest:\s*skip\b.*?-->\s*$")
 
 
 def _block_is_skipped(text: str, fence_start: int) -> bool:
@@ -274,17 +276,22 @@ def _blocks_for_parametrize() -> list[tuple[Path, int, str, str | None]]:
 
 _BLOCKS = _blocks_for_parametrize()
 
-# Known doc-vs-code gaps that the pre-beta review surfaced and are
-# tracked for a follow-up cookbook-sweep PR. Each entry is (path,
-# line_no) so the test xfails specifically rather than skipping. Remove
-# the entry once the underlying doc is fixed and the block runs.
+# Known doc-vs-code gaps, tracked for a follow-up PR. Each entry is
+# keyed by (path, first code line of the block) — not the fence line
+# number, which moves whenever the page is edited above the block — so
+# the test xfails that specific block rather than skipping. Remove the
+# entry once the underlying doc is fixed and the block runs.
 #
-# This list is the punch-list for the v1.0-beta cookbook sweep. As
-# each block is fixed, remove its entry — the strict assertion takes
-# over and prevents regression. Net-zero entries by GA.
+# This list is the punch-list for the cookbook sweep. As each block is
+# fixed, remove its entry — the strict assertion takes over and
+# prevents regression. Net-zero entries by GA.
 #
-# Format: {(relative_path_str, fence_line_no): "reason"}
-_KNOWN_BROKEN: dict[tuple[str, int], str] = {}
+# Format: {(relative_path_str, first_code_line): "reason"}
+_KNOWN_BROKEN: dict[tuple[str, str], str] = {
+    # (path, first code line) -> why the block is known not to run yet. Empty
+    # is the goal: an entry here hides a doc-vs-code gap from CI, so add one
+    # only with the doc edit that closes it, and remove it in that edit.
+}
 
 
 @pytest.fixture
@@ -351,13 +358,14 @@ def test_documented_python_block_runs(
     network access, real cloud creds, a GUI, or other genuine
     non-determinism — not "this is broken and I'd rather not fix it".
     """
-    key = (str(path), line_no)
-    if key in _KNOWN_BROKEN:
-        pytest.xfail(f"known doc-vs-code gap: {_KNOWN_BROKEN[key]}")
-
     # The fence indent is already stripped; dedent again in case the
     # whole body sits deeper than its fence (a list item, say).
     code = textwrap.dedent(body)
+
+    first_code_line = next((ln.strip() for ln in code.splitlines() if ln.strip()), "")
+    key = (str(path), first_code_line)
+    if key in _KNOWN_BROKEN:
+        pytest.xfail(f"known doc-vs-code gap: {_KNOWN_BROKEN[key]}")
 
     # Shared namespace per file so an earlier `import netstead` carries.
     ns = _NAMESPACES.setdefault(path, {"__name__": f"__doctest__.{path.name}"})
@@ -380,7 +388,7 @@ def test_documented_python_block_runs(
             f"  - Update the doc block to call the real API\n"
             f"  - Mark with `<!-- doctest: skip -->` if it genuinely needs\n"
             f"    network/cloud creds/GUI/non-determinism\n"
-            f"  - Add ({path!s}, {line_no}) to _KNOWN_BROKEN in\n"
+            f"  - Add ({path!s}, {first_code_line!r}) to _KNOWN_BROKEN in\n"
             f"    {Path(__file__).name} with a tracking reason"
         )
 

@@ -48,19 +48,36 @@ def _summary_and_body(help_text: str) -> tuple[str, list[str]]:
     return escape_md(parts[0]), parts[1:]
 
 
+def _is_preformatted(para: str) -> bool:
+    """A paragraph click marks "do not rewrap" (its no-rewrap marker), or one whose every line is indented."""
+    if para.lstrip().startswith(("\\b", "\x08")):
+        return True
+    return all(line.startswith((" ", "\t")) for line in para.splitlines() if line.strip())
+
+
 def _body_to_md(body: list[str]) -> list[str]:
     """Render the paragraphs after the summary.
 
-    A paragraph click marks "do not rewrap" is kept as a text block,
-    since its line breaks carry meaning (a mini table, an example invocation).
+    Preformatted paragraphs (see :func:`_is_preformatted`) go into one
+    ``text`` block, consecutive ones merged, since their line breaks carry
+    meaning (a mini table, an example invocation). Prose keeps its line
+    breaks too, so an rst-style bullet list stays a list in markdown.
     """
     lines: list[str] = []
+    pre: list[str] = []
+
+    def _flush() -> None:
+        if pre:
+            lines.extend(["```text", "\n\n".join(pre), "```", ""])
+            pre.clear()
+
     for para in body:
-        if para.lstrip().startswith(("\\b", "\x08")):
-            text = para.replace("\\b", "").replace("\x08", "").strip("\n")
-            lines += ["```text", text, "```", ""]
+        if _is_preformatted(para):
+            pre.append(para.replace("\\b", "").replace("\x08", "").strip("\n"))
         else:
-            lines += [escape_md(para), ""]
+            _flush()
+            lines += [escape_md(para, collapse=False), ""]
+    _flush()
     return lines
 
 

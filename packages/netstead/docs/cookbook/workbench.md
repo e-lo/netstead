@@ -15,6 +15,9 @@ For a single self-contained HTML file to send someone, see [View a network on a 
 
 ## Quick start
 
+New to the Workbench? [Quickstart: the Workbench](../quickstart-workbench.md) walks through open, select,
+validate, fix, replay and save on the bundled Leavenworth network in ten minutes.
+
 ```bash
 uv run netstead app ./my-network
 ```

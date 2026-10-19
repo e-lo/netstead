@@ -1,11 +1,13 @@
 ---
-title: Quickstart
+title: "Quickstart: Python"
 audience: users
 kind: howto
-summary: Install, load the bundled Leavenworth fixture, run validation + quality + scope in five minutes.
+summary: Install, load the bundled Leavenworth fixture, run validation + quality + scope from Python in five minutes.
 ---
 
-# Quickstart
+# Quickstart: Python
+
+Prefer a browser? → [Quickstart: the Workbench](quickstart-workbench.md) does the same work with no code.
 
 ## When to use this
 
@@ -43,31 +45,11 @@ You just loaded the bundled Leavenworth network through the default ibis + DuckD
 
 The bare `netstead` install is enough for read-only validation. Add `[clean,graph]` to unlock the ops the rest of this guide uses: `[clean]` brings in `shapely` + `geopandas` + `pyproj` for the geometry edits; `[graph]` brings in `scipy` (+ `numpy` + `pandas`) for the scope graph, connected components, and the data-quality rule pack.
 
-=== "uv (recommended)"
+```bash
+uv add 'netstead[clean,graph]'
+```
 
-    ```bash
-    uv add 'netstead[clean,graph]'
-    ```
-
-=== "uv pip"
-
-    ```bash
-    uv pip install 'netstead[clean,graph]'
-    ```
-
-=== "pip"
-
-    ```bash
-    pip install 'netstead[clean,graph]'
-    ```
-
-=== "pipx"
-
-    ```bash
-    pipx install 'netstead[clean,graph]'
-    ```
-
-`corral` comes along as a transitive dependency — you don't install both packages. For the full list of extras (`osm`, `overture`, `clean`, `graph`, `server`, `mcp`, `nl`, `bench`, `notebook`, `reports`, `all`) and what each pulls in, see the [install guide](index.md#optional-extras).
+`corral` comes along as a transitive dependency — you don't install both packages. For the other install tools (uv pip, pip, pipx), the full list of extras and what each pulls in, `netstead doctor`, and the zsh bracket-quoting rule, see [Install and troubleshoot](install.md).
 
 ### 2. Load the bundled fixture
 
@@ -94,7 +76,8 @@ Expected:
 
 In a Jupyter notebook, evaluating `net` on its own renders an HTML summary card with the spec version, per-table row counts, and a preview of the first rows.
 
-<!-- screenshot pending: Network summary card (net._repr_html_() in a notebook) — spec version, table inventory with row counts, first-rows preview -->
+![Network summary card](assets/screenshots/leavenworth-network-card.png){ .screenshot }
+*Network summary card (net._repr_html_() in a notebook) — spec version, table inventory with row counts, first-rows preview*
 
 ### 3. Validate against the spec
 
@@ -107,7 +90,8 @@ print(f"issues: {len(report.issues)} ({report.spec_version})")
 
 In a notebook, `report` on its own renders an HTML card grouped by severity.
 
-<!-- screenshot pending: Validation report card (report._repr_html_() in a notebook) — 0 ERRORs, 1 WARNING fk.unverifiable, 16 INFO structural.missing_optional_resource -->
+![Validation report card](assets/screenshots/leavenworth-validation-report.png){ .screenshot }
+*Validation report card (report._repr_html_() in a notebook) — 0 ERRORs, 1 WARNING fk.unverifiable, 16 INFO structural.missing_optional_resource*
 
 ### 4. Run data-quality checks
 
@@ -121,7 +105,8 @@ for issue in qreport.issues[:5]:
     print(f"  {issue.severity.value:9} {issue.code:35} {issue.message[:60]}")
 ```
 
-<!-- screenshot pending: Quality report card (qreport._repr_html_() in a notebook) — 271 WARNING quality.high_speed_residential findings on residential links with free_speed=40 at the default 35 mph threshold -->
+![Quality report card](assets/screenshots/leavenworth-quality-report.png){ .screenshot }
+*Quality report card (qreport._repr_html_() in a notebook) — 271 WARNING quality.high_speed_residential findings on residential links with free_speed=40 at the default 35 mph threshold*
 
 ### 5. Scope to a subgraph
 
@@ -141,7 +126,8 @@ That's a 200-metre Dijkstra-bounded buffer around node 1. Expected:
 scoped: 8 links, 5 nodes
 ```
 
-<!-- screenshot pending: Scoped subgraph (200 m network buffer around node 1, green) over the full Leavenworth network (grey context) -->
+![Scoped subgraph](assets/screenshots/leavenworth-scoped-map.png){ .screenshot }
+*Scoped subgraph (200 m network buffer around node 1, green) over the full Leavenworth network (grey context)*
 
 ### 6. Or run the same thing from the CLI
 
@@ -170,7 +156,7 @@ Each accordion below is one alternative to the defaults used above. The first (m
     The vendored versions are 0.95, 0.96, and 0.97; default is 0.97. Networks load against the version they were written against — no silent upgrades.
 
     ```python
-    net = Network.from_source(path, spec_version="0.96")
+    net = Network.from_source(leavenworth.csv_dir(), spec_version="0.96")
     ```
 
 ??? note "Get a pandas (or polars) frame"
@@ -182,6 +168,7 @@ Each accordion below is one alternative to the defaults used above. The first (m
 
 ??? note "Read from S3 with credentials"
     Credentials resolve via a cascade: keyword arg → `CORRAL_CRED_<host>_TOKEN` env var → OS keyring → `.netrc`. No code changes if your environment is already set up.
+<!-- doctest: skip -->
 
     ```python
     net = Network.from_source("s3://bucket/network/")
@@ -189,6 +176,7 @@ Each accordion below is one alternative to the defaults used above. The first (m
 
 ??? note "Write the scoped network out"
     The output format follows the destination: an extension-less path or `.parquet` writes a directory of GeoParquet files (one per table); `.csv` writes a CSV directory; `.duckdb` writes a single DuckDB file; `.zip` writes zipped CSV.
+<!-- doctest: skip -->
 
     ```python
     scoped.write("./scoped.parquet")
@@ -219,6 +207,7 @@ Each accordion below is one alternative to the defaults used above. The first (m
 ## See also
 
 * [Cookbook](cookbook/index.md) — task-oriented recipes for the common workflows.
-* [Visual tour](visual-tour.md) — see every step above rendered as maps, cards, and diffs in a notebook.
+* [Python tour (notebook)](python-tour.md) — see every step above rendered as maps, cards, and diffs in a notebook.
+* [Visual tour](visual-tour.md) — the same network in the browser Workbench, screen by screen.
 * [API reference](reference/api.md) — every symbol you saw above.
 * [Architecture](https://e-lo.github.io/netstead/corral/architecture/) — design rationale for the defaults.

@@ -314,7 +314,7 @@ Expected:
 ```text
 {'net_id': 'leavenworth'}
 resolved [1, 2, 3]
-1 True app.do(OpenNetwork(source='.../fixtures/leavenworth/csv', label='Leavenworth'))
+1 True app.do(OpenNetwork(source='...
 2 True app.do(Select(link_ids=[1, 2, 3]))
 3 True app.do(Style(width_by='lanes'))
 4 True app.do(Filter(where=[{'col': 'lanes', 'op': 'gte', 'val': 2}]))

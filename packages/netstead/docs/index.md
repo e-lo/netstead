@@ -9,6 +9,9 @@ summary: Python toolkit for the General Modeling Network Specification — build
 
 A Python toolkit for the [General Modeling Network Specification (GMNS)](https://github.com/zephyr-data-specs/GMNS) — the Zephyr Foundation's open standard for routable transportation networks. Built on top of [corral](https://e-lo.github.io/netstead/corral/).
 
+![Sixty-second walkthrough: open, select, validate, fix, replay](assets/screenshots/workbench-walkthrough.gif){ .screenshot }
+*The browser Workbench in a minute: open a network, select by name, validate, fix a finding, replay it all as Python. Start with [Quickstart: the Workbench](quickstart-workbench.md).*
+
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/e-lo/netstead/blob/main/packages/netstead/docs/notebooks/quickstart.ipynb) — five-cell quickstart in the browser. Load a real GMNS network from a URL, validate it, and view findings on an interactive map. No install needed.
 
 ## What problems netstead solves
@@ -96,81 +99,41 @@ net = Network.from_source("./network.duckdb")              # single duckdb
 
 ## Install
 
-Requires Python 3.11+. Pick the tool you already use — these all produce the same install:
-
-=== "uv (recommended)"
-
-    ```bash
-    uv add netstead
-    ```
-
-    Fastest. Works inside a `uv`-managed project and writes to your `pyproject.toml` + `uv.lock`.
-
-=== "uv pip"
-
-    ```bash
-    uv pip install netstead
-    ```
-
-    Drop-in `pip` replacement. Use this in a plain `venv` without a project file.
-
-=== "pip"
-
-    ```bash
-    pip install netstead
-    ```
-
-    Classic. Works anywhere Python does.
-
-=== "pipx"
-
-    ```bash
-    pipx install netstead
-    ```
-
-    Isolated env for the `netstead` CLI only — your project env stays untouched.
-
-`corral` (PyPI `dbcorral`) comes along automatically — you don't install both.
-
-### Optional extras
-
-Pick by what you need:
-
-| Extra | Pulls in | When you need it |
-|---|---|---|
-| `osm` | `requests` + `pyyaml` | `netstead build --source osm` — build a network from OpenStreetMap |
-| `overture` | `pyyaml` | `netstead build --source overture` — build a network from Overture Maps (place-name areas also need `[osm]` for geocoding) |
-| `clean` | `shapely` + `geopandas` + `pyproj` | Network editing (`netstead.clean`: simplify, merge, orphans, lengths) |
-| `graph` | `scipy` + `numpy` + `pandas` | Scope from nodes, connected components, `netstead quality` / `run_quality` |
-| `server` | `fastapi` + `uvicorn` + `pydantic-settings` + `httpx` | Self-hostable HTTP server and the browser Workbench (`netstead app`) |
-| `mcp` | `mcp>=1.0,<2` | Run `netstead mcp serve` for Claude Desktop / Code |
-| `nl` | `jsonschema` + `httpx` + `keyring` | Natural-language selection (`netstead select`) and the LLM providers (Anthropic / OpenAI / Gemini / Ollama) |
-| `bench` | `psutil` | `netstead bench` / `bench-suite` process-memory metrics |
-| `notebook` | `ipywidgets` + `anywidget` | Reserved for future notebook widgets *(the `_repr_html_` cards for `Network` / `ValidationReport` / `EditResult` work without this)* |
-| `reports` | `openpyxl` + `jinja2` + `pyyaml` | The HTML map viewer (`netstead.map`) and XLSX findings export |
-| `all` | every extra above | Single-flag full install |
-
-Install with the same syntax (uv shown — substitute your tool):
+Requires Python 3.11+. One command installs `netstead` with every optional extra (`corral` comes along automatically):
 
 ```bash
-uv add 'netstead[clean,server]'       # combine with commas
-uv add 'netstead[all]'                # everything
+uv add 'netstead[all]'
 ```
 
-!!! tip "zsh users: quote the brackets"
-    On **zsh** (the default shell on macOS), `[` and `]` are glob characters. Running `uv add netstead[all]` unquoted gives `zsh: no matches found: netstead[all]`. Always wrap the extras in quotes (`'netstead[all]'` or `"netstead[all]"`), or run `setopt no_nomatch` once per session to disable the check. bash users don't hit this.
+The four install tools (uv, uv pip, pip, pipx), the full table of extras and what each pulls in, `netstead doctor`, and the first-run errors are all on one page: [Install and troubleshoot](install.md). zsh users: [quote the brackets](install.md#zsh-quote-the-brackets).
 
 ## Where to go next
 
 <div class="grid cards" markdown>
 
--   :material-rocket-launch:{ .lg .middle } &nbsp;**Quickstart**
+-   :material-monitor-dashboard:{ .lg .middle } &nbsp;**Quickstart: the Workbench**
+
+    ---
+
+    Open the bundled Leavenworth network in the browser — select, validate, fix, replay as Python, save a copy. Ten minutes, no code.
+
+    [:octicons-arrow-right-24: Start in the browser](quickstart-workbench.md)
+
+-   :material-rocket-launch:{ .lg .middle } &nbsp;**Quickstart: Python**
 
     ---
 
     Install, load the bundled Leavenworth fixture, run validation in five minutes.
 
-    [:octicons-arrow-right-24: Get started](quickstart.md)
+    [:octicons-arrow-right-24: Start in Python](quickstart.md)
+
+-   :material-download:{ .lg .middle } &nbsp;**Install and troubleshoot**
+
+    ---
+
+    Python version, the four install tools, every extra, `netstead doctor`, and the first-run errors with their fixes.
+
+    [:octicons-arrow-right-24: Install](install.md)
 
 -   :material-book-open-variant:{ .lg .middle } &nbsp;**What is GMNS?**
 
@@ -184,7 +147,7 @@ uv add 'netstead[all]'                # everything
 
     ---
 
-    See the bundled Leavenworth network rendered as a map, validated, quality-checked, edited, and scoped — all in one notebook session.
+    The Workbench explained screen by screen — what a GMNS network looks like on the map, what an ambiguous selection means, what the validation severities and the edit log tell you.
 
     [:octicons-arrow-right-24: Visual tour](visual-tour.md)
 
@@ -196,11 +159,11 @@ uv add 'netstead[all]'                # everything
 
     [:octicons-arrow-right-24: Browse recipes](cookbook/index.md)
 
--   :material-monitor-dashboard:{ .lg .middle } &nbsp;**Workbench**
+-   :material-application-cog-outline:{ .lg .middle } &nbsp;**Workbench in full**
 
     ---
 
-    Open a network in the browser — linked map and tables, validation with fixes, selection verification, natural-language assistant.
+    Every panel and command — linked map and tables, validation with fixes, selection verification, the natural-language assistant, settings.
 
     [:octicons-arrow-right-24: Explore in the Workbench](cookbook/workbench.md)
 

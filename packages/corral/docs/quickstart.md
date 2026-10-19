@@ -175,18 +175,19 @@ Each accordion below is one alternative to the defaults used above. The first (m
 
     ```python
     pkg = Package.from_source(
-        path,
-        spec=spec,
-        tables=["link", "node", "geometry"],
+        sample.csv_dir(),
+        spec=sample.DATAPACKAGE,
+        tables=["author", "book"],
     )
     ```
 
 ??? note "Pass the spec from a URL or another package"
     `spec=` accepts a local path, a URL, or an already-loaded `Spec` object. Useful for sharing a spec across many sibling datasets.
 
+    <!-- doctest: skip — placeholder URL; fetching a spec needs network access -->
     ```python
     pkg = Package.from_source(
-        path,
+        sample.csv_dir(),
         spec="https://example.org/specs/my-spec/datapackage.json",
     )
     ```

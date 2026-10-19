@@ -248,9 +248,9 @@ class GMNSGraph:
         (:meth:`network_buffer`) and connectivity work without extra arguments.
 
         Args:
-            net: A :class:`~netstead.network.Network`.
+            net (Network): A :class:`~netstead.network.Network`.
             cost: Build-time cost expression / column (default ``"length"``).
-            **kwargs: Forwarded to :meth:`build` (``barrier``, ``directed``, …).
+            **kwargs (Any): Forwarded to :meth:`build` (``barrier``, ``directed``, …).
         """
         nodes_df = net.nodes.to_pandas()
         links_df = net.links.to_pandas()
@@ -438,7 +438,7 @@ class GMNSGraph:
         """Return the graph as a geopandas GeoDataFrame (lazy-imports the viz module).
 
         Args:
-            **kwargs: Forwarded to :func:`netstead.graph.viz.to_geodataframe`.
+            **kwargs (Any): Forwarded to :func:`netstead.graph.viz.to_geodataframe`.
 
         Raises:
             ImportError: If ``geopandas``/``shapely`` are not installed

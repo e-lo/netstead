@@ -144,19 +144,21 @@ map, so they sit under **Unlocated** at the bottom of the panel.
 
 Pick any `quality.high_speed_residential` issue and press its **Fix** button. The fix editor opens at the top
 of the Issues panel on that link and that column (`link 1 · free_speed`, for the first one), with the current
-value `40` filled in and the issue text as the edit's note.
+value `40` filled in and the issue text as the edit's note. Replace the note with your own reason if you like
+(`Residential street: posted 35 mph`); it is kept with the edit.
 
 Change `free_speed` to `35` and press **Apply**. One edit is sent with only the value you changed. Three things
 update at once:
 
-- The **Edits** panel lists the edit (`#1 link 1: free_speed = 35.0 (quality.high_speed_residential: …)`,
-  `1 link · v1`), the status reads `1 unsaved`, and **Undo last** is enabled. The network's version moved from
-  `v0` to `v1`; nothing on disk changed.
+- The **Edits** panel lists the edit (`#1 link 1: free_speed = 35.0 (Residential street: posted 35 mph)`,
+  `1 link · v1`), the status reads `1 unsaved`, the network picker reads `leavenworth • 1 unsaved`, and
+  **Undo last** is enabled. The network's version moved from `v0` to `v1`; nothing on disk changed.
 - The Issues panel re-checks the rows you touched straight away: a value the spec disagrees with would appear
   under **Edit warnings** with its own **Fix** button. This one is fine, so the count stays at 0. The stored
   validation is now stale (`the network changed since: re-run`), and the button becomes **Re-run validation**;
   the list stays so you can work down it.
-- The strip shows the edit as Python: `app.do(EditCells(ids=[1], values={'free_speed': 35}, note='…'))`.
+- The strip shows the edit as Python:
+  `app.do(EditCells(ids=[1], values={'free_speed': 35}, note='Residential street: posted 35 mph'))`.
 
 Press **Undo last** and the value goes back to 40, recorded as `app.do(UndoEdit())`. Then press **Fix** and
 apply the change once more, so there is an edit to save in step 8.

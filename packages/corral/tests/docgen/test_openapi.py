@@ -62,6 +62,7 @@ def test_groups_in_order_with_other_bucket() -> None:
     md = openapi_to_md(SPEC, groups=GROUPS, skip=lambda path, _: path == "/")
     assert md.index("### Session") < md.index("### Network data") < md.index("### Other routes")
     assert "#### `GET /api/state`" in md
+    assert "State." not in md  # no description: the function-name summary is not printed
     assert "#### `GET /api/misc`" in md
     assert "`GET /`" not in md
     assert "The session as a whole." in md
@@ -83,7 +84,7 @@ def test_schema_section_skips_framework_schemas() -> None:
     assert "HTTPValidationError" not in md
     assert "| `offset` | integer | no | `0` |  |" in md
     assert "| `sort` | string or null | yes |  | Sort &lt;column&gt;. |" in md
-    assert "| `dir` | `asc` / `desc` | no | `'asc'` |  |" in md
+    assert '| `dir` | `asc` / `desc` | no | `"asc"` |  |' in md
     assert "| `ids` | array of integer or null | no |  |  |" in md
 
 
