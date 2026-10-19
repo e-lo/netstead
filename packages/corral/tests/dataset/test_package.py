@@ -273,6 +273,30 @@ def test_package_write_overwrite_protection(tmp_path: Path) -> None:
     pkg.write(dest, format="parquet", overwrite=True)
 
 
+@pytest.mark.parametrize("fmt", ["csv", "parquet"])
+def test_package_write_in_place_keeps_every_table(tmp_path: Path, fmt: str) -> None:
+    """Writing a package back over its own source directory keeps every table.
+
+    The tables are lazy expressions that still read from the source
+    files, so the writer must not remove the old directory before the
+    new files are complete.
+    """
+    fixture = leavenworth.csv_dir() if fmt == "csv" else leavenworth.parquet_dir()
+    src = tmp_path / "lw"
+    shutil.copytree(fixture, src)
+    pkg = Package.from_source(src, engine=IbisEngine(), spec=_gmns_datapackage())
+    names = sorted(pkg.keys())
+    counts = {name: pkg[name].count() for name in names}
+
+    pkg.write(src, format=fmt, overwrite=True)
+
+    assert sorted(path.name for path in src.iterdir()) == [f"{name}.{fmt}" for name in names]
+    # Staging leaves no debris beside the destination.
+    assert [path.name for path in tmp_path.iterdir()] == ["lw"]
+    reopened = Package.from_source(src, engine=IbisEngine(), spec=_gmns_datapackage())
+    assert {name: reopened[name].count() for name in names} == counts
+
+
 # ---------------------------------------------------------------------------
 # CSV-in-zip packages — read via the "<zip>::<member>" sub-locator, write
 # as CSV members plus a datapackage.json.

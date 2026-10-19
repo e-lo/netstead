@@ -102,6 +102,19 @@ def test_clean_simplify_writes_to_dest(tmp_path: Path):
     assert net.nodes.count() > 0
 
 
+def test_clean_in_place_keeps_every_table_and_the_source_format(tmp_path: Path):
+    """Without ``--dest`` the op writes back over its source: every table survives, still as CSV."""
+    src = _copy_fixture(tmp_path)
+    files_before = sorted(path.name for path in src.iterdir())
+    result = runner.invoke(app, ["clean", "remove-orphans", "--json", str(src)])
+    assert result.exit_code == 0, result.stdout
+    assert sorted(path.name for path in src.iterdir()) == files_before
+    from netstead import Network
+
+    net = Network.from_source(src, engine=IbisEngine())
+    assert net.links.count() == 339
+
+
 def test_clean_remove_orphans_json_emits_summary(tmp_path: Path):
     """``--json`` payload carries the standard {op, dry_run, edits[]} summary."""
     src = _copy_fixture(tmp_path)

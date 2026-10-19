@@ -89,6 +89,13 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 - **Selection anchors on a network without a `ref` (or `name`) column** no
   longer fail with `KeyError: 'ref'` (Leavenworth, for example).
+- **`netstead clean <op> <src>` without `--dest` no longer destroys the
+  source.** Writing the edited network back over its own directory removed
+  the old files before the unedited tables (still read lazily from them) were
+  written, leaving only the edited table behind and a DuckDB "No files found"
+  error. The write now stages beside the target and swaps in once complete
+  (fixed in corral's `Package.write`), and an in-place write keeps the
+  directory's format: a CSV directory stays CSV instead of becoming parquet.
 
 ## [1.0.0-beta.2] — TBD
 

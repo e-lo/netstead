@@ -104,12 +104,17 @@ def summarise_scope(scope) -> dict[str, object]:
 
 
 def write_network(net: Network, *, source: Path, dest: Path | None) -> None:
-    """Write ``net`` back to ``dest`` (or ``source`` when ``dest`` is None).
+    """Write ``net`` to ``dest``, or back over ``source`` when ``dest`` is None.
 
     Uses :meth:`Package.write`; the format is inferred from the
     target's extension, falling back to ``parquet`` for directory
     targets — matches the read-path convention so a round-trip lands
-    the same logical package.
+    the same logical package. The one exception is an in-place write
+    of a directory source, which keeps the format the tables were read
+    from (a CSV directory stays CSV) instead of silently becoming
+    parquet. :meth:`Package.write` stages the new files beside the
+    target and swaps them in once complete, so the tables, which still
+    read from ``source``, are never read after their files are gone.
 
     Suppresses :class:`OutOfSyncWarning` (raised by the dirty tracker
     on tables we just edited). The whole point of these CLI ops is
@@ -122,10 +127,24 @@ def write_network(net: Network, *, source: Path, dest: Path | None) -> None:
     from corral.dataset.package import OutOfSyncWarning
 
     target = dest if dest is not None else source
-    overwrite = target.exists()
+    format = _directory_source_format(net) if dest is None and target.is_dir() else None
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", OutOfSyncWarning)
-        net.write(target, overwrite=overwrite)
+        net.write(target, format=format, overwrite=target.exists())
+
+
+def _directory_source_format(net: Network) -> str | None:
+    """The directory format every on-disk table of ``net`` was read from, else ``None``.
+
+    Tables built in memory (no source) carry no format and are ignored;
+    an edit keeps the format of the table it changes. ``None`` (unknown,
+    mixed, or not a directory format) lets :meth:`Package.write` apply
+    its default.
+    """
+    formats = {table.format for table in net.tables.values()} - {None}
+    if len(formats) == 1 and (only := formats.pop()) in {"csv", "parquet"}:
+        return only
+    return None
 
 
 def list_index_sidecars(source: Path) -> list[Path]:
