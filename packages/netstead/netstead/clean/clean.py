@@ -97,6 +97,32 @@ def _submit_replace(session: Session, table_name: str, new_rows: list[dict]) -> 
     return session.add_edit(edit)
 
 
+def _shape_table(net: Network, *, op: str) -> str:
+    """Name of the table that physically holds the link shapes.
+
+    GMNS lets a network carry link geometry either inline
+    (``link.geometry``) or in a separate ``geometry`` table keyed by
+    ``link.geometry_id``. Ops that *rewrite* shapes edit whichever one
+    is present so the edit lands where the data lives and rollback
+    restores that same table. Inline wins when both exist, matching
+    :func:`netstead.semantics.assemble_link_geometry`'s priority.
+
+    Raises:
+        CleanError: When neither location exists — the message names
+            both and what to add.
+    """
+    if "geometry" in net.links.columns():
+        return "link"
+    geometry = net.geometry
+    if geometry is not None and "geometry" in geometry.columns():
+        return "geometry"
+    raise CleanError(
+        f"{op} found no link shapes: the network has neither an inline "
+        "'link.geometry' column nor a 'geometry' table (GMNS link.geometry_id). "
+        "Add link geometry in one of those two places before running this op."
+    )
+
+
 # ---------------------------------------------------------------------------
 # Op 1 — simplify_geometry
 # ---------------------------------------------------------------------------
@@ -111,12 +137,17 @@ def simplify_geometry(
 ) -> EditResult:
     """Drop redundant interior vertices on every link geometry.
 
+    The shapes are edited where they live: on ``link.geometry`` when
+    the link table carries geometry inline, otherwise on the
+    ``geometry`` table that ``link.geometry_id`` points at (inline wins
+    when both exist). The returned edit — and its rollback — target that
+    table, so a network that keeps shapes in ``geometry`` never grows an
+    inline column as a side effect.
+
     Args:
-        net: The source :class:`Network`. Must have a ``link.geometry``
-            column (inline WKT). If geometry is carried via
-            ``geometry_id``, assemble it first with
-            :func:`netstead.semantics.assemble_link_geometry` then push the
-            result onto a column named ``geometry`` before calling.
+        net: The source :class:`Network`. Must carry link shapes either
+            as an inline ``link.geometry`` column or in a ``geometry``
+            table.
         session: An open :class:`corral.editing.Session` bound to
             ``net``. The returned :class:`EditResult` is appended to
             the session's log so :meth:`Session.rollback` can undo it.
@@ -134,11 +165,12 @@ def simplify_geometry(
 
     Returns:
         An :class:`EditResult` describing the bulk ``replace_table``
-        edit on ``link``.
+        edit; ``result.edit.table`` is ``"link"`` or ``"geometry"``
+        depending on where the shapes live.
 
     Raises:
-        CleanError: If ``net.links`` lacks an inline ``geometry`` column
-            or ``mode`` is unrecognised.
+        CleanError: If the network has no link shapes in either
+            location, or ``mode`` is unrecognised.
 
     Examples:
         >>> import pytest
@@ -151,16 +183,11 @@ def simplify_geometry(
     """
     from netstead._geom import shapely_from_any
 
-    if "geometry" not in net.links.columns():
-        raise CleanError(
-            "simplify_geometry requires an inline 'geometry' column on net.links; "
-            "use netstead.semantics.assemble_link_geometry first if your network "
-            "carries geometry via geometry_id."
-        )
+    target = _shape_table(net, op="simplify_geometry")
     if mode not in {"redundant_only", "douglas_peucker"}:
         raise CleanError(f"simplify_geometry mode must be 'redundant_only' or 'douglas_peucker'; got {mode!r}.")
 
-    arrow = _to_arrow(net.links)
+    arrow = _to_arrow(net.tables[target])
     new_rows: list[dict] = arrow.to_pylist()
     for row in new_rows:
         geom = shapely_from_any(row.get("geometry"))
@@ -174,7 +201,7 @@ def simplify_geometry(
             continue
         # Write geometry back as WKB bytes (canonical in-memory encoding; ADR).
         row["geometry"] = simplified.wkb
-    return _submit_replace(session, "link", new_rows)
+    return _submit_replace(session, target, new_rows)
 
 
 def _drop_collinear(linestring, *, tolerance: float):
@@ -386,11 +413,19 @@ def remove_orphans(net: Network, session: Session) -> EditResult:
 
 
 def recompute_lengths(net: Network, session: Session, *, geodesic: bool = False) -> EditResult:
-    """Recompute ``link.length`` from the inline geometry.
+    """Recompute ``link.length`` from each link's resolved geometry.
+
+    Shapes are resolved per link with
+    :func:`netstead.semantics.assemble_link_geometry` — inline
+    ``link.geometry`` first, then the ``geometry`` table via
+    ``link.geometry_id``, then a straight segment between the endpoint
+    nodes. Links that resolve to nothing keep their current ``length``.
+    The edit always lands on ``link`` because that is where ``length``
+    lives.
 
     Args:
-        net: Source :class:`Network`. Must have a ``link.geometry``
-            column (inline WKT).
+        net: Source :class:`Network`. Must have link shapes in at
+            least one of the three locations above.
         session: Open :class:`Session`.
         geodesic: When ``True``, treat geometry coords as
             (lon, lat) in WGS84 and compute haversine length in meters.
@@ -400,6 +435,10 @@ def recompute_lengths(net: Network, session: Session, *, geodesic: bool = False)
     Returns:
         An :class:`EditResult` describing the ``link`` replace.
 
+    Raises:
+        CleanError: If no link resolves to a shape at all (no inline
+            column, no ``geometry`` table, no node coordinates).
+
     Examples:
         >>> import pytest
         >>> _ = pytest.importorskip("shapely")
@@ -407,14 +446,22 @@ def recompute_lengths(net: Network, session: Session, *, geodesic: bool = False)
         <function recompute_lengths at ...>
     """
     from netstead._geom import shapely_from_any
+    from netstead.semantics.geometry import GeometrySource, assemble_link_geometry
 
-    if "geometry" not in net.links.columns():
-        raise CleanError("recompute_lengths requires an inline 'geometry' column on net.links.")
+    assembled = assemble_link_geometry(net)
+    if all(src == GeometrySource.MISSING for src in assembled.column("source").to_pylist()):
+        raise CleanError(
+            "recompute_lengths found no link shapes: the network has neither an inline "
+            "'link.geometry' column, nor a 'geometry' table reachable via link.geometry_id, "
+            "nor node coordinates to fall back on. Add link geometry before running this op."
+        )
+    shape_by_link = dict(
+        zip(assembled.column("link_id").to_pylist(), assembled.column("geometry").to_pylist(), strict=True)
+    )
 
-    arrow = _to_arrow(net.links)
-    new_rows = arrow.to_pylist()
+    new_rows = _to_arrow(net.links).to_pylist()
     for row in new_rows:
-        geom = shapely_from_any(row.get("geometry"))
+        geom = shapely_from_any(shape_by_link.get(row.get("link_id")))
         if geom is None or geom.is_empty or geom.geom_type != "LineString":
             continue
         row["length"] = _geodesic_length_m(geom) if geodesic else float(geom.length)
