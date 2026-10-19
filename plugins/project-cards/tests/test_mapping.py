@@ -1,5 +1,7 @@
 """The GMNS <-> Wrangler mapping is data (mappings/gmns_to_wrangler.yaml), read once per path."""
 
+import re
+
 import pytest
 from netstead_project_cards.mapping import DEFAULT_MAPPING, load_mapping
 
@@ -47,4 +49,40 @@ def test_an_unknown_mapping_version_is_refused(tmp_path):
     path = tmp_path / "m.yaml"
     path.write_text("version: 2\n")
     with pytest.raises(ValueError, match="unsupported mapping version"):
+        load_mapping(path)
+
+
+def test_the_mapping_is_read_only(m):
+    with pytest.raises(TypeError):
+        m.fields["link"]["lanes"] = "LANES"
+    with pytest.raises(TypeError):
+        m.selectors["zone"] = {"zone_id": "model_zone_id"}
+    with pytest.raises(TypeError):
+        m.derived["walk_access"]["column"] = "other"
+
+
+def test_one_file_is_read_once_however_its_path_is_spelled(tmp_path, monkeypatch):
+    path = tmp_path / "m.yaml"
+    path.write_text("version: 1\nselectors: {link: {link_id: my_id}}\n")
+    monkeypatch.chdir(tmp_path)
+    assert load_mapping(path) is load_mapping(str(path)) is load_mapping("m.yaml")
+    assert load_mapping() is load_mapping(DEFAULT_MAPPING)
+
+
+@pytest.mark.parametrize(
+    ("text", "problem"),
+    [
+        ("version: 1\nselectors: [link]\n", "selectors"),
+        ("version: 1\nselectors: {link: {link_id: a, id: b}}\n", "selectors.link"),
+        ("version: 1\nfields: {link: [a]}\n", "fields.link"),
+        ("version: 1\nvalues: {roadway: [a]}\n", "values.roadway"),
+        ("version: 1\nderived: {walk_access: {any_of: [walk]}}\n", "derived.walk_access: needs a column"),
+        ("version: 1\nderived: {walk_access: {column: allowed_uses, any_of: walk}}\n", "derived.walk_access: any_of"),
+        ("- 1\n", "a mapping"),
+    ],
+)
+def test_a_malformed_mapping_file_is_refused(tmp_path, text, problem):
+    path = tmp_path / "m.yaml"
+    path.write_text(text)
+    with pytest.raises(ValueError, match=re.escape(problem)):
         load_mapping(path)
