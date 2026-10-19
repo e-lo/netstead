@@ -6,7 +6,22 @@ This file is for the **corral** package only. `netstead` (which depends on corra
 
 ## [Unreleased]
 
-(Reserved for changes between the most recent release and the next.)
+### Fixed
+
+- **Credentials now reach csv / parquet reads and prefix listings over
+  `s3://`, `gs://`, `az://`.** Any non-empty credentials — an explicit
+  `credentials=` dict or the env / keyring / netrc cascade — made every csv
+  and parquet read fail (`Binder Error: Invalid named parameter
+  "storage_options"`): the remote adapter forwarded the fsspec options to
+  duckdb's own table functions. The ibis engine now consumes
+  `storage_options`, builds the fsspec filesystem from that dict, registers
+  it on the duckdb connection under a private protocol and reads (and
+  writes) through it; one filesystem per (scheme, host, credentials), so
+  different credentials never share one. `RemoteAdapter.scan` takes
+  `credentials`, keeps the bucket in the listed path and returns full child
+  URLs; `Package.from_source` passes `credentials` to the listing as well as
+  the reads. `storage_options` on a local path is now an error. The
+  [Read from S3](docs/cookbook/read-from-s3.md) cookbook describes what works.
 
 ## [1.0.0-beta.2] — TBD
 
