@@ -23,7 +23,7 @@ Four concepts compose a Frictionless package. Each maps cleanly onto a type in c
 
 ### Data Package
 
-A Data Package is a directory containing a `datapackage.json` manifest plus the data files the manifest describes. The manifest names the package, lists its resources, and declares cross-resource constraints (foreign keys, shared categories).
+A Data Package is a directory containing a `datapackage.json` manifest plus the data files the manifest describes. The manifest names the package and lists its resources; cross-resource constraints (foreign keys) live inside each resource's Table Schema, and GMNS adds a package-level `shared_categories.json` for shared enumerations.
 
 ```json
 {
@@ -57,7 +57,7 @@ In corral this is `pkg.tables["link"]` (returning a `corral.dataset.Table`); in 
 
 ### Table Schema
 
-A Table Schema describes the fields of one Resource — name, type, constraints, missing-value tokens. It can live inline inside `datapackage.json` or in a sibling `<name>.schema.json` file (the latter is what GMNS does, and what corral emits).
+A Table Schema describes the fields of one Resource — name, type, constraints, missing-value tokens. It can live inline inside `datapackage.json` or in a sibling `<name>.schema.json` file (the latter is what GMNS does). corral reads both forms; `Package.write` emits no schema files at all for Parquet / CSV / DuckDB output, and the zip output inlines the schemas into its `datapackage.json`.
 
 ```json
 {
@@ -76,7 +76,7 @@ In corral this is `net.tables["link"].schema` (a Pydantic v2 `Schema` model from
 
 ### Foreign Keys
 
-Foreign keys are declared at the package level inside `datapackage.json`. A foreign key says "column X in resource Y must reference an existing value of column Z in resource W." This is what lets GMNS state "every `link.from_node_id` must exist in `node.node_id`" once, in machine-readable form, instead of in prose buried in a PDF.
+Foreign keys are declared inside each resource's Table Schema (the `foreignKeys` array), whether that schema is inline in `datapackage.json` or in a sibling `.schema.json` file. A foreign key says "column X in resource Y must reference an existing value of column Z in resource W." This is what lets GMNS state "every `link.from_node_id` must exist in `node.node_id`" once, in machine-readable form, instead of in prose buried in a PDF.
 
 ```json
 {
@@ -107,7 +107,7 @@ Every GMNS concept lands on a Frictionless concept and a concrete name in corral
 | `signal_phase_mvmt.timeday_id → time_set_definitions.timeday_id` | Composite-ref Foreign Key | walked by `net.validate()` (composite-key path) |
 | Allowed `facility_type` values | Shared Categories (`shared_categories.json`) | resolved by `corral.spec.loader` |
 | Vendored spec versions (`0.95/`, `0.96/`, `0.97/`) | Per-version Data Package definitions | `netstead.spec.load_gmns_spec(version)` |
-| Missing-value tokens (e.g. `-99`) | `missingValues` on the Table Schema | applied by `engine.cast_schema` on read |
+| Missing-value tokens (e.g. `-99`) | `missingValues` on the Table Schema | modelled as `Schema.missing_values` in `corral.spec`; **not yet applied on read** — the tokens come through as-is |
 
 ## What Frictionless gives you (and what it doesn't)
 
@@ -117,7 +117,7 @@ What you get by standing on Frictionless:
 - **Machine-readable schemas.** Field types, primary keys, foreign keys, and required-vs-optional are all declarative JSON — not English prose. This is what makes `--json` CLI output, MCP tools, and AI agents possible.
 - **Declarative FKs.** The relational structure is in the manifest, not scattered across reader code. `validate()` walks it; renderers display it; agents can reason about it.
 - **Public-domain spec + tooling ecosystem.** OKFN maintains the spec; the surrounding ecosystem is permissively licensed. No vendor risk on the format itself.
-- **Composable spec versioning.** Corral supports multiple GMNS versions side-by-side because each version is just a different Data Package definition (see [architecture §7](../architecture.md#7-spec-sync-strategy)).
+- **Composable spec versioning.** netstead supports multiple GMNS versions side-by-side because each version is just a different Data Package definition that corral's version-agnostic loader reads (see [architecture §7](../architecture.md#7-spec-sync-strategy)).
 
 What you *don't* get, and where the rest of the stack picks up:
 

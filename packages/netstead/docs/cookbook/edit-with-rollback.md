@@ -28,25 +28,35 @@ print(f"before: {net.nodes.count()} nodes, {net.links.count()} links")
 
 # Leavenworth's coords are WGS84 degrees, so threshold_m is in degrees:
 # 0.0005 deg ≈ 56 m at this latitude. Closest nodes are ~27 m apart, so
-# this deliberately-large threshold collapses 11 of them.
+# this deliberately-large threshold collapses 22 of them (121 → 99 nodes).
 with Session(net) as s:
     node_edit, link_edit = merge_close_nodes(net, s, threshold_m=0.0005)
     print(f"merged away {node_edit.diff.rows_removed} nodes; "
-          f"rewrote FKs on {link_edit.diff.rows_changed} links")
+          f"link table replaced ({link_edit.diff.rows_changed} rows)")
 
 print(f"after:  {net.nodes.count()} nodes")
 ```
 
+Expected:
+
+```text
+before: 121 nodes, 339 links
+merged away 22 nodes; link table replaced (339 rows)
+after:  99 nodes
+```
+
+Both ops are bulk `replace_table` edits, so `rows_changed` counts every row of the replaced table (339 links, 99 surviving nodes) — not just the 84 links whose end nodes were actually rewired. `rows_removed` on the node result is the number to read.
+
 If the `with` block raises instead, the session reverses every op and `net` is back to its pre-edit state.
 
 ![Diff card showing a clean-op EditResult on Leavenworth](../assets/screenshots/leavenworth-simplify-edit-result.png){ .screenshot }
-*EditResult diff card: per-table row counts (added / removed / changed) plus a before/after geometry preview.*
+*EditResult diff card: per-table row counts (added / removed / changed) and capped before/after row samples.*
 
 ## Step-by-step
 
 ### 1. Install
 
-The `[clean]` extra brings in the geometry stack the ops depend on — `shapely`, `geopandas`, `igraph`, `pyproj`:
+The `[clean]` extra brings in the geometry stack the ops depend on — `shapely`, `geopandas`, `pyproj`:
 
 ```bash
 pip install 'netstead[clean]'
@@ -228,7 +238,9 @@ The warning is informational: it tells you the in-memory FK index reflects the p
     ```
 
 ??? note "Geometry ops need an inline geometry column"
-    `simplify_geometry` and `recompute_lengths` read an inline `geometry` (WKT) column on the link table. Leavenworth carries geometry in a separate `geometry` table via `link.geometry_id`, so assemble it onto the links first:
+    `simplify_geometry` and `recompute_lengths` read an inline `geometry` column on the link table (WKB bytes in memory; WKT on disk is converted on load). Leavenworth carries geometry in a separate `geometry` table via `link.geometry_id`, so on the raw fixture both ops raise `CleanError: simplify_geometry requires an inline 'geometry' column on net.links; …`, and `netstead clean simplify-geometry` fails the same way — the CLI does not assemble geometry for you. Networks written by `netstead build` (OSM or Overture) carry inline link geometry, so the ops work on those.
+
+    `netstead.semantics.assemble_link_geometry` resolves every link's shape (inline column, then the `geometry` table, then a straight segment between the end nodes) into a `(link_id, geometry, source)` pyarrow table for your own analysis — but nothing in netstead writes it back onto `link.geometry`:
 
     ```python
     import netstead
@@ -236,21 +248,21 @@ The warning is informational: it tells you the in-memory FK index reflects the p
     from netstead.semantics import assemble_link_geometry
 
     net = netstead.read(leavenworth.csv_dir())
-    geom = assemble_link_geometry(net)   # link_id, geometry_wkt, source
-    print(f"assembled WKT for {geom.num_rows} links")
+    geom = assemble_link_geometry(net)   # columns: link_id, geometry (WKB bytes), source
+    print(f"assembled geometry for {geom.num_rows} links; sources: {set(geom.column('source').to_pylist())}")
     ```
 
-    Or run the op through the CLI, which handles assembly + write:
+    Expected:
 
-    ```bash
-    netstead clean simplify-geometry <src> --mode douglas_peucker --tolerance 0.00001
+    ```text
+    assembled geometry for 339 links; sources: {'geometry_table'}
     ```
 
 ## Pitfalls
 
 * **`threshold_m` is in coordinate units, not always meters.** The name reflects the common projected case. On a WGS84 (lat/lon) network like Leavenworth the units are *degrees* — `0.0005` ≈ 56 m. Pass a value in your network's CRS units, not a string like `"2m"`.
 * **`merge_close_nodes` returns a list, not one `EditResult`.** It touches two tables (`node` + `link`), so it returns `[node_result, link_result]`. The single-table ops (`remove_orphans`, `simplify_geometry`, `recompute_lengths`) return one `EditResult`.
-* **`simplify_geometry` / `recompute_lengths` require an inline `geometry` column.** If your network carries geometry via `geometry_id`, assemble it first with `netstead.semantics.assemble_link_geometry` (see the variation above) or use the CLI, which does it for you.
+* **`simplify_geometry` / `recompute_lengths` require an inline `geometry` column on the link table.** Neither the Python ops nor `netstead clean simplify-geometry` assemble it from `geometry_id`; on a network like Leavenworth they raise `CleanError`. Run them on a network whose link table carries geometry (for example one from `netstead build`); see the variation above.
 * **`OutOfSyncWarning` on write is expected after an edit** ([#164](https://github.com/e-lo/netstead/issues/164)). It means the in-memory FK index still reflects the pre-edit rows; it is not an error. Suppress it for the write (step 6) — re-reading the written network rebuilds the index.
 * **A 100%-null column can break the write** ([#163](https://github.com/e-lo/netstead/issues/163)). Writing an edited table could fail when a column was entirely null. The issue's original repro (`netstead clean remove-orphans` on the Leavenworth fixture) now succeeds. If you still hit it, cast the all-null column to a concrete type (or drop it) before the write, and add your case to the issue. The old `--engine pandas` workaround no longer exists: DuckDB is the only engine since #195.
 * **Don't mutate tables outside the session.** Direct `net.links.expr.execute().assign(...)` writes bypass the session entirely and aren't rollback-able.

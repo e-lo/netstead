@@ -36,12 +36,25 @@ mentioned actually exists on the resolved command.
 When a CLI flag is removed or renamed, the test fails listing every
 doc that references the old name. When a doc is written that promises
 a flag we never implemented, same.
+
+**Documented JSON output.** A second, slow test executes documented
+``--json`` invocations. When a bash fence holds a single ``netstead …``
+/ ``corral …`` command with ``--json`` and is followed (blank lines
+allowed) by a line ``Expected:`` and a ```json fence, the command runs
+from the repo root and its stdout is parsed and compared with the
+documented JSON — same keys, same values, recursively. A documented
+value of ``"..."`` (or a bare ``...``) is a wildcard for anything, so
+timings and other nondeterministic values can be elided. The usual
+``<!-- doctest: skip -->`` marker before the bash fence opts out.
 """
 
 from __future__ import annotations
 
+import json
 import re
 import shlex
+import subprocess
+import sys
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -293,6 +306,169 @@ def test_documented_cli_flag_exists(
         f"  - Whitelist via _KNOWN_PROSE_FLAGS in {Path(__file__).name}\n"
         f"    if the reference is intentional prose (not an executable example)."
     )
+
+
+# ---------------------------------------------------------------------------
+# Documented `--json` output: execute + compare
+# ---------------------------------------------------------------------------
+
+# A bash fence (column 0 or indented) holding ONE command line, then
+# `Expected:` and a ```json fence at the same indentation.
+_JSON_EXAMPLE_RE = re.compile(
+    r"^(?P<indent>[ \t]*)```(?:bash|sh|shell|console|zsh)[ \t]*\n"
+    r"(?P<cmd>[^\n]*)\n"
+    r"(?P=indent)```[ \t]*\n(?:[ \t]*\n)*"
+    r"(?P=indent)Expected:[ \t]*\n(?:[ \t]*\n)*"
+    r"(?P=indent)```json[ \t]*\n(?P<json>.*?)\n(?P=indent)```[ \t]*$",
+    flags=re.DOTALL | re.MULTILINE,
+)
+_SINGLE_COMMAND_RE = re.compile(r"^\s*(?:\$\s+)?(?:uv\s+run\s+)?(netstead|corral)\s+(.+?)\s*$")
+_SKIP_MARKER = re.compile(r"^\s*<!--\s*doctest:\s*skip\s*-->\s*$")
+# A bare `...` used as a JSON value — not valid JSON, so it is rewritten
+# to the string wildcard "..." before parsing.
+_BARE_ELLIPSIS_RE = re.compile(r'(?<![\w"])\.\.\.(?![\w"])')
+
+
+def _fence_is_skipped(text: str, fence_start: int) -> bool:
+    """Same rule as the python contract test: a `<!-- doctest: skip -->`
+    among the three non-blank lines before the fence (not past another
+    fence) opts the block out."""
+    seen = 0
+    for line in reversed(text[:fence_start].splitlines()):
+        if not line.strip():
+            continue
+        if line.strip().startswith("```"):
+            return False
+        if _SKIP_MARKER.match(line):
+            return True
+        seen += 1
+        if seen >= 3:
+            return False
+    return False
+
+
+def _dedent_by(body: str, indent: str) -> str:
+    if not indent:
+        return body
+    return "\n".join(ln[len(indent) :] if ln.startswith(indent) else ln for ln in body.split("\n"))
+
+
+def _collect_json_examples() -> list[tuple[Path, int, str, list[str], str]]:
+    """Return [(doc, fence_line_no, package, argv, documented_json), ...]."""
+    out: list[tuple[Path, int, str, list[str], str]] = []
+    for glob in _DOC_GLOBS:
+        for path in REPO_ROOT.glob(glob):
+            if path.name.startswith("llms") or path.name == "api-index.json":
+                continue
+            if path.name == "v0.3-to-v1.0.md":
+                continue
+            text = path.read_text(encoding="utf-8")
+            for m in _JSON_EXAMPLE_RE.finditer(text):
+                if _fence_is_skipped(text, m.start()):
+                    continue
+                cmd = _SINGLE_COMMAND_RE.match(m.group("cmd"))
+                if cmd is None:
+                    continue
+                pkg, raw_args = cmd.group(1), cmd.group(2)
+                try:
+                    argv = shlex.split(raw_args, comments=True)
+                except ValueError:
+                    continue
+                # Only plain invocations: no pipes / redirects, and --json.
+                if "--json" not in argv or any(tok in ("|", "||", "&&", ";", ">", ">>", "<") for tok in argv):
+                    continue
+                line_no = text[: m.start()].count("\n") + 1
+                documented = _dedent_by(m.group("json"), m.group("indent"))
+                out.append((path.relative_to(REPO_ROOT), line_no, pkg, argv, documented))
+    return out
+
+
+def _json_mismatch(expected, actual, where: str = "$") -> str | None:
+    """Recursive compare; ``"..."`` on the documented side matches anything."""
+    if expected == "...":
+        return None
+    if isinstance(expected, dict):
+        if not isinstance(actual, dict):
+            return f"{where}: documented an object, command printed {type(actual).__name__}"
+        if set(expected) != set(actual):
+            return f"{where}: keys differ — documented {sorted(expected)}, actual {sorted(actual)}"
+        for key in expected:
+            found = _json_mismatch(expected[key], actual[key], f"{where}.{key}")
+            if found:
+                return found
+        return None
+    if isinstance(expected, list):
+        if not isinstance(actual, list):
+            return f"{where}: documented an array, command printed {type(actual).__name__}"
+        if len(expected) != len(actual):
+            return f"{where}: documented {len(expected)} items, command printed {len(actual)}"
+        for i, (e, a) in enumerate(zip(expected, actual, strict=True)):
+            found = _json_mismatch(e, a, f"{where}[{i}]")
+            if found:
+                return found
+        return None
+    if expected != actual:
+        return f"{where}: documented {expected!r}, command printed {actual!r}"
+    return None
+
+
+_JSON_EXAMPLES = _collect_json_examples()
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    "doc,line_no,package,argv,documented",
+    _JSON_EXAMPLES,
+    ids=[f"{doc}:{ln}" for doc, ln, _, _, _ in _JSON_EXAMPLES],
+)
+def test_documented_cli_json_output_matches(
+    doc: Path, line_no: int, package: str, argv: list[str], documented: str
+) -> None:
+    """A documented ``--json`` example must print the JSON the page shows.
+
+    Runs the command through the package's own CLI entry point
+    (``<pkg>.cli.app:app``, the same object the ``netstead`` / ``corral``
+    console scripts call) from the repo root, so the relative fixture
+    paths in the docs resolve. Compares parsed JSON, not text, so key
+    order and indentation don't matter; ``"..."`` on the documented side
+    is a wildcard for values that vary (timings, paths).
+    """
+    try:
+        expected = json.loads(_BARE_ELLIPSIS_RE.sub('"..."', documented))
+    except json.JSONDecodeError as exc:
+        pytest.fail(f"Documented Expected JSON in {doc} (fence line {line_no}) does not parse: {exc}\n{documented}")
+
+    proc = subprocess.run(
+        [sys.executable, "-c", f"from {package}.cli.app import app; app()", *argv],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=600,
+        check=False,
+    )
+    display = f"{package} {' '.join(argv)}"
+    assert proc.returncode == 0, (
+        f"Documented command failed (exit {proc.returncode}): {display}\n  documented in: {doc}:{line_no}\n{proc.stderr}"
+    )
+    try:
+        actual = json.loads(proc.stdout)
+    except json.JSONDecodeError as exc:
+        pytest.fail(f"Command {display} printed non-JSON stdout ({exc}):\n{proc.stdout}")
+
+    mismatch = _json_mismatch(expected, actual)
+    if mismatch is not None:
+        pytest.fail(
+            f"Documented `Expected:` JSON does not match the command's output:\n"
+            f"  command: {display}\n"
+            f"  doc:     {doc} (fence line {line_no})\n"
+            f"  {mismatch}\n\n"
+            f"--- documented ---\n{documented}\n"
+            f"--- actual stdout ---\n{proc.stdout}\n"
+            f"Fix options:\n"
+            f'  - Update the Expected block (use "..." for values that vary)\n'
+            f"  - Mark the bash fence with `<!-- doctest: skip -->` if the\n"
+            f"    example genuinely can't run in CI"
+        )
 
 
 def test_cli_map_built_successfully() -> None:

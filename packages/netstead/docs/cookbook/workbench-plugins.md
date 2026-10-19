@@ -83,7 +83,7 @@ the design. Core enforces some of them and plugins are expected to follow the re
    component (`wb.schemaForm`); every plugin Action also gets a generated form in the command
    palette.
 6. **Workspaces as tabs, with predictable placement.** Plugins contribute workspaces, dock panels,
-   commands (palette and context menus; the NL assistant surface comes later) and map layers. They
+   commands (palette and context menus; and, once opted in, the NL assistant: see below) and map layers. They
    don't add ad-hoc UI.
 7. **Dirty state is always visible.** Unsaved drafts, uncommitted cards and derived networks are
    badged in the network switcher and on workspace tabs.
@@ -97,7 +97,7 @@ the design. Core enforces some of them and plugins are expected to follow the re
 is a complete plugin. Copy it as a starting point:
 
 ```bash
-uv pip install -e examples/workbench-plugin-hello
+uv pip install -e examples/workbench-plugin-hello   # needs the `server` extra, as `netstead app` does
 uv run netstead app
 ```
 
@@ -263,7 +263,7 @@ A plugin never sees the `Session`. Every handler, `router`, `state` and `on_load
 | `host.plan_update(net_id, table, ids, values)`, `host.plan_delete(net_id, table, ids)`, `host.plan_add(net_id, table, rows)` | Core's edit plans (`EditPlan`: `edits`, `summary`, `rows` per table, `keys`, and the `version` it planned on), refusing what storage cannot hold with `EditRefused`. Apply one with `host.mutate`. API 1.2. |
 | `host.derive(net_id, label=..., note=...)` | Registers a **copy-on-write** copy of a network (a preview or scenario) and returns its id. Edits to the copy never touch the base. The copy records `derived_from` and inherits the lineage. Inside a handler that fails, the copy is unregistered again. |
 | `host.has_action(type)` | Whether core or any loaded plugin registered that Action type. Use it for soft cross-plugin dependencies. |
-| `host.dispatch(action)` | Dispatches any Action (a model or a dict). Called from a handler, it is recorded in history as nested in that handler's Action (`parent_seq`): "copy as Python" shows it as a comment, since replaying the outer Action runs it again, and it is undone if the outer handler fails. Job Actions (`open_network`, `build_network`) can't be dispatched from a handler, because waiting for them would deadlock. Use `host.submit_job` for slow work instead. |
+| `host.dispatch(action)` | Dispatches any Action (a model or a dict). Called from a handler, it is recorded in history as nested in that handler's Action (`parent_seq`): "copy as Python" shows it as a comment, since replaying the outer Action runs it again, and it is undone if the outer handler fails. Job Actions (`open_network`, `build_network`, `run_validation`, `save_network`) can't be dispatched from a handler, because waiting for them would deadlock. Use `host.submit_job` for slow work instead. |
 | `host.publish(name, payload)` | Sends the browser a `{"type": "plugin", "plugin": <id>, "name": ..., "payload": ...}` event over the session's event stream; `wb.on(name)` hears it. `name` is lowercase letters, digits and underscores, starting with a letter (`[a-z][a-z0-9_]*`), since a dot in `wb.on` names another plugin; anything else raises `ValueError`. |
 | `host.submit_job(label, fn)` | Runs `fn(ctx)` on a background job, with progress and cancel in the jobs panel, and returns the job id. `mutate` and `derive` are safe to call from it. |
 | `host.writable(path)` | Resolves a path for writing inside `io.allowed_roots`. Raises `PathNotAllowed` outside it. |
@@ -419,7 +419,7 @@ export function activate(wb) {
 
 | Member | What it gives you |
 |---|---|
-| `wb.id`, `wb.hostApi` | This plugin's id, and the plugin API this netstead provides (`"1.3"`). |
+| `wb.id`, `wb.hostApi` | This plugin's id, and the plugin API this netstead provides (`"1.4"`). |
 | `wb.api.fetch(path, init)`, `wb.api.get(path)`, `wb.api.post(path, body)` | `fetch`, and JSON helpers, scoped to your router: `"/count"` is `/api/plugins/<id>/count`. A path must start with `/` and, once resolved (`%2e%2e` and `\` count as `..` and `/`), stay under that prefix; other hosts are refused. |
 | `wb.api.dispatch(action)` | Posts any Action (yours, another plugin's, core's) to `POST /api/actions` and resolves to its result. |
 | `wb.store.get()`, `wb.store.subscribe(keys, fn)` | The server state (`/api/state`), and a listener that fires when any of `keys` changes. Keys may be dotted (`"plugins.hello"`). `get()` and the listener's argument are a frozen copy: changing it throws (changes go through Actions). Returns an unsubscribe function. |
@@ -435,7 +435,7 @@ export function activate(wb) {
 | `wb.toast(message)` | A short notice, prefixed with your plugin id. |
 
 `GET /api/actions` lists every registered Action: `type`, class `name`, `description` (its
-docstring's first line), owning `plugin` (`null` for core), `mutates`, and its JSON `schema`.
+docstring's first line), owning `plugin` (`null` for core), `mutates`, `assistant` (whether the NL assistant may ever offer it), and its JSON `schema`.
 
 **Ids.** Every id a plugin registers (workspace, panel, command, layer, and the `id` of each deck.gl
 layer a factory returns) starts with `"<plugin id>."`. Core's ids are bare (`inspect`, `details`,
@@ -465,7 +465,7 @@ Where each context shows:
 | `"palette"` | The command palette (**Ctrl+K**, **⌘K** on a Mac, or **Commands…** in the header). |
 | `"feature"` | Right-click on a link or node on the map. |
 | `"row"` | Right-click on a table row. |
-| `"selection"` | **Selection actions ▾** in the Details panel, a "Selection (n links)" section in the map and row menus, and in the palette. |
+| `"selection"` | **Selection actions ▾** in the **Selection** panel, a "Selection (n links)" section in the map and row menus, and in the palette. |
 
 The palette is also the keyboard way to a context menu: with a record focused it lists that record's
 feature and row commands under "For ‹table› ‹id›", and the selection's under "Selection (n links)".
@@ -613,7 +613,7 @@ Dispatching an Action of a plugin that isn't loaded fails like any unknown Actio
 
 `HOST_API` (in `netstead.workbench.plugins`) is a `major.minor` string. A plugin's `requires_api`
 is compatible when the major versions are equal and the host's minor is at least the plugin's. A
-plugin written against `1.0` runs on `1.3`, but not on `2.0`, and a `1.3` plugin doesn't run on `1.0`.
+plugin written against `1.0` runs on `1.4`, but not on `2.0`, and a `1.4` plugin doesn't run on `1.0`.
 A minor bump only adds to the API and a major bump breaks it.
 
 | `HOST_API` | Added |
@@ -622,6 +622,7 @@ A minor bump only adds to the API and a major bump breaks it.
 | `1.1` | The browser API: `activate(wb)` and the `wb` object (workspaces, dock panels, commands, map layers, `schemaForm`), and `GET /api/actions`. A plugin with a front end should pass `requires_api="1.1"` (or `HOST_API`); a `1.0` plugin still runs. |
 | `1.2` | Editing: `host.undo`, `host.edit_warnings` and `host.plan_update` / `plan_delete` / `plan_add` (with `EditPlan` and `EditRefused` exported from `netstead.workbench.plugins`), and `host.mutate(..., expected_version=plan.version)`, which refuses a stale plan. Every `host.mutate` becomes a pending edit with the plugin's id as its source, re-checked live (`host.edit_warnings`), and listed in core's Edits panel. `host.selection` adds `anchors_unplaced`. |
 | `1.3` | Saved selections: `host.saved_selections()` and `host.saved_selection(name)`. `host.selection`'s anchors carry `anchor`, `confidence`, `pinned` and `candidates`, and the payload carries `stale_pins`. New core Actions a plugin may dispatch: `PinAnchor`, `SaveSelection`, `UseSelection`, `DeleteSelection`, `Filter`, `Style(width_by=…)` and `Navigate(record=…)`. |
+| `1.4` | The assistant: `assistant: ClassVar[bool] = False` on an Action keeps it out of the NL assistant's tools; a plugin's Actions are offered as tools once the plugin is listed in `assistant.plugins`. `GET /api/actions` entries carry `assistant`. |
 
 **The plugin API is provisional until netstead v1.0.** Until then it may change without a major
 bump. Pin the netstead versions you support in your package's dependencies, and check the changelog

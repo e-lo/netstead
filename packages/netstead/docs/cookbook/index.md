@@ -15,10 +15,11 @@ For generic Frictionless data-package recipes (S3 reads, format conversion, gene
 
 * [Run validation and read the report](validate-network.md) — interpret severity / category / code.
 * [Customise the data-quality rule pack](customise-quality.md) — threshold overrides, disable rules, plug in your own.
+* [Triage findings, propose fixes, apply them](fix-findings.md) — propose fixes on individual findings in the viewer, download them as a YAML edit log, replay it in Python.
 
 ## Creating networks
 
-* [Build a GMNS network from OpenStreetMap](build-from-osm.md) — `netstead build` from a place / bbox / point+buffer (needs the `[osm]` extra).
+* [Build a GMNS network from OpenStreetMap or Overture](build-from-osm.md) — `netstead build --source osm` (needs the `[osm]` extra) or `--source overture` (needs `[overture]`) from a place / bbox / point+buffer.
 
 ## Scope + geographic subsetting
 
@@ -33,12 +34,14 @@ For bbox / polygon (non-GMNS-specific) spatial scope, see [corral cookbook: spat
 
 ## Surfaces
 
-* [Explore networks in the Netstead Workbench](workbench.md) — linked map + tables, NL selection, replayable actions.
+* [View a network on a map](view-your-network.md) — render a self-contained Leaflet map of any GMNS network, with or without validation overlays.
+* [Explore networks in the Netstead Workbench](workbench.md) — linked map + tables, validation with fixes, NL selection, replayable actions.
+* Select links and nodes in plain English — `netstead select` resolves a description to GMNS ids through Anthropic / OpenAI / Gemini / Ollama (the `[nl]` extra); the Workbench recipe above covers the same selection flow in the browser.
 * [Write a Workbench plugin](workbench-plugins.md) — add Actions, settings, state, routes and a front end as a separate pip package; the `Host` API, trust model, testing and versioning.
 * [Run language models locally with Ollama](local-llm-ollama.md) — install Ollama, pull `qwen3:4b`, select in plain English with nothing leaving your machine.
 * [Self-host the HTTP server](serve-http.md) — config file, bearer auth, deploying behind a proxy.
 * [Wire the MCP server to Claude Code / Claude Desktop](serve-mcp.md) — stdio transport, tool list, agent prompts.
-* [Run the bundled benchmarks](run-bench.md) — `netstead bench`, what to expect on Leavenworth vs regional networks.
+* [Run the bundled benchmarks](run-bench.md) — `netstead bench` (load / validate / connectivity timings) and `netstead bench-suite` (create / selection / viz-pack), what to expect on Leavenworth vs regional networks.
 
 ## For AI agents specifically
 
@@ -56,4 +59,4 @@ A recipe is `kind: howto` per the [Page Style Guide](../_page-style-guide.md):
 * `Pitfalls` — explicit gotchas.
 * `See also` — one link per related concept, no diffuse paths.
 
-Open a PR with the new recipe + a link from this index. CI's doctest pass runs any python code blocks tagged `>>> `.
+Open a PR with the new recipe + a link from this index. CI runs every column-0 ```python fence in the docs (`packages/netstead/tests/test_documented_python_contract.py`) and fails if it raises; indented accordion / tab blocks and blocks preceded by `<!-- doctest: skip -->` are not executed, and printed output is not compared.

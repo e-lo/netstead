@@ -1,5 +1,5 @@
 site_name: "corral documentation"
-site_description: "Generic Frictionless data-package engine — lazy ibis with DuckDB, pandas + polars on demand. Validation, scope, editing, HTTP + MCP primitives."
+site_description: "Generic Frictionless data-package engine — lazy ibis with DuckDB, pandas / polars / Arrow in and out. Validation, scope, editing, HTTP + MCP primitives."
 site_url: https://e-lo.github.io/netstead/corral/
 repo_url: https://github.com/e-lo/netstead
 edit_uri: edit/main/packages/corral/docs/

@@ -17,14 +17,14 @@ You'll work through the bundled Leavenworth, WA network in one notebook session 
 4. A simplify-geometry edit, rendered as a before/after diff (then rolled back).
 5. A scoped subgraph around a single node, rendered side-by-side with the original.
 
-Total runtime: under two minutes on a laptop. The fixture is ~5 MB and ships inside the `netstead` wheel.
+Total runtime: under two minutes on a laptop. The fixture ships inside the `netstead` wheel (the CSV flavour is about 140 KB).
 
 ## Prerequisites
 
-The `[clean]` extra brings in `shapely` + `igraph` for geometry simplification and scope operations. The `[notebook]` extra brings in `ipywidgets` so the `_repr_html_` cards render in classic Jupyter as well as JupyterLab.
+The `[clean]` extra brings in `shapely` + `geopandas` + `pyproj` for the geometry edit; `[graph]` brings in `scipy` for the scope step and the data-quality rule pack; `[notebook]` is reserved for future widgets — the `_repr_html_` cards used below render without it.
 
 ```bash
-pip install 'netstead[clean,notebook]'
+pip install 'netstead[clean,graph,notebook]'
 ```
 
 For the map steps, either `folium` (interactive Leaflet) or `matplotlib` (static fallback) works — pick one:
@@ -40,7 +40,7 @@ The steps below show both paths.
 
 ### 1. Load the fixture
 
-Start by loading the bundled Leavenworth network. `Network.from_source` returns a lazy `Network` — no rows have been read from disk yet; `net.links` is still an ibis expression.
+Start by loading the bundled Leavenworth network. `Network.from_source` returns a lazy `Network` — no rows have been read from disk yet; `net.links` is a lazy `Table` (the underlying ibis expression is at `net.links.expr`).
 <!-- doctest: skip -->
 
 ```python
@@ -57,24 +57,23 @@ You should see:
 0.97: 339 links, 121 nodes
 ```
 
-In a notebook, evaluating `net` on its own renders an HTML summary card with the spec version, table inventory, and a thumbnail map.
+In a notebook, evaluating `net` on its own renders an HTML summary card with the spec version, the 9 tables with their row counts, and a preview of the first rows.
 
-![Network summary card for the Leavenworth fixture](assets/screenshots/leavenworth-network-card.png){ .screenshot }
-*Network summary card (`net._repr_html_()`). Spec version 0.97, 25 tables, 339 links / 121 nodes, with a thumbnail of the link geometry.*
+<!-- screenshot pending: Network summary card (net._repr_html_()) — spec 0.97, 9 tables, 339 links / 121 nodes, first-rows preview -->
 
 ### 2. Render the network as a map
 
-The `link` table is keyed to `geometry` by `geometry_id`; the `geometry.geometry` column carries the WKT LineString per link. Materialise both with `.to_pandas()` and join them before plotting.
+The `link` table is keyed to `geometry` by `geometry_id`; the `geometry.geometry` column carries each link's LineString as WKB bytes in memory (the CSV on disk stores WKT; netstead decodes it on load). Materialise both with `.to_pandas()`, join them, and decode the WKB with shapely before plotting.
 <!-- doctest: skip -->
 
 ```python
 import pandas as pd
-from shapely import wkt
+from shapely import wkb
 
 links = net.links.to_pandas()
 geoms = net.tables["geometry"].to_pandas().set_index("geometry_id")
 links = links.join(geoms[["geometry"]], on="geometry_id")
-links["shape"] = links["geometry"].map(wkt.loads)
+links["shape"] = links["geometry"].map(wkb.loads)
 ```
 
 For an interactive Leaflet map, use folium. Compute the centroid from the node table, then add one PolyLine per link.
@@ -96,8 +95,7 @@ m  # in a notebook, this renders the map inline
 
 You should see the downtown Leavenworth grid — a compact, walkable core wrapped around Highway 2 / Front Street, surrounded by a few residential tertiary streets.
 
-![Leavenworth network rendered on a folium map](assets/screenshots/leavenworth-folium-map.png){ .screenshot }
-*Folium map of the full Leavenworth fixture. The compact downtown grid is visible around Highway 2, with tertiary residential streets fanning out.*
+<!-- screenshot pending: Folium map of the full Leavenworth fixture — downtown grid around Highway 2 with residential streets fanning out -->
 
 If `folium` isn't available, the static matplotlib fallback gives an equivalent view (without basemap tiles):
 <!-- doctest: skip -->
@@ -114,7 +112,7 @@ ax.set_title(f"Leavenworth GMNS fixture — {len(links)} links")
 plt.show()
 ```
 
-Either way: a recognisable Bavarian-themed downtown core in roughly 600 m of OSM-derived street network.
+Either way: a recognisable Bavarian-themed downtown core in an OSM-derived street network roughly 2 km across.
 
 ### 3. Validate and display the report
 
@@ -126,10 +124,9 @@ report = net.validate()
 report  # in a notebook, the _repr_html_ renders a styled card
 ```
 
-You should see a green header ("0 errors") with a per-pass summary. The Leavenworth fixture is clean by construction — no ERRORs.
+You should see a card with no ERRORs, 1 WARNING and 16 INFO findings. The WARNING is `fk.unverifiable` — `node.zone_id` can't be checked because the fixture ships no `zone` table; the INFOs are `structural.missing_optional_resource`, one per optional GMNS table the fixture doesn't include. No ERRORs, but that WARNING makes `report.is_clean` `False`.
 
-![Validation report card for the Leavenworth fixture](assets/screenshots/leavenworth-validation-report.png){ .screenshot }
-*Validation report card. Zero ERRORs, with the four passes (structural / schema / FK / sync-state) summarised across 25 tables.*
+<!-- screenshot pending: Validation report card — 0 ERRORs, 1 WARNING fk.unverifiable, 16 INFO structural.missing_optional_resource across 9 tables -->
 
 In a non-notebook context, drop down to the text representation:
 <!-- doctest: skip -->
@@ -152,10 +149,9 @@ qreport = run_quality(net)
 qreport  # _repr_html_ renders severity-grouped findings
 ```
 
-You should see a card with WARNING / INFO findings (no ERRORs). Leavenworth's tertiary streets carry posted speeds in the 25-30 mph range with `facility_type=residential`, which trips `quality.high_speed_residential` when configured with a low threshold — useful for seeing what a real finding looks like.
+You should see a card of WARNING findings (no ERRORs): 271 links with `facility_type=residential` carry `free_speed=40`, above the default 35 mph threshold of `quality.high_speed_residential` — useful for seeing what a real finding looks like, with its `fix_hint`.
 
-![Quality report card for the Leavenworth fixture](assets/screenshots/leavenworth-quality-report.png){ .screenshot }
-*Quality report card. Severity-grouped findings; the residential-speed rule fires on a handful of tertiary streets.*
+<!-- screenshot pending: Quality report card — 271 WARNING quality.high_speed_residential findings (residential links with free_speed=40, default 35 mph threshold) -->
 
 To see the top findings in detail, iterate over `qreport.issues`:
 <!-- doctest: skip -->
@@ -167,34 +163,35 @@ for issue in qreport.issues[:3]:
 
 ### 5. Simplify geometry and render before/after
 
-The `simplify_geometry` op in `netstead.clean` removes redundant vertices from link geometries. Wrap it in a `Session` so the edit can be rolled back atomically.
+The `simplify_geometry` op in `netstead.clean` removes redundant vertices from link geometries. It reads an inline `link.geometry` column, and Leavenworth keeps its geometry in the separate `geometry` table — so calling it directly raises `CleanError`. Assemble the geometry onto the links first with `assemble_link_geometry` (which returns `link_id`, `geometry` as WKB, and a `source` column saying where each shape came from), push the result onto the link table as a `replace_table` edit, then simplify. Doing both inside one `Session` means the whole thing rolls back atomically.
 <!-- doctest: skip -->
 
 ```python
-from corral.editing import Session
+from corral.editing import Edit, Session
 from netstead.clean import simplify_geometry
+from netstead.semantics import assemble_link_geometry
+
+geom = assemble_link_geometry(net).to_pandas()[["link_id", "geometry"]]
+inline = net.links.to_pandas().merge(geom, on="link_id")
 
 with Session(net) as s:
-    edit = simplify_geometry(net, s, mode="redundant_only", tolerance=1.0)
-    edit  # in a notebook, _repr_html_ shows the diff (vertices removed per link)
+    s.add_edit(Edit(op="replace_table", table="link",
+                    payload={"expr": net.engine.from_records(inline.to_dict("records"))}))
+    edit = simplify_geometry(net, s, mode="redundant_only", tolerance=1e-6)
+    edit  # in a notebook, _repr_html_ shows the diff card
 ```
 
-You should see an `EditResult` diff card listing the number of vertices removed per affected link. `mode="redundant_only"` removes only colinear vertices and is loss-free; `mode="douglas_peucker"` is the lossy alternative with an explicit tolerance.
+You should see an `EditResult` card: the op and table (`replace_table → link`), `+0 added / -0 removed / ~339 changed`, the session id, and the timestamp. The card counts rows, not vertices — the vertex diff is computed below. `mode="redundant_only"` drops near-collinear interior vertices up to `tolerance` (in CRS units — degrees here, so `1e-6` is roughly 0.1 m; `0.0` keeps everything that isn't exactly collinear); `mode="douglas_peucker"` is the lossy alternative.
 
-![EditResult diff card for the simplify-geometry edit](assets/screenshots/leavenworth-simplify-edit-result.png){ .screenshot }
-*EditResult diff card. Per-link vertex counts before / after, with a summary of links touched and vertices removed.*
+<!-- screenshot pending: EditResult card for the simplify-geometry edit — replace_table → link, +0 / -0 / ~339, session id, timestamp -->
 
-To visualise before-and-after on one map, snapshot the geometry before opening the session, then overlay both:
+To visualise before-and-after on one map, keep the decoded shapes from step 2 as the "before" set and read the now-inline `link.geometry` column as the "after" set:
 <!-- doctest: skip -->
 
 ```python
 links_before = links[["link_id", "shape"]].copy()
-# (run the simplify edit above inside the Session)
-links_after_geoms = net.tables["geometry"].to_pandas().set_index("geometry_id")
-links_after = links.copy()
-links_after["shape"] = links_after["geometry_id"].map(
-    lambda gid: wkt.loads(links_after_geoms.loc[gid, "geometry"])
-)
+links_after = net.links.to_pandas()          # geometry is inline after the edit
+links_after["shape"] = links_after["geometry"].map(wkb.loads)
 
 m = folium.Map(location=center, zoom_start=15, tiles="cartodbpositron")
 for shape in links_before["shape"]:
@@ -206,7 +203,7 @@ for shape in links_after["shape"]:
 m
 ```
 
-Grey underneath = before; red on top = after. On Leavenworth most links don't change (the OSM source is already minimal), but a handful of curved tertiary links visibly simplify.
+Grey underneath = before; red on top = after. At `tolerance=1e-6` the edit touches 235 of the 339 links and drops the vertex total from 2132 to 1454; the straight downtown grid barely moves, while the curved links around the edges visibly simplify.
 
 To restore the original state, roll the session back:
 <!-- doctest: skip -->
@@ -215,7 +212,7 @@ To restore the original state, roll the session back:
 s.rollback()
 ```
 
-The session's chronological log reverses every edit atomically — the network returns byte-identical to step 1.
+The session's chronological log reverses every edit — the simplify and the `replace_table` that put geometry inline — so the network returns to step 1: 339 links, geometry back in the `geometry` table, no inline column.
 
 ### 6. Build a scope from a single node and render
 
@@ -229,14 +226,14 @@ scoped = from_node(net, node_id=1, network_buffer="200m").apply()
 print(f"scoped: {scoped.links.count()} links, {scoped.nodes.count()} nodes")
 ```
 
-Every related table (`lane`, `link_tod`, `movement`, signal tables) is pre-filtered by FK chain, so the result is a self-consistent GMNS network you can write back out.
+You should see `scoped: 8 links, 5 nodes`. Every related table (`lane`, `link_tod`, `movement`, signal tables) is pre-filtered by FK chain, so the result is a self-consistent GMNS network you can write back out.
 
 Render the scope side-by-side with the original to see the contrast — full network as grey context, scoped subgraph highlighted.
 <!-- doctest: skip -->
 
 ```python
 scoped_links = scoped.links.to_pandas().join(geoms[["geometry"]], on="geometry_id")
-scoped_links["shape"] = scoped_links["geometry"].map(wkt.loads)
+scoped_links["shape"] = scoped_links["geometry"].map(wkb.loads)
 
 m = folium.Map(location=center, zoom_start=15, tiles="cartodbpositron")
 # Full network, faint
@@ -252,8 +249,7 @@ m
 
 You should see a small green subgraph centred on one intersection, with the rest of the network greyed out as context.
 
-![Scoped subgraph rendered next to the full Leavenworth network](assets/screenshots/leavenworth-scoped-map.png){ .screenshot }
-*Scope visualisation. The 200 m network-distance buffer around node 1 highlighted in green, full network in grey context. Long-detour links are excluded even when spatially nearby.*
+<!-- screenshot pending: Scoped subgraph (200 m network buffer around node 1, green) over the full Leavenworth network (grey) -->
 
 ## Variations you might try
 
@@ -266,15 +262,6 @@ Each accordion below is a one-line tweak that shows off a different facet of the
     ```python
     net = Network.from_source("./my-network/")
     net = Network.from_source("s3://my-bucket/network.parquet/")
-    ```
-
-??? note "Switch to the pandas engine for eager evaluation"
-    The default ibis + DuckDB engine is lazy. Switch to pandas if you'd rather have every table materialised up-front (handy for small fixtures where you'll touch every row).
-<!-- doctest: skip -->
-
-    ```python
-
-    net = Network.from_source(leavenworth.csv_dir())
     ```
 
 ??? note "Configure a custom quality threshold"

@@ -4,7 +4,7 @@ Two Python packages for the [General Modeling Network Specification (GMNS)](http
 
 | Package | What it is | PyPI | Docs |
 |---|---|---|---|
-| [`netstead`](packages/netstead/) | GMNS toolkit — load, validate, scope, edit GMNS networks | [`netstead`](https://pypi.org/project/netstead/) | [e-lo.github.io/netstead/netstead/](https://e-lo.github.io/netstead/netstead/) |
+| [`netstead`](packages/netstead/) | GMNS toolkit — build, load, validate, scope, edit GMNS networks, explore in a browser Workbench | [`netstead`](https://pypi.org/project/netstead/) | [e-lo.github.io/netstead/netstead/](https://e-lo.github.io/netstead/netstead/) |
 | [`corral`](packages/corral/) | Generic Frictionless Data Package engine that `netstead` builds on | [`dbcorral`](https://pypi.org/project/dbcorral/) | [e-lo.github.io/netstead/corral/](https://e-lo.github.io/netstead/corral/) |
 
 Most users only install `netstead`. `corral` comes as a transitive dependency.
@@ -16,7 +16,7 @@ Most users only install `netstead`. `corral` comes as a transitive dependency.
 We're shipping the v1.0 rewrite as a public beta. **If you can spare half an hour to try it on a real network, your feedback shapes GA.**
 
 ```bash
-uv add 'netstead[all]==1.0.0b1'        # or: pip install 'netstead[all]==1.0.0b1'
+uv add 'netstead[all]==1.0.0b2'        # or: pip install 'netstead[all]==1.0.0b2'
 netstead doctor                        # confirm install
 ```
 
@@ -46,11 +46,11 @@ More: the [5-minute quickstart](https://e-lo.github.io/netstead/netstead/quickst
 `netstead` builds on a generic Frictionless engine (`corral`) extracted up front. The intent: future spec toolkits (GTFSpy, etc.) reuse the engine instead of reimplementing it. Both packages release independently; CI tests them together.
 
 ```
-Netstead/
+netstead/
 ├── packages/
 │   ├── corral/   # generic engine — PyPI package
 │   └── netstead/      # GMNS toolkit on top — PyPI package
-├── skills/          # Claude Code Skills (installable via path/git URL)
+├── skills/          # Claude Code Skills (copy into a project's .claude/skills/)
 ├── docs/            # umbrella landing page only — real docs are per-package
 └── .github/         # CI/CD, issue templates, release-drafter
 ```
@@ -61,7 +61,7 @@ Workspace managed via [`uv`](https://docs.astral.sh/uv/). One command installs b
 
 ```bash
 git clone https://github.com/e-lo/netstead.git
-cd Netstead
+cd netstead
 uv sync --all-packages --all-extras
 
 uv run netstead --help              # CLI

@@ -81,7 +81,7 @@ assert c < b * 1.3, f'regression: {c:.2f}s vs baseline {b:.2f}s (+{(c/b-1)*100:.
 
 ### 5. Read the JSON
 
-The shape is stable inside a major version. Each phase is one logical operation: `load` opens the package; `validate` runs structural + schema + FK + sync passes; `links_count` / `nodes_count` force a count on each table; `is_connected` builds the scipy-CSR graph and checks connectivity:
+The shape is stable inside a major version. Each phase is one logical operation: `load` opens the package; `validate` runs the structural + schema passes only (`net.validate(foreign_keys=False, sync_state=False)` — no FK or sync-state checks); `links_count` / `nodes_count` force a count on each table; `is_connected` builds the scipy `GMNSGraph` and checks that there is a single weakly-connected component:
 
 ```json
 {
@@ -140,8 +140,36 @@ The shape is stable inside a major version. Each phase is one logical operation:
 ## Pitfalls
 
 * **Micro-network timing is noisy.** On Leavenworth the absolute numbers fluctuate by ±30% between runs. Use it to confirm correctness, not for sizing decisions — switch to a regional-scale network before drawing conclusions.
-* **First run pays the GraphIndex build cost.** Subsequent calls hit the in-memory cache, so the second run is faster. For a representative cold-start number, restart Python between runs; for a hot-cache number, run the bench twice and take the second.
-* **Quality + connectivity require `[clean]`.** A pure `pip install netstead` skips those phases (they show as `null` seconds in the JSON).
+* **Every CLI run is a cold start.** Each `netstead bench` invocation is a fresh process, so the `is_connected` phase always includes building the scipy `GMNSGraph` — there is no cache to warm by running the command twice. The graph is cached on the `Network` object only within one Python process (a second `is_connected(net)` call on the same object is faster).
+* **Connectivity requires `[graph]`.** Without scipy the `is_connected` phase is skipped and reported as `{"phase": "is_connected", "seconds": null, "skipped": "scipy not installed"}`; `total_seconds` sums the phases that ran. Data-quality rules are not part of `netstead bench`.
+
+## Run the benchmark suite (`netstead bench-suite`)
+
+`netstead bench` times one network end to end. `netstead bench-suite` sweeps *size tiers* over three operation families — `network_create` (load the fixture from each committed storage format, with row counts asserted as a correctness check), `selection` (resolve the versioned natural-language selection cases through the stub parser, cold and warm) and `viz_pack` (pack the network into the browser payload, timing plus byte counts) — and emits one structured document with wall time and peak memory per case. It needs the `[bench]` extra (`psutil`, for process RSS); the `selection` family also wants `[nl]` and returns nothing without it, and live OSM builds want `[osm]`:
+
+```bash
+pip install 'netstead[bench]'
+netstead bench-suite --sizes S,M --format md --output bench.md
+```
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--sizes` | `S,M` | Size tiers to sweep, comma-separated from `S`, `M`, `L`. |
+| `--operations` | `network_create,selection,viz_pack` | Operation families to run, comma-separated. |
+| `--format` | `json` | `json` (the canonical regression document), `csv` (flattened results) or `md` (a table with an environment stamp). |
+| `--output` / `-o` | stdout | Write the rendered document to this file. |
+| `--repeats` | `3` | Macro timing repeats (reported as median + min). |
+| `--warm-repeats` | `20` | Repeats for the warm selection number. |
+| `--run-osm` | off | Include live OSM builds (hits Overpass). |
+| `--fixtures` | `benchmarks/fixtures.toml` | Override the fixture registry file. |
+| `--commit` | — | Git SHA to stamp into the environment block. |
+
+Fixture definitions live in `benchmarks/fixtures.toml` at the repo root (a built-in default covering the bundled fixtures is used when the file isn't found). The `S` tier (Leavenworth, 339 links) and `M` tier (`rdu_i40`) ship inside the wheel. The `L` tier is never committed: point `NETSTEAD_BENCH_LARGE` at a GMNS package directory or a `.duckdb` file, or set `NETSTEAD_BENCH_LARGE_BBOX="west,south,east,north"` and pass `--run-osm` to build it live from OpenStreetMap:
+
+```bash
+export NETSTEAD_BENCH_LARGE=/path/to/large-network
+netstead bench-suite --sizes S,M,L --format json --output bench.json
+```
 
 ## Bench the OSM build path (`scripts/bench_osm_build.py`)
 

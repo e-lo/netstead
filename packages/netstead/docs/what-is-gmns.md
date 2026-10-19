@@ -90,5 +90,5 @@ OSM → GMNS is lossy and opinionated (tag inference is heuristic; OSM doesn't c
 * [Quickstart](quickstart.md) — install and load the bundled fixture in five minutes.
 * [Visual tour](visual-tour.md) — see Leavenworth rendered as a map, validated, edited, and scoped.
 * [Table of tables](reference/table-of-tables.md) — catalog of every GMNS resource.
-* [Schema reference](reference/spec.md) — field-level reference for the vendored spec.
+* [Schema reference](reference/spec.md) — field-level reference for the upstream GMNS spec (vendored 0.97 when offline).
 * [Architecture](https://e-lo.github.io/netstead/corral/architecture/) — design rationale for the toolkit on top of GMNS.

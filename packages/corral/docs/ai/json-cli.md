@@ -25,11 +25,11 @@ def validate(source: str) -> dict:
         ["netstead", "validate", "--json", source],
         capture_output=True, text=True, check=False,
     )
-    report = json.loads(result.stdout)
+    report = json.loads(result.stdout)   # {"header": "...", "issues": [...]}
     return {
         "ok": result.returncode == 0,
         "error_count": sum(1 for i in report["issues"] if i["severity"] == "error"),
-        "spec_version": report["spec_version"],
+        "header": report["header"],       # one-line label, e.g. "validation report: <source>"
         "issues": report["issues"][:5],   # cap context cost
     }
 
@@ -47,9 +47,11 @@ netstead info     --json <source>
 netstead validate --json <source>
 netstead quality  --json <source>
 netstead scope from-nodes      --json <source> 1 25 50
-netstead clean simplify-geometry --json <source>
+netstead clean simplify-geometry --json <source> --dry-run
 netstead bench    --json <source>
 ```
+
+`quality` and `scope` need the `netstead[graph]` extra (scipy); `clean` needs `netstead[clean]`.
 
 The `--json` contract: exactly one parseable JSON document on stdout, no log prefix, no progress bars, no trailing whitespace. `json.loads(proc.stdout)` always works on a successful run.
 
@@ -69,16 +71,19 @@ diagnostics = result.stderr             # human-readable, optional to display
 
 ### 3. Pre-approve gated operations
 
-Mutating commands (`clean`, edit sessions) prompt for confirmation by default. In an agent loop, set the env var once instead of repeating `--yes` per call. The env var is preferable for agents because it scopes to the process tree and survives `subprocess` calls from inside the loop:
+Operations the cost model estimates as long-running prompt for confirmation by default. In an agent loop, set the env var once instead of passing `--yes` per call. The env var is preferable for agents because it scopes to the process tree and survives `subprocess` calls from inside the loop. `clean` is a command group — name the op (`simplify-geometry`, `merge-close-nodes`, `remove-orphans`, `recompute-lengths`), and use `--dry-run` to preview without writing:
 <!-- doctest: skip -->
 
 ```python
 import os, subprocess
 env = {**os.environ, "CORRAL_AUTO_APPROVE": "1"}
-subprocess.run(["netstead", "clean", "--json", source], env=env, check=False)
+subprocess.run(
+    ["netstead", "clean", "simplify-geometry", "--json", source, "--dry-run"],
+    env=env, check=False,
+)
 ```
 
-`--yes` on the command line works too.
+`--yes` on the command line works too, on the commands that expose it (e.g. `convert`); the `clean` ops do not.
 
 ### 4. Schema stability
 
@@ -86,8 +91,8 @@ The JSON shapes are stable inside a major version. Three types your loop is most
 
 | Type | Shape (abridged) | Returned by |
 |---|---|---|
-| `ValidationReport` | `{issues: [{severity, category, code, message, table, column, row, fix_hint}], spec_version}` | `validate`, `quality` |
-| `EditResult` | `{success, table, rows_changed, history_entry_id, dry_run, issues}` | `clean`, edit ops |
+| `ValidationReport` | `{header, issues: [{severity, category, code, message, table, column, row, fix_hint, extra}]}` — `header` is a one-line string label; `severity` ∈ `error` / `warning` / `info`; `category` ∈ `schema` / `structural` / `foreign_key` / `sync_state` / `data_quality` | `validate`, `quality` |
+| `EditResult` | `{edit: {op, table, payload}, diff, rollback_data, applied_at, session_id}` | `clean`, edit ops |
 | Command summary | per-command `{source, ...}` dict, documented in API ref | `info`, `bench`, `scope` |
 
 Full details: [API reference](https://e-lo.github.io/netstead/netstead/reference/api/).
