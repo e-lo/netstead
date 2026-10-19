@@ -96,7 +96,7 @@ def _default(param: click.Parameter) -> str:
         return ""
     if isinstance(param, click.Option) and param.is_flag:
         return "" if not default else "on"
-    if isinstance(default, (list, tuple)):
+    if isinstance(default, list | tuple):
         default = ",".join(str(d) for d in default)
     return f"`{escape_md(str(default))}`" if str(default) != "" else ""
 
