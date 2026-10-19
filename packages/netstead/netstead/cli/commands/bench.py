@@ -33,7 +33,7 @@ def register(app: typer.Typer) -> None:
         * ``validate`` — :meth:`Network.validate` (structural/schema only).
         * ``links_count`` + ``nodes_count`` — trivial materialisation sanity.
         * ``is_connected`` — full graph index build + component count
-          (skipped silently when the ``[clean]`` extra is missing).
+          (skipped silently when the ``[graph]`` extra is missing).
 
         Output is a dict with ``phases`` (list of ``{phase, seconds}``) and
         a ``total_seconds`` summary. ``--json`` writes the dict to stdout for

@@ -8,6 +8,9 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Added
 
+- **Plugin Host API 1.5:** `ActionError` and `NotSupportedYet` are exported from
+  `netstead.workbench.plugins`, so a plugin handler can refuse with a message the
+  user sees (anything else it raises is still an internal error).
 - **Workbench plugins** (#222, #223). Plugins are pip packages discovered through
   the `netstead.workbench.plugins` entry-point group: a `WorkbenchPlugin` with
   namespaced Actions (`ActionSpec`), a router at `/api/plugins/<id>`, a static
@@ -107,6 +110,11 @@ This file is for the **netstead** package only. The underlying generic engine `c
   script block (XSS) (#224).
 - **Selection anchors on a network without a `ref` (or `name`) column** no
   longer fail with `KeyError: 'ref'` (Leavenworth, for example).
+- **Assistant approval on a derived copy:** a draft that touches a derived
+  network (`derived_from`, such as a plugin's preview) also checks the copy's
+  base, while the base is open. Approving is refused as stale once the base
+  moved, so a plugin that applies the change to the base no longer overwrites an
+  edit made there since the draft.
 
 ## [1.0.0-beta.2] — TBD
 

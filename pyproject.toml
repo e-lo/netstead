@@ -2,17 +2,21 @@
 #
 # This file is NOT a publishable package — it carries the uv workspace
 # declaration and shared development tooling configuration (ruff,
-# pyright, import-linter, pytest, coverage) for both packages.
+# pyright, import-linter, pytest, coverage) for all workspace packages.
 #
-# Distributable packages live in packages/ — see:
-#   packages/corral/pyproject.toml   (generic engine)
-#   packages/netstead/pyproject.toml      (GMNS-specific)
+# Distributable packages live in packages/, first-party Workbench plugins in plugins/ — see:
+#   packages/corral/pyproject.toml         (generic engine)
+#   packages/netstead/pyproject.toml       (GMNS-specific)
+#   plugins/project-cards/pyproject.toml   (Workbench plugin "project cards": ProjectCard authoring)
 
 [tool.uv.workspace]
-members = ["packages/*"]
+# First-party plugins live in plugins/<name>, each its own workspace package that may import only
+# netstead.workbench.plugins' public API (one import-linter contract per plugin, below).
+members = ["packages/*", "plugins/*"]
 
 [tool.uv.sources]
 dbcorral = { workspace = true }
+netstead = { workspace = true }
 
 # ---------------------------------------------------------------------------
 # Shared dev tooling
@@ -100,7 +104,7 @@ convention = "google"
 # ---------------------------------------------------------------------------
 
 [tool.pyright]
-include = ["packages/corral/corral", "packages/netstead/netstead"]
+include = ["packages/corral/corral", "packages/netstead/netstead", "plugins/project-cards/netstead_project_cards"]
 exclude = ["**/__pycache__", "**/_archive", "**/legacy"]
 pythonVersion = "3.11"
 typeCheckingMode = "basic"
@@ -113,6 +117,10 @@ extraPaths = ["packages/corral"]
 root = "packages/netstead/netstead"
 extraPaths = ["packages/netstead", "packages/corral"]
 
+[[tool.pyright.executionEnvironments]]
+root = "plugins/project-cards/netstead_project_cards"
+extraPaths = ["plugins/project-cards", "packages/netstead", "packages/corral"]
+
 # ---------------------------------------------------------------------------
 # Import-linter — enforce architectural boundaries
 # ---------------------------------------------------------------------------
@@ -124,7 +132,7 @@ extraPaths = ["packages/netstead", "packages/corral"]
 #     (enforced separately by a ruff plugin / custom check; see ./scripts/lint_no_sql.py)
 
 [tool.importlinter]
-root_packages = ["corral", "netstead"]
+root_packages = ["corral", "netstead", "netstead_project_cards"]
 include_external_packages = false
 
 [[tool.importlinter.contracts]]
@@ -157,13 +165,30 @@ forbidden_modules = [
     # imported and shipped via the [graph] extra.
 ]
 
+[[tool.importlinter.contracts]]
+# The project cards plugin is written against the public plugin API only (Host, BaseAction, ActionSpec, ...), so it keeps
+# working as netstead's internals move. netstead.workbench.plugins itself imports netstead internals: indirect
+# imports through it are allowed; direct imports of anything else in netstead (or corral) are not.
+name = "netstead-project-cards uses only the public plugin API of netstead"
+type = "forbidden"
+source_modules = ["netstead_project_cards"]
+forbidden_modules = ["netstead", "corral"]
+ignore_imports = [
+    "netstead_project_cards -> netstead.workbench.plugins",
+    "netstead_project_cards.** -> netstead.workbench.plugins",
+]
+# The root pattern covers a future direct import in __init__.py; today only submodules import the API, so don't
+# fail on an ignore that matches nothing.
+unmatched_ignore_imports_alerting = "none"
+allow_indirect_imports = true
+
 # ---------------------------------------------------------------------------
 # Pytest
 # ---------------------------------------------------------------------------
 
 [tool.pytest.ini_options]
 minversion = "8.0"
-testpaths = ["packages/corral/tests", "packages/netstead/tests"]
+testpaths = ["packages/corral/tests", "packages/netstead/tests", "plugins/project-cards/tests"]
 # importlib mode avoids module-name collisions when multiple packages each
 # have a tests/__init__.py (otherwise both bind to "tests" and the second
 # loses); also required for src-layout monorepos.
@@ -207,6 +232,12 @@ filterwarnings = [
     # that it disables itself under xdist. Expected with `-n auto`; the bench
     # workflow runs serially.
     "ignore:Benchmarks are automatically disabled because xdist plugin is active",
+    # projectcard 0.3.3's utils.py has re.sub("[\ ]+", ...): compiling it warns, and "error" would turn that into
+    # a SyntaxError at import (uv installs without bytecode, so CI always compiles it). Narrow: this message from
+    # projectcard/utils.py only. Python 3.11 raises it as a DeprecationWarning, 3.12+ as a SyntaxWarning.
+    # TODO(deps): drop when projectcard ships a raw string there.
+    "ignore:invalid escape sequence:SyntaxWarning:.*projectcard.utils",
+    "ignore:invalid escape sequence:DeprecationWarning:.*projectcard.utils",
 ]
 markers = [
     "slow: end-to-end / multi-second tests; skipped by default, run with -m \"\" (full) or -m slow",
@@ -221,7 +252,7 @@ markers = [
 # ---------------------------------------------------------------------------
 
 [tool.coverage.run]
-source = ["packages/corral/corral", "packages/netstead/netstead"]
+source = ["packages/corral/corral", "packages/netstead/netstead", "plugins/project-cards/netstead_project_cards"]
 branch = true
 omit = [
     "*/tests/*",
@@ -242,9 +273,10 @@ exclude_lines = [
     "@overload",
 ]
 # Workspace-wide gate. Per-package gates are enforced separately in
-# the Tests workflow (corral ≥86%, netstead ≥84%) so a regression
-# in one package can't be masked by overshoot in the other. Baseline
-# measured 2026-05-26: combined 86%, corral 87%, netstead 85% —
-# gates set one point below current to flag regressions immediately
-# without flaking on stat-noise.
+# the Tests workflow (corral ≥86%, netstead ≥84%, project-cards ≥96%) so a
+# regression in one package can't be masked by overshoot in another. Baseline
+# measured 2026-05-26: combined 86%, corral 87%, netstead 85%; project-cards
+# measured 2026-10-19: 97.7% —
+# gates set one point below current (rounded down) to flag regressions
+# immediately without flaking on stat-noise.
 fail_under = 85
