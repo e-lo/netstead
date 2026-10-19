@@ -1,0 +1,23 @@
+# GMNS (netstead) <-> network_wrangler / ProjectCard names. This is maintained data, not code: when Wrangler
+# renames a field, change it here. A column not listed keeps its GMNS name in cards (ProjectCard allows
+# any property name in property_changes).
+version: 1
+selectors:            # the key a card's facility uses to pick records by id
+  link: {link_id: model_link_id}
+  node: {node_id: model_node_id}
+fields:               # property names (property changes) and record fields (roadway additions)
+  link:
+    link_id: model_link_id
+    from_node_id: A
+    to_node_id: B
+    facility_type: roadway
+  node:
+    node_id: model_node_id
+    x_coord: X
+    y_coord: Y
+values:               # per card field: GMNS value -> card value (an unlisted value passes through)
+  roadway: {}
+derived:              # link fields Wrangler requires that GMNS has no column for; written on additions only
+  walk_access: {column: allowed_uses, any_of: [walk]}
+  bike_access: {column: allowed_uses, any_of: [bike]}
+  drive_access: {column: allowed_uses, any_of: [auto, drive, truck]}
