@@ -89,6 +89,11 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 - **Selection anchors on a network without a `ref` (or `name`) column** no
   longer fail with `KeyError: 'ref'` (Leavenworth, for example).
+- **Assistant approval on a derived copy:** a draft that touches a derived
+  network (`derived_from`, such as a plugin's preview) also checks the copy's
+  base, while the base is open. Approving is refused as stale once the base
+  moved, so a plugin that applies the change to the base no longer overwrites an
+  edit made there since the draft.
 - **`netstead clean <op> <src>` without `--dest` no longer destroys the
   source.** Writing the edited network back over its own directory removed
   the old files before the unedited tables (still read lazily from them) were

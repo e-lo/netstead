@@ -111,6 +111,17 @@ def test_target_ids_and_the_pick_default():
     assert Selection(query=QUERY, resolved=[7]).target_ids() == [7]
 
 
+def test_a_query_selection_takes_ignore_missing_from_its_query():
+    query = {"links": {"name": ["Benton Street"], "ignore_missing": True}}
+    assert Selection(query=query, resolved=[1]).ignore_missing is True
+    strict = {"links": {"name": ["Benton Street"], "ignore_missing": False}}
+    assert Selection(query=strict, resolved=[1]).ignore_missing is False
+    assert Selection(query={"links": {"name": ["Benton Street"]}}, resolved=[1]).ignore_missing is True  # the default
+    assert Selection(query=query, resolved=[1], ignore_missing=True).ignore_missing is True
+    with pytest.raises(ValidationError, match="the query's ignore_missing"):
+        Selection(query=query, resolved=[1], ignore_missing=False)
+
+
 def test_incomplete_names_what_is_missing():
     assert "facility" in incomplete(RoadwayPropertyChange(property_changes={"lanes": PropertyChange(set=2)}))
     assert "links" in incomplete(RoadwayDeletion())

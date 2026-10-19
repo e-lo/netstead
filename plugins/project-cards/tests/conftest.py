@@ -62,6 +62,16 @@ def host(session: Session) -> Any:
 
 
 @pytest.fixture
+def no_state_reads(monkeypatch):
+    """``install(session)``: plugin ``state()`` is never called; only the handlers check the drafts and preview."""
+
+    def install(session):
+        monkeypatch.setattr(session, "_plugin_state", dict)
+
+    return install
+
+
+@pytest.fixture
 def race_before(host: Any, monkeypatch: pytest.MonkeyPatch) -> Callable[[str], None]:
     """``race_before("plan_update")``: that ``host`` method's first call lets another edit land (lanes = 7 on link 3).
 

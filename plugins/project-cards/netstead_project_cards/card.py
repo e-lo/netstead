@@ -151,14 +151,18 @@ def read_card_file(path: str | Path, mapping: FieldMap | None = None) -> DraftCa
     Raises:
         FileNotFoundError: there is no file at ``path``.
         CardNotSupported: a TOML card (projectcard 0.3.3 cannot read one), or a change this version cannot read.
-        CardError: a file projectcard cannot read (bad YAML or JSON, not a mapping, an unsupported extension), or a
-            card :meth:`DraftCard.from_card` refuses.
+        CardError: a file that cannot be read (permissions, an I/O error) or that projectcard cannot read (bad YAML
+            or JSON, not a mapping, an unsupported extension), or a card :meth:`DraftCard.from_card` refuses.
     """
     path = Path(path)
     if path.suffix.lower() == ".toml":
         raise CardNotSupported("TOML cards can't be read with projectcard 0.3.3; use YAML or JSON")
     try:
         card = read_card(path, validate=False)
+    except FileNotFoundError:
+        raise
+    except OSError as exc:  # unreadable: permissions, a folder, an I/O error
+        raise CardError(f"could not read {path}: {exc.strerror or exc}") from exc
     except KeyError as exc:  # projectcard looks the project name up first
         raise CardError(f"not a ProjectCard: expected a top-level {exc.args[0]!r}") from None
     except ProjectCardReadError as exc:  # an unsupported file type

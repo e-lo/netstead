@@ -19,5 +19,12 @@ This release ships the library the Workbench pieces build on:
 - **`apply_change`** (`netstead_project_cards.lower`): plans a change with core's edit planner and applies it through
   the Workbench `Host` (`host.plan_*`, then `host.mutate`), so core's history and live warnings see it.
 
-The Workbench actions and the UI (select, change, preview, commit a card from `netstead app`) arrive in the following
-releases.
+**Actions** (`netstead_project_cards.actions`):
+
+- `project_cards.add_change`, `project_cards.undo_change`, `project_cards.commit`, `project_cards.import`,
+  `project_cards.preview`, `project_cards.close_preview`.
+- Usable from Python (`app.do(...)`), over HTTP (`/api/actions`), from the command palette, and by the assistant: opt
+  in with `assistant.plugins`; with a local model also set `assistant.compact_tools = "off"`.
+
+Only the Workbench UI (the draft panel and the forms to select, change, preview and commit a card from `netstead app`)
+arrives in the next release.

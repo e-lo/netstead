@@ -11,6 +11,8 @@ from corral.quality import RuleConfig, run_quality
 from netstead import Network
 from netstead.quality import register_all
 
+from .._extras import require_extra
+
 __all__ = ["register"]
 
 
@@ -29,6 +31,11 @@ def register(app: typer.Typer) -> None:
         DATA_QUALITY. The output is a ValidationReport (rendered as a
         rich table or JSON document per ``--json``).
         """
+        # The disconnected-components rule builds a GMNSGraph (scipy, the
+        # [graph] extra) at run time; probe it up front so a slim install
+        # gets the standard "install the extra" exit, not a traceback
+        # from inside the rule pack.
+        require_extra("netstead.graph", "graph")
         # Ensure rules are registered even when the entry point isn't
         # picked up (e.g. editable installs that skipped re-install).
         register_all()

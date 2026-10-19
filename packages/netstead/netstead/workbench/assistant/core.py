@@ -536,7 +536,8 @@ class Assistant:
 
         Raises ``ValueError`` when ``draft_id`` is not the pending draft, or when a network it touches changed
         version (or, for a step on the active network, the active network changed) since the draft was made; the
-        draft is then ``stale``. Raises :class:`AssistantBusy` while a question is being answered.
+        draft is then ``stale``. A touched network that is a derived copy (``derived_from``) also counts its open base
+        as touched. Raises :class:`AssistantBusy` while a question is being answered.
         """
         if not self._busy.acquire(blocking=False):
             raise AssistantBusy("the assistant is still answering")
@@ -547,9 +548,14 @@ class Assistant:
             session = self._session
             with session.consistent():  # the versions and the active network from one moment
                 now = {h.id: h.version for h in session.registry}
+                bases = {h.id: h.derived_from for h in session.registry}
                 active = session.active
             on_active = any(getattr(a, "net_id", None) is None for a in draft.actions)
             touched = {getattr(a, "net_id", None) or draft.active for a in draft.actions} - {None}
+            # A derived copy stands in for its base (a plugin's preview applies an edit to the base): when the base
+            # is still open, its version is checked too, so a draft on a copy goes stale once the copy's base moves.
+            # A closed base no longer matches (``derived_from`` becomes "<id> (closed)"), so it is not checked.
+            touched |= {b for n in touched if (b := bases.get(n)) is not None and b in draft.versions}
             # A touched network that is no longer open (or never was) is stale too: approving can't edit it.
             moved = (on_active and active != draft.active) or any(
                 n not in now or now[n] != draft.versions.get(n) for n in touched

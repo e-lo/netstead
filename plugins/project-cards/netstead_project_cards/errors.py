@@ -1,6 +1,6 @@
 """The plugin's own errors, raised by its library (card I/O and :func:`~netstead_project_cards.lower.apply_change`).
 
-Its Action handlers (upcoming) will turn them into the Workbench's ``ActionError`` / ``NotSupportedYet``.
+Its Action handlers turn them into the Workbench's ``ActionError`` / ``NotSupportedYet`` (``flow.as_action_errors``).
 """
 
 __all__ = ["CardError", "CardNotSupported", "not_supported"]
