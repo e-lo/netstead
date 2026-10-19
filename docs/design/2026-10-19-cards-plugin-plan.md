@@ -2,6 +2,8 @@
 
 Status: **proposed** · Date: 2026-10-19 · Owner: Elizabeth Sall
 
+**Note:** Code blocks in Tasks 3–8 predate review fixes; the code in `plugins/project-cards` is authoritative.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or
 > superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -2167,10 +2169,19 @@ Create `plugins/project-cards/tests/test_lower_property.py`:
 ```python
 """A property change becomes core edit plans (host.plan_update) applied in one host.mutate."""
 
+from decimal import Decimal
+
 import pytest
+from netstead_project_cards import lower
 from netstead_project_cards.errors import CardError, CardNotSupported
 from netstead_project_cards.lower import apply_change, describe
-from netstead_project_cards.types import PropertyChange, RoadwayPropertyChange, Selection, TransitPropertyChange
+from netstead_project_cards.types import (
+    PropertyChange,
+    RoadwayAddition,
+    RoadwayPropertyChange,
+    Selection,
+    TransitPropertyChange,
+)
 
 NET = "leavenworth"
 
@@ -2202,6 +2213,9 @@ def test_describe_names_the_change():
     )
     assert describe(change([1, 2, 3, 4, 5, 6], lanes={"change": 1})) == (
         "roadway_property_change link 1, 2, 3, 4, 5 (+1 more): lanes +1"
+    )
+    assert (
+        describe(change([1], lanes={"existing": 1, "change": 1})) == "roadway_property_change link 1: lanes +1 (was 1)"
     )
 
 
@@ -2277,6 +2291,68 @@ def test_an_incomplete_change_and_transit_are_refused(host):
         apply_change(host, NET, RoadwayPropertyChange(property_changes={"lanes": PropertyChange(set=2)}))
     with pytest.raises(CardNotSupported, match="P6"):
         apply_change(host, NET, TransitPropertyChange())
+
+
+# ---------------------------------------------------------------- review fixes
+
+
+def test_an_edit_between_reading_and_planning_is_refused(session, host, race_before):
+    race_before("plan_update")
+    with pytest.raises(CardError, match="leavenworth changed while the change was being planned; apply it again"):
+        apply_change(host, NET, change([3], lanes={"existing": 2, "set": 3}))
+    assert cell(session, 3, "lanes") == [7] and session.network(NET).version == 1  # the race's edit, not the card's
+
+
+NULL_LANES = {"link_id": 9001, "from_node_id": 1, "to_node_id": 2, "name": "Blank Street"}
+
+
+def test_a_delta_on_an_empty_value_says_to_set_it(session, host):
+    apply_change(host, NET, RoadwayAddition(links=[NULL_LANES]))
+    with pytest.raises(CardError, match=r"^lanes is empty on link 9001: set it rather than changing it by \+1$"):
+        apply_change(host, NET, change([9001], lanes={"change": 1}))
+
+
+def test_existing_against_an_empty_value_is_a_conflict(session, host):
+    apply_change(host, NET, RoadwayAddition(links=[NULL_LANES]))
+    with pytest.raises(CardError, match="conflict: lanes: expected 1 on link 9001, found None"):
+        apply_change(host, NET, change([9001], lanes={"existing": 1, "set": 2}))
+
+
+@pytest.mark.parametrize(("existing", "column"), [(40, "free_speed"), ("40", "free_speed"), ("1", "lanes")])
+def test_existing_matches_across_number_types(session, host, existing, column):
+    apply_change(host, NET, change([1], **{column: {"existing": existing, "set": 2}}))
+    assert cell(session, 1, column) == [2]
+
+
+@pytest.mark.parametrize(
+    ("current", "existing", "same"),
+    [
+        ("1", "01", False),  # text compares as text
+        ("10", "1e1", False),
+        ("Front Street", "Front Street", True),
+        ("40", 40, True),
+        (40.0, 40, True),
+        (40, "40", True),
+        (True, 1, True),
+        (1, True, True),
+        (None, 1, False),
+    ],
+)
+def test_same_compares_text_as_text(current, existing, same):
+    assert lower._same(current, existing) is same
+
+
+def test_a_text_existing_never_matches_numerically(session, host):
+    apply_change(host, NET, change([1], name={"set": "1"}))
+    with pytest.raises(CardError, match="conflict"):
+        apply_change(host, NET, change([1], name={"existing": "01", "set": "x"}))
+
+
+def test_a_delta_on_a_decimal_value():
+    pc = PropertyChange(change=0.5)
+    assert lower._groups(pc, [1], {"1": {"lanes": Decimal("1.5")}}, "link", "lanes") == {Decimal("2.0"): [1]}
+    with pytest.raises(CardError, match="only numbers"):
+        lower._groups(pc, [1], {"1": {"lanes": True}}, "link", "lanes")
 ```
 
 - [ ] **Step 2: Run them to confirm they fail**
@@ -2297,11 +2373,16 @@ is now, so the links that used a node must be gone before that plan is made. Cal
 Action handler: if a later step fails, the handler's failure undoes the earlier ones. Core's planner refuses what
 storage cannot hold (``EditRefused``, raised here as :class:`~netstead_project_cards.errors.CardError`); the live checks
 report the rest as warnings (``host.edit_warnings``).
+
+Each step reads the network's version before the frames it decides on (they are cached per version), refuses plans
+made against any other version, and passes that version to ``host.mutate``: an edit landing anywhere between the read
+and the mutation refuses the step rather than applying a plan made from stale values.
 """
 
 from __future__ import annotations
 
 import math
+import numbers
 from collections import defaultdict
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
@@ -2309,7 +2390,7 @@ from typing import Any
 
 from netstead.workbench.plugins import EditPlan, EditRefused, Host
 
-from .errors import CardError, not_supported
+from .errors import CardError, CardNotSupported, not_supported
 from .types import (
     TRANSIT_TYPES,
     NetworkChange,
@@ -2328,7 +2409,11 @@ KEYS = {"link": "link_id", "node": "node_id"}
 
 @dataclass
 class Applied:
-    """A change as applied: how many ``host.mutate`` calls it took (undone together), and what happened."""
+    """A change as applied: how many ``host.mutate`` calls it took, and what happened.
+
+    Each ``host.mutate`` is one pending edit. A deletion of links and nodes takes two (``steps == 2``), so undoing the
+    change outside an Action takes ``steps`` calls to ``host.undo``.
+    """
 
     change: NetworkChange
     steps: int = 0
@@ -2351,10 +2436,15 @@ class Applied:
 def apply_change(host: Host, net_id: str, change: NetworkChange) -> Applied:
     """Plan ``change`` with core and apply it to network ``net_id``; the lineage gets ``"project_cards: <describe>"``.
 
+    Everything this module can check is checked before the first ``host.mutate``, including a deleted node that links
+    this change keeps still use. A deletion of links and nodes is still two mutations, though: if the second fails for
+    any other reason (core refuses its plan, or the network changed in between), the first stays applied unless the
+    calling Action's failure rolls it back. Call it from an Action handler.
+
     Raises:
-        CardNotSupported: a transit change.
-        CardError: an incomplete change, a conflict with ``existing``, a missing record or column, or anything
-            core's planner refuses.
+        CardNotSupported: a transit change, or an added record field with no column in the network.
+        CardError: an incomplete change, a conflict with ``existing``, a missing record or column, a node still in
+            use, a network that changed while the change was planned, or anything core's planner refuses.
     """
     if change.type in TRANSIT_TYPES:
         raise not_supported(change.type)
@@ -2374,7 +2464,7 @@ def describe(change: Any) -> str:
     if isinstance(change, RoadwayDeletion):
         bits = [f"link {few(change.links)}"] if change.links else []
         bits += [f"node {few(change.nodes)}"] if change.nodes else []
-        clean = " (and unused end nodes)" if change.clean_nodes else ""
+        clean = " (and unused end nodes)" if change.clean_nodes and change.links else ""
         return f"roadway_deletion {' and '.join(bits) or 'the selection'}{clean}"
     if isinstance(change, RoadwayAddition):
         bits = [f"link {few([r['link_id'] for r in change.links])}"] if change.links else []
@@ -2415,8 +2505,10 @@ def _py(value: Any) -> Any:
 
 
 def _what(pc: PropertyChange) -> str:
-    new = f"{pc.set}" if pc.set is not None else f"{pc.change:+g}"
-    return f"{pc.existing} → {new}" if pc.existing is not None else (f"→ {new}" if pc.set is not None else new)
+    if pc.set is None:
+        delta = f"{pc.change:+g}"
+        return f"{delta} (was {pc.existing})" if pc.existing is not None else delta
+    return f"{pc.existing} → {pc.set}" if pc.existing is not None else f"→ {pc.set}"
 
 
 def _frame(host: Host, net_id: str, table: str) -> Any:
@@ -2431,22 +2523,33 @@ def _plan(fn: Callable[..., EditPlan], *args: Any) -> EditPlan:
         raise CardError(str(exc)) from exc
 
 
-def _mutate(host: Host, net_id: str, plans: list[EditPlan], note: str) -> None:
-    """Apply the plans' edits in one ``host.mutate``, refused if the network moved since the first plan."""
+def _mutate(host: Host, net_id: str, version: int, plans: list[EditPlan], note: str) -> None:
+    """Apply the plans' edits in one ``host.mutate``, refused unless every plan, and the network, is at ``version``.
+
+    ``version`` is the one read before the frames that decided what to plan; a plan stamped otherwise was made
+    against a network that changed after those reads.
+    """
+    if any(p.version != version for p in plans):
+        raise CardError(f"{net_id} changed while the change was being planned; apply it again")
     edits = [e for p in plans for e in p.edits]
-    host.mutate(net_id, edits, note=note, expected_version=plans[0].version)
+    host.mutate(net_id, edits, note=note, expected_version=version)
 
 
 def _same(current: Any, existing: Any) -> bool:
+    """Whether a cell holding ``current`` matches a card's ``existing``: text as text, anything else as a number."""
     if current is None:
         return False
+    if isinstance(current, str):
+        return current == str(existing)
     try:
-        return math.isclose(float(current), float(existing), rel_tol=1e-9, abs_tol=1e-9)
+        return math.isclose(float(current), float(existing), rel_tol=1e-9, abs_tol=1e-9)  # True matches 1
     except (TypeError, ValueError):
         return str(current) == str(existing)
 
 
-def _groups(pc: PropertyChange, ids: list[Any], current: dict[str, dict[str, Any]], prop: str) -> dict[Any, list[Any]]:
+def _groups(
+    pc: PropertyChange, ids: list[Any], current: dict[str, dict[str, Any]], table: str, prop: str
+) -> dict[Any, list[Any]]:
     """New value -> the ids that get it: one group for ``set``; one per distinct current value for ``change``."""
     if pc.set is not None:
         return {pc.set: list(ids)}
@@ -2454,10 +2557,13 @@ def _groups(pc: PropertyChange, ids: list[Any], current: dict[str, dict[str, Any
     for i in ids:
         now = current[str(i)][prop]
         if now is None:
-            raise CardError(f"{prop} on {i} is empty: set it rather than changing it by {pc.change:+g}")
-        if isinstance(now, bool) or not isinstance(now, int | float):
+            raise CardError(f"{prop} is empty on {table} {i}: set it rather than changing it by {pc.change:+g}")
+        if isinstance(now, bool) or not isinstance(now, numbers.Number):
             raise CardError(f"{prop} holds {type(now).__name__} values: only numbers change by a delta")
-        new = now + pc.change
+        try:
+            new = now + pc.change
+        except TypeError:  # a Decimal plus a float delta: add the delta as the cell's own type
+            new = now + type(now)(str(pc.change))
         groups[int(new) if isinstance(now, int) and float(new).is_integer() else new].append(i)
     return dict(groups)
 
@@ -2468,6 +2574,7 @@ def _groups(pc: PropertyChange, ids: list[Any], current: dict[str, dict[str, Any
 def _property_change(host: Host, net_id: str, change: RoadwayPropertyChange, note: str) -> Applied:
     sel = change.facility
     pk = KEYS[sel.table]
+    version = host.network(net_id).version  # before the frame: it decides the conflicts and the deltas
     frame = _frame(host, net_id, sel.table)
     unknown = [p for p in change.property_changes if p not in frame.columns]
     if unknown:
@@ -2491,10 +2598,10 @@ def _property_change(host: Host, net_id: str, change: RoadwayPropertyChange, not
                     out.skipped.append(message)
                     continue
                 out.warnings.append(message)
-        for value, group in _groups(pc, ids, current, prop).items():
+        for value, group in _groups(pc, ids, current, sel.table, prop).items():
             plans.append(_plan(host.plan_update, net_id, sel.table, group, {prop: value}))
     if plans:
-        _mutate(host, net_id, plans, note)
+        _mutate(host, net_id, version, plans, note)
         out.steps, out.rows = 1, {sel.table: len(ids)}
     return out
 
@@ -2507,7 +2614,8 @@ _APPLIERS: dict[str, Callable[[Host, str, Any, str], Applied]] = {
 - [ ] **Step 4: Run the tests**
 
 Run: `uv run --all-extras pytest plugins/project-cards/tests/test_lower_property.py -q`
-Expected: all pass. The `key` refusal comes from core (`link_id is the link key; keys cannot be edited here …`).
+Expected: all pass, except the two tests that first add a link with an empty `lanes` (`NULL_LANES`): they need
+Task 8's addition applier. The `key` refusal comes from core (`link_id is the link key; keys cannot be edited here …`).
 
 - [ ] **Step 5: Lint and commit**
 
@@ -2524,6 +2632,8 @@ git commit -m "feat(project-cards): lower property changes onto host.plan_update
 **Files:**
 - Modify: `plugins/project-cards/netstead_project_cards/lower.py`
 - Test: `plugins/project-cards/tests/test_lower_delete_add.py`
+- Test: `plugins/project-cards/tests/test_lower_in_action.py`
+- Modify: `plugins/project-cards/tests/conftest.py` (the `race_before` fixture, which Task 7's tests use too)
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -2533,8 +2643,8 @@ Create `plugins/project-cards/tests/test_lower_delete_add.py`:
 """Deletions cascade through core's plans (links, then nodes); additions are one mutation, nodes first."""
 
 import pytest
-from netstead_project_cards.errors import CardError
-from netstead_project_cards.lower import apply_change
+from netstead_project_cards.errors import CardError, CardNotSupported
+from netstead_project_cards.lower import apply_change, describe
 from netstead_project_cards.types import RoadwayAddition, RoadwayDeletion
 
 NET = "leavenworth"
@@ -2606,7 +2716,7 @@ def test_clean_nodes_deletes_end_nodes_nothing_else_uses(session, host):
 @pytest.mark.parametrize(
     ("change", "message"),
     [
-        (RoadwayAddition(links=[{**NEW_LINK, "link_id": 1}], nodes=[NEW_NODE]), "link 1 already exist"),
+        (RoadwayAddition(links=[{**NEW_LINK, "link_id": 1}], nodes=[NEW_NODE]), "^link 1 already exists$"),
         (RoadwayAddition(links=[{**NEW_LINK, "to_node_id": 424242}]), "node.* 424242, which are not in the network"),
         (RoadwayAddition(links=[{**NEW_LINK, "colour": "red"}], nodes=[NEW_NODE]), "no column"),
         (RoadwayAddition(nodes=[NEW_NODE, NEW_NODE]), "repeat"),
@@ -2617,6 +2727,227 @@ def test_bad_additions_are_refused_and_leave_nothing_behind(session, host, chang
     with pytest.raises(CardError, match=message):
         apply_change(host, NET, change)
     assert counts(session) == before and session.network(NET).version == 0
+
+
+# ---------------------------------------------------------------- review fixes
+
+NODE_USERS = [1, 2, 3, 4, 5, 185, 209, 293]  # every link that starts or ends at node 1
+
+
+@pytest.mark.parametrize(
+    ("planner", "change"),
+    [
+        ("plan_delete", RoadwayDeletion(links=[1])),
+        ("plan_delete", RoadwayDeletion(links=[1], clean_nodes=True)),  # step 1 of two
+        ("plan_add", RoadwayAddition(nodes=[NEW_NODE], links=[NEW_LINK])),
+    ],
+)
+def test_an_edit_between_reading_and_planning_is_refused(session, host, race_before, planner, change):
+    before = counts(session)
+    race_before(planner)
+    with pytest.raises(CardError, match="leavenworth changed while the change was being planned; apply it again"):
+        apply_change(host, NET, change)
+    assert counts(session) == before and session.network(NET).version == 1  # only the race's edit landed
+
+
+def test_a_node_other_links_still_use_is_refused_before_anything_changes(session, host):
+    message = (
+        r"^node 1 is still used by links 2, 3, 4, 5, 185 \(\+2 more\), which this change does not delete; "
+        r"add them or drop the node$"
+    )
+    with pytest.raises(CardError, match=message):
+        apply_change(host, NET, RoadwayDeletion(links=[1], nodes=[1]))
+    assert session.network(NET).version == 0  # step 1 (the link) was never applied
+    with pytest.raises(CardError, match=r"^node 1 is still used by link 293, which"):
+        apply_change(host, NET, RoadwayDeletion(links=NODE_USERS[:-1], nodes=[1]))
+    assert session.network(NET).version == 0
+
+
+def test_deleting_a_node_with_all_its_links(session, host):
+    before = counts(session)
+    applied = apply_change(host, NET, RoadwayDeletion(links=NODE_USERS, nodes=[1]))
+    assert applied.steps == 2 and counts(session)["node"] == before["node"] - 1
+    assert counts(session)["link"] == before["link"] - len(NODE_USERS)
+
+
+def test_clean_nodes_with_a_self_loop(session, host):
+    loop = {**NEW_LINK, "link_id": 9002, "from_node_id": 9001, "to_node_id": 9001}
+    apply_change(host, NET, RoadwayAddition(nodes=[NEW_NODE], links=[loop]))
+    nodes = counts(session)["node"]
+    applied = apply_change(host, NET, RoadwayDeletion(links=[9002], clean_nodes=True))
+    assert counts(session)["node"] == nodes - 1 and applied.rows["node"] == 1
+
+
+def test_clean_nodes_with_two_deleted_links_sharing_a_node(session, host):
+    other = {**NEW_NODE, "node_id": 9002}
+    onward = {**NEW_LINK, "link_id": 9002, "from_node_id": 9001, "to_node_id": 9002}
+    apply_change(host, NET, RoadwayAddition(nodes=[NEW_NODE, other], links=[NEW_LINK, onward]))
+    nodes = counts(session)["node"]
+    applied = apply_change(host, NET, RoadwayDeletion(links=[9001, 9002], clean_nodes=True))
+    assert counts(session)["node"] == nodes - 2  # 9001 (shared) and 9002 went; node 1 stays
+    assert applied.rows["node"] == 2
+
+
+def test_describe_many_ids():
+    assert describe(RoadwayDeletion(links=list(range(1, 8)), nodes=[1])) == (
+        "roadway_deletion link 1, 2, 3, 4, 5 (+2 more) and node 1"
+    )
+    added = RoadwayAddition(nodes=[{**NEW_NODE, "node_id": 9000 + i} for i in range(6)])
+    assert describe(added) == "roadway_addition node 9000, 9001, 9002, 9003, 9004 (+1 more)"
+
+
+def test_clean_nodes_without_links_does_not_mention_end_nodes():
+    assert describe(RoadwayDeletion(nodes=[1], clean_nodes=True)) == "roadway_deletion node 1"
+
+
+def test_already_exist_keeps_the_input_order(host):
+    links = [{**NEW_LINK, "link_id": 5}, {**NEW_LINK, "link_id": 9002}, {**NEW_LINK, "link_id": 1}]
+    with pytest.raises(CardError, match=r"^link 5, 1 already exist$"):
+        apply_change(host, NET, RoadwayAddition(links=links, nodes=[NEW_NODE]))
+
+
+@pytest.mark.parametrize("flag", ["walk_access", "bike_access", "drive_access", "bus_only", "rail_only"])
+def test_a_foreign_field_with_no_column_is_not_supported(session, host, flag):
+    with pytest.raises(CardNotSupported, match=f"^link record field '{flag}' has no column in this network$"):
+        apply_change(host, NET, RoadwayAddition(nodes=[NEW_NODE], links=[{**NEW_LINK, flag: 1}]))
+    assert session.network(NET).version == 0
+```
+
+Add to `plugins/project-cards/tests/conftest.py` (an edit that lands between the reads and the plan):
+
+```python
+@pytest.fixture
+def race_before(host: Any, monkeypatch: pytest.MonkeyPatch) -> Callable[[str], None]:
+    """``race_before("plan_update")``: that ``host`` method's first call lets another edit land (lanes = 7 on link 3).
+
+    It then plans against a newer network than the change read, which is what a concurrent edit looks like.
+    """
+
+    def install(name: str) -> None:
+        real, plan_update, raced = getattr(host, name), host.plan_update, []
+
+        def racing(*args: Any, **kwargs: Any) -> Any:
+            if not raced:
+                raced.append(True)
+                host.mutate(NET, plan_update(NET, "link", [3], {"lanes": 7}).edits, note="race")
+            return real(*args, **kwargs)
+
+        monkeypatch.setattr(host, name, racing)
+
+    return install
+```
+
+Create `plugins/project-cards/tests/test_lower_in_action.py`: the same lowering inside a mutating Action, so the
+dispatch-level rollback is covered. The test Action is a top-level class of the test module (importable, as core's
+plugin tests do it):
+
+```python
+"""``apply_change`` inside a mutating Action: a failure anywhere rolls every step back with the Action."""
+
+from typing import Any, ClassVar, Literal
+
+import pytest
+from netstead.workbench.plugins import HOST_API, ActionError, ActionSpec, BaseAction, EditRefused, WorkbenchPlugin
+from netstead_project_cards.errors import CardError
+from netstead_project_cards.lower import apply_change
+from netstead_project_cards.types import parse_change
+
+NET = "leavenworth"
+NODE_USERS = [1, 2, 3, 4, 5, 185, 209, 293]  # every link that starts or ends at node 1
+
+
+class ApplyCardChange(BaseAction):
+    """A test Action: apply one change (a JSON dict) the way the plugin's own Actions do."""
+
+    type: Literal["cardtest.apply"] = "cardtest.apply"
+    mutates: ClassVar[bool] = True
+    change: dict[str, Any]
+
+
+def _apply(host: Any, action: ApplyCardChange) -> dict[str, Any]:
+    try:
+        return apply_change(host, NET, parse_change(action.change)).summary()
+    except CardError as exc:
+        raise ActionError(str(exc)) from exc
+
+
+def cardtest() -> WorkbenchPlugin:
+    return WorkbenchPlugin(
+        id="cardtest",
+        name="Card test",
+        version="0",
+        requires_api=HOST_API,
+        actions=(ActionSpec(ApplyCardChange, _apply),),
+    )
+
+
+@pytest.fixture
+def session(make_session):
+    return make_session(cardtest())
+
+
+@pytest.fixture
+def host(session):
+    return session._hosts["cardtest"]
+
+
+def link_count(session):
+    return len(session.network(NET).links_df())
+
+
+def test_a_change_applies_inside_an_action(session):
+    entry = session.dispatch_recorded(ApplyCardChange(change={"type": "roadway_deletion", "links": [1]}))
+    assert entry.ok and session.network(NET).version == 1
+    assert session.edits[NET].last().source == "cardtest"
+
+
+def test_a_failed_second_step_rolls_the_first_back(session, host, monkeypatch):
+    real = host.plan_delete
+
+    def refuse_nodes(net_id, table, ids):
+        if table == "node":
+            raise EditRefused("refused for the test")
+        return real(net_id, table, ids)
+
+    monkeypatch.setattr(host, "plan_delete", refuse_nodes)
+    links = link_count(session)
+    entry = session.dispatch_recorded(
+        ApplyCardChange(change={"type": "roadway_deletion", "links": NODE_USERS, "nodes": [1]})
+    )
+    assert not entry.ok and "refused for the test" in entry.error
+    assert session.network(NET).version == 0 and link_count(session) == links  # step 1 (the links) is undone
+    assert NET not in session.edits
+
+
+def test_a_stale_expected_version_is_refused(session, host, monkeypatch):
+    real = host.plan_update
+
+    def race_after(*args):
+        plan = real(*args)  # planned against the version the change read...
+        host.mutate(NET, real(NET, "link", [3], {"lanes": 7}).edits, note="race")  # ...then the network moves
+        return plan
+
+    monkeypatch.setattr(host, "plan_update", race_after)
+    change = {"type": "roadway_property_change", "facility": {"table": "link", "ids": [3]}}
+    entry = session.dispatch_recorded(ApplyCardChange(change={**change, "property_changes": {"lanes": {"set": 2}}}))
+    assert not entry.ok and "changed since the edit was planned" in entry.error
+    assert session.network(NET).version == 0  # the Action (and the race inside it) rolled back
+
+
+def test_an_edit_before_the_second_step_is_planned_is_refused(session, host, monkeypatch):
+    real, plan_update = host.plan_delete, host.plan_update
+
+    def race_nodes(net_id, table, ids):
+        if table == "node":  # step 1 has deleted the links; another edit lands before the nodes are planned
+            host.mutate(NET, plan_update(NET, "link", [10], {"lanes": 7}).edits, note="race")
+        return real(net_id, table, ids)
+
+    monkeypatch.setattr(host, "plan_delete", race_nodes)
+    links = link_count(session)
+    change = {"type": "roadway_deletion", "links": NODE_USERS, "nodes": [1]}
+    entry = session.dispatch_recorded(ApplyCardChange(change=change))
+    assert not entry.ok and "changed while the change was being planned" in entry.error
+    assert session.network(NET).version == 0 and link_count(session) == links
 ```
 
 - [ ] **Step 2: Run them to confirm they fail**
@@ -2634,50 +2965,80 @@ def _add_rows(into: dict[str, int], rows: dict[str, int]) -> None:
         into[table] = into.get(table, 0) + n
 
 
-def _used(links: Any, nodes: set[Any]) -> set[Any]:
-    """The nodes among ``nodes`` that some link (in the ``links`` frame) still starts or ends at."""
-    wanted = {str(n) for n in nodes}
-    hit = links["from_node_id"].astype(str).isin(wanted) | links["to_node_id"].astype(str).isin(wanted)
-    sub = links.loc[hit, ["from_node_id", "to_node_id"]]
-    found = {str(_py(v)) for v in [*sub["from_node_id"], *sub["to_node_id"]]}
-    return {n for n in nodes if str(n) in found}
+def _users(links: Any, nodes: Sequence[Any], deleted: Sequence[Any]) -> dict[str, list[Any]]:
+    """``{str(node): [link ids]}``: the links in the ``links`` frame, other than ``deleted``, at each of ``nodes``.
+
+    A link counts when it starts or ends at the node; a node no remaining link uses is absent.
+    """
+    wanted, gone = {str(n) for n in nodes}, {str(i) for i in deleted}
+    ends = links["from_node_id"].astype(str), links["to_node_id"].astype(str)
+    hit = (ends[0].isin(wanted) | ends[1].isin(wanted)) & ~links["link_id"].astype(str).isin(gone)
+    users: dict[str, list[Any]] = defaultdict(list)
+    for r in links.loc[hit, ["link_id", "from_node_id", "to_node_id"]].to_dict("records"):
+        for end in dict.fromkeys(str(_py(r[c])) for c in ("from_node_id", "to_node_id")):  # a self-loop counts once
+            if end in wanted:
+                users[end].append(_py(r["link_id"]))
+    return dict(users)
 
 
 def _deletion(host: Host, net_id: str, change: RoadwayDeletion, note: str) -> Applied:
+    """Links, then nodes. Which nodes go (and whether any is still in use) is decided before the first mutation."""
     out = Applied(change)
     two_steps = bool(change.links) and (bool(change.nodes) or change.clean_nodes)
-    ends: set[Any] = set()
+    version = host.network(net_id).version  # before the frame: it decides which nodes go
+    links = _frame(host, net_id, "link")
+    if in_use := _users(links, change.nodes, change.links):  # core would refuse it only at step 2, after step 1
+        raise CardError(_in_use(in_use))
+    nodes = list(change.nodes)
+    if change.links and change.clean_nodes:
+        rows = rows_by_key(links, "link_id", change.links, ["from_node_id", "to_node_id"])
+        ends = list(
+            dict.fromkeys(v for r in rows.values() for v in (r["from_node_id"], r["to_node_id"]) if v is not None)
+        )
+        used = _users(links, ends, change.links)
+        taken = {str(n) for n in nodes}
+        nodes += [e for e in ends if str(e) not in used and str(e) not in taken]
     if change.links:
-        if change.clean_nodes:
-            rows = rows_by_key(_frame(host, net_id, "link"), "link_id", change.links, ["from_node_id", "to_node_id"])
-            ends = {v for r in rows.values() for v in (r["from_node_id"], r["to_node_id"]) if v is not None}
         plan = _plan(host.plan_delete, net_id, "link", change.links)
-        host.mutate(net_id, plan.edits, note=f"{note} (links)" if two_steps else note, expected_version=plan.version)
+        _mutate(host, net_id, version, [plan], f"{note} (links)" if two_steps else note)
         out.steps += 1
         _add_rows(out.rows, plan.rows)
-    nodes = list(change.nodes)
-    if ends:  # read the links again: the deleted ones are gone now
-        unused = ends - _used(_frame(host, net_id, "link"), ends)
-        nodes += [n for n in sorted(unused, key=str) if n not in nodes]
     if nodes:
-        plan = _plan(host.plan_delete, net_id, "node", nodes)  # refuses a node a link still uses, naming the links
-        host.mutate(net_id, plan.edits, note=f"{note} (nodes)" if two_steps else note, expected_version=plan.version)
+        version = host.network(net_id).version  # the network after step 1, which core plans the nodes against
+        plan = _plan(host.plan_delete, net_id, "node", nodes)
+        _mutate(host, net_id, version, [plan], f"{note} (nodes)" if two_steps else note)
         out.steps += 1
         _add_rows(out.rows, plan.rows)
     return out
 
 
+def _in_use(users: dict[str, list[Any]]) -> str:
+    """``node 1 is still used by links 3, 4, ..., which this change does not delete; add them or drop the node``."""
+    used = "; ".join(
+        f"node {n} is still used by link{'s' if len(ids) > 1 else ''} {few(ids)}" for n, ids in users.items()
+    )
+    one_link = sum(len(ids) for ids in users.values()) == 1
+    nodes = "node" if len(users) == 1 else "nodes"
+    return f"{used}, which this change does not delete; add {'it' if one_link else 'them'} or drop the {nodes}"
+
+
 def _addition(host: Host, net_id: str, change: RoadwayAddition, note: str) -> Applied:
+    """Nodes, then links, in one mutation; ids, end nodes and record fields are checked before it."""
+    version = host.network(net_id).version  # before the frames: they decide which ids are free
     nodes_frame = _frame(host, net_id, "node")
     frames = {"node": nodes_frame, "link": _frame(host, net_id, "link")}
     for name, records in (("node", change.nodes), ("link", change.links)):
+        columns = set(frames[name].columns)
+        for field_name in dict.fromkeys(k for r in records for k in r):
+            if field_name not in columns:  # a foreign card's flag (walk_access, bus_only): nothing to store it in
+                raise CardNotSupported(f"{name} record field {field_name!r} has no column in this network")
         pk = KEYS[name]
         ids = [r[pk] for r in records]
         if len({str(i) for i in ids}) != len(ids):
             raise CardError(f"{name} ids repeat within the change")
-        taken = rows_by_key(frames[name], pk, ids, [])
-        if taken:
-            raise CardError(f"{name} {few(sorted(taken))} already exist")
+        found = rows_by_key(frames[name], pk, ids, [])
+        if taken := [i for i in ids if str(i) in found]:
+            raise CardError(f"{name} {few(taken)} {'already exists' if len(taken) == 1 else 'already exist'}")
     if change.links:
         ends = list(dict.fromkeys(r[c] for r in change.links for c in ("from_node_id", "to_node_id")))
         present = set(rows_by_key(nodes_frame, "node_id", ends, [])) | {str(r["node_id"]) for r in change.nodes}
@@ -2691,7 +3052,7 @@ def _addition(host: Host, net_id: str, change: RoadwayAddition, note: str) -> Ap
         plans.append(_plan(host.plan_add, net_id, "node", change.nodes))
     if change.links:
         plans.append(_plan(host.plan_add, net_id, "link", change.links))
-    _mutate(host, net_id, plans, note)
+    _mutate(host, net_id, version, plans, note)
     out = Applied(change, steps=1)
     for plan in plans:
         _add_rows(out.rows, plan.rows)
