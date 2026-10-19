@@ -4,15 +4,19 @@
 # declaration and shared development tooling configuration (ruff,
 # pyright, import-linter, pytest, coverage) for both packages.
 #
-# Distributable packages live in packages/ — see:
-#   packages/corral/pyproject.toml   (generic engine)
-#   packages/netstead/pyproject.toml      (GMNS-specific)
+# Distributable packages live in packages/, first-party Workbench plugins in plugins/ — see:
+#   packages/corral/pyproject.toml         (generic engine)
+#   packages/netstead/pyproject.toml       (GMNS-specific)
+#   plugins/project-cards/pyproject.toml   (Workbench plugin "project cards": ProjectCard authoring)
 
 [tool.uv.workspace]
-members = ["packages/*"]
+# First-party plugins live in plugins/<name>, each its own workspace package that may import only
+# netstead.workbench.plugins' public API (one import-linter contract per plugin, below).
+members = ["packages/*", "plugins/*"]
 
 [tool.uv.sources]
 dbcorral = { workspace = true }
+netstead = { workspace = true }
 
 # ---------------------------------------------------------------------------
 # Shared dev tooling
@@ -100,7 +104,7 @@ convention = "google"
 # ---------------------------------------------------------------------------
 
 [tool.pyright]
-include = ["packages/corral/corral", "packages/netstead/netstead"]
+include = ["packages/corral/corral", "packages/netstead/netstead", "plugins/project-cards/netstead_project_cards"]
 exclude = ["**/__pycache__", "**/_archive", "**/legacy"]
 pythonVersion = "3.11"
 typeCheckingMode = "basic"
@@ -113,6 +117,10 @@ extraPaths = ["packages/corral"]
 root = "packages/netstead/netstead"
 extraPaths = ["packages/netstead", "packages/corral"]
 
+[[tool.pyright.executionEnvironments]]
+root = "plugins/project-cards/netstead_project_cards"
+extraPaths = ["plugins/project-cards", "packages/netstead", "packages/corral"]
+
 # ---------------------------------------------------------------------------
 # Import-linter — enforce architectural boundaries
 # ---------------------------------------------------------------------------
@@ -124,7 +132,7 @@ extraPaths = ["packages/netstead", "packages/corral"]
 #     (enforced separately by a ruff plugin / custom check; see ./scripts/lint_no_sql.py)
 
 [tool.importlinter]
-root_packages = ["corral", "netstead"]
+root_packages = ["corral", "netstead", "netstead_project_cards"]
 include_external_packages = false
 
 [[tool.importlinter.contracts]]
@@ -157,13 +165,24 @@ forbidden_modules = [
     # imported and shipped via the [graph] extra.
 ]
 
+[[tool.importlinter.contracts]]
+# The project cards plugin is written against the public plugin API only (Host, BaseAction, ActionSpec, ...), so it keeps
+# working as netstead's internals move. netstead.workbench.plugins itself imports netstead internals: indirect
+# imports through it are allowed; direct imports of anything else in netstead (or corral) are not.
+name = "netstead-project-cards uses only the public plugin API of netstead"
+type = "forbidden"
+source_modules = ["netstead_project_cards"]
+forbidden_modules = ["netstead", "corral"]
+ignore_imports = ["netstead_project_cards.** -> netstead.workbench.plugins"]
+allow_indirect_imports = true
+
 # ---------------------------------------------------------------------------
 # Pytest
 # ---------------------------------------------------------------------------
 
 [tool.pytest.ini_options]
 minversion = "8.0"
-testpaths = ["packages/corral/tests", "packages/netstead/tests"]
+testpaths = ["packages/corral/tests", "packages/netstead/tests", "plugins/project-cards/tests"]
 # importlib mode avoids module-name collisions when multiple packages each
 # have a tests/__init__.py (otherwise both bind to "tests" and the second
 # loses); also required for src-layout monorepos.
@@ -207,6 +226,10 @@ filterwarnings = [
     # that it disables itself under xdist. Expected with `-n auto`; the bench
     # workflow runs serially.
     "ignore:Benchmarks are automatically disabled because xdist plugin is active",
+    # projectcard 0.3.3's utils.py has re.sub("[\ ]+", ...): compiling it warns, and "error" would turn that into
+    # a SyntaxError at import (uv installs without bytecode, so CI always compiles it). Narrow: this message only.
+    # TODO(deps): drop when projectcard ships a raw string there.
+    "ignore:invalid escape sequence:SyntaxWarning",
 ]
 markers = [
     "slow: end-to-end / multi-second tests; skipped by default, run with -m \"\" (full) or -m slow",
@@ -221,7 +244,7 @@ markers = [
 # ---------------------------------------------------------------------------
 
 [tool.coverage.run]
-source = ["packages/corral/corral", "packages/netstead/netstead"]
+source = ["packages/corral/corral", "packages/netstead/netstead", "plugins/project-cards/netstead_project_cards"]
 branch = true
 omit = [
     "*/tests/*",

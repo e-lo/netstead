@@ -1,0 +1,37 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "netstead-project-cards"
+version = "0.1.0"
+description = "ProjectCard authoring in the netstead Workbench: select, change, preview, and commit network_wrangler project cards."
+readme = "README.md"
+license = "Apache-2.0"
+# A copy of the workspace-root LICENSE (hatchling skips license files outside the package directory).
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+authors = [{ name = "Elizabeth Sall" }]
+keywords = ["gmns", "projectcard", "network_wrangler", "transportation", "workbench"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    # The Workbench and its plugin API (Host API 1.5). [server] brings FastAPI for the plugin's routes.
+    "netstead[server]>=1.0.0b2,<2",
+    # Cards are validated with the projectcard package's own schema and validator. 0.3.x: its schema is the one
+    # this plugin's change types and tests pin.
+    "projectcard>=0.3.3,<0.4",
+    "pyyaml>=6",
+    "pydantic>=2",
+]
+
+[project.entry-points."netstead.workbench.plugins"]
+project_cards = "netstead_project_cards:plugin"
+
+[tool.hatch.build.targets.wheel]
+packages = ["netstead_project_cards"]
