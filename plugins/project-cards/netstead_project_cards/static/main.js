@@ -79,7 +79,7 @@ export function activate(wb) {
     group: "Card",
     contexts: ["palette"],
     when: ctx => Boolean(draftOf(ctx.state, ctxNet(ctx))),
-    run: () => ctl.undo(),
+    run: ctx => ctl.undo({ netId: draftNet(ctx.state, ctxNet(ctx)) }),
   });
 
   wb.store.subscribe(["plugins.project_cards", "active"], () => {
@@ -174,7 +174,7 @@ function createView(wb, ctl, el) {
     const list = h("ol");
     for (const change of draft.changes) list.append(h("li", { text: change.describe }));
     draftBox.append(list,
-      h("button", { class: "mini", onclick: guard(async () => { await ctl.undo(); say("Undid the last change"); }) },
+      h("button", { class: "mini", onclick: guard(async () => { await ctl.undo({ netId: baseNet() }); say("Undid the last change"); }) },
         "Undo last change"));
   }
 

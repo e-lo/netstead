@@ -1,12 +1,16 @@
 """GET /api/plugins/project_cards/form and /commit-check: what the panel's forms and the commit dialog show."""
 
+import numpy as np
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 from netstead.workbench import build_app
 from netstead.workbench.actions import SaveSelection, Select
 from netstead_project_cards.actions import AddChange, PreviewChange
-from netstead_project_cards.routes import column_schema, current_values, next_id
+from netstead_project_cards.card import DraftCard
+from netstead_project_cards.errors import CardError
+from netstead_project_cards.lower import rows_by_key
+from netstead_project_cards.routes import column_schema, current_values, list_columns, next_id
 from netstead_project_cards.types import PropertyChange, RoadwayPropertyChange, Selection
 
 FORM = "/api/plugins/project_cards/form"
@@ -125,3 +129,43 @@ def test_column_helpers_on_a_small_frame():
     schema = column_schema(frame, {"id"}, existing, mixed)["properties"]
     assert schema["x"]["title"] == "x (empty)" and schema["flag"]["anyOf"][0] == {"type": "boolean"}
     assert next_id(frame, "id") is None and next_id(frame, "n") == 3 and next_id(frame.iloc[:0], "n") is None
+
+
+def test_list_cells_are_left_out_of_the_forms():
+    # A cell holding a list or an array is not a value a property change can set: no field, no current value.
+    frame = pd.DataFrame(
+        {
+            "id": [1, 2],
+            "lanes": [1, 1],
+            "tags": [["a"], ["a", "b"]],
+            "arr": [np.array([1, 2]), np.array([1, 2])],
+            "name": ["x", None],
+        }
+    )
+    lists = list_columns(frame)
+    assert lists == {"tags", "arr"}
+    rows = rows_by_key(frame, "id", [1, 2], ["arr", "lanes"])  # arrays pass through; scalars become Python ones
+    assert rows["1"]["arr"].tolist() == [1, 2] and type(rows["1"]["lanes"]) is int
+    existing, mixed = current_values(frame, "id", [1, 2], skip=lists)
+    assert existing == {"lanes": 1} and mixed == {"name"}
+    assert set(column_schema(frame, {"id", *lists}, existing, mixed)["properties"]) == {"lanes", "name"}
+
+
+def test_commit_check_reports_a_card_error_as_400(client, session, monkeypatch):
+    session.dispatch(
+        AddChange(
+            change=RoadwayPropertyChange(facility=Selection(ids=[1]), property_changes={"lanes": PropertyChange(set=2)})
+        )
+    )
+
+    def refuse(self, mapping):
+        raise CardError("lanes has no Wrangler name")
+
+    monkeypatch.setattr(DraftCard, "to_card", refuse)
+    response = client.get(CHECK)
+    assert response.status_code == 400 and response.json()["detail"] == "lanes has no Wrangler name"
+
+
+def test_commit_check_limits_the_project_name_as_commit_does(client):
+    assert client.get(CHECK, params={"project": "x" * 200}).status_code == 200
+    assert client.get(CHECK, params={"project": "x" * 201}).status_code == 422

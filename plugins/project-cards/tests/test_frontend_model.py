@@ -160,7 +160,10 @@ const refuse = new Set();
 const wb = {
   api: {
     get: async path => { calls.push(["get", path]);
-      if (path.startsWith("/commit-check")) return { warnings: [{ code: "edit.fk_missing" }], problems: [], yaml: "" };
+      if (path.startsWith("/commit-check")) {
+        const net_id = new URLSearchParams(path.split("?")[1]).get("net_id") || "base";
+        return { net_id, warnings: [{ code: "edit.fk_missing" }], problems: [], yaml: "" };
+      }
       return forms[new URLSearchParams(path.split("?")[1]).get("type")]; },
     dispatch: async action => { calls.push(["dispatch", action]);
       if (refuse.has(action.type)) throw new Error(`${action.type} refused`);
@@ -184,7 +187,7 @@ await ctl.start("roadway_property_change");
 const afterPreview = await ctl.preview(values);
 await ctl.add(values);
 await ctl.check({ project: "Lanes", net_id: "base" });
-await ctl.commit({ project: "Lanes", path: "cards/lanes.yml", tags: [] });
+await ctl.commit({ project: "Lanes", path: "cards/lanes.yml", tags: [], net_id: "base" });
 console.log(JSON.stringify({ calls, afterPreview, compose: ctl.state.compose, preview: cards.preview }));
 """
 )
@@ -214,6 +217,7 @@ def test_the_controller_reads_the_form_then_dispatches_actions(run_js):
             "project": "Lanes",
             "path": "cards/lanes.yml",
             "tags": [],
+            "net_id": "base",
             "confirm_warnings": True,
         },
     ]  # the dialog showed a warning: committing confirms it
@@ -294,3 +298,80 @@ console.log(JSON.stringify(calls.map(c => c[0] === "dispatch" ? c[1].type : c[0]
         "get",
         "project_cards.close_preview",  # cancel closes the preview the server reports
     ]
+
+
+def test_an_add_that_succeeded_resolves_even_when_closing_the_preview_is_refused(run_js):
+    got = run_js(
+        BOTH,
+        STUB_WB
+        + """
+await ctl.start("roadway_deletion", { saved: "ski" });
+await ctl.preview({ options: {} });
+refuse.add("project_cards.close_preview");
+const result = await ctl.add({ options: {} });  // must not reject: a retry would add the change twice
+console.log(JSON.stringify({ result, compose: ctl.state.compose, calls: calls.slice(-2) }));
+""",
+    )
+    assert got["result"] == {"count": 1, "describe": "x"} and got["compose"] is None
+    assert got["calls"] == [
+        ["dispatch", {"type": "project_cards.close_preview"}],
+        ["toast", "The change was added; the preview stayed open: project_cards.close_preview refused"],
+    ]
+
+
+def test_commit_confirms_only_the_warnings_the_dialog_showed(run_js):
+    got = run_js(
+        BOTH,
+        STUB_WB
+        + """
+const confirmed = () => calls.filter(c => c[0] === "dispatch" && c[1].type === "project_cards.commit")
+  .map(c => c[1].confirm_warnings);
+const fields = { project: "P", path: "p.yml", net_id: "base" };
+// Refused for another reason (the file exists): the retry still confirms the warnings the dialog showed.
+await ctl.check(fields);
+refuse.add("project_cards.commit");
+try { await ctl.commit(fields); } catch (e) { /* the dialog shows it */ }
+refuse.delete("project_cards.commit");
+await ctl.commit({ ...fields, overwrite: true });
+await ctl.commit(fields);  // committed: that check is spent
+// A check for another network confirms nothing here.
+await ctl.check({ ...fields, net_id: "other" });
+await ctl.commit(fields);
+// Anything that changes the draft makes a check stale.
+const stale = [];
+const addOne = async () => { await ctl.start("roadway_deletion", { saved: "s" }); await ctl.add({ options: {} }); };
+for (const step of [() => ctl.undo(), () => ctl.importCard("a.yml"), () => ctl.cancel(), addOne]) {
+  await ctl.check(fields);
+  await step();
+  stale.push(ctl.state.check);
+}
+await ctl.undo({ netId: "base" });
+const noForm = [];
+for (const step of [() => ctl.preview({}), () => ctl.add({})]) {
+  try { await step(); } catch (e) { noForm.push(e.message); }
+}
+console.log(JSON.stringify({ confirmed: confirmed(), stale, undo: calls.at(-1), noForm }));
+""",
+    )
+    assert got["confirmed"] == [True, True, False, False]
+    assert got["stale"] == [None, None, None, None]
+    assert got["undo"] == ["dispatch", {"type": "project_cards.undo_change", "net_id": "base"}]
+    assert got["noForm"] == ["no change form is open", "no change form is open"]
+
+
+def test_the_change_types_match_the_plugins(run_js):
+    # cardmodel.js names the types to register commands at activation, before any state arrives: pin them here.
+    from netstead_project_cards.flow import SELECTABLE
+    from netstead_project_cards.types import ROADWAY_TYPES, TRANSIT_TYPES
+
+    got = run_js(
+        MODEL,
+        """
+import { ROADWAY_TYPES, TRANSIT_TYPES, TYPE_TITLES, needsSelection } from "./cardmodel.js";
+const all = [...ROADWAY_TYPES, ...TRANSIT_TYPES];
+console.log(JSON.stringify({ roadway: ROADWAY_TYPES, transit: TRANSIT_TYPES, titled: Object.keys(TYPE_TITLES),
+  selectable: all.filter(needsSelection) }));
+""",
+    )
+    assert set(got["roadway"]) == ROADWAY_TYPES and set(got["transit"]) == TRANSIT_TYPES
+    assert set(got["titled"]) == ROADWAY_TYPES | TRANSIT_TYPES and set(got["selectable"]) == SELECTABLE

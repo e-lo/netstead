@@ -9,9 +9,10 @@ lock: each Host call takes it, and the draft state has its own (:class:`~netstea
 from __future__ import annotations
 
 import json
+from collections.abc import Collection
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from netstead.workbench.plugins import ActionError, Host
 
 from .card import DraftCard
@@ -23,7 +24,7 @@ from .state import CardsState
 from .types import ROADWAY_TYPES, TRANSIT_TYPES, Selection
 from .validate import card_problems
 
-__all__ = ["build_router", "column_schema", "current_values", "next_id"]
+__all__ = ["build_router", "column_schema", "current_values", "list_columns", "next_id"]
 
 _NOTE = {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Why (written in the card's notes)"}
 PROPERTY_OPTIONS = {
@@ -62,9 +63,21 @@ def _kind(series: Any) -> str:
     return _KINDS.get(series.dtype.kind, "string")
 
 
-def current_values(frame: Any, pk: str, ids: list[Any]) -> tuple[dict[str, Any], set[str]]:
-    """``(existing, mixed)``: the value every target shares, per column (when set), and the columns that differ."""
-    columns = [c for c in frame.columns if c != pk]
+def _is_list(value: Any) -> bool:
+    return isinstance(value, list | tuple | dict | set) or getattr(value, "ndim", 0) > 0
+
+
+def list_columns(frame: Any) -> set[str]:
+    """The columns holding lists or arrays: a property change sets one scalar value, so the forms leave them out."""
+    return {c for c in frame.columns if frame[c].dtype.kind == "O" and frame[c].map(_is_list).any()}
+
+
+def current_values(frame: Any, pk: str, ids: list[Any], skip: Collection[str] = ()) -> tuple[dict[str, Any], set[str]]:
+    """``(existing, mixed)``: the value every target shares, per column (when set), and the columns that differ.
+
+    Columns in ``skip`` (say, :func:`list_columns`) are left out.
+    """
+    columns = [c for c in frame.columns if c != pk and c not in skip]
     rows = rows_by_key(frame, pk, ids, columns)
     existing: dict[str, Any] = {}
     mixed: set[str] = set()
@@ -93,8 +106,11 @@ def column_schema(frame: Any, skip: set[str], existing: dict[str, Any], mixed: s
 
 def _record_schema(frame: Any, required: tuple[str, ...]) -> dict[str, Any]:
     need = [c for c in required if c in frame.columns]
+    lists = list_columns(frame) - set(need)
     properties = {}
     for c in frame.columns:
+        if c in lists:
+            continue
         kind = {"type": _kind(frame[c])}
         properties[c] = {**kind, "title": c} if c in need else {"anyOf": [kind, {"type": "null"}], "title": c}
     return {"type": "object", "properties": properties, "required": need}
@@ -145,11 +161,12 @@ def _form(
     if change_type == "roadway_deletion":
         return {**head, "targets": targets, "options": DELETION_OPTIONS}
     frame = handle.links_df()
-    existing, mixed = current_values(frame, KEYS["link"], ids)
+    lists = list_columns(frame)
+    existing, mixed = current_values(frame, KEYS["link"], ids, skip=lists)
     return {
         **head,
         "targets": targets,
-        "columns": column_schema(frame, {KEYS["link"]}, existing, mixed),
+        "columns": column_schema(frame, {KEYS["link"], *lists}, existing, mixed),
         "options": PROPERTY_OPTIONS,
         "existing": existing,
     }
@@ -174,22 +191,17 @@ def build_router(host: Host, state: CardsState, mapping: FieldMap) -> APIRouter:
             raise HTTPException(400, str(exc)) from exc
 
     @api.get("/commit-check")
-    def commit_check(net_id: str | None = None, project: str = "") -> dict[str, Any]:
+    def commit_check(net_id: str | None = None, project: str = Query("", max_length=200)) -> dict[str, Any]:
         try:
             net = target_network(host, state, net_id)
             warnings = host.edit_warnings(net)
+            card = state.card(net) or DraftCard()
+            if project:
+                card = card.model_copy(update={"project": project})
+            problems = card_problems(card.to_card(mapping)) if card.changes else ["the draft card has no changes"]
+            text = card.to_yaml(mapping)
         except (CardError, ActionError) as exc:
             raise HTTPException(400, str(exc)) from exc
-        card = state.card(net) or DraftCard()
-        if project:
-            card = card.model_copy(update={"project": project})
-        problems = card_problems(card.to_card(mapping)) if card.changes else ["the draft card has no changes"]
-        return {
-            "net_id": net,
-            "changes": len(card.changes),
-            "warnings": warnings,
-            "problems": problems,
-            "yaml": card.to_yaml(mapping),
-        }
+        return {"net_id": net, "changes": len(card.changes), "warnings": warnings, "problems": problems, "yaml": text}
 
     return api

@@ -38,7 +38,7 @@ const deps = {
     return p.includes("transit") ? { supported: false, message: "transit_routing_change is not yet supported" }
                                  : { supported: true, existing: {}, targets: { label: "2 picked links" } }; },
   postJSON: async () => ({}), fetch: async () => ({}),
-  dispatch: async a => { calls.push(["dispatch", a.type]); return {}; },
+  dispatch: async a => { calls.push(["dispatch", a.type, ...(a.net_id ? [a.net_id] : [])]); return {}; },
   addCommand: (owner, spec) => slots.addCommand(owner, spec), layers: createLayerRegistry(),
   dock: { addWorkspace: (o, s) => slots.addWorkspace(o, s),
           addPanel: (o, s) => { panels.push(s); return { dispose: slots.addPanel(o, s), refreshBadge() {} }; },
@@ -123,5 +123,5 @@ def test_commands_open_the_form_or_say_not_yet_supported(run_js):
     assert calls[1] == ["show", "project_cards.draft"]
     assert calls[2] == ["get", "/api/plugins/project_cards/form?type=transit_routing_change"]
     assert calls[3] == ["toast", "project_cards: transit_routing_change is not yet supported"]
-    assert calls[4] == ["dispatch", "project_cards.undo_change"]
+    assert calls[4] == ["dispatch", "project_cards.undo_change", "base"]
     assert not [c for c in calls if c[0] == "error"]
