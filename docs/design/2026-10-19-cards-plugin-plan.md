@@ -2,7 +2,7 @@
 
 Status: **proposed** · Date: 2026-10-19 · Owner: Elizabeth Sall
 
-**Note:** Code blocks in Tasks 3–8 predate review fixes; the code in `plugins/project-cards` is authoritative.
+**Note:** Code blocks in Tasks 3–6 predate review fixes; the code in `plugins/project-cards` is authoritative.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or
 > superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
