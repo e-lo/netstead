@@ -6,6 +6,11 @@ Workbench, and this state must not have moved. A handler nested in another Actio
 back when its parent fails, which core does not tell the plugin; so each draft change records the marks its
 mutations left (:class:`~netstead_project_cards.lower.Mark`), and every handler and ``state()`` first reconciles the
 draft with its network (:meth:`CardsState.sync`). The routes read it outside the session lock, so it has its own.
+
+The open preview (:class:`Preview`) is checked the same way, by handle: it stands for its base only while both
+networks are the ones it was made on. One limit: a preview that closes an older one (a second preview) cannot reopen
+it, so when an enclosing Action fails after a nested ``project_cards.preview`` succeeded, the new copy is rolled back
+and the older preview stays closed.
 """
 
 from __future__ import annotations
@@ -21,7 +26,7 @@ from .card import DraftCard
 from .lower import Applied, Mark, describe
 from .types import CHANGE_TYPES, ROADWAY_TYPES, NetworkChange
 
-__all__ = ["CardsState", "Draft", "Entry", "Undone", "slug"]
+__all__ = ["CardsState", "Draft", "Entry", "Preview", "Undone", "slug"]
 
 
 def slug(text: str) -> str:
@@ -83,11 +88,51 @@ class Draft:
             self.card = self.card.model_copy(update={"changes": [e.change for e in kept]})
 
 
+@dataclass(frozen=True)
+class Preview:
+    """The open preview: its network, the base it was derived from, and the base's version when it was made.
+
+    ``copy`` and ``base_handle`` are weak references to the two network handles (core reuses a closed network's id,
+    and a reopened network is a new handle). The preview is ``stale`` once the base's version differs from
+    ``base_version``: a change applied to the base since (``project_cards.add_change`` while previewing, an undo, an
+    outside edit) is not on the copy, so the UI can offer to preview again.
+    """
+
+    net_id: str
+    copy: weakref.ref[Any]
+    base: str
+    base_handle: weakref.ref[Any]
+    base_version: int
+    describe: str
+
+    def is_copy(self, handle: Any | None) -> bool:
+        """Whether ``handle`` (the open network with id ``net_id``) is this preview's network."""
+        return handle is not None and handle is self.copy()
+
+    def stands_for_base(self, copy: Any | None, base: Any | None) -> bool:
+        """Whether the preview network ``copy`` still stands for ``base`` (the open networks with those ids).
+
+        Both must be the handles the preview was made on, and the copy must still name the base as ``derived_from``
+        (core renames it when the base closes).
+        """
+        return (
+            self.is_copy(copy)
+            and base is not None
+            and base is self.base_handle()
+            and getattr(copy, "derived_from", None) == self.base
+        )
+
+    def report(self, base: Any) -> dict[str, Any]:
+        """JSON-safe for ``state()``; ``base`` is the base's open handle."""
+        stale = base.version != self.base_version
+        return {"net_id": self.net_id, "base": self.base, "describe": self.describe, "stale": stale}
+
+
 class CardsState:
     """Drafts per network, committed cards and the open preview, behind one lock.
 
-    Every read and write of the drafts goes through a method that holds the lock; none of them calls into the
-    session (a handler holds the session lock and then this one, so the other order could deadlock).
+    Every read and write of the drafts and the preview goes through a method that holds the lock; none of them calls
+    into the session (a handler holds the session lock and then this one, so the other order could deadlock).
     """
 
     def __init__(self) -> None:
@@ -95,7 +140,23 @@ class CardsState:
         self._lock = threading.RLock()
         self._drafts: dict[str, Draft] = {}
         self.committed: list[dict[str, Any]] = []
-        self.preview: dict[str, Any] | None = None
+        self._preview: Preview | None = None
+
+    def preview(self) -> Preview | None:
+        """The open preview (``None`` when there is none); a frozen record, safe to read outside the lock."""
+        with self._lock:
+            return self._preview
+
+    def set_preview(self, preview: Preview) -> None:
+        """Record ``preview`` as the open preview (it replaces any older one, which the caller has closed)."""
+        with self._lock:
+            self._preview = preview
+
+    def clear_preview(self, preview: Preview) -> None:
+        """Forget ``preview``, unless another preview has replaced it meanwhile."""
+        with self._lock:
+            if self._preview is preview:
+                self._preview = None
 
     def sync(self, net_id: str, handle: Any) -> None:
         """Bring ``net_id``'s draft in line with its network ``handle`` (read before the call, outside the lock).
@@ -189,15 +250,16 @@ class CardsState:
     def snapshot(self, network: Callable[[str], Any | None]) -> dict[str, Any]:
         """JSON-safe state for ``/api/state`` (``plugins.project_cards``), each draft reconciled with its network.
 
-        ``network(net_id)`` is the open network's handle, or ``None``: the drafts and preview of a closed network are
-        dropped (its pending edits went with it, so its draft can never be committed or undone). It is called before
-        the lock is taken, never under it.
+        ``network(net_id)`` is the open network's handle, or ``None``: the drafts of a closed network are dropped (its
+        pending edits went with it, so its draft can never be committed or undone), and so is a preview whose network
+        or base is gone (:meth:`Preview.stands_for_base`). It is called before the lock is taken, never under it.
         """
         with self._lock:
             ids = list(self._drafts)
-            preview = self.preview["net_id"] if self.preview is not None else None
+            preview = self._preview
         handles = {net_id: network(net_id) for net_id in ids}
-        preview_open = preview is not None and network(preview) is not None
+        base = network(preview.base) if preview is not None else None
+        standing = preview is not None and preview.stands_for_base(network(preview.net_id), base)
         for net_id, handle in handles.items():
             if handle is not None:
                 self.sync(net_id, handle)
@@ -205,8 +267,9 @@ class CardsState:
             for net_id, handle in handles.items():
                 if handle is None:
                     self._drafts.pop(net_id, None)
-            if self.preview is not None and self.preview["net_id"] == preview and not preview_open:
-                self.preview = None
+            if preview is not None and self._preview is preview and not standing:
+                self._preview = None
+            reported = preview.report(base) if standing and self._preview is preview else None
             drafts = {
                 net_id: {
                     "project": d.card.project,
@@ -222,7 +285,7 @@ class CardsState:
             return {
                 "drafts": drafts,
                 "committed": [dict(c) for c in self.committed],
-                "preview": dict(self.preview) if self.preview is not None else None,
+                "preview": reported,
                 "change_types": list(CHANGE_TYPES),
                 "supported": sorted(ROADWAY_TYPES),
             }

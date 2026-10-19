@@ -63,16 +63,6 @@ def nested(make_session):
     return make_session(_nester())
 
 
-@pytest.fixture
-def no_state_reads(monkeypatch):
-    """``install(session)``: plugin ``state()`` is never called, so only the handlers can reconcile the drafts."""
-
-    def install(session):
-        monkeypatch.setattr(session, "_plugin_state", dict)
-
-    return install
-
-
 def add(link_id, value):
     return AddChange(change=lanes(link_id, value)).model_dump(mode="json")
 
@@ -166,12 +156,15 @@ def test_a_reopened_network_does_not_inherit_the_closed_ones_draft(session, no_s
 
 
 def test_state_reads_the_networks_before_it_takes_its_own_lock(session):
-    from netstead_project_cards.state import CardsState
+    import weakref
+
+    from netstead_project_cards.state import CardsState, Preview
 
     state, held = CardsState(), []
     handle = session.network(NET)
     state.extend(NET, handle, [])
-    state.preview = {"net_id": "gone", "base": NET, "describe": "x"}
+    ref = weakref.ref(handle)
+    state.set_preview(Preview(net_id="gone", copy=ref, base=NET, base_handle=ref, base_version=0, describe="x"))
 
     def network(net_id):
         held.append(state._lock._is_owned())

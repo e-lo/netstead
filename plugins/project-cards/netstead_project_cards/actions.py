@@ -40,7 +40,8 @@ class AddChange(_ChangeAction):
     the shared selection: a click-pick by its link ids (``ignore_missing`` false), a query by its query (keeping the
     query's ``ignore_missing``, true when it has none) with the ids it resolved to. With ``saved_selection`` it targets
     that saved selection instead. ``net_id`` defaults to the active network (an open preview stands for the network
-    it previews). The change is checked with ``projectcard`` before it is applied.
+    it previews, while that network is open, and a selection made on the preview targets it). The change is checked
+    with ``projectcard`` before it is applied.
     """
 
     type: Literal["project_cards.add_change"] = "project_cards.add_change"
@@ -96,7 +97,8 @@ class PreviewChange(_ChangeAction):
     """Preview one roadway change on a copy of a network, shown on the map; the network itself is untouched.
 
     Takes the same fields as ``project_cards.add_change``. A second preview replaces the first;
-    ``project_cards.close_preview`` returns to the network.
+    ``project_cards.close_preview`` returns to the network. The preview is reported ``stale`` once the network
+    changes (an ``add_change`` while previewing goes to the network, not the preview).
     """
 
     type: Literal["project_cards.preview"] = "project_cards.preview"

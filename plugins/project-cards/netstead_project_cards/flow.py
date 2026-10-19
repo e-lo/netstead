@@ -22,10 +22,10 @@ __all__ = [
     "as_action_errors",
     "check_card_shape",
     "complete_change",
-    "is_open",
     "open_handle",
     "refuse_transit",
     "selection_facility",
+    "selection_networks",
     "target_network",
 ]
 
@@ -61,32 +61,50 @@ def open_handle(host: Host, net_id: str) -> Any | None:
         return None
 
 
-def is_open(host: Host, net_id: str) -> bool:
-    """Whether a network with this id is open in the session."""
-    return open_handle(host, net_id) is not None
-
-
 def target_network(host: Host, state: CardsState, net_id: str | None) -> str:
     """The network a change goes to: ``net_id``, else the active one; an open preview stands for its base.
 
+    The preview stands for its base only while both are the networks it was made on
+    (:meth:`~netstead_project_cards.state.Preview.stands_for_base`): once the base is closed (even if a network with
+    its id was opened since), a change aimed at the preview is refused rather than sent to another network.
     Its draft is reconciled with the network first (:meth:`CardsState.sync`), so every handler starts from a draft
     that describes the network.
     """
     net = net_id or host.active
     if net is None:
         raise CardError("no network is open")
-    preview = state.preview
-    if preview is not None and net == preview["net_id"]:
-        net = preview["base"]
     handle = open_handle(host, net)
+    preview = state.preview()
+    if preview is not None and net == preview.net_id and preview.is_copy(handle):
+        net = preview.base
+        base = open_handle(host, net)
+        if not preview.stands_for_base(handle, base):
+            raise CardError("the network this preview was made from is closed")
+        handle = base
     if handle is None:
         raise CardError(f"there is no open network {net!r}")
     state.sync(net, handle)
     return net
 
 
-def selection_facility(host: Host, net: str, *, use_selection: bool, saved: str | None) -> tuple[Selection, list[str]]:
-    """The facility the shared (or a saved) selection gives, and its warnings.
+def selection_networks(host: Host, state: CardsState, net: str) -> frozenset[str]:
+    """The networks a selection may be on to target ``net``: ``net``, and the open preview of ``net``.
+
+    A preview is made active, so a selection made while previewing is on the preview; its link ids are applied to
+    the base (a picked link only the preview has fails there, as any missing picked link does).
+    """
+    preview = state.preview()
+    if preview is None or preview.base != net:
+        return frozenset({net})
+    if not preview.stands_for_base(open_handle(host, preview.net_id), open_handle(host, net)):
+        return frozenset({net})
+    return frozenset({net, preview.net_id})
+
+
+def selection_facility(
+    host: Host, nets: frozenset[str], *, use_selection: bool, saved: str | None
+) -> tuple[Selection, list[str]]:
+    """The facility the shared (or a saved) selection on one of ``nets`` gives, and its warnings.
 
     A click-pick becomes its link ids with ``ignore_missing`` false (a fix aimed at specific links fails loudly when
     one is gone). A query becomes its query with the link ids it resolved to as provenance, keeping the intent's
@@ -102,8 +120,9 @@ def selection_facility(host: Host, net: str, *, use_selection: bool, saved: str 
         where = f"the saved selection {saved!r}"
         if payload is None:
             raise CardError(f"there is no saved selection named {saved!r}")
-    if payload.get("net_id") != net:
-        raise CardError(f"{where} is on network {payload.get('net_id')!r}, not {net!r}")
+    if payload.get("net_id") not in nets:
+        wanted = " or ".join(repr(n) for n in sorted(nets))
+        raise CardError(f"{where} is on network {payload.get('net_id')!r}, not {wanted}")
     forms = payload.get("projectcard")
     if payload.get("status") != "resolved" or not forms:
         raise CardError(f"{where} is not resolved; pin its anchors first")
@@ -118,14 +137,17 @@ def selection_facility(host: Host, net: str, *, use_selection: bool, saved: str 
 
 
 def complete_change(
-    host: Host, net: str, change: NetworkChange, use_selection: bool, saved: str | None
+    host: Host, nets: frozenset[str], change: NetworkChange, use_selection: bool, saved: str | None
 ) -> tuple[NetworkChange, list[str]]:
-    """``change`` with its targets taken from the shared (or a saved) selection when asked, and its warnings."""
+    """``change`` with its targets taken from the shared (or a saved) selection when asked, and its warnings.
+
+    ``nets`` are the networks the selection may be on (:func:`selection_networks`).
+    """
     if not use_selection and saved is None:
         return change, []
     if change.type not in SELECTABLE:
         raise CardError(f"{change.type} does not take a selection")
-    selection, warnings = selection_facility(host, net, use_selection=use_selection, saved=saved)
+    selection, warnings = selection_facility(host, nets, use_selection=use_selection, saved=saved)
     if isinstance(change, RoadwayDeletion):
         if change.links or change.nodes:
             raise CardError("give the links to delete or use a selection, not both")

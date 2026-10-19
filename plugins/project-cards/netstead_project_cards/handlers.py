@@ -8,6 +8,7 @@ the network at the start of every handler, so such a change never reaches an und
 
 from __future__ import annotations
 
+import weakref
 from typing import Any
 
 from netstead.workbench.plugins import ActionError, ActionSpec, Host
@@ -16,10 +17,18 @@ from .actions import AddChange, ClosePreview, CommitCard, ImportCard, PreviewCha
 from .card import Dependencies, read_card_file
 from .errors import CardError
 from .files import undo_write, write_file
-from .flow import as_action_errors, check_card_shape, complete_change, is_open, refuse_transit, target_network
+from .flow import (
+    as_action_errors,
+    check_card_shape,
+    complete_change,
+    open_handle,
+    refuse_transit,
+    selection_networks,
+    target_network,
+)
 from .lower import Applied, apply_change, describe, mark_after
 from .mapping import FieldMap
-from .state import CardsState
+from .state import CardsState, Preview
 from .validate import card_problems
 
 __all__ = ["Handlers"]
@@ -48,7 +57,8 @@ class Handlers:
         refuse_transit(action.change)
         with as_action_errors():
             net = target_network(host, self.state, action.net_id)
-            change, warnings = complete_change(host, net, action.change, action.use_selection, action.saved_selection)
+            nets = selection_networks(host, self.state, net)
+            change, warnings = complete_change(host, nets, action.change, action.use_selection, action.saved_selection)
             check_card_shape(change, self.mapping)
             applied = apply_change(host, net, change)
         applied.warnings[:0] = warnings
@@ -172,31 +182,49 @@ class Handlers:
     def preview(self, host: Host, action: PreviewChange) -> dict[str, Any]:
         """Derive a copy of the base, apply the change to it, and make it active; then close any older preview.
 
-        A failure rolls back the copy with the Action (the Workbench closes the networks a failed handler derived).
-        The older preview is closed last, so nothing is closed when an earlier step fails.
+        A failure in this handler rolls back the copy with the Action (the Workbench closes the networks a failed
+        handler derived), and the older preview is closed last, so this handler closes nothing when one of its own
+        steps fails. An enclosing Action that fails afterwards does not reopen the older preview (see
+        :mod:`~netstead_project_cards.state`). The preview is ``stale`` in ``state()`` once its base changes.
         """
         refuse_transit(action.change)
         with as_action_errors():
             base = target_network(host, self.state, action.net_id)
-            change, warnings = complete_change(host, base, action.change, action.use_selection, action.saved_selection)
+            nets = selection_networks(host, self.state, base)
+            change, warnings = complete_change(host, nets, action.change, action.use_selection, action.saved_selection)
             check_card_shape(change, self.mapping)
             text = describe(change)
+            base_handle = host.network(base)
+            base_version = base_handle.version
             copy_id = host.derive(base, label=f"Preview: {text}"[:120], note=f"preview {change.type}")
             applied = apply_change(host, copy_id, change)
-        older = self.state.preview
+        older = self.state.preview()
         host.dispatch({"type": "set_active_network", "net_id": copy_id})
-        if older is not None and is_open(host, older["net_id"]):
-            host.dispatch({"type": "close_network", "net_id": older["net_id"]})
-        self.state.preview = {"net_id": copy_id, "base": base, "describe": text}
+        if older is not None and older.is_copy(open_handle(host, older.net_id)):
+            host.dispatch({"type": "close_network", "net_id": older.net_id})
+        preview = Preview(
+            net_id=copy_id,
+            copy=weakref.ref(host.network(copy_id)),
+            base=base,
+            base_handle=weakref.ref(base_handle),
+            base_version=base_version,
+            describe=text,
+        )
+        self.state.set_preview(preview)
         return {"preview": copy_id, "base": base, **applied.summary(), "warnings": [*warnings, *applied.warnings]}
 
     def close_preview(self, host: Host, action: ClosePreview) -> dict[str, Any]:
-        """Close the preview network and make its base active again."""
-        preview = self.state.preview
-        if preview is None or not is_open(host, preview["net_id"]):
+        """Close the preview network and make its base active again.
+
+        When the base is gone (closed, even if a network with its id was opened since), the preview is closed and
+        the active network is left to core: the plugin never switches to an unrelated network.
+        """
+        preview = self.state.preview()
+        copy = open_handle(host, preview.net_id) if preview is not None else None
+        if preview is None or not preview.is_copy(copy):
             raise ActionError("no preview is open")
-        if is_open(host, preview["base"]):
-            host.dispatch({"type": "set_active_network", "net_id": preview["base"]})
-        host.dispatch({"type": "close_network", "net_id": preview["net_id"]})
-        self.state.preview = None
-        return {"closed": preview["net_id"], "active": host.active}
+        if preview.stands_for_base(copy, open_handle(host, preview.base)):
+            host.dispatch({"type": "set_active_network", "net_id": preview.base})
+        host.dispatch({"type": "close_network", "net_id": preview.net_id})
+        self.state.clear_preview(preview)
+        return {"closed": preview.net_id, "active": host.active}
