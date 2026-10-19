@@ -87,6 +87,12 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Fixed
 
+- **`netstead select` on an ambiguous selection** no longer crashes with
+  `SelectError: cannot emit a fragment from status 'ambiguous'`. It now prints
+  the status, the provisional link ids, each anchor with the other nodes it
+  could be (`candidates`), and diagnostics, and exits `3` (`1` stays
+  not-found, `2` invalid settings). Without `--json`, every status now renders
+  as a table instead of failing on a missing `json_out` argument.
 - **Selection anchors on a network without a `ref` (or `name`) column** no
   longer fail with `KeyError: 'ref'` (Leavenworth, for example).
 - **Assistant approval on a derived copy:** a draft that touches a derived
