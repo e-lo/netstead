@@ -11,8 +11,8 @@ catch it.
 What this script does
 ---------------------
 
-Walks every ``*.py`` file under ``packages/corral/corral/`` and
-``packages/netstead/netstead/`` (excluding the one allowed module,
+Walks every ``*.py`` file under ``packages/corral/corral/``,
+``packages/netstead/netstead/`` and ``plugins/project-cards/netstead_project_cards/`` (excluding the one allowed module,
 ``corral.engines.ibis_engine``, plus build scripts and test fixtures),
 parses each file with Python's ``ast`` module, inspects every string
 literal (``ast.Constant`` with ``str`` value), and flags any string that
@@ -75,6 +75,10 @@ SCAN_ROOTS: list[tuple[Path, set[Path]]] = [
             # run before the ibis engine is wired and needs raw duckdb). The
             # specific SQL line carries a `# pragma: allow-sql` comment.
         },
+    ),
+    (
+        REPO_ROOT / "plugins" / "project-cards" / "netstead_project_cards",
+        set(),  # the plugin has no SQL at all: it edits through the Host API
     ),
 ]
 

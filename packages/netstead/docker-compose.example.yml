@@ -46,10 +46,10 @@ services:
       # any code path that doesn't.
       CORRAL_AUTO_APPROVE: "1"
 
-    # Healthcheck pokes /networks; expects a 200 + JSON. Adjust the
-    # path if your config exposes a different root route.
+    # Healthcheck pokes /health — always 200, no auth required (the
+    # other routes need the bearer token, which curl doesn't send here).
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8000/networks"]
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
       interval: 30s
       timeout: 5s
       retries: 3
