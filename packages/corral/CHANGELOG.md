@@ -6,7 +6,15 @@ This file is for the **corral** package only. `netstead` (which depends on corra
 
 ## [Unreleased]
 
-(Reserved for changes between the most recent release and the next.)
+### Fixed
+
+- **`Package.write(..., overwrite=True)` over the package's own source no
+  longer loses tables.** The old target was removed before the tables, lazy
+  expressions still reading from it, were written, so only tables already
+  materialised in memory survived. Parquet, CSV and DuckDB targets are now
+  staged beside `dest` and swapped into place once the write is complete
+  (as zip targets already were), so a failed write also leaves an existing
+  `dest` intact.
 
 ## [1.0.0-beta.2] — TBD
 
