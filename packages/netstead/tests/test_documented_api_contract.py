@@ -90,6 +90,10 @@ _KNOWN_FICTIONAL = {
     # Appears in `[project.entry-points."corral.quality.rules"]`
     # and in architectural prose ("the corral.quality.rules group").
     "corral.quality.rules",
+    # The project cards plugin's provenance keys in a ProjectCard's `notes` text (`netstead.resolved[<i>]: ...`,
+    # `netstead.note[<i>]: ...`; cookbook/workbench-project-cards.md), not Python attribute paths.
+    "netstead.resolved",
+    "netstead.note",
 }
 
 # Known doc-vs-code gaps surfaced by this test on its first run

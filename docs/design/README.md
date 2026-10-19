@@ -71,6 +71,7 @@ architecture.md and this index in the same PR.
 | [NL providers](2026-10-02-nl-providers-plan.md) | NL providers design | implemented | #211 |
 | [Workbench plugins Part 1: Python plugin core](2026-10-05-workbench-plugins-p1-plan.md) | plugins design | implemented | #222 |
 | [Workbench plugins Part 2: front-end slots](2026-10-08-workbench-plugins-p2-plan.md) | plugins design | implemented | #223 |
+| [Project cards plugin (ProjectCard authoring)](2026-10-19-cards-plugin-plan.md) | cards scope | implemented: PR A (#228), PR B (#229); PR C (UI, docs) pending | #228, #229 |
 | [Workbench P2: validate + edit (core only)](2026-10-07-workbench-p2-plan.md) | Workbench design | implemented | #225 |
 | [Workbench P3: selection verification (P3a) + NL assistant (P3b)](2026-10-16-workbench-p3-plan.md) | Workbench design | implemented | #226, #227 |
 
@@ -81,7 +82,7 @@ architecture.md and this index in the same PR.
 | [Data-table exploration view](data-table-exploration-scope.md) | 09-30 | Phases 0–1 implemented | #194 | Phase 2+ (cross-linking, export) not scheduled |
 | [Overture → GMNS pipeline](overture-to-gmns-pipeline-scope.md) | 09-30 | implemented | #196 | "Phase 2" attribute refinements listed in the scope |
 | [Benchmarking suite](benchmarking-suite-scope.md) | 09-30 | implemented (DuckDB-only) | #197 | nightly perf regression job: [#100](https://github.com/e-lo/netstead/issues/100) |
-| [Cards plugin (ProjectCard editing)](2026-10-07-cards-plugin-scope.md) | 10-07 | implemented: PR A (#228), PR B (#229); UI panels pending | #228, #229 | `ignore_missing` defaults and importing the offline report's edit log are pending with the user |
+| [Project cards plugin (ProjectCard authoring)](2026-10-07-cards-plugin-scope.md) | 10-07 | implemented: PR A (#228), PR B (#229); PR C (UI, docs) pending | #228, #229 | see the scope's "Follow-ups" (added with PR C) |
 | [Documentation assessment and refresh](2026-10-19-docs-assessment-scope.md) | 10-19 | implemented (refresh); recommendations open | — | screenshots, a Workbench quickstart, CLI and HTTP API reference pages, harness coverage of accordion blocks |
 
 ## In flight (not on `main` yet)

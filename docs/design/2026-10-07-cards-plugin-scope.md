@@ -1,6 +1,6 @@
 # ProjectCard "project cards" plugin (`project_cards`): scope
 
-Status: **accepted** (2026-10-19) · Date: 2026-10-07 · Owner: Elizabeth Sall
+Status: **implemented** (#228, #229; PR C, the UI and docs, pending) · Date: 2026-10-07 · Owner: Elizabeth Sall
 
 > **2026-10-19:** accepted. The pending decisions are decided (see "Decisions from the user", 7–11), the plugin lives
 > in this monorepo as the first-party plugin `plugins/project-cards`, and the [implementation plan](2026-10-19-cards-plugin-plan.md) is

@@ -5,8 +5,19 @@
 "project cards" (`project_cards`).
 
     uv sync --all-packages        # in the netstead workspace: installs it next to netstead
+    uv run netstead app           # Settings → Plugins lists "Project cards" as loaded
 
-This release ships the library the Workbench pieces build on:
+**How to use it:** [Author ProjectCards in the Workbench](https://github.com/e-lo/netstead/blob/main/packages/netstead/docs/cookbook/workbench-project-cards.md)
+(the cookbook page: the panel, import, provenance, `ignore_missing`, Python and the assistant, known limits).
+
+**In the Workbench** (`netstead app`): select links, then right-click **New change ▸ Property change** or
+**Deletion** (**Addition** is in the command palette). The **Card** dock panel shows a form prefilled from the
+selection; **Preview** shows the change on a copy of the network, **Add to card** applies it and adds it to the
+network's draft card (badged with its count of uncommitted changes), and **Undo last change** takes it back.
+**Commit…** shows the live edit warnings (confirmed with **Commit anyway**) and the card's YAML, then writes the card
+atomically inside `io.allowed_roots`. **Import** applies a card, or the offline report's edit log, all or nothing.
+
+The library the Workbench pieces build on:
 
 - **The change model** (`netstead_project_cards.types`): one pydantic record per ProjectCard change type
   (`RoadwayPropertyChange`, `RoadwayDeletion`, `RoadwayAddition`; the transit types are declared and refused as not
@@ -26,5 +37,4 @@ This release ships the library the Workbench pieces build on:
 - Usable from Python (`app.do(...)`), over HTTP (`/api/actions`), from the command palette, and by the assistant: opt
   in with `assistant.plugins`; with a local model also set `assistant.compact_tools = "off"`.
 
-Only the Workbench UI (the draft panel and the forms to select, change, preview and commit a card from `netstead app`)
-arrives in the next release.
+**Routes** (read-only, for the panel): `GET /api/plugins/project_cards/form` and `/commit-check`.
