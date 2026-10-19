@@ -2,14 +2,16 @@
 
 It registers the plugin's recorded Actions (``project_cards.*``, :mod:`netstead_project_cards.actions`) and its
 state (``plugins.project_cards``: one draft card per network), and two read-only routes for its forms
-(:mod:`netstead_project_cards.routes`); the panel (selection → verb → form → preview → commit, the plugins design's
-UX principle 2) is upcoming. Every network change goes through core's edit planner and
-``host.mutate`` (:func:`netstead_project_cards.lower.apply_change`), so core's history, Edits panel, live warnings
-and dirty badge see it. The package imports nothing from netstead except
-``netstead.workbench.plugins`` (an import-linter contract).
+(:mod:`netstead_project_cards.routes`), and its front end (``static/main.js``: the "Card" dock panel and the
+"New change ▸ …" commands; selection → verb → form → preview → commit, the plugins design's UX principle 2). Every
+network change goes through core's edit planner and ``host.mutate``
+(:func:`netstead_project_cards.lower.apply_change`), so core's history, Edits panel, live warnings and dirty badge
+see it. The package imports nothing from netstead except ``netstead.workbench.plugins`` (an import-linter contract).
 """
 
 from __future__ import annotations
+
+from pathlib import Path
 
 from netstead.workbench.plugins import WorkbenchPlugin
 
@@ -20,10 +22,12 @@ from .mapping import load_mapping
 from .routes import build_router
 from .state import CardsState
 
-__all__ = ["REQUIRES_API", "plugin"]
+__all__ = ["REQUIRES_API", "STATIC", "plugin"]
 
 #: The plugin API this plugin is written against (1.5: ActionError and NotSupportedYet).
 REQUIRES_API = "1.5"
+#: The front end: main.js (the entry module), controller.js, cardmodel.js.
+STATIC = Path(__file__).parent / "static"
 
 
 def plugin() -> WorkbenchPlugin:
@@ -38,5 +42,6 @@ def plugin() -> WorkbenchPlugin:
         requires_api=REQUIRES_API,
         actions=handlers.specs(),
         router=lambda host: build_router(host, state, mapping),
+        static_dir=STATIC,
         state=lambda host: state.snapshot(lambda net_id: open_handle(host, net_id)),
     )

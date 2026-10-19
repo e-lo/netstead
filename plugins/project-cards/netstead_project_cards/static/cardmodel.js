@@ -91,4 +91,46 @@ export function draftBadge(state, netId) {
   return { text: String(draft.count), dirty: true, title: `${draft.count} uncommitted card change(s)` };
 }
 
-export const warningLines = warnings => (warnings || []).map(w => `${w.table} ${w.key}: ${w.message}`);
+// Live edit warnings as lines, each naming its record once (core's messages usually start with it already).
+export const warningLines = warnings => (warnings || []).map(w => {
+  const record = `${w.table} ${w.key}: `;
+  return String(w.message).startsWith(record) ? w.message : `${record}${w.message}`;
+});
+
+// The open preview as one line for the panel (state() says when its base has moved on since), or "".
+export function previewLine(preview) {
+  if (!preview) return "";
+  const line = `Previewing ${preview.describe} on ${preview.net_id}.`;
+  return preview.stale ? `${line} ${preview.base} has changed since: preview again to see it.` : line;
+}
+
+// The commit form's fields ({project, path, tags: "a, b", overwrite}) as the commit Action's, or {error}: a card needs
+// a project name and a file. `netId` is the network whose draft the dialog shows, so the commit takes the same one.
+export function commitFields({ project = "", path = "", tags = "", overwrite = false } = {}, netId = null) {
+  const fields = {
+    project: String(project).trim(),
+    path: String(path).trim(),
+    overwrite: Boolean(overwrite),
+    tags: String(tags).split(",").map(t => t.trim()).filter(Boolean),
+  };
+  if (netId) fields.net_id = netId;
+  const missing = [!fields.project && "a project name", !fields.path && "a file"].filter(Boolean);
+  return missing.length ? { error: `Give the card ${missing.join(" and ")}` } : { fields };
+}
+
+// What the commit dialog shows for a /commit-check answer. Any live edit warning needs the user's confirmation
+// (`needsConfirm`); a schema problem means the card can't be committed yet (`blocked`).
+export function commitView(check) {
+  const lines = warningLines(check.warnings);
+  const problems = check.problems || [];
+  const n = lines.length;
+  return {
+    lines,
+    needsConfirm: n > 0,
+    blocked: problems.length > 0,
+    summary: n ? `${n} live edit warning${n === 1 ? "" : "s"}. The card records the changes as they are.`
+      : "No live edit warnings.",
+    problems: problems.length ? `Not a valid ProjectCard yet: ${problems.join("; ")}` : "",
+    button: n ? "Commit anyway" : "Commit",
+  };
+}

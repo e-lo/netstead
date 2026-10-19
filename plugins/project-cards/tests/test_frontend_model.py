@@ -80,7 +80,8 @@ console.log(JSON.stringify({
   named: draftBadge(state, "named"), net: draftNet(state, "base-2"), same: draftNet(state, "other"),
   draft: draftOf(state, "base-2").count, missing: draftOf({}, "base"),
   preview: openPreview(state), noPreview: openPreview({ plugins: {} }),
-  lines: warningLines([{ table: "link", key: 1, message: "to_node_id 424242 is not a node" }]),
+  lines: warningLines([{ table: "link", key: 1, message: "to_node_id 424242 is not a node" },
+                       { table: "link", key: 5, message: "link 5: to_node_id 424242 is not a node.node_id" }]),
 }));
 """,
     )
@@ -90,12 +91,65 @@ console.log(JSON.stringify({
     assert got["net"] == "base" and got["same"] == "other" and got["draft"] == 2 and got["missing"] is None
     assert got["preview"] == {"net_id": "base-2", "base": "base", "describe": "x", "stale": True}
     assert got["noPreview"] is None
-    assert got["lines"] == ["link 1: to_node_id 424242 is not a node"]
+    # Core's messages already name the record: it is not named twice.
+    assert got["lines"] == [
+        "link 1: to_node_id 424242 is not a node",
+        "link 5: to_node_id 424242 is not a node.node_id",
+    ]
 
 
+def test_the_commit_form_dialog_and_preview_texts(run_js):
+    got = run_js(
+        MODEL,
+        """
+import { commitFields, commitView, previewLine } from "./cardmodel.js";
+const warn = { table: "link", key: 3, message: "to_node_id 999 is not a node" };
+console.log(JSON.stringify({
+  ok: commitFields({ project: " Lanes ", path: " cards/l.yml ", tags: "a, ,b", overwrite: 1 }, "base"),
+  noNet: commitFields({ project: "P", path: "p.yml" }),
+  missing: commitFields({ project: " ", path: "" }, "base"),
+  noPath: commitFields({ project: "P" }),
+  clean: commitView({ warnings: [], problems: [], yaml: "project: P" }),
+  warned: commitView({ warnings: [warn, warn], problems: [] }),
+  invalid: commitView({ warnings: [], problems: ["changes: is required"] }),
+  preview: previewLine({ net_id: "base-2", base: "base", describe: "lanes on 2 links", stale: false }),
+  stale: previewLine({ net_id: "base-2", base: "base", describe: "lanes on 2 links", stale: true }),
+  none: previewLine(null),
+}));
+""",
+    )
+    assert got["ok"] == {
+        "fields": {"project": "Lanes", "path": "cards/l.yml", "overwrite": True, "tags": ["a", "b"], "net_id": "base"}
+    }
+    assert got["noNet"] == {"fields": {"project": "P", "path": "p.yml", "overwrite": False, "tags": []}}
+    assert got["missing"] == {"error": "Give the card a project name and a file"}
+    assert got["noPath"] == {"error": "Give the card a file"}
+    assert got["clean"] == {
+        "lines": [],
+        "needsConfirm": False,
+        "blocked": False,
+        "summary": "No live edit warnings.",
+        "problems": "",
+        "button": "Commit",
+    }
+    assert got["warned"]["lines"] == ["link 3: to_node_id 999 is not a node"] * 2
+    assert got["warned"]["needsConfirm"] is True and got["warned"]["blocked"] is False
+    assert got["warned"]["summary"].startswith("2 live edit warnings.")
+    assert got["warned"]["button"] == "Commit anyway"
+    assert got["invalid"]["blocked"] is True
+    assert got["invalid"]["problems"] == "Not a valid ProjectCard yet: changes: is required"
+    assert got["preview"] == "Previewing lanes on 2 links on base-2."
+    assert got["stale"] == "Previewing lanes on 2 links on base-2. base has changed since: preview again to see it."
+    assert got["none"] == ""
+
+
+# The stub's server state follows the preview Actions, as the real one does over SSE: the controller reads the open
+# preview from it (`wb.store.get()`), never from its own memory, so a preview closed elsewhere is noticed.
 STUB_WB = """
 import { createController } from "./controller.js";
 const calls = [];
+const server = { plugins: { project_cards: { drafts: {}, preview: null } } };
+const cards = server.plugins.project_cards;
 const forms = {
   roadway_property_change: { supported: true, net_id: "base", existing: { lanes: 1 }, targets: { count: 2 } },
   roadway_deletion: { supported: true, net_id: "base", targets: { count: 1 } },
@@ -110,8 +164,12 @@ const wb = {
       return forms[new URLSearchParams(path.split("?")[1]).get("type")]; },
     dispatch: async action => { calls.push(["dispatch", action]);
       if (refuse.has(action.type)) throw new Error(`${action.type} refused`);
-      return action.type === "project_cards.preview" ? { preview: "net-2" } : { count: 1, describe: "x" }; },
+      if (action.type === "project_cards.close_preview") cards.preview = null;
+      if (action.type !== "project_cards.preview") return { count: 1, describe: "x" };
+      cards.preview = { net_id: "net-2", base: "base", describe: "x", stale: false };
+      return { preview: "net-2" }; },
   },
+  store: { get: () => server },
   toast: message => calls.push(["toast", message]),
 };
 const ctl = createController(wb);
@@ -123,12 +181,11 @@ CONTROLLER_HARNESS = (
 const values = { columns: { lanes: 3 }, options: { mode: "set" } };
 await ctl.start("transit_property_change");
 await ctl.start("roadway_property_change");
-await ctl.preview(values);
-const afterPreview = ctl.state.preview;
+const afterPreview = await ctl.preview(values);
 await ctl.add(values);
 await ctl.check({ project: "Lanes", net_id: "base" });
 await ctl.commit({ project: "Lanes", path: "cards/lanes.yml", tags: [] });
-console.log(JSON.stringify({ calls, afterPreview, compose: ctl.state.compose, preview: ctl.state.preview }));
+console.log(JSON.stringify({ calls, afterPreview, compose: ctl.state.compose, preview: cards.preview }));
 """
 )
 
@@ -174,7 +231,7 @@ await ctl.preview({ options: { clean_nodes: false } });
 refuse.add("project_cards.add_change");
 let error = null;
 try { await ctl.add({ options: {} }); } catch (e) { error = e.message; }
-const kept = { compose: ctl.state.compose !== null, preview: ctl.state.preview };
+const kept = { compose: ctl.state.compose !== null, preview: cards.preview && cards.preview.net_id };
 await ctl.cancel();
 await ctl.start("roadway_addition");
 const addition = ctl.changeFrom({ link: { link_id: 340, from_node_id: 1, to_node_id: 2 }, node: {} });
@@ -195,7 +252,7 @@ console.log(JSON.stringify({ calls, error, kept, addition, after: ctl.state }));
         "saved_selection": "ski",
     }
     assert got["error"] == "project_cards.add_change refused"
-    assert got["kept"] == {"compose": True, "preview": {"preview": "net-2"}}  # nothing closed on a refusal
+    assert got["kept"] == {"compose": True, "preview": "net-2"}  # nothing closed on a refusal
     assert calls[3] == ["dispatch", {"type": "project_cards.close_preview"}]  # cancel closes the preview
     assert calls[4] == ["get", "/form?type=roadway_addition"]
     assert got["addition"] == {
@@ -212,4 +269,28 @@ console.log(JSON.stringify({ calls, error, kept, addition, after: ctl.state }));
         ],
         ["dispatch", {"type": "project_cards.import", "path": "cards/a.yml"}],
     ]
-    assert got["after"] == {"compose": None, "preview": None, "check": None}
+    assert got["after"] == {"compose": None, "check": None}
+
+
+def test_a_preview_closed_elsewhere_is_not_closed_again(run_js):
+    got = run_js(
+        BOTH,
+        STUB_WB
+        + """
+await ctl.start("roadway_deletion", { saved: "ski" });
+await ctl.preview({ options: {} });
+cards.preview = null;  // closed from the palette, the assistant or another tab: state() no longer reports it
+await ctl.add({ options: {} });
+await ctl.start("roadway_deletion", { saved: "ski" });
+cards.preview = { net_id: "net-9", base: "base", describe: "y", stale: true };  // opened elsewhere
+await ctl.cancel();
+console.log(JSON.stringify(calls.map(c => c[0] === "dispatch" ? c[1].type : c[0])));
+""",
+    )
+    assert got == [
+        "get",
+        "project_cards.preview",
+        "project_cards.add_change",  # and no close_preview: the server says none is open
+        "get",
+        "project_cards.close_preview",  # cancel closes the preview the server reports
+    ]

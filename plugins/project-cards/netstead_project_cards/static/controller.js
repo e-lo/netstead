@@ -1,7 +1,9 @@
 // The cards panel's flow without the DOM: which route each step reads and which Action it dispatches. main.js draws
 // it; tests/test_frontend_model.py runs it under node with a stub `wb`. A refused Action rejects, and the step stops
-// there: the form and the preview stay open, so the user can fix the form and try again.
-import { addition, changeAction, deletion, needsSelection, propertyChange } from "./cardmodel.js";
+// there: the form and the preview stay open, so the user can fix the form and try again. Whether a preview is open is
+// read from the server's state (`openPreview(wb.store.get())`), never remembered here: the palette, the assistant or
+// another tab can close one.
+import { addition, changeAction, deletion, needsSelection, openPreview, propertyChange } from "./cardmodel.js";
 
 const query = params => Object.entries(params)
   .filter(([, v]) => v !== undefined && v !== null && v !== "")
@@ -9,7 +11,8 @@ const query = params => Object.entries(params)
   .join("&");
 
 export function createController(wb) {
-  const state = { compose: null, preview: null, check: null };
+  const state = { compose: null, check: null };
+  const previewOpen = () => openPreview(wb.store.get()) !== null;
 
   // Open the form for a change type: the plugin's /form route says what the selection holds now.
   async function start(type, { saved = null } = {}) {
@@ -39,27 +42,21 @@ export function createController(wb) {
   };
 
   // A preview goes to a copy of the network; a second one replaces the first (the server closes the older copy).
-  async function preview(values) {
-    state.preview = await dispatchChange("preview", values);
-    return state.preview;
-  }
+  const preview = values => dispatchChange("preview", values);
 
-  async function closePreview() {
-    await wb.api.dispatch({ type: "project_cards.close_preview" });
-    state.preview = null;
-  }
+  const closePreview = () => wb.api.dispatch({ type: "project_cards.close_preview" });
 
   // The change goes to the network itself (never the preview), so the preview has done its job: close it.
   async function add(values) {
     const result = await dispatchChange("add_change", values);
     state.compose = null;
-    if (state.preview) await closePreview();
+    if (previewOpen()) await closePreview();
     return result;
   }
 
   async function cancel() {
     state.compose = null;
-    if (state.preview) await closePreview();
+    if (previewOpen()) await closePreview();
   }
 
   const undo = () => wb.api.dispatch({ type: "project_cards.undo_change" });

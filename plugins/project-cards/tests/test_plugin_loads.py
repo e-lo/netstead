@@ -39,3 +39,16 @@ def test_projectcard_imports_under_the_warnings_policy():
     src = Path(projectcard.utils.__file__)
     compile(src.read_text(encoding="utf-8"), str(src), "exec")
     assert projectcard.__version__.startswith("0.3.")
+
+
+def test_the_front_end_is_served(make_session):
+    from fastapi.testclient import TestClient
+    from netstead.workbench import build_app
+
+    session = make_session(open_network=False)
+    (status,) = [s for s in session.plugin_status if s.id == "project_cards"]
+    assert status.frontend == "/plugins/project_cards/main.js"
+    client = TestClient(build_app(session))
+    for name in ("main.js", "controller.js", "cardmodel.js"):
+        response = client.get(f"/plugins/project_cards/{name}")
+        assert response.status_code == 200 and "javascript" in response.headers["content-type"]
