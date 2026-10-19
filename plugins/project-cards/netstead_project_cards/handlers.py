@@ -10,10 +10,10 @@ from typing import Any
 
 from netstead.workbench.plugins import ActionError, ActionSpec, Host
 
-from .actions import AddChange, CommitCard, ImportCard, UndoChange
+from .actions import AddChange, ClosePreview, CommitCard, ImportCard, PreviewChange, UndoChange
 from .card import Dependencies, read_card_file
 from .errors import CardError
-from .flow import as_action_errors, check_card_shape, complete_change, refuse_transit, target_network
+from .flow import as_action_errors, check_card_shape, complete_change, is_open, refuse_transit, target_network
 from .lower import Applied, apply_change, describe
 from .mapping import FieldMap
 from .state import CardsState
@@ -36,6 +36,8 @@ class Handlers:
             ActionSpec(UndoChange, self.undo_change),
             ActionSpec(CommitCard, self.commit),
             ActionSpec(ImportCard, self.import_card),
+            ActionSpec(PreviewChange, self.preview),
+            ActionSpec(ClosePreview, self.close_preview),
         )
 
     def add_change(self, host: Host, action: AddChange) -> dict[str, Any]:
@@ -162,3 +164,35 @@ class Handlers:
             count = self.state.add(net, one)
         host.publish("changed", {"net_id": net, "count": count})
         return {"net_id": net, "imported": total, "project": self.state.draft(net).card.project, "count": count}
+
+    def preview(self, host: Host, action: PreviewChange) -> dict[str, Any]:
+        """Derive a copy of the base, apply the change to it, and make it active; then close any older preview.
+
+        A failure rolls back the copy with the Action (the Workbench closes the networks a failed handler derived).
+        The older preview is closed last, so nothing is closed when an earlier step fails.
+        """
+        refuse_transit(action.change)
+        with as_action_errors():
+            base = target_network(host, self.state, action.net_id)
+            change, warnings = complete_change(host, base, action.change, action.use_selection, action.saved_selection)
+            check_card_shape(change, self.mapping)
+            text = describe(change)
+            copy_id = host.derive(base, label=f"Preview: {text}"[:120], note=f"preview {change.type}")
+            applied = apply_change(host, copy_id, change)
+        older = self.state.preview
+        host.dispatch({"type": "set_active_network", "net_id": copy_id})
+        if older is not None and is_open(host, older["net_id"]):
+            host.dispatch({"type": "close_network", "net_id": older["net_id"]})
+        self.state.preview = {"net_id": copy_id, "base": base, "describe": text}
+        return {"preview": copy_id, "base": base, **applied.summary(), "warnings": [*warnings, *applied.warnings]}
+
+    def close_preview(self, host: Host, action: ClosePreview) -> dict[str, Any]:
+        """Close the preview network and make its base active again."""
+        preview = self.state.preview
+        if preview is None or not is_open(host, preview["net_id"]):
+            raise ActionError("no preview is open")
+        if is_open(host, preview["base"]):
+            host.dispatch({"type": "set_active_network", "net_id": preview["base"]})
+        host.dispatch({"type": "close_network", "net_id": preview["net_id"]})
+        self.state.preview = None
+        return {"closed": preview["net_id"], "active": host.active}

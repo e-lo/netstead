@@ -13,7 +13,7 @@ from pydantic import Field, model_validator
 
 from .types import NetworkChange
 
-__all__ = ["AddChange", "CommitCard", "ImportCard", "UndoChange"]
+__all__ = ["AddChange", "ClosePreview", "CommitCard", "ImportCard", "PreviewChange", "UndoChange"]
 
 
 class _ChangeAction(BaseAction):
@@ -89,3 +89,20 @@ class ImportCard(BaseAction):
     mutates: ClassVar[bool] = True
     net_id: str | None = None
     path: str = Field(min_length=1, max_length=1000)
+
+
+class PreviewChange(_ChangeAction):
+    """Preview one roadway change on a copy of a network, shown on the map; the network itself is untouched.
+
+    Takes the same fields as ``project_cards.add_change``. A second preview replaces the first;
+    ``project_cards.close_preview`` returns to the network.
+    """
+
+    type: Literal["project_cards.preview"] = "project_cards.preview"
+
+
+class ClosePreview(BaseAction):
+    """Close the open preview and show the network it previewed again."""
+
+    type: Literal["project_cards.close_preview"] = "project_cards.close_preview"
+    mutates: ClassVar[bool] = True  # it closes (unregisters) the preview network
