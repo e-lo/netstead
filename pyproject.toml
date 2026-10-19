@@ -234,9 +234,10 @@ filterwarnings = [
     "ignore:Benchmarks are automatically disabled because xdist plugin is active",
     # projectcard 0.3.3's utils.py has re.sub("[\ ]+", ...): compiling it warns, and "error" would turn that into
     # a SyntaxError at import (uv installs without bytecode, so CI always compiles it). Narrow: this message from
-    # projectcard/utils.py only.
+    # projectcard/utils.py only. Python 3.11 raises it as a DeprecationWarning, 3.12+ as a SyntaxWarning.
     # TODO(deps): drop when projectcard ships a raw string there.
     "ignore:invalid escape sequence:SyntaxWarning:.*projectcard.utils",
+    "ignore:invalid escape sequence:DeprecationWarning:.*projectcard.utils",
 ]
 markers = [
     "slow: end-to-end / multi-second tests; skipped by default, run with -m \"\" (full) or -m slow",

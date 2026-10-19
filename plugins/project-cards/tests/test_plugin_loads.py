@@ -31,7 +31,7 @@ def test_the_installed_distribution_matches_the_package_version():
 
 
 def test_projectcard_imports_under_the_warnings_policy():
-    # Its utils.py has an invalid escape: see the SyntaxWarning filter in pyproject.toml. Compile the source (not a
+    # Its utils.py has an invalid escape: see the warning filters in pyproject.toml. Compile the source (not a
     # cached .pyc) so the filter is exercised on every run.
     import projectcard
     import projectcard.utils
