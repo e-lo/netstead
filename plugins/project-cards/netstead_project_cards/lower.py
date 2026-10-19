@@ -7,9 +7,11 @@ Action handler: if a later step fails, the handler's failure undoes the earlier 
 storage cannot hold (``EditRefused``, raised here as :class:`~netstead_project_cards.errors.CardError`); the live checks
 report the rest as warnings (``host.edit_warnings``).
 
-Each step reads the network's version before the frames it decides on (they are cached per version), refuses plans
-made against any other version, and passes that version to ``host.mutate``: an edit landing anywhere between the read
-and the mutation refuses the step rather than applying a plan made from stale values.
+Each step reads the network's version before the frames it decides on (they are cached per version) and passes that
+version to ``host.mutate``. An edit landing between the read and planning makes a plan stamped with another version,
+which this module refuses with :class:`~netstead_project_cards.errors.CardError`; one landing between planning and the
+mutation is refused by core's ``expected_version`` check in ``host.mutate``, which raises the Workbench's
+``ActionError``. Either way the step is refused rather than applying a plan made from stale values.
 """
 
 from __future__ import annotations
@@ -24,6 +26,7 @@ from typing import Any
 from netstead.workbench.plugins import EditPlan, EditRefused, Host
 
 from .errors import CardError, CardNotSupported, not_supported
+from .mapping import load_mapping
 from .types import (
     TRANSIT_TYPES,
     NetworkChange,
@@ -36,8 +39,8 @@ from .types import (
 
 __all__ = ["KEYS", "Applied", "apply_change", "describe", "few", "rows_by_key"]
 
-#: The key column of each table a roadway change edits (GMNS names).
-KEYS = {"link": "link_id", "node": "node_id"}
+#: The key column of each table a roadway change edits (GMNS names), from the mapping file's selectors.
+KEYS = {table: load_mapping().selector(table)[0] for table in ("link", "node")}
 
 
 @dataclass
@@ -55,7 +58,7 @@ class Applied:
     skipped: list[str] = field(default_factory=list)
 
     def summary(self) -> dict[str, Any]:
-        """JSON-safe: the type, its description, steps, rows per table, warnings and skipped properties."""
+        """JSON-safe: the type, its description, steps, rows per table, warnings and what was skipped."""
         return {
             "type": self.change.type,
             "describe": describe(self.change),
@@ -74,10 +77,14 @@ def apply_change(host: Host, net_id: str, change: NetworkChange) -> Applied:
     any other reason (core refuses its plan, or the network changed in between), the first stays applied unless the
     calling Action's failure rolls it back. Call it from an Action handler.
 
+    A property change whose selection has ``ignore_missing`` skips ids that are not in the network (listed in
+    :attr:`Applied.skipped`); without it, a missing id refuses the change.
+
     Raises:
         CardNotSupported: a transit change, or an added record field with no column in the network.
         CardError: an incomplete change, a conflict with ``existing``, a missing record or column, a node still in
-            use, a network that changed while the change was planned, or anything core's planner refuses.
+            use, a network that changed between reading it and planning, or anything core's planner refuses.
+        ActionError: (the Workbench's, from ``host.mutate``) the network changed between planning and the mutation.
     """
     if change.type in TRANSIT_TYPES:
         raise not_supported(change.type)
@@ -157,10 +164,10 @@ def _plan(fn: Callable[..., EditPlan], *args: Any) -> EditPlan:
 
 
 def _mutate(host: Host, net_id: str, version: int, plans: list[EditPlan], note: str) -> None:
-    """Apply the plans' edits in one ``host.mutate``, refused unless every plan, and the network, is at ``version``.
+    """Apply the plans' edits in one ``host.mutate`` at ``version``, the one read before the frames that decided them.
 
-    ``version`` is the one read before the frames that decided what to plan; a plan stamped otherwise was made
-    against a network that changed after those reads.
+    A plan stamped with another version was made against a network that changed after those reads: ``CardError``
+    here. A network that changes after planning is refused by ``host.mutate`` itself (core's ``ActionError``).
     """
     if any(p.version != version for p in plans):
         raise CardError(f"{net_id} changed while the change was being planned; apply it again")
@@ -212,12 +219,17 @@ def _property_change(host: Host, net_id: str, change: RoadwayPropertyChange, not
     unknown = [p for p in change.property_changes if p not in frame.columns]
     if unknown:
         raise CardError(f"{sel.table} has no column(s) {', '.join(unknown)}")
-    ids = list(dict.fromkeys(sel.target_ids()))
-    current = rows_by_key(frame, pk, ids, list(change.property_changes))
-    missing = [i for i in ids if str(i) not in current]
-    if missing:
+    wanted = list(dict.fromkeys(sel.target_ids()))
+    current = rows_by_key(frame, pk, wanted, list(change.property_changes))
+    missing = [i for i in wanted if str(i) not in current]
+    if missing and not sel.ignore_missing:
         raise CardError(f"{sel.table} {few(missing)} not found")
     out = Applied(change)
+    if missing:
+        out.skipped.append(f"{sel.table} {few(missing)} not found; skipped (ignore_missing)")
+    ids = [i for i in wanted if str(i) in current]
+    if not ids:  # every id missing, all ignored: nothing to change
+        return out
     plans: list[EditPlan] = []
     for prop, pc in change.property_changes.items():
         if pc.existing is not None:

@@ -1,6 +1,7 @@
 """GMNS <-> network_wrangler / ProjectCard field names, from the maintained ``mappings/gmns_to_wrangler.yaml``.
 
-Only card I/O uses this: applying a change works in GMNS names throughout.
+Card I/O uses it to translate names and values; applying a change works in GMNS names throughout and reads only each
+table's GMNS key column from it.
 """
 
 from __future__ import annotations
@@ -19,6 +20,15 @@ __all__ = ["DEFAULT_MAPPING", "FieldMap", "load_mapping"]
 
 #: The maintained mapping file shipped with the plugin.
 DEFAULT_MAPPING = Path(str(resources.files("netstead_project_cards").joinpath("mappings/gmns_to_wrangler.yaml")))
+
+
+def _hashable(value: Any) -> bool:
+    """Whether ``value`` can be a dict key (a list or dict, such as a scoped value, cannot)."""
+    try:
+        hash(value)
+    except TypeError:
+        return False
+    return True
 
 
 def _frozen(table: Mapping[str, Mapping[Any, Any]]) -> Mapping[str, Mapping[Any, Any]]:
@@ -61,11 +71,15 @@ class FieldMap:
         return self._card_fields.get(table, {}).get(name, name)
 
     def card_value(self, field: str, value: Any) -> Any:
-        """``value`` as the card writes it for card ``field``."""
+        """``value`` as the card writes it for card ``field`` (an unhashable value, a list or dict, passes through)."""
+        if not _hashable(value):
+            return value
         return self.values.get(field, {}).get(value, value)
 
     def gmns_value(self, field: str, value: Any) -> Any:
-        """A card ``value`` for ``field``, back as the GMNS value."""
+        """A card ``value`` for ``field``, back as the GMNS value (an unhashable value passes through)."""
+        if not _hashable(value):
+            return value
         return self._card_values.get(field, {}).get(value, value)
 
     def derive(self, record: dict[str, Any]) -> dict[str, int]:

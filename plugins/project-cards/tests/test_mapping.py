@@ -86,3 +86,9 @@ def test_a_malformed_mapping_file_is_refused(tmp_path, text, problem):
     path.write_text(text)
     with pytest.raises(ValueError, match=re.escape(problem)):
         load_mapping(path)
+
+
+@pytest.mark.parametrize("value", [[1, 2], {"default": 2, "timeofday": []}])
+def test_an_unhashable_value_passes_through(m, value):
+    assert m.card_value("lanes", value) is value
+    assert m.gmns_value("lanes", value) is value

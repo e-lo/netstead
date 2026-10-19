@@ -123,3 +123,16 @@ def test_an_addition_needs_its_keys():
         RoadwayAddition()
     with pytest.raises(ValidationError, match="link_id"):
         RoadwayAddition(links=[{"from_node_id": 1, "to_node_id": 2}])
+
+
+@pytest.mark.parametrize(
+    ("record", "kind"),
+    [
+        ({"link_id": 9, "from_node_id": 1, "to_node_id": 2, "name": {"a": 1}}, "links"),
+        ({"link_id": 9, "from_node_id": 1, "to_node_id": 2, "lanes": [1, 2]}, "links"),
+        ({"node_id": 9, "x_coord": 0, "y_coord": 0, "ctrl_type": {"a": 1}}, "nodes"),
+    ],
+)
+def test_an_added_record_holds_card_scalars(record, kind):
+    with pytest.raises(ValidationError, match="cannot set a property to a list"):
+        RoadwayAddition(**{kind: [record]})

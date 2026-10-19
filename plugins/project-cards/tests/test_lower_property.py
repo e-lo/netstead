@@ -184,3 +184,35 @@ def test_a_delta_on_a_decimal_value():
     assert lower._groups(pc, [1], {"1": {"lanes": Decimal("1.5")}}, "link", "lanes") == {Decimal("2.0"): [1]}
     with pytest.raises(CardError, match="only numbers"):
         lower._groups(pc, [1], {"1": {"lanes": True}}, "link", "lanes")
+
+
+def test_ignore_missing_skips_the_missing_ids(session, host):
+    sel = Selection(ids=[1, 999999], ignore_missing=True)
+    pc = RoadwayPropertyChange(facility=sel, property_changes={"free_speed": PropertyChange(set=30)})
+    applied = apply_change(host, NET, pc)
+    assert cell(session, 1, "free_speed") == [30.0]
+    assert applied.skipped == ["link 999999 not found; skipped (ignore_missing)"]
+    assert applied.steps == 1 and applied.rows == {"link": 1}
+
+
+def test_ignore_missing_with_nothing_found_changes_nothing(session, host):
+    before = session.network(NET).version
+    sel = Selection(ids=[999999], ignore_missing=True)
+    pc = RoadwayPropertyChange(facility=sel, property_changes={"free_speed": PropertyChange(set=30)})
+    applied = apply_change(host, NET, pc)
+    assert applied.steps == 0 and applied.skipped == ["link 999999 not found; skipped (ignore_missing)"]
+    assert session.network(NET).version == before
+
+
+def test_without_ignore_missing_a_missing_id_is_refused(session, host):
+    before = session.network(NET).version
+    with pytest.raises(CardError, match=r"^link 999999 not found$"):
+        apply_change(host, NET, change([1, 999999], free_speed={"set": 30}))
+    assert session.network(NET).version == before
+
+
+def test_keys_come_from_the_mapping():
+    from netstead_project_cards.mapping import load_mapping
+
+    expected = {t: load_mapping().selector(t)[0] for t in ("link", "node")}
+    assert expected == lower.KEYS == {"link": "link_id", "node": "node_id"}

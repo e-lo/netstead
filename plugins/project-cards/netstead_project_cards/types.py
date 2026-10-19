@@ -153,7 +153,8 @@ class Selection(_Model):
 class RoadwayPropertyChange(_Model):
     """Change properties of selected links or nodes (ProjectCard ``roadway_property_change``).
 
-    ``facility`` may be left out when the Action takes it from a selection (``use_selection`` / ``saved_selection``).
+    ``facility`` may be left out when the (upcoming) Action takes it from a selection (``use_selection`` /
+    ``saved_selection``).
     """
 
     type: Literal["roadway_property_change"] = "roadway_property_change"
@@ -166,8 +167,8 @@ class RoadwayDeletion(_Model):
     """Delete links and/or nodes by id (ProjectCard ``roadway_deletion``).
 
     A deleted link takes the rows that depend on it (lanes, time-of-day rows), as core plans it. ``clean_nodes`` also
-    deletes the deleted links' end nodes that no remaining link uses. ``links`` may be left out when the Action takes
-    them from a selection.
+    deletes the deleted links' end nodes that no remaining link uses. ``links`` may be left out when the (upcoming)
+    Action takes them from a selection.
     """
 
     type: Literal["roadway_deletion"] = "roadway_deletion"
@@ -197,6 +198,12 @@ class RoadwayAddition(_Model):
                 missing = [k for k in required if record.get(k) is None]
                 if missing:
                     raise ValueError(f"every added {kind[:-1]} needs {', '.join(missing)}")
+                for name, value in record.items():
+                    if value is not None:
+                        try:
+                            card_scalar(value)
+                        except ValueError as exc:
+                            raise ValueError(f"added {kind[:-1]} field {name!r}: {exc}") from None
         return self
 
 

@@ -487,3 +487,60 @@ def test_provenance_uses_the_mapping_s_link_selector(tmp_path):
     path.write_text("version: 1\nselectors: {link: {link_id: my_id}, node: {node_id: my_node}}\n")
     card = draft(QUERY).to_card(load_mapping(path))
     assert "netstead.resolved[0]: my_id=[1, 5, 6, 8]" in card["notes"]
+
+
+SCOPED_LANES = {"default": 2, "timeofday": [{"timespan": ["6:00", "9:00"], "value": 3}]}
+
+
+def test_a_scoped_addition_value_is_not_supported():
+    link = {"model_link_id": 1, "A": 1, "B": 2, "lanes": SCOPED_LANES}
+    card = _one("roadway_addition", {"links": [link]})
+    with pytest.raises(
+        CardNotSupported, match=r"^change 1: link 1 field 'lanes': scoped \(time-of-day\) values are not supported yet$"
+    ):
+        DraftCard.from_card(card)
+
+
+def test_a_list_addition_value_is_a_card_error():
+    link = {"model_link_id": 1, "A": 1, "B": 2, "lanes": [1, 2]}
+    with pytest.raises(CardError, match=r"^change 1: .*cannot set a property to a list"):
+        DraftCard.from_card(_one("roadway_addition", {"links": [link]}))
+
+
+@pytest.mark.parametrize("key", ["existing", "set"])
+@pytest.mark.parametrize("value", [SCOPED_LANES, [1, 2]])
+def test_an_unhashable_property_value_is_a_card_error(key, value):
+    spec = {"set": 2, key: value}
+    card = _one("roadway_property_change", {"facility": _FACILITY, "property_changes": {"lanes": spec}})
+    with pytest.raises(CardError, match=r"^change 1: a ProjectCard cannot set a property to a list"):
+        DraftCard.from_card(card)
+
+
+def test_writing_an_unhashable_record_value_does_not_raise_type_error():
+    from netstead_project_cards.card import _record
+    from netstead_project_cards.mapping import load_mapping
+
+    out = _record({"link_id": 1, "lanes": SCOPED_LANES}, "link", load_mapping())
+    assert out == {"model_link_id": 1, "lanes": SCOPED_LANES}
+
+
+@pytest.mark.parametrize(
+    "card",
+    [
+        _one("roadway_deletion", {"nodes": {"model_node_id": [1], "osm_node_id": ["x"]}}),
+        _one("roadway_deletion", {"links": {"model_link_id": [1], "name": ["Main"], "ignore_missing": False}}),
+        _one(
+            "roadway_property_change",
+            {"facility": {"nodes": {"model_node_id": [1], "osm_node_id": ["x"]}}, "property_changes": _LANES},
+        ),
+    ],
+)
+def test_extra_selector_keys_are_not_dropped(card):
+    with pytest.raises(CardNotSupported, match=r"^change 1: only model_\w+ selections of \w+s can be read"):
+        DraftCard.from_card(card)
+
+
+def test_importing_a_deletion_writes_ignore_missing_false():
+    card = _one("roadway_deletion", {"links": {"model_link_id": [4], "ignore_missing": True}})
+    written = DraftCard.from_card(card).to_card()
+    assert written["changes"][0]["roadway_deletion"]["links"]["ignore_missing"] is False

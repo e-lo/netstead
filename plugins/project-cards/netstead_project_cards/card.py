@@ -104,7 +104,12 @@ class DraftCard(BaseModel):
         Raises:
             CardError: not a ProjectCard (no ``project``), malformed ``tags``, ``dependencies`` or provenance notes,
                 or a malformed change (the message starts ``change <n>:``).
-            CardNotSupported: transit, ``pycode``, managed lanes, or a query selection without netstead provenance.
+            CardNotSupported: transit, ``pycode``, managed lanes, a query selection without netstead provenance, a
+                scoped (time-of-day) value in an added record, or a selector key other than the id and
+                ``ignore_missing``.
+
+        A deletion has no ``ignore_missing`` of its own: importing one drops the card's flag, and writing it back
+        always gives ``ignore_missing: false`` (a deletion aims at specific records and fails loudly when one is gone).
         """
         m = mapping or load_mapping()
         if not isinstance(data, Mapping) or "project" not in data:
@@ -311,7 +316,7 @@ def _selector_ids(selector: Any, table: str, m: FieldMap, where: str) -> list[An
         return []
     selector = _mapping(selector, where)
     _, key = m.selector(table)
-    if key not in selector:
+    if key not in selector or set(selector) - {key, "ignore_missing"}:
         raise CardNotSupported(f"only {key} selections of {table}s can be read in this version")
     return _as_list(selector[key])
 
@@ -356,8 +361,14 @@ def _from_record(record: Mapping[str, Any], table: str, m: FieldMap) -> dict[str
 
 
 def _records(body: Mapping[str, Any], kind: str, table: str, m: FieldMap) -> list[dict[str, Any]]:
-    records = _list(body.get(kind) or [], kind)
-    return [_from_record(_mapping(r, f"{kind}[{j}]"), table, m) for j, r in enumerate(records)]
+    records = [_mapping(r, f"{kind}[{j}]") for j, r in enumerate(_list(body.get(kind) or [], kind))]
+    _, key = m.selector(table)
+    for j, record in enumerate(records):
+        for name, value in record.items():
+            if isinstance(value, Mapping):  # Wrangler's scoped value: {default: 2, timeofday: [...]}
+                where = f"{table} {record.get(key, f'#{j + 1}')} field {name!r}"
+                raise CardNotSupported(f"{where}: scoped (time-of-day) values are not supported yet")
+    return [_from_record(r, table, m) for r in records]
 
 
 def _properties(body: Mapping[str, Any], sel: Selection, m: FieldMap) -> dict[str, PropertyChange]:
