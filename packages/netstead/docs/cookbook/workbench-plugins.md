@@ -124,9 +124,9 @@ is what `session.dispatch` returns, and over HTTP it is the `result` field of th
 response, next to `ok`, `error` and the recorded history `entry`. Raise
 `netstead.workbench.plugins.ActionError("…")` to refuse: the message is shown to the user and the
 Action is recorded as failed (`NotSupportedYet` for "not in this version"). Any other exception is
-recorded as an internal error, and its message is redacted. Set `mutates: ClassVar[bool] = True`
-on an Action that changes a network in place, so the assistant drafts it for the user to confirm
-instead of applying it. Plugin Actions can't be `runs_as_job`. For slow work, call `host.submit_job`
+recorded as an internal error (`InternalError`), with secrets scrubbed from its message. Set
+`mutates: ClassVar[bool] = True` on an Action that changes a network in place, so the assistant
+drafts it for the user to confirm instead of applying it. Plugin Actions can't be `runs_as_job`. For slow work, call `host.submit_job`
 from the handler.
 
 Two rules keep "copy session as Python" working:

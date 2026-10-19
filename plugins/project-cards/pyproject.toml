@@ -22,6 +22,7 @@ classifiers = [
 ]
 dependencies = [
     # The Workbench and its plugin API (Host API 1.5). [server] brings FastAPI for the plugin's routes.
+    # Release gate: before publishing, raise this floor to the first netstead release that ships HOST_API 1.5.
     "netstead[server]>=1.0.0b2,<2",
     # Cards are validated with the projectcard package's own schema and validator. 0.3.x: its schema is the one
     # this plugin's change types and tests pin.

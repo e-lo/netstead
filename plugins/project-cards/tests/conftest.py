@@ -41,6 +41,7 @@ def make_session(tmp_path: Path, isolated_env: dict[str, str]) -> Callable[..., 
             plugins=[plugin(), *extra],
             assistant_provider=provider,
             overrides=overrides or {},
+            keyring=None,  # never touch the real OS keychain
         )
         if open_network:
             session.dispatch(OpenNetwork(source=SRC))

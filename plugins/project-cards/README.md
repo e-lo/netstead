@@ -1,6 +1,6 @@
 # netstead-project-cards
 
-ProjectCard authoring for the [netstead](../../packages/netstead) Workbench, as the Workbench plugin "project cards"
+ProjectCard authoring for the [netstead](https://github.com/e-lo/netstead/tree/main/packages/netstead) Workbench, as the Workbench plugin "project cards"
 (`project_cards`).
 
 Select links in `netstead app`, right-click **New change ▸ Property change** (or Deletion, Addition), fill the form,

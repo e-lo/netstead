@@ -2,7 +2,7 @@
 #
 # This file is NOT a publishable package — it carries the uv workspace
 # declaration and shared development tooling configuration (ruff,
-# pyright, import-linter, pytest, coverage) for both packages.
+# pyright, import-linter, pytest, coverage) for all workspace packages.
 #
 # Distributable packages live in packages/, first-party Workbench plugins in plugins/ — see:
 #   packages/corral/pyproject.toml         (generic engine)
@@ -173,7 +173,13 @@ name = "netstead-project-cards uses only the public plugin API of netstead"
 type = "forbidden"
 source_modules = ["netstead_project_cards"]
 forbidden_modules = ["netstead", "corral"]
-ignore_imports = ["netstead_project_cards.** -> netstead.workbench.plugins"]
+ignore_imports = [
+    "netstead_project_cards -> netstead.workbench.plugins",
+    "netstead_project_cards.** -> netstead.workbench.plugins",
+]
+# The root pattern covers a future direct import in __init__.py; today only submodules import the API, so don't
+# fail on an ignore that matches nothing.
+unmatched_ignore_imports_alerting = "none"
 allow_indirect_imports = true
 
 # ---------------------------------------------------------------------------
@@ -227,9 +233,10 @@ filterwarnings = [
     # workflow runs serially.
     "ignore:Benchmarks are automatically disabled because xdist plugin is active",
     # projectcard 0.3.3's utils.py has re.sub("[\ ]+", ...): compiling it warns, and "error" would turn that into
-    # a SyntaxError at import (uv installs without bytecode, so CI always compiles it). Narrow: this message only.
+    # a SyntaxError at import (uv installs without bytecode, so CI always compiles it). Narrow: this message from
+    # projectcard/utils.py only.
     # TODO(deps): drop when projectcard ships a raw string there.
-    "ignore:invalid escape sequence:SyntaxWarning",
+    "ignore:invalid escape sequence:SyntaxWarning:.*projectcard.utils",
 ]
 markers = [
     "slow: end-to-end / multi-second tests; skipped by default, run with -m \"\" (full) or -m slow",
@@ -265,8 +272,8 @@ exclude_lines = [
     "@overload",
 ]
 # Workspace-wide gate. Per-package gates are enforced separately in
-# the Tests workflow (corral ≥86%, netstead ≥84%) so a regression
-# in one package can't be masked by overshoot in the other. Baseline
+# the Tests workflow (corral ≥86%, netstead ≥84%, project-cards ≥85%) so a
+# regression in one package can't be masked by overshoot in another. Baseline
 # measured 2026-05-26: combined 86%, corral 87%, netstead 85% —
 # gates set one point below current to flag regressions immediately
 # without flaking on stat-noise.

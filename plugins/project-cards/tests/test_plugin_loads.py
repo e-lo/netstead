@@ -1,6 +1,7 @@
 """The package installs as the Workbench plugin ``project_cards`` and loads on this netstead."""
 
-from importlib.metadata import entry_points
+from importlib.metadata import entry_points, version
+from pathlib import Path
 
 import netstead_project_cards
 from netstead.workbench.plugins import ENTRY_POINT_GROUP, HOST_API
@@ -25,7 +26,16 @@ def test_it_loads_in_a_session(make_session):
     assert status.state == "loaded", status.error
 
 
-def test_projectcard_imports_under_the_warnings_policy():
-    import projectcard  # its utils.py has an invalid escape: see the SyntaxWarning filter in pyproject.toml
+def test_the_installed_distribution_matches_the_package_version():
+    assert version("netstead-project-cards") == netstead_project_cards.__version__
 
+
+def test_projectcard_imports_under_the_warnings_policy():
+    # Its utils.py has an invalid escape: see the SyntaxWarning filter in pyproject.toml. Compile the source (not a
+    # cached .pyc) so the filter is exercised on every run.
+    import projectcard
+    import projectcard.utils
+
+    src = Path(projectcard.utils.__file__)
+    compile(src.read_text(encoding="utf-8"), str(src), "exec")
     assert projectcard.__version__.startswith("0.3.")
