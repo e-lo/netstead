@@ -237,32 +237,36 @@ The warning is informational: it tells you the in-memory FK index reflects the p
     print(f"+{d.rows_added} / -{d.rows_removed} / ~{d.rows_changed}")
     ```
 
-??? note "Geometry ops need an inline geometry column"
-    `simplify_geometry` and `recompute_lengths` read an inline `geometry` column on the link table (WKB bytes in memory; WKT on disk is converted on load). Leavenworth carries geometry in a separate `geometry` table via `link.geometry_id`, so on the raw fixture both ops raise `CleanError: simplify_geometry requires an inline 'geometry' column on net.links; …`, and `netstead clean simplify-geometry` fails the same way — the CLI does not assemble geometry for you. Networks written by `netstead build` (OSM or Overture) carry inline link geometry, so the ops work on those.
-
-    `netstead.semantics.assemble_link_geometry` resolves every link's shape (inline column, then the `geometry` table, then a straight segment between the end nodes) into a `(link_id, geometry, source)` pyarrow table for your own analysis — but nothing in netstead writes it back onto `link.geometry`:
+??? note "Geometry ops find the shapes wherever they live"
+    GMNS lets a network keep link shapes inline (`link.geometry`) or in a separate `geometry` table keyed by `link.geometry_id`. Leavenworth uses the `geometry` table, and the geometry ops need no preparation for that: `simplify_geometry` edits the table that holds the shapes (so its `EditResult` targets `geometry` here, and rollback restores that table), while `recompute_lengths` resolves each link's shape the way `netstead.semantics.assemble_link_geometry` does and writes `link.length`:
 
     ```python
     import netstead
     from netstead.fixtures import leavenworth
-    from netstead.semantics import assemble_link_geometry
+    from netstead.clean import recompute_lengths, simplify_geometry
+    from corral.editing import Session
 
     net = netstead.read(leavenworth.csv_dir())
-    geom = assemble_link_geometry(net)   # columns: link_id, geometry (WKB bytes), source
-    print(f"assembled geometry for {geom.num_rows} links; sources: {set(geom.column('source').to_pylist())}")
+    with Session(net) as s:
+        shape_edit = simplify_geometry(net, s, mode="douglas_peucker", tolerance=0.00001)
+        length_edit = recompute_lengths(net, s, geodesic=True)
+    print(f"simplified {shape_edit.edit.table}; recomputed length on {length_edit.edit.table}")
     ```
 
-    Expected:
+    The CLI does the same; write to a new location so the source stays intact:
 
-    ```text
-    assembled geometry for 339 links; sources: {'geometry_table'}
+    ```bash
+    netstead clean simplify-geometry <src> --dest <out> --mode douglas_peucker --tolerance 0.00001
     ```
+
+    When the link table carries an inline `geometry` column, that column wins (the same priority as `assemble_link_geometry`). A network with shapes in neither place raises a `CleanError` that names both.
 
 ## Pitfalls
 
 * **`threshold_m` is in coordinate units, not always meters.** The name reflects the common projected case. On a WGS84 (lat/lon) network like Leavenworth the units are *degrees* — `0.0005` ≈ 56 m. Pass a value in your network's CRS units, not a string like `"2m"`.
 * **`merge_close_nodes` returns a list, not one `EditResult`.** It touches two tables (`node` + `link`), so it returns `[node_result, link_result]`. The single-table ops (`remove_orphans`, `simplify_geometry`, `recompute_lengths`) return one `EditResult`.
-* **`simplify_geometry` / `recompute_lengths` require an inline `geometry` column on the link table.** Neither the Python ops nor `netstead clean simplify-geometry` assemble it from `geometry_id`; on a network like Leavenworth they raise `CleanError`. Run them on a network whose link table carries geometry (for example one from `netstead build`); see the variation above.
+* **`simplify_geometry` edits whichever table holds the shapes.** Its `EditResult` targets `link` when geometry is inline and `geometry` when it is carried via `geometry_id` — read `result.edit.table` rather than assuming `link`. `recompute_lengths` always edits `link`, because that is where `length` lives (see the variation above).
+* **Pass `--dest` to the CLI ops when the source is a CSV directory.** Without it the op writes back over the source as parquet, and that in-place rewrite currently fails partway after the CSVs are gone ([tracked as a follow-up](https://github.com/e-lo/netstead/issues)). `--dry-run` is safe either way.
 * **`OutOfSyncWarning` on write is expected after an edit** ([#164](https://github.com/e-lo/netstead/issues/164)). It means the in-memory FK index still reflects the pre-edit rows; it is not an error. Suppress it for the write (step 6) — re-reading the written network rebuilds the index.
 * **A 100%-null column can break the write** ([#163](https://github.com/e-lo/netstead/issues/163)). Writing an edited table could fail when a column was entirely null. The issue's original repro (`netstead clean remove-orphans` on the Leavenworth fixture) now succeeds. If you still hit it, cast the all-null column to a concrete type (or drop it) before the write, and add your case to the issue. The old `--engine pandas` workaround no longer exists: DuckDB is the only engine since #195.
 * **Don't mutate tables outside the session.** Direct `net.links.expr.execute().assign(...)` writes bypass the session entirely and aren't rollback-able.

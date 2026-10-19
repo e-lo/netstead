@@ -145,6 +145,23 @@ def test_scope_from_nodes_json_emits_sets():
     assert "from_nodes" in payload["provenance"]
 
 
+def test_scope_from_nodes_json_path_between_ids_are_ints():
+    """``--json`` ids are all JSON ints, including path-expanded nodes (regression).
+
+    ``render_dict`` falls back to ``default=str``, so any ``numpy.int64``
+    leaking out of the scope surfaced as ``"27"`` next to ``1``.
+    """
+    result = runner.invoke(
+        app,
+        ["scope", "from-nodes", "--json", "--path-between", str(leavenworth.csv_dir()), "1", "121"],
+    )
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["node_count"] > 2
+    assert all(isinstance(n, int) for n in payload["node_ids"]), payload["node_ids"]
+    assert all(isinstance(lid, int) for lid in payload["link_ids"]), payload["link_ids"]
+
+
 def test_scope_connected_component_json():
     """``scope connected-component`` returns a non-empty single-component result."""
     result = runner.invoke(

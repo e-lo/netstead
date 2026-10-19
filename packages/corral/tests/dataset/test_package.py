@@ -273,6 +273,50 @@ def test_package_write_overwrite_protection(tmp_path: Path) -> None:
     pkg.write(dest, format="parquet", overwrite=True)
 
 
+@pytest.mark.parametrize("fmt", ["csv", "parquet"])
+def test_package_write_directory_emits_datapackage(tmp_path: Path, fmt: str) -> None:
+    """A csv/parquet directory write carries a self-describing datapackage.json."""
+    import json
+
+    from corral.fixtures import sample
+
+    pkg = Package.from_source(sample.csv_dir(), engine=IbisEngine(), spec=sample.DATAPACKAGE)
+    dest = tmp_path / "out"
+    pkg.write(dest, format=fmt)
+
+    assert sorted(p.name for p in dest.iterdir()) == [f"author.{fmt}", f"book.{fmt}", "datapackage.json", f"venue.{fmt}"]
+    descriptor = json.loads((dest / "datapackage.json").read_text())
+    assert descriptor["name"] == "corral-sample-books"
+    assert {r["name"]: r["path"] for r in descriptor["resources"]} == {
+        "author": f"author.{fmt}",
+        "book": f"book.{fmt}",
+        "venue": f"venue.{fmt}",
+    }
+    assert all(r["format"] == fmt for r in descriptor["resources"])
+    # Schemas are inlined so the directory is self-describing.
+    assert all(isinstance(r["schema"], dict) for r in descriptor["resources"])
+
+
+@pytest.mark.parametrize("fmt", ["csv", "parquet"])
+def test_package_write_in_place_keeps_datapackage(tmp_path: Path, fmt: str) -> None:
+    """Rewriting a directory source over itself does not lose its datapackage.json."""
+    from corral.fixtures import sample
+
+    src = tmp_path / "pkg"
+    Package.from_source(sample.csv_dir(), engine=IbisEngine(), spec=sample.DATAPACKAGE).write(src, format=fmt)
+
+    # Reopen with the spec auto-discovered from the directory, then write in place.
+    reopened = Package.from_source(src, engine=IbisEngine())
+    assert reopened.spec.name == "corral-sample-books"
+    reopened.write(src, format=fmt, overwrite=True)
+
+    assert (src / "datapackage.json").is_file()
+    again = Package.from_source(src, engine=IbisEngine())
+    assert again.spec.name == "corral-sample-books"
+    assert again["book"].schema is not None
+    assert again["book"].count() == reopened["book"].count()
+
+
 # ---------------------------------------------------------------------------
 # CSV-in-zip packages — read via the "<zip>::<member>" sub-locator, write
 # as CSV members plus a datapackage.json.

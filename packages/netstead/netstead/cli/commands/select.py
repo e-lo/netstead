@@ -3,6 +3,11 @@
 Parses an utterance into a structured intent, resolves it against a network,
 and emits a validated GMNS selection fragment (or the ambiguity/not-found
 diagnostics). Selection only — no edit is applied.
+
+Exit codes: 0 resolved; :data:`EXIT_NOT_FOUND` (1) nothing matched (also a
+parser/LLM error); 2 invalid settings; :data:`EXIT_AMBIGUOUS` (3) an anchor
+could be more than one node — the output lists each anchor's candidates, as
+the Workbench's Selection panel does before you pin one.
 """
 
 from __future__ import annotations
@@ -20,9 +25,15 @@ from ...llm import LLMError, build_registry
 from ...select.emit import to_fragment
 from ...select.parse import make_parser
 from ...select.resolve import resolve
+from ...select.result import SelectionResult
 from .._helpers import resolve_engine
 
-__all__ = ["register"]
+__all__ = ["EXIT_AMBIGUOUS", "EXIT_NOT_FOUND", "register"]
+
+#: Exit code when the selection matched nothing (or the parser failed).
+EXIT_NOT_FOUND = 1
+#: Exit code when an anchor could be more than one node; the output lists the candidates.
+EXIT_AMBIGUOUS = 3
 
 
 def _make_parser(provider: str | None, model: str | None) -> Any:
@@ -60,9 +71,10 @@ def register(app: typer.Typer) -> None:
     ) -> None:
         """Resolve a natural-language selection to GMNS link/node ids.
 
-        Prints the validated selection fragment on success. On an ambiguous
-        result it prints the fragment plus candidate notes; on not-found it
-        prints diagnostics and exits non-zero.
+        Prints the validated selection fragment on success (exit 0). On an
+        ambiguous result it prints the status, the provisional link ids, each
+        anchor with the other nodes it could be, and diagnostics (exit 3); on
+        not-found it prints diagnostics (exit 1).
         """
         parser = _make_parser(provider, model)
         try:
@@ -75,15 +87,18 @@ def register(app: typer.Typer) -> None:
         result = resolve(intent, net)
 
         if result.status == "not_found":
-            payload = {"status": result.status, "diagnostics": result.diagnostics}
-            _emit(payload, json_out)
-            raise typer.Exit(code=1)
-
-        fragment = to_fragment(result)
+            _emit({"status": result.status, "diagnostics": result.diagnostics}, json_out)
+            raise typer.Exit(code=EXIT_NOT_FOUND)
         if result.status == "ambiguous":
-            fragment["_status"] = "ambiguous"
-            fragment["_diagnostics"] = result.diagnostics
-        _emit(fragment, json_out)
+            payload = {
+                "status": result.status,
+                "link_ids": list(result.link_ids),
+                "anchors": _anchors(result),
+                "diagnostics": result.diagnostics,
+            }
+            _emit(payload, json_out)
+            raise typer.Exit(code=EXIT_AMBIGUOUS)
+        _emit(to_fragment(result), json_out)
 
     @app.command(name="select-serve")
     def select_serve(
@@ -106,8 +121,46 @@ def register(app: typer.Typer) -> None:
         run_workbench([str(source)], provider=provider, host=host, port=port)
 
 
-def _emit(payload: dict, json_out: bool) -> None:
+def _anchors(result: SelectionResult) -> list[dict[str, Any]]:
+    """Each located anchor (``from``/``to``): its text, node, kind, confidence and the other nodes it could be.
+
+    The same per-anchor keys as the Workbench's selection payload, without map coordinates.
+    """
+    anchors = []
+    for role, match in (("from", result.from_match), ("to", result.to_match)):
+        if match is None or match.node_id is None:
+            continue
+        anchors.append(
+            {
+                "role": role,
+                "anchor": match.anchor,
+                "node_id": match.node_id,
+                "kind": match.kind,
+                "confidence": round(float(match.confidence), 3),
+                "candidates": list(match.candidates),
+                "detail": match.detail,
+            }
+        )
+    return anchors
+
+
+def _anchor_line(anchor: dict[str, Any]) -> str:
+    """One readable line for an anchor: its pick, and the candidates it could be instead."""
+    pick = f"node {anchor['node_id']} ({anchor['kind']}, confidence {anchor['confidence']})"
+    line = f"{anchor['role']}: {anchor['anchor']!r} -> {pick}"
+    if anchor["candidates"]:
+        line += "; could also be node " + ", ".join(str(c) for c in anchor["candidates"])
+    return line
+
+
+def _emit(payload: dict[str, Any], json_out: bool) -> None:
+    """JSON on stdout, or a two-column table (anchors and diagnostics one per line)."""
     if json_out:
         typer.echo(json.dumps(payload, default=str))
-    else:
-        render_dict(payload)
+        return
+    rows = dict(payload)
+    if "anchors" in rows:
+        rows["anchors"] = "\n".join(_anchor_line(a) for a in rows["anchors"])
+    if "diagnostics" in rows:
+        rows["diagnostics"] = "\n".join(rows["diagnostics"])
+    render_dict(rows, json_out=False)

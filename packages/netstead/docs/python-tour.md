@@ -167,36 +167,32 @@ for issue in qreport.issues[:3]:
 
 ### 5. Simplify geometry and render before/after
 
-The `simplify_geometry` op in `netstead.clean` removes redundant vertices from link geometries. It reads an inline `link.geometry` column, and Leavenworth keeps its geometry in the separate `geometry` table — so calling it directly raises `CleanError`. Assemble the geometry onto the links first with `assemble_link_geometry` (which returns `link_id`, `geometry` as WKB, and a `source` column saying where each shape came from), push the result onto the link table as a `replace_table` edit, then simplify. Doing both inside one `Session` means the whole thing rolls back atomically.
+The `simplify_geometry` op in `netstead.clean` removes redundant vertices from link geometries. Leavenworth keeps its shapes in the `geometry` table (keyed by `link.geometry_id`), so the op edits that table directly; no inline `link.geometry` column is needed. Wrap it in a `Session` so the edit can be rolled back atomically.
 <!-- doctest: skip -->
 
 ```python
-from corral.editing import Edit, Session
+from corral.editing import Session
 from netstead.clean import simplify_geometry
-from netstead.semantics import assemble_link_geometry
-
-geom = assemble_link_geometry(net).to_pandas()[["link_id", "geometry"]]
-inline = net.links.to_pandas().merge(geom, on="link_id")
 
 with Session(net) as s:
-    s.add_edit(Edit(op="replace_table", table="link",
-                    payload={"expr": net.engine.from_records(inline.to_dict("records"))}))
-    edit = simplify_geometry(net, s, mode="redundant_only", tolerance=1e-6)
-    edit  # in a notebook, _repr_html_ shows the diff card
+    edit = simplify_geometry(net, s, mode="redundant_only", tolerance=0.000001)
+    edit  # in a notebook, _repr_html_ shows the diff card (the edit targets the geometry table)
 ```
 
-You should see an `EditResult` card: the op and table (`replace_table → link`), `+0 added / -0 removed / ~339 changed`, the session id, and the timestamp. The card counts rows, not vertices — the vertex diff is computed below. `mode="redundant_only"` drops near-collinear interior vertices up to `tolerance` (in CRS units — degrees here, so `1e-6` is roughly 0.1 m; `0.0` keeps everything that isn't exactly collinear); `mode="douglas_peucker"` is the lossy alternative.
+You should see an `EditResult` card for the `geometry` table: the op and table, the `+added / -removed / ~changed` row counts, the session id and the timestamp. `mode="redundant_only"` drops vertices that sit on the chord through their neighbours; with `tolerance=0.0` it is loss-free, and the 0.000001-degree (about 10 cm) tolerance here also catches the near-collinear vertices OSM traces leave behind, removing about a third of Leavenworth's 2,132 vertices. `mode="douglas_peucker"` is the lossy alternative with an explicit tolerance.
 
 ![EditResult card for the simplify-geometry edit](assets/screenshots/leavenworth-simplify-edit-result.png){ .screenshot }
-*EditResult card for the simplify-geometry edit — replace_table → link, +0 / -0 / ~339, session id, timestamp*
+*EditResult card for the simplify-geometry edit: the op and the `geometry` table, the changed-row count, session id and timestamp.*
 
-To visualise before-and-after on one map, keep the decoded shapes from step 2 as the "before" set and read the now-inline `link.geometry` column as the "after" set:
+To visualise before-and-after on one map, keep the decoded shapes from step 2 as the "before" set, then read the edited `geometry` table as the "after" set:
 <!-- doctest: skip -->
 
 ```python
 links_before = links[["link_id", "shape"]].copy()
-links_after = net.links.to_pandas()          # geometry is inline after the edit
-links_after["shape"] = links_after["geometry"].map(wkb.loads)
+# (run the simplify edit above inside the Session)
+geoms_after = net.tables["geometry"].to_pandas().set_index("geometry_id")
+links_after = links.copy()
+links_after["shape"] = links_after["geometry_id"].map(lambda gid: wkb.loads(geoms_after.loc[gid, "geometry"]))
 
 m = folium.Map(location=center, zoom_start=15, tiles="OpenStreetMap")
 for shape in links_before["shape"]:
@@ -208,7 +204,7 @@ for shape in links_after["shape"]:
 m
 ```
 
-Grey underneath = before; red on top = after. At `tolerance=1e-6` the edit touches 235 of the 339 links and drops the vertex total from 2132 to 1454; the straight downtown grid barely moves, while the curved links around the edges visibly simplify.
+Grey underneath = before; red on top = after. The two overlays sit almost exactly on top of each other, because the dropped vertices were within 10 cm of a straight line, so look for the red line cutting the tiny kinks on the curved tertiary links.
 
 To restore the original state, roll the session back:
 <!-- doctest: skip -->
@@ -217,7 +213,7 @@ To restore the original state, roll the session back:
 s.rollback()
 ```
 
-The session's chronological log reverses every edit — the simplify and the `replace_table` that put geometry inline — so the network returns to step 1: 339 links, geometry back in the `geometry` table, no inline column.
+The session's chronological log reverses the edit, so the network returns to step 1: 339 links, with every vertex back in the `geometry` table.
 
 ### 6. Build a scope from a single node and render
 

@@ -567,6 +567,18 @@ uv run netstead llm pull qwen3:4b
 uv run netstead select "I-40 EB between South Miami Boulevard and Airport Boulevard" ./my-network --provider ollama --model qwen3:4b
 ```
 
+`netstead select` prints the selection fragment and exits 0 when the utterance resolves. Its other exit codes:
+
+| Exit code | Meaning | What it prints |
+|---|---|---|
+| `1` | Nothing matched, or the parser failed | `status` and `diagnostics` |
+| `2` | Invalid settings (an unknown provider, for example) | the error |
+| `3` | Ambiguous: an anchor could be more than one node | `status`, the provisional `link_ids`, each anchor with its `candidates`, and `diagnostics` |
+
+An ambiguous selection is the same one the Workbench's Selection panel shows with its candidate rings
+(see [Verify a selection](#verify-a-selection)); the CLI has no pin, so narrow the utterance or pin the
+anchor in the Workbench and export from there. `--json` puts the same fields on stdout as one JSON object.
+
 ## Every action is replayable
 
 Everything you do in the browser is a typed action: open, select, style, navigate, change a setting.

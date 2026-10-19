@@ -6,6 +6,18 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ## [Unreleased]
 
+### Fixed
+
+- **`netstead.clean` geometry ops on networks that keep shapes in the `geometry`
+  table.** `simplify_geometry` now edits whichever table holds the link shapes
+  (`link.geometry` inline, else `geometry` via `link.geometry_id`; inline wins),
+  so `netstead clean simplify-geometry` works on the Leavenworth fixture instead
+  of failing with "requires an inline 'geometry' column". The edit and its
+  rollback target that table; check `result.edit.table`. `recompute_lengths`
+  resolves each link's shape through `assemble_link_geometry` (inline → geometry
+  table → node endpoints) and still writes `link.length`. A network with shapes in
+  neither place raises a `CleanError` naming both locations.
+
 ### Added
 
 - **Plugin Host API 1.5:** `ActionError` and `NotSupportedYet` are exported from
@@ -108,6 +120,12 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 - **Map:** the inline JSON payload is escaped so network data cannot close the
   script block (XSS) (#224).
+- **`netstead select` on an ambiguous selection** no longer crashes with
+  `SelectError: cannot emit a fragment from status 'ambiguous'`. It now prints
+  the status, the provisional link ids, each anchor with the other nodes it
+  could be (`candidates`), and diagnostics, and exits `3` (`1` stays
+  not-found, `2` invalid settings). Without `--json`, every status now renders
+  as a table instead of failing on a missing `json_out` argument.
 - **Selection anchors on a network without a `ref` (or `name`) column** no
   longer fail with `KeyError: 'ref'` (Leavenworth, for example).
 - **Assistant approval on a derived copy:** a draft that touches a derived

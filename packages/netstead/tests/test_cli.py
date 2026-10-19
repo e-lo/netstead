@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 
+import pytest
 from netstead.cli.app import app
 from netstead.fixtures import leavenworth
 from typer.testing import CliRunner
@@ -223,6 +224,78 @@ def test_gmns_validate_respects_spec_override():
     # spec_version isn't always in the payload header, but the
     # important thing is the run succeeds against 0.96 (a different
     # spec from the 0.97 default).
+
+
+# ---------------------------------------------------------------------------
+# clean — geometry ops on a network whose shapes live in the geometry table
+# ---------------------------------------------------------------------------
+
+
+def _vertex_total(network_dir) -> int:
+    """Total LINESTRING vertices in the ``geometry`` table on disk (CSV or parquet)."""
+    from netstead import Network
+    from netstead._wkt import linestring_points
+
+    shapes = Network.from_source(network_dir).geometry.to_pandas()["geometry"]
+    return sum(len(linestring_points(g)) for g in shapes)
+
+
+def test_clean_simplify_geometry_dry_run_uses_geometry_table(tmp_path):
+    import shutil
+
+    pytest.importorskip("shapely")
+    src = tmp_path / "lw"
+    shutil.copytree(leavenworth.csv_dir(), src)
+    before = _vertex_total(src)
+
+    result = runner.invoke(
+        app,
+        [
+            "clean",
+            "simplify-geometry",
+            str(src),
+            "--mode",
+            "douglas_peucker",
+            "--tolerance",
+            "0.00001",
+            "--dry-run",
+            "--json",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["dry_run"] is True
+    assert [e["table"] for e in payload["edits"]] == ["geometry"]
+    assert _vertex_total(src) == before  # dry run leaves the source untouched
+
+
+def test_clean_simplify_geometry_writes_simplified_geometry_table(tmp_path):
+    import shutil
+
+    pytest.importorskip("shapely")
+    src = tmp_path / "lw"
+    shutil.copytree(leavenworth.csv_dir(), src)
+    before = _vertex_total(src)
+    dest = tmp_path / "out"
+
+    result = runner.invoke(
+        app,
+        [
+            "clean",
+            "simplify-geometry",
+            str(src),
+            "--dest",
+            str(dest),
+            "--mode",
+            "douglas_peucker",
+            "--tolerance",
+            "0.00001",
+            "--json",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert _vertex_total(src) == before
+    assert _vertex_total(dest) < before
 
 
 # ---------------------------------------------------------------------------

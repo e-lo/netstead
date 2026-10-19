@@ -122,6 +122,26 @@ def test_scope_from_nodes_returns_id_lists():
     assert r["result_link_count"] == len(r["link_ids"])
 
 
+def test_scope_from_nodes_path_between_result_is_json_serialisable():
+    """scope_from_nodes with far-apart seeds returns plain ints (regression).
+
+    ``path_between=True`` folds shortest-path nodes into the scope; those
+    came back as ``numpy.int64`` and FastMCP's result serialiser raised
+    "Unable to serialize unknown type: <class 'numpy.int64'>". Dispatch
+    through the public ``server.call_tool`` so the serialiser runs.
+    """
+    import json
+
+    server = build_server()
+    args = {"source": str(leavenworth.csv_dir()), "node_ids": [1, 121], "path_between": True}
+    asyncio.run(server.call_tool("scope_from_nodes", args))  # must not raise ToolError
+    r = _call_tool(server, "scope_from_nodes", **args)
+    assert r["result_node_count"] > 2  # intermediate path nodes were folded in
+    assert all(type(n) is int for n in r["node_ids"])
+    assert all(type(lid) is int for lid in r["link_ids"])
+    json.dumps(r)
+
+
 # ---------------------------------------------------------------------------
 # CLI integration
 # ---------------------------------------------------------------------------
