@@ -67,7 +67,8 @@ def to_fragment(result: SelectionResult, *, form: str = "resolved") -> dict[str,
             (``all``/``name``/``ref`` + modes + conditions, re-resolvable).
 
     Raises:
-        SelectError: if the result is not emittable (not resolved/ambiguous).
+        SelectError: if the result is not ``resolved`` (an ambiguous or not-found
+            result has no fragment; the Workbench pins its anchors first).
     """
     if result.status not in _EMITTABLE:
         raise SelectError(f"cannot emit a fragment from status {result.status!r}")
