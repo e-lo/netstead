@@ -136,9 +136,14 @@ jobs:
           uv run pytest -m "" -n auto packages/netstead/tests
           --doctest-modules packages/netstead/netstead
           ${{ matrix.coverage && '--cov=netstead --cov-fail-under=84 --cov-report=term --cov-report=xml:coverage-netstead.xml' || '' }}
+      - name: Test netstead-project-cards
+        run: >-
+          uv run pytest -m "" -n auto plugins/project-cards/tests
+          --doctest-modules plugins/project-cards/netstead_project_cards
+          ${{ matrix.coverage && '--cov=netstead_project_cards --cov-fail-under=96 --cov-report=term --cov-report=xml:coverage-project-cards.xml' || '' }}
       - name: Upload coverage
         if: matrix.coverage
         uses: codecov/codecov-action@v5
         with:
-          files: coverage-corral.xml,coverage-netstead.xml
+          files: coverage-corral.xml,coverage-netstead.xml,coverage-project-cards.xml
           fail_ci_if_error: false
