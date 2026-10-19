@@ -1,16 +1,16 @@
-# ProjectCard "cards" plugin: scope
+# ProjectCard "project cards" plugin (`project_cards`): scope
 
 Status: **accepted** (2026-10-19) · Date: 2026-10-07 · Owner: Elizabeth Sall
 
 > **2026-10-19:** accepted. The pending decisions are decided (see "Decisions from the user", 7–11), the plugin lives
-> in this monorepo as a third workspace package, and the [implementation plan](2026-10-19-cards-plugin-plan.md) is
+> in this monorepo as the first-party plugin `plugins/project-cards`, and the [implementation plan](2026-10-19-cards-plugin-plan.md) is
 > written. Planning checked `projectcard` 0.3.3 and the Host API and found facts that change some assumptions below;
 > they are marked **(2026-10-19)** and listed in the plan's "Facts found while planning".
 
-- **Kind:** scope for the Workbench plugin `cards`, built as the workspace package `packages/netstead-cards`
-  (distribution `netstead-cards`, import package `netstead_cards`) in this monorepo (decision 9). It may later move
-  into, or sit beside, the `projectcard` package.
-- **Plan:** [Cards plugin implementation plan](2026-10-19-cards-plugin-plan.md) (three PRs).
+- **Kind:** scope for the Workbench plugin "project cards" (id `project_cards`), built as the first-party plugin
+  `plugins/project-cards` in this monorepo (distribution `netstead-project-cards`, import package
+  `netstead_project_cards`; decision 9). It may later move into, or sit beside, the `projectcard` package.
+- **Plan:** [Project cards plugin implementation plan](2026-10-19-cards-plugin-plan.md) (three PRs).
 - **Parent:** [Workbench plugins design](2026-10-05-workbench-plugins-design.md) ("Target plugins: ProjectCard
   authoring"). That design moved the in-core `changes/` package (`NetworkChange`, `DraftCard`, `apply_card`,
   `Scenario`) out of netstead.
@@ -35,8 +35,8 @@ commits the card to a YAML file (or a catalog). In plugin terms (design UX princ
 5. **Commit:** apply to the base network, append to the draft card (plugin state, with a dirty badge), and write
    the card through `host.writable` when the user commits it. If `catalog.add_card` is registered, dispatch it too.
 
-The plugin owns its nouns (design UX principle 1): *Draft card*, *Change*, exposed as `plugins.cards.*` state and
-changed only through `cards.*` Actions (`cards.add_change`, `cards.undo_change`, `cards.commit`, `cards.import`,
+The plugin owns its nouns (design UX principle 1): *Draft card*, *Change*, exposed as `plugins.project_cards.*` state and
+changed only through `project_cards.*` Actions (`project_cards.add_change`, `project_cards.undo_change`, `project_cards.commit`, `project_cards.import`,
 ...). Every network change it makes goes through core, so core's history, Edits tab, live warnings and dirty badge
 see it.
 
@@ -52,7 +52,7 @@ see it.
 | `host.undo(net_id)` | P2 Task 7 (1.2) | Undoing the draft's last change; core refuses when the network's newest change is not the plugin's. |
 | `host.edit_warnings(net_id)` | P2 Task 7 (1.2) | Showing open warnings before a commit, the same rule core applies before a save. |
 | `host.dispatch`, `host.has_action`, `host.settings`, `host.submit_job` | Part 1 | `catalog.add_card`; `set_active_network` / `close_network` for the preview; plugin settings; long imports as jobs. |
-| `host.saved_selections()`, `host.saved_selection(name)` | P3a (1.3) | Seeding a card's facility from a saved selection (`cards.add_change(saved_selection=...)`), with its stale-pin warnings. |
+| `host.saved_selections()`, `host.saved_selection(name)` | P3a (1.3) | Seeding a card's facility from a saved selection (`project_cards.add_change(saved_selection=...)`), with its stale-pin warnings. |
 | `ActionError`, `NotSupportedYet` exported from `netstead.workbench.plugins` | Plan Task 1 (1.5) | Refusals the user sees (a plugin's other exceptions are recorded as internal errors). **(2026-10-19)** |
 
 The plugin imports only `netstead.workbench.plugins` from netstead (`Host`, `BaseAction`, `ActionSpec`,
@@ -61,7 +61,7 @@ contract enforces it. It needs no corral import: core's plans carry the edits. `
 are ordinary dependencies of the package.
 
 Not in the Host API **(2026-10-19)**: a lineage entry for a committed card (only `host.mutate` appends to the
-lineage), and a read-path check (`cards.import` vets its file with `host.writable`). Both are follow-ups; v1 records
+lineage), and a read-path check (`project_cards.import` vets its file with `host.writable`). Both are follow-ups; v1 records
 committed cards in plugin state.
 
 ## Decisions from the user
@@ -108,19 +108,23 @@ committed cards in plugin state.
      and a per-change `notes` becomes that change's note.
    - The offline writer stays as it is (a separate surface with its own tests). The plan's last task writes a short
      follow-up note (in this scope's "Follow-ups") instead of filing an issue.
-9. **Repo** (decided 2026-10-19): inside this monorepo, as the third uv workspace package `packages/netstead-cards`
-   (distribution `netstead-cards`, import package `netstead_cards`, plugin id `cards`, entry point
-   `cards = "netstead_cards:plugin"` in `netstead.workbench.plugins`). It may import only the public
-   `netstead.workbench.plugins` names from netstead (an import-linter contract), plus `projectcard`, `pyyaml` and
-   `pydantic`. It has its own CI test run and coverage gate, consistent with corral's and netstead's.
-10. **Saved selections seed a facility.** Since P3a, a named selection can be reused: `cards.add_change` (and
-    `cards.preview`) take `saved_selection=<name>` and build the facility from `host.saved_selection(name)` (the
+9. **Repo and name** (decided 2026-10-19): inside this monorepo, as the first-party plugin `plugins/project-cards`.
+   First-party plugins live in `plugins/<name>`, each its own uv workspace package (the root workspace lists
+   `plugins/*` beside `packages/*`) that may import only `netstead.workbench.plugins`' public API. This one is
+   "project cards": distribution `netstead-project-cards`, import package `netstead_project_cards`, plugin id
+   `project_cards` (Actions `project_cards.*`, settings and state under `plugins.project_cards`), entry point
+   `project_cards = "netstead_project_cards:plugin"` in `netstead.workbench.plugins`. An import-linter contract
+   enforces the import rule; its other dependencies are `projectcard`, `pyyaml` and `pydantic`. It reuses what
+   `projectcard` does correctly and keeps its own code only where `projectcard`'s is unusable (the plan's "Reuse of
+   `projectcard`" table says which, and why). It has its own CI test run and coverage gate, consistent with corral's and netstead's.
+10. **Saved selections seed a facility.** Since P3a, a named selection can be reused: `project_cards.add_change` (and
+    `project_cards.preview`) take `saved_selection=<name>` and build the facility from `host.saved_selection(name)` (the
     same picked / query rule, with its stale-pin warnings passed on), and the panel's form route takes `saved=`.
 11. **v1 scope.** All three roadway change types (property change with `set` and a `change` delta grouped by current
     value; deletion with `clean_nodes`; addition with derived access flags), draft card state, the Actions
-    `cards.add_change`, `cards.undo_change`, `cards.commit`, `cards.import` (plus `cards.preview` /
-    `cards.close_preview`), recorded and replayable, a preview on a derived network, commit to YAML via
-    `host.writable` (dispatching `catalog.add_card` when it exists), and the UI. Every `cards.*` Action sets
+    `project_cards.add_change`, `project_cards.undo_change`, `project_cards.commit`, `project_cards.import` (plus `project_cards.preview` /
+    `project_cards.close_preview`), recorded and replayable, a preview on a derived network, commit to YAML via
+    `host.writable` (dispatching `catalog.add_card` when it exists), and the UI. Every `project_cards.*` Action sets
     `mutates`, so the assistant drafts it for approval. Out of scope: `apply_card` re-resolution, scenarios, the
     catalog plugin, transit, `pycode`, managed lanes.
 
@@ -188,20 +192,20 @@ obeys the same storage rules as a cell edit, then apply the plan's edits:
 |---|---|---|
 | `roadway_property_change` with `set` | `host.plan_update(net, table, ids, {column: value})` | Before planning, check `existing` against the current values (`host.network().links_df()`), following `existing_value_conflict`: `error` refuses, `warn` applies and reports, `skip` drops that property. |
 | `roadway_property_change` with `change` | one `plan_update` per distinct current value | A delta on rows with different current values becomes several updates; all their edits go in one `mutate`. |
-| `roadway_deletion` | `host.plan_delete(net, "link", ids)`, then `"node"` | Core cascades dependents through the spec's foreign keys and refuses a node a link uses. `clean_nodes` (delete end nodes nothing else uses) is the plugin's. **(2026-10-19)** A node plan reads the network as it is, so it refuses a node its own change's links still use: the links are deleted first (one `host.mutate`), then the nodes (a second), inside one Action handler. The change is atomic at the Action, and `cards.undo_change` undoes both pending edits. |
+| `roadway_deletion` | `host.plan_delete(net, "link", ids)`, then `"node"` | Core cascades dependents through the spec's foreign keys and refuses a node a link uses. `clean_nodes` (delete end nodes nothing else uses) is the plugin's. **(2026-10-19)** A node plan reads the network as it is, so it refuses a node its own change's links still use: the links are deleted first (one `host.mutate`), then the nodes (a second), inside one Action handler. The change is atomic at the Action, and `project_cards.undo_change` undoes both pending edits. |
 | `roadway_addition` | `host.plan_add(net, "node", rows)`, then `"link"` | Core warns (does not refuse) on a missing end node or a duplicate key. Wrangler fails such a card, so the plugin refuses before `mutate`: check the end nodes exist (or are added in the same change) and the keys are free. |
 | transit | — | "Not yet supported" (P6). |
 
 The edits from all plans of one change are concatenated into one `host.mutate(net_id, edits, note=...)`. The note
-names the change (`"cards: roadway_property_change link 1: free_speed 40 → 30"`), so the lineage and core's Edits
+names the change (`"project_cards: roadway_property_change link 1: free_speed 40 → 30"`), so the lineage and core's Edits
 tab say what happened. Field names map through the mapping file (below) only when reading or writing the card file.
 
-Core's live checks run after every `mutate`, whatever made it. Before `cards.commit` writes a file, show
+Core's live checks run after every `mutate`, whatever made it. Before `project_cards.commit` writes a file, show
 `host.edit_warnings()` and require confirmation while any remain: the same rule core applies before saving a copy.
 
 ## Undo within a draft card
 
-- `cards.undo_change` reverses the draft's **last** change (LIFO, one per click) through `host.undo(net_id)`, then
+- `project_cards.undo_change` reverses the draft's **last** change (LIFO, one per click) through `host.undo(net_id)`, then
   drops it from the draft. It is a recorded Action, so a replayed session reproduces the same network.
 - Core and the plugin share one pending-edit list per network, and undo is strict LIFO across sources: core's Undo
   refuses when the newest change is the plugin's, and `host.undo` refuses when it is core's (or another plugin's),

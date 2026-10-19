@@ -1,4 +1,4 @@
-# Cards plugin (ProjectCard authoring) Implementation Plan
+# Project cards plugin (ProjectCard authoring) Implementation Plan
 
 Status: **proposed** · Date: 2026-10-19 · Owner: Elizabeth Sall
 
@@ -7,20 +7,21 @@ Status: **proposed** · Date: 2026-10-19 · Owner: Elizabeth Sall
 
 **Goal:** Author ProjectCards in the netstead Workbench: select facilities, pick a change type, fill a form, preview
 the change on a derived network, apply it to a draft card, and commit the card to a schema-valid YAML file. It ships
-as `netstead-cards`, a third workspace package that netstead discovers as the Workbench plugin `cards`.
+as `netstead-project-cards`, the first-party plugin `plugins/project-cards`, which netstead discovers as the
+Workbench plugin `project_cards`.
 
-**Architecture:** `packages/netstead-cards` (import package `netstead_cards`) holds a GMNS-native change model
+**Architecture:** `plugins/project-cards` (import package `netstead_project_cards`) holds a GMNS-native change model
 (`types.py`), a maintained GMNS ↔ Wrangler mapping file, card I/O validated with the `projectcard` package, and a
 lowering layer that turns each change into core edit plans (`host.plan_*`) applied with `host.mutate`. Six recorded
-Actions (`cards.add_change`, `cards.undo_change`, `cards.commit`, `cards.import`, `cards.preview`,
-`cards.close_preview`) own the plugin's nouns (one draft card per network). Two read-only routes feed a dock panel and
+Actions (`project_cards.add_change`, `project_cards.undo_change`, `project_cards.commit`, `project_cards.import`, `project_cards.preview`,
+`project_cards.close_preview`) own the plugin's nouns (one draft card per network). Two read-only routes feed a dock panel and
 "New change ▸ …" commands built only from the `wb` front-end slots. The package imports nothing from netstead but
 `netstead.workbench.plugins` (an import-linter contract enforces it).
 
 **Tech Stack:** Python 3.11+, pydantic 2, pyyaml, `projectcard>=0.3.3,<0.4`, FastAPI (via `netstead[server]`),
 pytest (+ xdist), native ES modules tested under node, uv workspace, import-linter, ruff.
 
-**Spec:** [Cards plugin scope](2026-10-07-cards-plugin-scope.md) (accepted 2026-10-19). Code reused and adapted from
+**Spec:** [Project cards plugin scope](2026-10-07-cards-plugin-scope.md) (accepted 2026-10-19). Code reused and adapted from
 Tasks 4, 5 and 8 of the first P2 draft (`git show eeaa01b:docs/design/2026-10-07-workbench-p2-plan.md`).
 
 ---
@@ -32,18 +33,19 @@ The plan is large (18 tasks), so it lands in three reviewable PRs. Each one leav
 | PR | Tasks | What it delivers |
 |---|---|---|
 | **A. Package and change model** | 0–8 | Host API 1.5 (exports `ActionError` / `NotSupportedYet`), the workspace package with CI, lint contract and a plugin that loads; the mapping file, the change model, `projectcard` validation, card YAML in and out (provenance, offline edit-log import), and lowering every roadway change onto `host.plan_*` + `host.mutate`. Tested as a library. |
-| **B. Actions** | 9–12 | Draft state, `cards.add_change` / `cards.undo_change` (selection, saved selection, `ignore_missing` rules), `cards.commit` / `cards.import`, `cards.preview` / `cards.close_preview`, and the assistant drafting every `cards.*` Action for approval. Usable from Python, HTTP and the generated palette forms. |
+| **B. Actions** | 9–12 | Draft state, `project_cards.add_change` / `project_cards.undo_change` (selection, saved selection, `ignore_missing` rules), `project_cards.commit` / `project_cards.import`, `project_cards.preview` / `project_cards.close_preview`, and the assistant drafting every `project_cards.*` Action for approval. Usable from Python, HTTP and the generated palette forms. |
 | **C. UI and docs** | 13–17 | The `/form` and `/commit-check` routes, the front end (`cardmodel.js`, `controller.js`, `main.js`), the cookbook page, the design index, changelogs, the coverage gate and a browser walk-through, plus the follow-up note on the offline report's writer. |
 
-Branch per PR from `main` (`feat/cards-a`, `feat/cards-b`, `feat/cards-c`); B and C rebase on the previous one once it
+Branch per PR from `main` (`feat/project-cards-a`, `feat/project-cards-b`, `feat/project-cards-c`); B and C rebase on the previous one once it
 merges. Follow CONTRIBUTING.md: run domain tests while iterating, the default suite before each commit that touches
 shared config, the full suite before opening the PR.
 
-**Dry run.** On 2026-10-19 every code block of this plan was materialized in a scratch worktree at `95c6d3d` and
-run: the plugin's 124 tests (doctests included) pass, its coverage is 94.9 %, `ruff check`, `ruff format --check`,
-`lint-imports` and `lint_no_sql` are clean, and the default netstead suite passes with the plugin installed (after
-Task 16's documented-API change). Code blocks are the formatted, lint-clean versions. The dry run was discarded;
-nothing but this plan was committed.
+**Dry run.** On 2026-10-19 every code block of this plan (as revised: `plugins/project-cards`, `projectcard` reuse)
+was materialized in a scratch worktree at `95c6d3d` and run: the plugin's 126 tests (doctests included) pass, its
+coverage is 95 %, `ruff check`, `ruff format --check`, `lint-imports` and `lint_no_sql` are clean, and the full suite
+(`pytest packages plugins -m ""`, 3,467 tests) passes with the plugin installed (after Task 16's documented-API
+change). Code blocks are the formatted, lint-clean versions. The dry run was discarded; nothing but this plan and the
+scope were committed.
 
 ## Facts found while planning (they change the scope's assumptions)
 
@@ -53,7 +55,7 @@ netstead at `95c6d3d`.
 1. **`projectcard.validate_card` fills defaults into the dict it is given.** With its default `parse_defaults=True`
    it adds a missing required `ignore_missing: true` before validating, so a card without the flag *passes* and is
    changed in place. `projectcard.read_card(path, validate=True)` validates that way too. The plugin validates a
-   deep copy with `parse_defaults=False` (`netstead_cards.validate.card_problems`): the file must say what the
+   deep copy with `parse_defaults=False` (`netstead_project_cards.validate.card_problems`): the file must say what the
    schema requires. The error is jsonschema's best match, raised as `ProjectCardValidationError("Validation error for
    project …")` with the real `jsonschema.ValidationError` as `__cause__`; we report
    `"<json path>: <message>"`, one problem at a time. Validation takes 40–70 ms (it reloads the schema with
@@ -75,7 +77,7 @@ netstead at `95c6d3d`.
    `host.plan_delete("node", …)` plans against the network as it is now and refuses a node a link still uses
    (verified: `node 1 is still used by link.from_node_id (link 1, 2, 3, 4); delete those links first`). The links
    must be deleted before the node plan is made. A deletion is therefore one mutation per table (links, then nodes),
-   both inside one Action handler: a failure undoes both, and `cards.undo_change` undoes as many pending edits as the
+   both inside one Action handler: a failure undoes both, and `project_cards.undo_change` undoes as many pending edits as the
    change made (the draft records `steps` per change). Property changes and additions stay one mutation each.
 6. **Host API gap: plugins cannot raise a user-facing error.** `ActionError` / `NotSupportedYet` live in
    `netstead.workbench.errors`, which the plugin may not import. Any other exception from a plugin handler is
@@ -84,20 +86,21 @@ netstead at `95c6d3d`.
    `ActionError` from `netstead.workbench`; Task 1 fixes it too, and adds the missing `1.4` row to its versioning
    table.)
 7. **Host API gap: no lineage entry on commit.** The scope says a committed card's id "joins the network's
-   lineage", but `Host` has no lineage method; only `host.mutate` appends (`"cards: <note>"`, one per change). v1
-   records committed cards in plugin state (`plugins.cards.committed`) and in the file; adding the card id to the
+   lineage", but `Host` has no lineage method; only `host.mutate` appends (`"project_cards: <note>"`, one per change). v1
+   records committed cards in plugin state (`plugins.project_cards.committed`) and in the file; adding the card id to the
    lineage needs a Host addition (follow-up, Task 17).
-8. **Host API gap: no read-path check.** `host.writable(path)` is the only allowed-roots check; `cards.import` uses it
+8. **Host API gap: no read-path check.** `host.writable(path)` is the only allowed-roots check; `project_cards.import` uses it
    to vet the path it reads. Harmless (it resolves and checks; it does not create anything), but the name is odd.
    Follow-up, Task 17.
-9. **Workspace wiring.** A workspace member that depends on `netstead` needs `netstead = { workspace = true }` in the
-   root `[tool.uv.sources]` (uv refuses to lock otherwise). `uv.lock` is tracked: lock with a current uv. uv 0.6.x
+9. **Workspace wiring.** The root workspace lists only `packages/*`; first-party plugins go in a new top-level
+   `plugins/` directory, so `members` gains `"plugins/*"`. A workspace member that depends on `netstead` needs
+   `netstead = { workspace = true }` in the root `[tool.uv.sources]` (uv refuses to lock otherwise). `uv.lock` is tracked: lock with a current uv. uv 0.6.x
    rewrites the lock as `revision = 2` with `upload_time` keys, a 5,000-line diff; if `uv lock` changes lines that are
-   not about `netstead-cards`, `projectcard`, `jsonref`, `tabulate` or `toml`, upgrade uv (`uv self update`) and
+   not about `netstead-project-cards`, `projectcard`, `jsonref`, `tabulate` or `toml`, upgrade uv (`uv self update`) and
    lock again before committing.
-10. **The assistant mechanism is generic.** A plugin's Actions become assistant tools (`cards__add_change`, …) when
-    `assistant.plugins` lists `cards`; those with `mutates = True` are drafted for approval, the rest run at once
-    and may not mutate. Every `cards.*` Action sets `mutates = True` (they change a network, register or close a
+10. **The assistant mechanism is generic.** A plugin's Actions become assistant tools (`project_cards__add_change`, …) when
+    `assistant.plugins` lists `project_cards`; those with `mutates = True` are drafted for approval, the rest run at once
+    and may not mutate. Every `project_cards.*` Action sets `mutates = True` (they change a network, register or close a
     preview network, or write a file). Task 12 pins the draft-then-approve path.
 11. **`host.selection["projectcard"]` already holds card-form facilities.** For a pick: `picked: true` and
     `query == resolved == {"links": {"model_link_id": [...], "ignore_missing": true}}` (the intent's default). For
@@ -105,9 +108,33 @@ netstead at `95c6d3d`.
     "ignore_missing": true}}`, `link_ids == [1, 5, 6, 8]`. The plugin writes a pick as ids with
     `ignore_missing: false` (scope decision 7) and a query as the query, with the ids as provenance.
 
+## Reuse of `projectcard`
+
+The plugin uses `projectcard` 0.3.3 wherever its pieces work, and keeps its own code only where they are unusable.
+
+| Piece | Decision | Why (one line) |
+|---|---|---|
+| `projectcard.validate_card` | **reused**, wrapped (`card_problems`) | Its schema checks are right; the wrapper validates a deep copy with `parse_defaults=False` because it fills defaults into, and so mutates, the caller's dict. |
+| `projectcard.read_card` (and through it `ProjectCard`, `read_cards`) | **reused** to read every card and edit log (`read_card_file`) | YAML, JSON and TOML, its key normalisation and schema defaults, for free; `validate=False` because an edit log is not schema-valid. |
+| `projectcard.projectcard.CHANGE_TYPES` | **reused** as the change-type names (`types.CHANGE_TYPES`) | The package's own list; a test pins one model per type and the schema's `$defs/change`. |
+| `projectcard.validate.PROJECTCARD_SCHEMA` | **reused** in tests | Pins the change types against the schema file the validator uses. |
+| `projectcard.write_card` | **not reused**: `DraftCard.to_yaml` (`yaml.safe_dump`) | It comments out every line containing `#` (a `Hwy #2` card cannot be read back) and always writes `dependencies: {}`. |
+| `projectcard.models` (selections, property changes, change types, `ProjectModel`, `Dependencies`) | **not reused**: `types.py` | `ProjectModel` does not import, the submodules emit pydantic deprecation warnings at import (fatal under `filterwarnings = error`), they enforce neither set-or-change nor scalar values, `SelectRoadNode` rejects `model_node_id`, and they hold Wrangler names where Actions, forms and the assistant use GMNS names. |
+| Property-value check | **kept, thin** (`PropertyChange`) | The schema's `property_changes` `anyOf` never type-checks values, so `set: null` / `true` / `[1]` pass `validate_card`. |
+| Schema shape checks (selector one-of, integer ids, required link fields, `additionalProperties`) | **not duplicated** | `check_card_shape` runs `validate_card` on each change before it is applied and reports its message. The only structural checks kept are the ones lowering needs before a card exists (a property change's facility; an addition's keys and end nodes). |
+| GMNS ↔ Wrangler `FieldMap`, lowering onto `host.plan_*` / `host.mutate`, provenance notes, `ignore_missing` rules, tolerant edit-log import, draft state, Actions, UI | **netstead's own** | Nothing in `projectcard` covers them. |
+
+## Convention: first-party plugins
+
+First-party plugins live in `plugins/<name>`, each its own uv workspace package that may import only
+`netstead.workbench.plugins`' public API (enforced by an import-linter contract per plugin). This is the first one:
+`plugins/project-cards`, distribution `netstead-project-cards`, import package `netstead_project_cards`, plugin id
+`project_cards` (Actions `project_cards.*`, settings `[plugins.project_cards]`, state `plugins.project_cards`).
+Task 16 adds the same sentence to CONTRIBUTING.md.
+
 ## Conventions used below
 
-- Paths are from the repo root. `C=packages/netstead-cards`. Tests: `uv run --all-extras pytest $C/tests/<file> -q`.
+- Paths are from the repo root. `C=plugins/project-cards`. Tests: `uv run --all-extras pytest $C/tests/<file> -q`.
 - Lint before every commit: `uv run ruff check . && uv run ruff format --check . && uv run lint-imports && uv run python scripts/lint_no_sql.py`.
 - Stage files by path (`git add <paths>`); never `git add -A` / `git add .`; never bare `git stash`.
 - Every commit message ends with the attribution line `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`
@@ -122,28 +149,28 @@ netstead at `95c6d3d`.
 | File | Responsibility |
 |---|---|
 | `packages/netstead/netstead/workbench/plugins/__init__.py`, `spec.py` | (Task 1) export `ActionError`, `NotSupportedYet`; `HOST_API = "1.5"`. |
-| `$C/pyproject.toml`, `README.md`, `LICENSE`, `CHANGELOG.md` | The distribution `netstead-cards` 0.1.0 and its entry point `cards = "netstead_cards:plugin"`. |
-| `$C/netstead_cards/__init__.py` | Public names: `plugin`, the Action classes, the change model, `DraftCard`, `read_card_file`. |
-| `$C/netstead_cards/_version.py` | `__version__`. |
-| `$C/netstead_cards/errors.py` | `CardError`, `CardNotSupported` (the plugin's own; handlers map them to `ActionError` / `NotSupportedYet`). |
-| `$C/netstead_cards/mappings/gmns_to_wrangler.yaml`, `mapping.py` | The maintained GMNS ↔ Wrangler names (`FieldMap`, `load_mapping`). |
-| `$C/netstead_cards/types.py` | The change model: `PropertyChange`, `Selection`, the seven change types, `NetworkChange`, `incomplete`. |
-| `$C/netstead_cards/validate.py` | `card_problems`: `projectcard`'s validator on a copy, `parse_defaults=False`. |
-| `$C/netstead_cards/card.py` | `DraftCard` ↔ ProjectCard dict / YAML, provenance in `notes`, tolerant `read_card_file` (cards and the offline edit log). |
-| `$C/netstead_cards/lower.py` | `apply_change(host, net_id, change)`: plans with `host.plan_*`, applies with `host.mutate`; `describe`, `rows_by_key`. |
-| `$C/netstead_cards/state.py` | `CardsState`: one draft per network, committed cards, the open preview; `snapshot` for `/api/state`. |
-| `$C/netstead_cards/flow.py` | Shared handler steps: target network, facility from a selection, card-shape check, error mapping. |
-| `$C/netstead_cards/actions.py` | The six Action models. |
-| `$C/netstead_cards/handlers.py` | `Handlers`: the Action handlers and their `ActionSpec`s. |
-| `$C/netstead_cards/routes.py` | `GET /form`, `GET /commit-check`. |
-| `$C/netstead_cards/plugin.py` | `plugin()`: the entry point factory. |
-| `$C/netstead_cards/static/cardmodel.js` | Pure front-end rules (change from form values, badge). |
-| `$C/netstead_cards/static/controller.js` | The panel's flow over `wb` (no DOM). |
-| `$C/netstead_cards/static/main.js` | `activate(wb)`: the panel's DOM, the commands, subscriptions. |
+| `$C/pyproject.toml`, `README.md`, `LICENSE`, `CHANGELOG.md` | The distribution `netstead-project-cards` 0.1.0 and its entry point `project_cards = "netstead_project_cards:plugin"`. |
+| `$C/netstead_project_cards/__init__.py` | Public names: `plugin`, the Action classes, the change model, `DraftCard`, `read_card_file`. |
+| `$C/netstead_project_cards/_version.py` | `__version__`. |
+| `$C/netstead_project_cards/errors.py` | `CardError`, `CardNotSupported` (the plugin's own; handlers map them to `ActionError` / `NotSupportedYet`). |
+| `$C/netstead_project_cards/mappings/gmns_to_wrangler.yaml`, `mapping.py` | The maintained GMNS ↔ Wrangler names (`FieldMap`, `load_mapping`). |
+| `$C/netstead_project_cards/types.py` | The change model: `PropertyChange`, `Selection`, the seven change types, `NetworkChange`, `incomplete`. |
+| `$C/netstead_project_cards/validate.py` | `card_problems`: `projectcard`'s validator on a copy, `parse_defaults=False`. |
+| `$C/netstead_project_cards/card.py` | `DraftCard` ↔ ProjectCard dict / YAML, provenance in `notes`, tolerant `read_card_file` (cards and the offline edit log). |
+| `$C/netstead_project_cards/lower.py` | `apply_change(host, net_id, change)`: plans with `host.plan_*`, applies with `host.mutate`; `describe`, `rows_by_key`. |
+| `$C/netstead_project_cards/state.py` | `CardsState`: one draft per network, committed cards, the open preview; `snapshot` for `/api/state`. |
+| `$C/netstead_project_cards/flow.py` | Shared handler steps: target network, facility from a selection, card-shape check, error mapping. |
+| `$C/netstead_project_cards/actions.py` | The six Action models. |
+| `$C/netstead_project_cards/handlers.py` | `Handlers`: the Action handlers and their `ActionSpec`s. |
+| `$C/netstead_project_cards/routes.py` | `GET /form`, `GET /commit-check`. |
+| `$C/netstead_project_cards/plugin.py` | `plugin()`: the entry point factory. |
+| `$C/netstead_project_cards/static/cardmodel.js` | Pure front-end rules (change from form values, badge). |
+| `$C/netstead_project_cards/static/controller.js` | The panel's flow over `wb` (no DOM). |
+| `$C/netstead_project_cards/static/main.js` | `activate(wb)`: the panel's DOM, the commands, subscriptions. |
 | `$C/tests/conftest.py` | `isolated_env`, `make_session`, `session`, `host`, `run_js`. |
 | `$C/tests/test_*.py` | One file per task (named in each task). |
 | Root `pyproject.toml`, `uv.lock`, `.github/workflows/tests.yml`, `scripts/lint_no_sql.py` | Workspace source, import contract, pytest / coverage paths, warning filter, CI step. |
-| `packages/netstead/docs/cookbook/workbench-cards.md` (+ index, `mkdocs.yml`), `CONTRIBUTING.md`, `docs/design/README.md`, changelogs | Docs (Task 16). |
+| `packages/netstead/docs/cookbook/workbench-project-cards.md` (+ index, `mkdocs.yml`), `CONTRIBUTING.md`, `docs/design/README.md`, changelogs | Docs (Task 16). |
 
 ---
 ## PR A: package and change model
@@ -153,7 +180,7 @@ netstead at `95c6d3d`.
 - [ ] **Step 1: Branch from an up-to-date `main`**
 
 ```bash
-git switch main && git pull --ff-only && git switch -c feat/cards-a
+git switch main && git pull --ff-only && git switch -c feat/project-cards-a
 ```
 
 - [ ] **Step 2: Sync and run the baseline**
@@ -306,22 +333,22 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task 2: The `netstead-cards` workspace package, CI and the import contract
+### Task 2: The `netstead-project-cards` workspace package, CI and the import contract
 
 **Files:**
-- Create: `packages/netstead-cards/pyproject.toml`, `README.md`, `CHANGELOG.md`, `LICENSE` (copy of the root one)
-- Create: `packages/netstead-cards/netstead_cards/__init__.py`, `_version.py`, `plugin.py`
-- Create: `packages/netstead-cards/tests/conftest.py`, `test_plugin_loads.py` (no `tests/__init__.py`: see Step 2)
+- Create: `plugins/project-cards/pyproject.toml`, `README.md`, `CHANGELOG.md`, `LICENSE` (copy of the root one)
+- Create: `plugins/project-cards/netstead_project_cards/__init__.py`, `_version.py`, `plugin.py`
+- Create: `plugins/project-cards/tests/conftest.py`, `test_plugin_loads.py` (no `tests/__init__.py`: see Step 2)
 - Modify: `pyproject.toml` (root), `uv.lock`, `.github/workflows/tests.yml`, `scripts/lint_no_sql.py`
 
 - [ ] **Step 1: Write the package metadata**
 
 ```bash
-mkdir -p packages/netstead-cards/netstead_cards packages/netstead-cards/tests
-cp LICENSE packages/netstead-cards/LICENSE
+mkdir -p plugins/project-cards/netstead_project_project cards plugins/project-cards/tests
+cp LICENSE plugins/project-cards/LICENSE
 ```
 
-Create `packages/netstead-cards/pyproject.toml`:
+Create `plugins/project-cards/pyproject.toml`:
 
 ```toml
 [build-system]
@@ -329,7 +356,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "netstead-cards"
+name = "netstead-project-cards"
 version = "0.1.0"
 description = "ProjectCard authoring in the netstead Workbench: select, change, preview, and commit network_wrangler project cards."
 readme = "README.md"
@@ -357,18 +384,19 @@ dependencies = [
 ]
 
 [project.entry-points."netstead.workbench.plugins"]
-cards = "netstead_cards:plugin"
+project_cards = "netstead_project_cards:plugin"
 
 [tool.hatch.build.targets.wheel]
-packages = ["netstead_cards"]
+packages = ["netstead_project_cards"]
 ```
 
-Create `packages/netstead-cards/README.md`:
+Create `plugins/project-cards/README.md`:
 
 ```markdown
-# netstead-cards
+# netstead-project-cards
 
-ProjectCard authoring for the [netstead](../netstead) Workbench, as the Workbench plugin `cards`.
+ProjectCard authoring for the [netstead](../../packages/netstead) Workbench, as the Workbench plugin "project cards"
+(`project_cards`).
 
 Select links in `netstead app`, right-click **New change ▸ Property change** (or Deletion, Addition), fill the form,
 preview the change on a copy of the network, add it to the draft card, and commit the card as a
@@ -380,12 +408,12 @@ preview the change on a copy of the network, add it to the draft card, and commi
 See the cookbook page "Author ProjectCards in the Workbench" in the netstead docs.
 ```
 
-Create `packages/netstead-cards/CHANGELOG.md`:
+Create `plugins/project-cards/CHANGELOG.md`:
 
 ```markdown
-# Changelog — netstead-cards
+# Changelog — netstead-project-cards
 
-All notable changes to the `netstead-cards` package (the Workbench plugin `cards`). Format follows
+All notable changes to the `netstead-project-cards` package (the Workbench plugin `project_cards`). Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning is [Semver](https://semver.org/).
 
 ## [Unreleased]
@@ -393,12 +421,12 @@ All notable changes to the `netstead-cards` package (the Workbench plugin `cards
 
 - [ ] **Step 2: Write the failing test**
 
-Create `packages/netstead-cards/tests/conftest.py`. Do **not** add a `tests/__init__.py`: netstead's tests are the
+Create `plugins/project-cards/tests/conftest.py`. Do **not** add a `tests/__init__.py`: netstead's tests are the
 package `tests` already, and a second `tests.conftest` makes pytest abort ("Plugin already registered under a
-different name") when both packages run in one session, as `pytest packages` does.
+different name") when both run in one session, as `pytest packages plugins` does.
 
 ```python
-"""Fixtures: a Workbench session with the cards plugin installed on the Leavenworth fixture, and a node runner."""
+"""Fixtures: a Workbench session with the project cards plugin on the Leavenworth fixture, and a node runner."""
 
 from __future__ import annotations
 
@@ -414,7 +442,7 @@ from netstead.fixtures import leavenworth
 from netstead.select.parse import StubParser
 from netstead.workbench import Session
 from netstead.workbench.actions import OpenNetwork
-from netstead_cards import plugin
+from netstead_project_cards import plugin
 
 SRC = str(leavenworth.parquet_dir())
 NET = "leavenworth"
@@ -456,8 +484,8 @@ def session(make_session: Callable[..., Session]) -> Session:
 
 @pytest.fixture
 def host(session: Session) -> Any:
-    """The cards plugin's Host in ``session`` (what its handlers receive)."""
-    return session._hosts["cards"]
+    """The project cards plugin's Host in ``session`` (what its handlers receive)."""
+    return session._hosts["project_cards"]
 
 
 @pytest.fixture
@@ -487,33 +515,33 @@ def run_js(tmp_path: Path) -> Callable[[dict[str, Path], str], Any]:
     return run
 ```
 
-Create `packages/netstead-cards/tests/test_plugin_loads.py`:
+Create `plugins/project-cards/tests/test_plugin_loads.py`:
 
 ```python
-"""The package installs as the Workbench plugin ``cards`` and loads on this netstead."""
+"""The package installs as the Workbench plugin ``project_cards`` and loads on this netstead."""
 
 from importlib.metadata import entry_points
 
-import netstead_cards
+import netstead_project_cards
 from netstead.workbench.plugins import ENTRY_POINT_GROUP, HOST_API
 from netstead.workbench.plugins.spec import api_compatible
-from netstead_cards import plugin
+from netstead_project_cards import plugin
 
 
 def test_the_entry_point_names_the_factory():
-    (ep,) = [ep for ep in entry_points(group=ENTRY_POINT_GROUP) if ep.name == "cards"]
-    assert ep.value == "netstead_cards:plugin" and ep.load() is plugin
+    (ep,) = [ep for ep in entry_points(group=ENTRY_POINT_GROUP) if ep.name == "project_cards"]
+    assert ep.value == "netstead_project_cards:plugin" and ep.load() is plugin
 
 
 def test_the_plugin_needs_host_api_1_5_and_runs_on_this_one():
     built = plugin()
-    assert (built.id, built.requires_api, built.version) == ("cards", "1.5", netstead_cards.__version__)
+    assert (built.id, built.requires_api, built.version) == ("project_cards", "1.5", netstead_project_cards.__version__)
     assert api_compatible(built.requires_api, HOST_API)
 
 
 def test_it_loads_in_a_session(make_session):
     session = make_session(open_network=False)
-    (status,) = [s for s in session.plugin_status if s.id == "cards"]
+    (status,) = [s for s in session.plugin_status if s.id == "project_cards"]
     assert status.state == "loaded", status.error
 
 
@@ -525,12 +553,12 @@ def test_projectcard_imports_under_the_warnings_policy():
 
 - [ ] **Step 3: Run it to confirm it fails**
 
-Run: `uv run --all-extras pytest packages/netstead-cards/tests -q`
-Expected: FAIL: `ModuleNotFoundError: No module named 'netstead_cards'` (the package is not installed yet).
+Run: `uv run --all-extras pytest plugins/project-cards/tests -q`
+Expected: FAIL: `ModuleNotFoundError: No module named 'netstead_project_cards'` (the package is not installed yet).
 
 - [ ] **Step 4: Implement the package**
 
-Create `packages/netstead-cards/netstead_cards/_version.py`:
+Create `plugins/project-cards/netstead_project_cards/_version.py`:
 
 ```python
 """The package version (kept in step with ``pyproject.toml``)."""
@@ -538,10 +566,10 @@ Create `packages/netstead-cards/netstead_cards/_version.py`:
 __version__ = "0.1.0"
 ```
 
-Create `packages/netstead-cards/netstead_cards/plugin.py`:
+Create `plugins/project-cards/netstead_project_cards/plugin.py`:
 
 ```python
-"""The cards plugin's entry point: ``cards = "netstead_cards:plugin"`` in the ``netstead.workbench.plugins`` group.
+"""The project cards plugin's entry point, ``project_cards = "netstead_project_cards:plugin"``.
 
 Selection → verb → form → preview → commit (the plugins design's UX principle 2). Every network change goes through
 core's edit planner and ``host.mutate``, so core's history, Edits panel, live warnings and dirty badge see it. The
@@ -562,13 +590,13 @@ REQUIRES_API = "1.5"
 
 def plugin() -> WorkbenchPlugin:
     """The entry point: a fresh plugin for one Workbench session."""
-    return WorkbenchPlugin(id="cards", name="ProjectCards", version=__version__, requires_api=REQUIRES_API)
+    return WorkbenchPlugin(id="project_cards", name="Project cards", version=__version__, requires_api=REQUIRES_API)
 ```
 
-Create `packages/netstead-cards/netstead_cards/__init__.py`:
+Create `plugins/project-cards/netstead_project_cards/__init__.py`:
 
 ```python
-"""ProjectCard authoring in the netstead Workbench, as the Workbench plugin ``cards``."""
+"""ProjectCard authoring in the netstead Workbench, as the Workbench plugin ``project_cards``."""
 
 from ._version import __version__
 from .plugin import plugin
@@ -580,48 +608,53 @@ __all__ = ["__version__", "plugin"]
 
 In the root `pyproject.toml`:
 
-1. Top comment: replace the two lines listing the packages with
+1. Top comment: replace the lines listing the packages with
 
 ```toml
-# Distributable packages live in packages/ — see:
-#   packages/corral/pyproject.toml          (generic engine)
-#   packages/netstead/pyproject.toml        (GMNS-specific)
-#   packages/netstead-cards/pyproject.toml  (Workbench plugin: ProjectCard authoring)
+# Distributable packages live in packages/, first-party Workbench plugins in plugins/ — see:
+#   packages/corral/pyproject.toml         (generic engine)
+#   packages/netstead/pyproject.toml       (GMNS-specific)
+#   plugins/project-cards/pyproject.toml   (Workbench plugin "project cards": ProjectCard authoring)
 ```
 
-2. `[tool.uv.sources]` becomes:
+2. The workspace and its sources become:
 
 ```toml
+[tool.uv.workspace]
+# First-party plugins live in plugins/<name>, each its own workspace package that may import only
+# netstead.workbench.plugins' public API (one import-linter contract per plugin, below).
+members = ["packages/*", "plugins/*"]
+
 [tool.uv.sources]
 dbcorral = { workspace = true }
 netstead = { workspace = true }
 ```
 
-3. `[tool.pyright]`: `include` gains `"packages/netstead-cards/netstead_cards"`, and add after the netstead
+3. `[tool.pyright]`: `include` gains `"plugins/project-cards/netstead_project_cards"`, and add after the netstead
    execution environment:
 
 ```toml
 [[tool.pyright.executionEnvironments]]
-root = "packages/netstead-cards/netstead_cards"
-extraPaths = ["packages/netstead-cards", "packages/netstead", "packages/corral"]
+root = "plugins/project-cards/netstead_project_cards"
+extraPaths = ["plugins/project-cards", "packages/netstead", "packages/corral"]
 ```
 
-4. `[tool.importlinter]`: `root_packages = ["corral", "netstead", "netstead_cards"]`, and add after the last contract:
+4. `[tool.importlinter]`: `root_packages = ["corral", "netstead", "netstead_project_cards"]`, and add after the last contract:
 
 ```toml
 [[tool.importlinter.contracts]]
-# The cards plugin is written against the public plugin API only (Host, BaseAction, ActionSpec, ...), so it keeps
+# The project cards plugin is written against the public plugin API only (Host, BaseAction, ActionSpec, ...), so it keeps
 # working as netstead's internals move. netstead.workbench.plugins itself imports netstead internals: indirect
 # imports through it are allowed; direct imports of anything else in netstead (or corral) are not.
-name = "netstead-cards uses only the public plugin API of netstead"
+name = "netstead-project-cards uses only the public plugin API of netstead"
 type = "forbidden"
-source_modules = ["netstead_cards"]
+source_modules = ["netstead_project_cards"]
 forbidden_modules = ["netstead", "corral"]
-ignore_imports = ["netstead_cards.** -> netstead.workbench.plugins"]
+ignore_imports = ["netstead_project_cards.** -> netstead.workbench.plugins"]
 allow_indirect_imports = true
 ```
 
-5. `[tool.pytest.ini_options]`: `testpaths = ["packages/corral/tests", "packages/netstead/tests", "packages/netstead-cards/tests"]`,
+5. `[tool.pytest.ini_options]`: `testpaths = ["packages/corral/tests", "packages/netstead/tests", "plugins/project-cards/tests"]`,
    and append to `filterwarnings`:
 
 ```toml
@@ -631,30 +664,30 @@ allow_indirect_imports = true
     "ignore:invalid escape sequence:SyntaxWarning",
 ```
 
-6. `[tool.coverage.run]`: `source = ["packages/corral/corral", "packages/netstead/netstead", "packages/netstead-cards/netstead_cards"]`.
+6. `[tool.coverage.run]`: `source = ["packages/corral/corral", "packages/netstead/netstead", "plugins/project-cards/netstead_project_cards"]`.
 
-In `scripts/lint_no_sql.py`, add a third entry to `SCAN_ROOTS`:
+In `scripts/lint_no_sql.py`, add an entry to `SCAN_ROOTS`:
 
 ```python
     (
-        REPO_ROOT / "packages" / "netstead-cards" / "netstead_cards",
+        REPO_ROOT / "plugins" / "project-cards" / "netstead_project_cards",
         set(),  # the plugin has no SQL at all: it edits through the Host API
     ),
 ```
 
-and change the module docstring's list of scanned trees to name `packages/netstead-cards/netstead_cards/` too.
+and change the module docstring's list of scanned trees to name `plugins/project-cards/netstead_project_cards/` too.
 
 In `.github/workflows/tests.yml`, after the "Test netstead" step add:
 
 ```yaml
-      - name: Test netstead-cards
+      - name: Test netstead-project-cards
         run: >-
-          uv run pytest -m "" -n auto packages/netstead-cards/tests
-          --doctest-modules packages/netstead-cards/netstead_cards
-          ${{ matrix.coverage && '--cov=netstead_cards --cov-fail-under=85 --cov-report=term --cov-report=xml:coverage-cards.xml' || '' }}
+          uv run pytest -m "" -n auto plugins/project-cards/tests
+          --doctest-modules plugins/project-cards/netstead_project_cards
+          ${{ matrix.coverage && '--cov=netstead_project_cards --cov-fail-under=85 --cov-report=term --cov-report=xml:coverage-project-cards.xml' || '' }}
 ```
 
-and in "Upload coverage" set `files: coverage-corral.xml,coverage-netstead.xml,coverage-cards.xml`. (Task 17 raises
+and in "Upload coverage" set `files: coverage-corral.xml,coverage-netstead.xml,coverage-project-cards.xml`. (Task 17 raises
 the gate to one point below the measured coverage.)
 
 Lock and install:
@@ -662,13 +695,13 @@ Lock and install:
 ```bash
 uv --version            # needs a uv that writes `revision = 3` (Facts, item 9)
 uv lock
-git diff --stat uv.lock # only netstead-cards, projectcard, jsonref, tabulate, toml (and the members list)
+git diff --stat uv.lock # only netstead-project-cards, projectcard, jsonref, tabulate, toml (and the members list)
 uv sync --all-packages --all-extras
 ```
 
 - [ ] **Step 6: Run the tests**
 
-Run: `uv run --all-extras pytest packages/netstead-cards/tests -q`
+Run: `uv run --all-extras pytest plugins/project-cards/tests -q`
 Expected: 4 passed.
 
 Remove the filter line from `pyproject.toml` once, run `find .venv -path '*projectcard*' -name '*.pyc' -delete` and
@@ -677,27 +710,27 @@ filter is what makes the import work.)
 
 - [ ] **Step 7: The netstead suite still discovers its plugins**
 
-`uv sync --all-packages` installs `netstead-cards`, so netstead's `@pytest.mark.plugin_discovery` tests now also
-discover `cards`. Run: `uv run --all-extras pytest packages/netstead/tests/test_workbench_plugins.py -q -m ""`
-Expected: all pass (`cards` loads beside `hello` and the fake plugin).
+`uv sync --all-packages` installs `netstead-project-cards`, so netstead's `@pytest.mark.plugin_discovery` tests now also
+discover `project_cards`. Run: `uv run --all-extras pytest packages/netstead/tests/test_workbench_plugins.py -q -m ""`
+Expected: all pass (`project_cards` loads beside `hello` and the fake plugin).
 
 - [ ] **Step 8: Lint and commit**
 
 ```bash
 uv run ruff check . && uv run ruff format --check . && uv run lint-imports && uv run python scripts/lint_no_sql.py
-git add packages/netstead-cards/pyproject.toml packages/netstead-cards/README.md packages/netstead-cards/CHANGELOG.md \
-  packages/netstead-cards/LICENSE packages/netstead-cards/netstead_cards/__init__.py \
-  packages/netstead-cards/netstead_cards/_version.py packages/netstead-cards/netstead_cards/plugin.py \
-  packages/netstead-cards/tests/conftest.py \
-  packages/netstead-cards/tests/test_plugin_loads.py pyproject.toml uv.lock .github/workflows/tests.yml \
+git add plugins/project-cards/pyproject.toml plugins/project-cards/README.md plugins/project-cards/CHANGELOG.md \
+  plugins/project-cards/LICENSE plugins/project-cards/netstead_project_cards/__init__.py \
+  plugins/project-cards/netstead_project_cards/_version.py plugins/project-cards/netstead_project_cards/plugin.py \
+  plugins/project-cards/tests/conftest.py \
+  plugins/project-cards/tests/test_plugin_loads.py pyproject.toml uv.lock .github/workflows/tests.yml \
   scripts/lint_no_sql.py
-git commit -m "feat(cards): netstead-cards workspace package, CI step and import contract
+git commit -m "feat(project-cards): netstead-project-cards workspace package, CI step and import contract
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
 `lint-imports` must report the new contract as KEPT. To see it bite, add `from netstead.workbench.session import
-Session` to `plugin.py`: the contract is BROKEN (`netstead_cards.plugin -> netstead.workbench.session`). Remove it.
+Session` to `plugin.py`: the contract is BROKEN (`netstead_project_cards.plugin -> netstead.workbench.session`). Remove it.
 
 ---
 ### Task 3: The maintained GMNS ↔ Wrangler mapping file
@@ -705,19 +738,19 @@ Session` to `plugin.py`: the contract is BROKEN (`netstead_cards.plugin -> netst
 From the first P2 draft's Task 4, moved into the plugin (pyyaml is a hard dependency here, so no lazy import).
 
 **Files:**
-- Create: `packages/netstead-cards/netstead_cards/mappings/gmns_to_wrangler.yaml`
-- Create: `packages/netstead-cards/netstead_cards/mapping.py`
-- Test: `packages/netstead-cards/tests/test_mapping.py`
+- Create: `plugins/project-cards/netstead_project_cards/mappings/gmns_to_wrangler.yaml`
+- Create: `plugins/project-cards/netstead_project_cards/mapping.py`
+- Test: `plugins/project-cards/tests/test_mapping.py`
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `packages/netstead-cards/tests/test_mapping.py`:
+Create `plugins/project-cards/tests/test_mapping.py`:
 
 ```python
 """The GMNS <-> Wrangler mapping is data (mappings/gmns_to_wrangler.yaml), read once per path."""
 
 import pytest
-from netstead_cards.mapping import DEFAULT_MAPPING, load_mapping
+from netstead_project_cards.mapping import DEFAULT_MAPPING, load_mapping
 
 
 @pytest.fixture(scope="module")
@@ -768,12 +801,12 @@ def test_an_unknown_mapping_version_is_refused(tmp_path):
 
 - [ ] **Step 2: Run them to confirm they fail**
 
-Run: `uv run --all-extras pytest packages/netstead-cards/tests/test_mapping.py -q`
-Expected: FAIL with `ModuleNotFoundError: No module named 'netstead_cards.mapping'`.
+Run: `uv run --all-extras pytest plugins/project-cards/tests/test_mapping.py -q`
+Expected: FAIL with `ModuleNotFoundError: No module named 'netstead_project_cards.mapping'`.
 
 - [ ] **Step 3: Implement**
 
-Create `packages/netstead-cards/netstead_cards/mappings/gmns_to_wrangler.yaml`:
+Create `plugins/project-cards/netstead_project_cards/mappings/gmns_to_wrangler.yaml`:
 
 ```yaml
 # GMNS (netstead) <-> network_wrangler / ProjectCard names. This is maintained data, not code: when Wrangler
@@ -801,7 +834,7 @@ derived:              # link fields Wrangler requires that GMNS has no column fo
   drive_access: {column: allowed_uses, any_of: [auto, drive, truck]}
 ```
 
-Create `packages/netstead-cards/netstead_cards/mapping.py`:
+Create `plugins/project-cards/netstead_project_cards/mapping.py`:
 
 ```python
 """GMNS <-> network_wrangler / ProjectCard field names, from the maintained ``mappings/gmns_to_wrangler.yaml``.
@@ -822,7 +855,7 @@ import yaml
 __all__ = ["DEFAULT_MAPPING", "FieldMap", "load_mapping"]
 
 #: The maintained mapping file shipped with the plugin.
-DEFAULT_MAPPING = Path(str(resources.files("netstead_cards").joinpath("mappings/gmns_to_wrangler.yaml")))
+DEFAULT_MAPPING = Path(str(resources.files("netstead_project_cards").joinpath("mappings/gmns_to_wrangler.yaml")))
 
 
 @dataclass(frozen=True)
@@ -885,16 +918,16 @@ def load_mapping(path: str | Path | None = None) -> FieldMap:
 
 - [ ] **Step 4: Run the tests**
 
-Run: `uv run --all-extras pytest packages/netstead-cards/tests/test_mapping.py -q`
+Run: `uv run --all-extras pytest plugins/project-cards/tests/test_mapping.py -q`
 Expected: all pass.
 
 - [ ] **Step 5: Lint and commit**
 
 ```bash
-uv run ruff check packages/netstead-cards && uv run ruff format --check packages/netstead-cards
-git add packages/netstead-cards/netstead_cards/mappings/gmns_to_wrangler.yaml \
-  packages/netstead-cards/netstead_cards/mapping.py packages/netstead-cards/tests/test_mapping.py
-git commit -m "feat(cards): maintained GMNS <-> Wrangler field mapping"
+uv run ruff check plugins/project-cards && uv run ruff format --check plugins/project-cards
+git add plugins/project-cards/netstead_project_cards/mappings/gmns_to_wrangler.yaml \
+  plugins/project-cards/netstead_project_cards/mapping.py plugins/project-cards/tests/test_mapping.py
+git commit -m "feat(project-cards): maintained GMNS <-> Wrangler field mapping"
 ```
 
 ---
@@ -904,28 +937,32 @@ git commit -m "feat(cards): maintained GMNS <-> Wrangler field mapping"
 From the first P2 draft's Task 5, with four changes: values follow scope decision 4 (booleans to 1/0, empty and list
 refused with the card rule's message); a pick carries `ignore_missing` (decision 7); a property change's facility and
 a deletion's links may be left out for the Action to fill from a selection (`incomplete()` says what is still
-missing); the change types are pinned against the installed `projectcard`.
+missing); the change-type names are `projectcard`'s own list (`projectcard.projectcard.CHANGE_TYPES`, without
+`pycode`), not a copy. Why the plugin keeps its own models instead of `projectcard.models`: see "Reuse of
+`projectcard`".
 
 **Files:**
-- Create: `packages/netstead-cards/netstead_cards/errors.py`
-- Create: `packages/netstead-cards/netstead_cards/types.py`
-- Test: `packages/netstead-cards/tests/test_types.py`
+- Create: `plugins/project-cards/netstead_project_cards/errors.py`
+- Create: `plugins/project-cards/netstead_project_cards/types.py`
+- Test: `plugins/project-cards/tests/test_types.py`
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `packages/netstead-cards/tests/test_types.py`:
+Create `plugins/project-cards/tests/test_types.py`:
 
 ```python
 """The change model: ProjectCard change types, card-shaped values, selections."""
 
 import json
+import typing
 
 import pytest
-from netstead_cards.types import (
+from netstead_project_cards.types import (
     CHANGE_TYPES,
     EMPTY_VALUE,
     ROADWAY_TYPES,
     TRANSIT_TYPES,
+    NetworkChange,
     PropertyChange,
     RoadwayAddition,
     RoadwayDeletion,
@@ -940,14 +977,17 @@ from pydantic import ValidationError
 QUERY = {"links": {"name": ["Benton Street"], "ignore_missing": True}}
 
 
-def test_the_change_types_are_the_installed_projectcard_schema_s():
-    from projectcard.projectcard import CHANGE_TYPES as PROJECTCARD_TYPES
+def test_the_change_types_are_projectcard_s_and_its_schema_s():
     from projectcard.validate import PROJECTCARD_SCHEMA
 
     schema = json.loads(PROJECTCARD_SCHEMA.read_text(encoding="utf-8"))
-    in_schema = set(schema["$defs"]["change"]["properties"]) - {"pycode"}
-    assert set(CHANGE_TYPES) == in_schema == set(PROJECTCARD_TYPES) - {"pycode"}
+    assert set(CHANGE_TYPES) == set(schema["$defs"]["change"]["properties"]) - {"pycode"}
     assert set(CHANGE_TYPES) == ROADWAY_TYPES | TRANSIT_TYPES and not ROADWAY_TYPES & TRANSIT_TYPES
+
+
+def test_the_union_has_one_model_per_change_type():
+    members = typing.get_args(typing.get_args(NetworkChange)[0])
+    assert sorted(m.model_fields["type"].default for m in members) == sorted(CHANGE_TYPES)
 
 
 def test_parse_picks_the_type():
@@ -1027,12 +1067,12 @@ def test_an_addition_needs_its_keys():
 
 - [ ] **Step 2: Run them to confirm they fail**
 
-Run: `uv run --all-extras pytest packages/netstead-cards/tests/test_types.py -q`
-Expected: FAIL with `ModuleNotFoundError: No module named 'netstead_cards.types'`.
+Run: `uv run --all-extras pytest plugins/project-cards/tests/test_types.py -q`
+Expected: FAIL with `ModuleNotFoundError: No module named 'netstead_project_cards.types'`.
 
 - [ ] **Step 3: Implement**
 
-Create `packages/netstead-cards/netstead_cards/errors.py`:
+Create `plugins/project-cards/netstead_project_cards/errors.py`:
 
 ```python
 """The plugin's own errors. Its Action handlers turn them into the Workbench's ``ActionError`` / ``NotSupportedYet``."""
@@ -1055,25 +1095,32 @@ def not_supported(change_type: str) -> CardNotSupported:
     )
 ```
 
-Create `packages/netstead-cards/netstead_cards/types.py`:
+Create `plugins/project-cards/netstead_project_cards/types.py`:
 
 ```python
 """The change model: one record per ProjectCard change type, discriminated on ``type``.
 
-Records hold GMNS names (``link_id``, ``from_node_id``); :mod:`netstead_cards.card` translates to and from a card's
-Wrangler names through the mapping file. The four transit types are declared so the union, the Action schema and the
-assistant's tool vocabulary are stable; applying or writing one answers "not yet supported" until the transit
+Records hold GMNS names (``link_id``, ``from_node_id``); :mod:`netstead_project_cards.card` translates to and from a
+card's Wrangler names through the mapping file. The four transit types are declared so the union, the Action schema
+and the assistant's tool vocabulary are stable; applying or writing one answers "not yet supported" until the transit
 component lands (P6).
 
 Values follow ProjectCard: a property's ``existing`` / ``set`` is one number or string. Booleans become ``1`` / ``0``;
 an empty value or a list is refused ("a ProjectCard cannot set a property to empty"). Clearing a cell is a core edit,
 never a card change. (``projectcard``'s validator does not check property values itself: this model is the check.)
+
+The change-type names come from ``projectcard`` itself. Its own models (``projectcard.models``) are not reused: the
+package's ``ProjectModel`` does not import (an absolute ``from changes import``), its submodules emit pydantic
+deprecation warnings at import (fatal under this repo's warnings-as-errors tests), they enforce neither set-or-change
+nor scalar values, ``SelectRoadNode`` rejects a ``model_node_id``, and they hold Wrangler names where the Actions,
+forms and assistant work in GMNS names.
 """
 
 from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
+from projectcard.projectcard import CHANGE_TYPES as _PROJECTCARD_TYPES
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator, model_validator
 
 __all__ = [
@@ -1288,16 +1335,9 @@ NetworkChange = Annotated[
 ]
 _ADAPTER: TypeAdapter[NetworkChange] = TypeAdapter(NetworkChange)
 
-#: Every change type, as ProjectCard names them (``roadway_managed_lanes`` reuses the property change; out of scope).
-CHANGE_TYPES: tuple[str, ...] = (
-    "roadway_property_change",
-    "roadway_deletion",
-    "roadway_addition",
-    "transit_property_change",
-    "transit_routing_change",
-    "transit_route_addition",
-    "transit_service_deletion",
-)
+#: Every change type, as the installed projectcard lists them, without ``pycode`` (not supported).
+#: ``roadway_managed_lanes`` reuses the property change and is out of scope.
+CHANGE_TYPES: tuple[str, ...] = tuple(t for t in _PROJECTCARD_TYPES if t != "pycode")
 ROADWAY_TYPES = frozenset(t for t in CHANGE_TYPES if t.startswith("roadway_"))
 TRANSIT_TYPES = frozenset(t for t in CHANGE_TYPES if t.startswith("transit_"))
 
@@ -1318,18 +1358,17 @@ def incomplete(change: Any) -> str | None:
 
 - [ ] **Step 4: Run the tests**
 
-Run: `uv run --all-extras pytest packages/netstead-cards/tests/test_types.py -q`
-Expected: all pass. If `test_the_change_types_are_the_installed_projectcard_schema_s` fails, the installed
-`projectcard` renamed a type: rename the model's `type` literal and its `CHANGE_TYPES` entry to match, never loosen
-the test.
+Run: `uv run --all-extras pytest plugins/project-cards/tests/test_types.py -q`
+Expected: all pass. If `test_the_union_has_one_model_per_change_type` fails, the installed `projectcard` added or
+renamed a change type: add or rename the model (and its `type` literal) to match, never loosen the test.
 
 - [ ] **Step 5: Lint and commit**
 
 ```bash
-uv run ruff check packages/netstead-cards && uv run ruff format --check packages/netstead-cards
-git add packages/netstead-cards/netstead_cards/errors.py packages/netstead-cards/netstead_cards/types.py \
-  packages/netstead-cards/tests/test_types.py
-git commit -m "feat(cards): the change model (roadway types; transit declared; card-shaped values)"
+uv run ruff check plugins/project-cards && uv run ruff format --check plugins/project-cards
+git add plugins/project-cards/netstead_project_cards/errors.py plugins/project-cards/netstead_project_cards/types.py \
+  plugins/project-cards/tests/test_types.py
+git commit -m "feat(project-cards): the change model (roadway types; transit declared; card-shaped values)"
 ```
 
 ---
@@ -1337,19 +1376,19 @@ git commit -m "feat(cards): the change model (roadway types; transit declared; c
 ### Task 5: Validate cards with `projectcard`
 
 **Files:**
-- Create: `packages/netstead-cards/netstead_cards/validate.py`
-- Test: `packages/netstead-cards/tests/test_validate.py`
+- Create: `plugins/project-cards/netstead_project_cards/validate.py`
+- Test: `plugins/project-cards/tests/test_validate.py`
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `packages/netstead-cards/tests/test_validate.py`:
+Create `plugins/project-cards/tests/test_validate.py`:
 
 ```python
 """Cards are checked with projectcard's own validator, strictly (no defaults filled in) and on a copy."""
 
 import copy
 
-from netstead_cards.validate import card_problems
+from netstead_project_cards.validate import card_problems
 
 GOOD = {
     "project": "fix speeds",
@@ -1411,12 +1450,12 @@ def test_a_card_needs_a_project():
 
 - [ ] **Step 2: Run them to confirm they fail**
 
-Run: `uv run --all-extras pytest packages/netstead-cards/tests/test_validate.py -q`
-Expected: FAIL with `ModuleNotFoundError: No module named 'netstead_cards.validate'`.
+Run: `uv run --all-extras pytest plugins/project-cards/tests/test_validate.py -q`
+Expected: FAIL with `ModuleNotFoundError: No module named 'netstead_project_cards.validate'`.
 
 - [ ] **Step 3: Implement**
 
-Create `packages/netstead-cards/netstead_cards/validate.py`:
+Create `plugins/project-cards/netstead_project_cards/validate.py`:
 
 ```python
 """Check a ProjectCard dict with the ``projectcard`` package's own validator (its schema, its rules).
@@ -1425,7 +1464,7 @@ Create `packages/netstead-cards/netstead_cards/validate.py`:
 missing a required ``ignore_missing`` passes, and is changed in place. We validate a deep copy with
 ``parse_defaults=False``: the file must say what the schema requires. jsonschema stops at its best-matching error,
 so :func:`card_problems` returns at most one problem. (The schema does not type-check property values; the change
-model does, see :mod:`netstead_cards.types`.)
+model does, see :mod:`netstead_project_cards.types`.)
 """
 
 from __future__ import annotations
@@ -1455,16 +1494,16 @@ def card_problems(card: Mapping[str, Any]) -> list[str]:
 
 - [ ] **Step 4: Run the tests**
 
-Run: `uv run --all-extras pytest packages/netstead-cards/tests/test_validate.py -q`
+Run: `uv run --all-extras pytest plugins/project-cards/tests/test_validate.py -q`
 Expected: all pass. (`projectcard` logs `---- Error validating … ----` at ERROR for each invalid card; that is its
 logger, `CardLogger`, and harmless.)
 
 - [ ] **Step 5: Lint and commit**
 
 ```bash
-uv run ruff check packages/netstead-cards && uv run ruff format --check packages/netstead-cards
-git add packages/netstead-cards/netstead_cards/validate.py packages/netstead-cards/tests/test_validate.py
-git commit -m "feat(cards): validate cards with projectcard, strictly and on a copy"
+uv run ruff check plugins/project-cards && uv run ruff format --check plugins/project-cards
+git add plugins/project-cards/netstead_project_cards/validate.py plugins/project-cards/tests/test_validate.py
+git commit -m "feat(project-cards): validate cards with projectcard, strictly and on a copy"
 ```
 
 ---
@@ -1472,27 +1511,28 @@ git commit -m "feat(cards): validate cards with projectcard, strictly and on a c
 
 From the first P2 draft's Task 8 (`card.py`), adapted: picks write their own `ignore_missing` (false by default),
 deletions always write `false` (decision 7), an incomplete change cannot be written, a pydantic error while reading
-becomes a `CardError` naming the change, and the reader is named `read_card_file` (so it is not confused with
-`projectcard.read_card`). The change log (`log.py`) of the first draft is not carried over: the plugin's draft state
+becomes a `CardError` naming the change, and `read_card_file` reads every file through `projectcard.read_card`
+(YAML, JSON, TOML; its key normalisation and schema defaults) instead of parsing YAML itself. Writing stays
+`yaml.safe_dump`: `projectcard.write_card` comments out lines containing `#`. The change log (`log.py`) of the first draft is not carried over: the plugin's draft state
 (Task 9) replaces it, with undo through the Host.
 
 **Files:**
-- Create: `packages/netstead-cards/netstead_cards/card.py`
-- Modify: `packages/netstead-cards/netstead_cards/__init__.py`
-- Test: `packages/netstead-cards/tests/test_card.py`
+- Create: `plugins/project-cards/netstead_project_cards/card.py`
+- Modify: `plugins/project-cards/netstead_project_cards/__init__.py`
+- Test: `plugins/project-cards/tests/test_card.py`
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `packages/netstead-cards/tests/test_card.py`:
+Create `plugins/project-cards/tests/test_card.py`:
 
 ```python
-"""Draft cards: ProjectCard dicts and YAML in and out, provenance in notes, tolerant reading."""
+"""Draft project_cards: ProjectCard dicts and YAML in and out, provenance in notes, tolerant reading."""
 
 import pytest
 import yaml
-from netstead_cards.card import DraftCard, read_card_file
-from netstead_cards.errors import CardError, CardNotSupported
-from netstead_cards.types import (
+from netstead_project_cards.card import DraftCard, read_card_file
+from netstead_project_cards.errors import CardError, CardNotSupported
+from netstead_project_cards.types import (
     EMPTY_VALUE,
     PropertyChange,
     RoadwayAddition,
@@ -1501,7 +1541,7 @@ from netstead_cards.types import (
     Selection,
     TransitPropertyChange,
 )
-from netstead_cards.validate import card_problems
+from netstead_project_cards.validate import card_problems
 
 PICK = RoadwayPropertyChange(
     facility=Selection(ids=[1]),
@@ -1642,6 +1682,26 @@ def test_an_edit_log_that_clears_a_cell_is_refused(tmp_path):
         read_card_file(path)
 
 
+def test_files_are_read_with_projectcard(tmp_path):
+    json_card = tmp_path / "card.json"
+    json_card.write_text(
+        '{"project": "j", "roadway_deletion": {"links": {"model_link_id": [4], "ignore_missing": false}}}'
+    )
+    assert read_card_file(json_card).changes == [RoadwayDeletion(links=[4])]
+    no_flag = tmp_path / "ids.yml"
+    no_flag.write_text(
+        "project: i\nchanges:\n- roadway_property_change:\n    facility: {links: {model_link_id: [3]}}\n"
+        "    property_changes: {lanes: {set: 2}}\n"
+    )
+    assert read_card_file(no_flag).changes[0].facility == Selection(ids=[3], ignore_missing=True)  # schema default
+    (tmp_path / "x.yml").write_text("changes: []\n")
+    with pytest.raises(CardError, match="expected a top-level 'project'"):
+        read_card_file(tmp_path / "x.yml")
+    (tmp_path / "x.txt").write_text("project: t\n")
+    with pytest.raises(CardError, match="Unsupported file type"):
+        read_card_file(tmp_path / "x.txt")
+
+
 def test_an_id_card_keeps_its_ignore_missing():
     card = {
         "project": "p",
@@ -1699,12 +1759,12 @@ def test_not_a_card():
 
 - [ ] **Step 2: Run them to confirm they fail**
 
-Run: `uv run --all-extras pytest packages/netstead-cards/tests/test_card.py -q`
-Expected: FAIL with `ModuleNotFoundError: No module named 'netstead_cards.card'`.
+Run: `uv run --all-extras pytest plugins/project-cards/tests/test_card.py -q`
+Expected: FAIL with `ModuleNotFoundError: No module named 'netstead_project_cards.card'`.
 
 - [ ] **Step 3: Implement**
 
-Create `packages/netstead-cards/netstead_cards/card.py`:
+Create `plugins/project-cards/netstead_project_cards/card.py`:
 
 ```python
 """Draft ProjectCards: group changes, and translate them to and from card dicts and YAML files.
@@ -1715,6 +1775,10 @@ provenance travels in the card-level ``notes``, one ``netstead.<what>[<i>]: <val
 (the link ids a query selection resolved to) and ``note`` (why change ``i`` was made). :func:`read_card_file` reads
 them back. It also reads the offline validation report's edit log (``netstead.map.edits.dump_edit_log``), whose
 facility puts ``model_link_id`` at the top level and whose changes carry their own ``notes``.
+
+Files are read with ``projectcard.read_card`` (YAML, JSON or TOML, its key normalisation and schema defaults) and
+written with ``yaml.safe_dump``, not ``projectcard.write_card``, which comments out every line containing ``#`` (so a
+street named ``Hwy #2`` makes the card unreadable) and always writes ``dependencies: {}``.
 """
 
 from __future__ import annotations
@@ -1727,6 +1791,8 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from projectcard import read_card
+from projectcard.errors import ProjectCardReadError
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from .errors import CardError, CardNotSupported, not_supported
@@ -1831,9 +1897,18 @@ class DraftCard(BaseModel):
 
 
 def read_card_file(path: str | Path, mapping: FieldMap | None = None) -> DraftCard:
-    """Read a ProjectCard YAML file (or an offline-report edit log) as a :class:`DraftCard`."""
-    data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
-    return DraftCard.from_card(data or {}, mapping)
+    """Read a ProjectCard file (YAML, JSON or TOML) or an offline-report edit log as a :class:`DraftCard`.
+
+    ``projectcard.read_card(validate=False)`` reads it (an edit log is not schema-valid) and fills schema defaults: a
+    selector without ``ignore_missing`` reads as ``true``, Wrangler's default.
+    """
+    try:
+        card = read_card(Path(path), validate=False)
+    except KeyError as exc:  # projectcard looks the project name up first
+        raise CardError(f"not a ProjectCard: expected a top-level {exc.args[0]!r}") from None
+    except ProjectCardReadError as exc:  # an unsupported file type
+        raise CardError(str(exc)) from exc
+    return DraftCard.from_card({k: v for k, v in card.to_dict.items() if k != "file"}, mapping)
 
 
 # ---------------------------------------------------------------- writing
@@ -2007,10 +2082,10 @@ def _change(kind: str, body: Mapping[str, Any], m: FieldMap, resolved: list[Any]
     )
 ```
 
-Add to `packages/netstead-cards/netstead_cards/__init__.py`, which becomes:
+Add to `plugins/project-cards/netstead_project_cards/__init__.py`, which becomes:
 
 ```python
-"""ProjectCard authoring in the netstead Workbench, as the Workbench plugin ``cards``."""
+"""ProjectCard authoring in the netstead Workbench, as the Workbench plugin ``project_cards``."""
 
 from ._version import __version__
 from .card import Dependencies, DraftCard, read_card_file
@@ -2058,43 +2133,43 @@ __all__ = [
 
 - [ ] **Step 4: Run the tests**
 
-Run: `uv run --all-extras pytest packages/netstead-cards/tests/test_card.py -q`
+Run: `uv run --all-extras pytest plugins/project-cards/tests/test_card.py -q`
 Expected: all pass. If `projectcard` rejects the addition because a required Wrangler field is missing, add the field
 to `ADD` **and**, if it can be derived, to the mapping's `derived` rules; do not loosen the check.
 
 - [ ] **Step 5: Lint and commit**
 
-Run `uv run ruff format packages/netstead-cards` first (the long `PropertyChange(**{...})` line wraps), then:
+Run `uv run ruff format plugins/project-cards` first (the long `PropertyChange(**{...})` line wraps), then:
 
 ```bash
-uv run ruff check packages/netstead-cards && uv run ruff format --check packages/netstead-cards
-git add packages/netstead-cards/netstead_cards/card.py packages/netstead-cards/netstead_cards/__init__.py \
-  packages/netstead-cards/tests/test_card.py
-git commit -m "feat(cards): DraftCard to and from ProjectCard YAML (provenance, offline edit log)"
+uv run ruff check plugins/project-cards && uv run ruff format --check plugins/project-cards
+git add plugins/project-cards/netstead_project_cards/card.py plugins/project-cards/netstead_project_cards/__init__.py \
+  plugins/project-cards/tests/test_card.py
+git commit -m "feat(project-cards): DraftCard to and from ProjectCard YAML (provenance, offline edit log)"
 ```
 
 ---
 ### Task 7: Lower a property change onto core's planner and apply it through the Host
 
 **Files:**
-- Create: `packages/netstead-cards/netstead_cards/lower.py`
-- Test: `packages/netstead-cards/tests/test_lower_property.py`
+- Create: `plugins/project-cards/netstead_project_cards/lower.py`
+- Test: `plugins/project-cards/tests/test_lower_property.py`
 
 These tests call `apply_change` with the plugin's real `Host` (the `host` fixture) outside an Action handler: each
-`host.mutate` is then recorded as a non-replayable `cards.mutate` entry, which is fine for testing the lowering. Task
+`host.mutate` is then recorded as a non-replayable `project_cards.mutate` entry, which is fine for testing the lowering. Task
 9 runs the same code inside Action handlers.
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `packages/netstead-cards/tests/test_lower_property.py`:
+Create `plugins/project-cards/tests/test_lower_property.py`:
 
 ```python
 """A property change becomes core edit plans (host.plan_update) applied in one host.mutate."""
 
 import pytest
-from netstead_cards.errors import CardError, CardNotSupported
-from netstead_cards.lower import apply_change, describe
-from netstead_cards.types import PropertyChange, RoadwayPropertyChange, Selection, TransitPropertyChange
+from netstead_project_cards.errors import CardError, CardNotSupported
+from netstead_project_cards.lower import apply_change, describe
+from netstead_project_cards.types import PropertyChange, RoadwayPropertyChange, Selection, TransitPropertyChange
 
 NET = "leavenworth"
 
@@ -2116,8 +2191,8 @@ def test_set_is_one_mutation_planned_by_core(session, host):
     assert cell(session, 1, "free_speed") == [30.0] and cell(session, 2, "free_speed") == [30.0]
     assert applied.steps == 1 and applied.rows == {"link": 2}
     last = session.edits[NET].last()
-    assert last.source == "cards" and len(last.results) == 1
-    assert session.network(NET).lineage[-1] == "cards: roadway_property_change link 1, 2: free_speed → 30"
+    assert last.source == "project_cards" and len(last.results) == 1
+    assert session.network(NET).lineage[-1] == "project_cards: roadway_property_change link 1, 2: free_speed → 30"
 
 
 def test_describe_names_the_change():
@@ -2205,12 +2280,12 @@ def test_an_incomplete_change_and_transit_are_refused(host):
 
 - [ ] **Step 2: Run them to confirm they fail**
 
-Run: `uv run --all-extras pytest packages/netstead-cards/tests/test_lower_property.py -q`
-Expected: FAIL with `ModuleNotFoundError: No module named 'netstead_cards.lower'`.
+Run: `uv run --all-extras pytest plugins/project-cards/tests/test_lower_property.py -q`
+Expected: FAIL with `ModuleNotFoundError: No module named 'netstead_project_cards.lower'`.
 
 - [ ] **Step 3: Implement**
 
-Create `packages/netstead-cards/netstead_cards/lower.py`. Task 8 adds the deletion and addition appliers.
+Create `plugins/project-cards/netstead_project_cards/lower.py`. Task 8 adds the deletion and addition appliers.
 
 ```python
 """Lower a change onto core's edit planner and apply it through the Host: ``host.plan_*``, then ``host.mutate``.
@@ -2219,7 +2294,7 @@ A property change or an addition is one ``host.mutate`` (one pending edit, one u
 deletion is one per table it deletes from (links, then nodes): core plans a node deletion against the network as it
 is now, so the links that used a node must be gone before that plan is made. Call :func:`apply_change` from an
 Action handler: if a later step fails, the handler's failure undoes the earlier ones. Core's planner refuses what
-storage cannot hold (``EditRefused``, raised here as :class:`~netstead_cards.errors.CardError`); the live checks
+storage cannot hold (``EditRefused``, raised here as :class:`~netstead_project_cards.errors.CardError`); the live checks
 report the rest as warnings (``host.edit_warnings``).
 """
 
@@ -2273,7 +2348,7 @@ class Applied:
 
 
 def apply_change(host: Host, net_id: str, change: NetworkChange) -> Applied:
-    """Plan ``change`` with core and apply it to network ``net_id``; the lineage gets ``"cards: <describe>"``.
+    """Plan ``change`` with core and apply it to network ``net_id``; the lineage gets ``"project_cards: <describe>"``.
 
     Raises:
         CardNotSupported: a transit change.
@@ -2430,15 +2505,15 @@ _APPLIERS: dict[str, Callable[[Host, str, Any, str], Applied]] = {
 
 - [ ] **Step 4: Run the tests**
 
-Run: `uv run --all-extras pytest packages/netstead-cards/tests/test_lower_property.py -q`
+Run: `uv run --all-extras pytest plugins/project-cards/tests/test_lower_property.py -q`
 Expected: all pass. The `key` refusal comes from core (`link_id is the link key; keys cannot be edited here …`).
 
 - [ ] **Step 5: Lint and commit**
 
 ```bash
-uv run ruff format packages/netstead-cards && uv run ruff check packages/netstead-cards && uv run lint-imports
-git add packages/netstead-cards/netstead_cards/lower.py packages/netstead-cards/tests/test_lower_property.py
-git commit -m "feat(cards): lower property changes onto host.plan_update and host.mutate"
+uv run ruff format plugins/project-cards && uv run ruff check plugins/project-cards && uv run lint-imports
+git add plugins/project-cards/netstead_project_cards/lower.py plugins/project-cards/tests/test_lower_property.py
+git commit -m "feat(project-cards): lower property changes onto host.plan_update and host.mutate"
 ```
 
 ---
@@ -2446,20 +2521,20 @@ git commit -m "feat(cards): lower property changes onto host.plan_update and hos
 ### Task 8: Lower deletions (with `clean_nodes`) and additions
 
 **Files:**
-- Modify: `packages/netstead-cards/netstead_cards/lower.py`
-- Test: `packages/netstead-cards/tests/test_lower_delete_add.py`
+- Modify: `plugins/project-cards/netstead_project_cards/lower.py`
+- Test: `plugins/project-cards/tests/test_lower_delete_add.py`
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `packages/netstead-cards/tests/test_lower_delete_add.py`:
+Create `plugins/project-cards/tests/test_lower_delete_add.py`:
 
 ```python
 """Deletions cascade through core's plans (links, then nodes); additions are one mutation, nodes first."""
 
 import pytest
-from netstead_cards.errors import CardError
-from netstead_cards.lower import apply_change
-from netstead_cards.types import RoadwayAddition, RoadwayDeletion
+from netstead_project_cards.errors import CardError
+from netstead_project_cards.lower import apply_change
+from netstead_project_cards.types import RoadwayAddition, RoadwayDeletion
 
 NET = "leavenworth"
 NEW_NODE = {"node_id": 9001, "x_coord": -120.66, "y_coord": 47.60, "node_type": "intersection"}
@@ -2486,7 +2561,7 @@ def test_deleting_a_link_takes_its_lanes(session, host):
     after = counts(session)
     assert after["link"] == before["link"] - 1 and after["lane"] == before["lane"] - 1
     assert applied.steps == 1 and applied.rows == {"lane": 1, "link": 1}
-    assert session.network(NET).lineage[-1] == "cards: roadway_deletion link 1"
+    assert session.network(NET).lineage[-1] == "project_cards: roadway_deletion link 1"
 
 
 def test_a_node_still_used_by_a_link_is_refused(session, host):
@@ -2545,12 +2620,12 @@ def test_bad_additions_are_refused_and_leave_nothing_behind(session, host, chang
 
 - [ ] **Step 2: Run them to confirm they fail**
 
-Run: `uv run --all-extras pytest packages/netstead-cards/tests/test_lower_delete_add.py -q`
+Run: `uv run --all-extras pytest plugins/project-cards/tests/test_lower_delete_add.py -q`
 Expected: FAIL with `KeyError: 'roadway_deletion'` (no applier yet).
 
 - [ ] **Step 3: Implement**
 
-In `packages/netstead-cards/netstead_cards/lower.py`, add before `_APPLIERS`:
+In `plugins/project-cards/netstead_project_cards/lower.py`, add before `_APPLIERS`:
 
 ```python
 def _add_rows(into: dict[str, int], rows: dict[str, int]) -> None:
@@ -2634,47 +2709,47 @@ _APPLIERS: dict[str, Callable[[Host, str, Any, str], Applied]] = {
 
 - [ ] **Step 4: Run the tests**
 
-Run: `uv run --all-extras pytest packages/netstead-cards/tests -q`
+Run: `uv run --all-extras pytest plugins/project-cards/tests -q`
 Expected: all pass.
 
 - [ ] **Step 5: Lint, the default suite, commit, open PR A**
 
 ```bash
-uv run ruff format packages/netstead-cards && uv run ruff check . && uv run ruff format --check . && uv run lint-imports \
+uv run ruff format plugins/project-cards && uv run ruff check . && uv run ruff format --check . && uv run lint-imports \
   && uv run python scripts/lint_no_sql.py
-uv run --all-extras pytest packages -n auto -q
-git add packages/netstead-cards/netstead_cards/lower.py packages/netstead-cards/tests/test_lower_delete_add.py
-git commit -m "feat(cards): lower deletions (clean_nodes) and additions onto host plans"
-uv run --all-extras pytest packages -n auto -m "" -q
+uv run --all-extras pytest packages plugins -n auto -q
+git add plugins/project-cards/netstead_project_cards/lower.py plugins/project-cards/tests/test_lower_delete_add.py
+git commit -m "feat(project-cards): lower deletions (clean_nodes) and additions onto host plans"
+uv run --all-extras pytest packages plugins -n auto -m "" -q
 ```
 
-Push `feat/cards-a` and open PR A ("Cards plugin A: package and change model"), listing Tasks 0–8 and the Facts
+Push `feat/project-cards-a` and open PR A ("Project cards plugin A: package and change model"), listing Tasks 0–8 and the Facts
 section's items 1–6 and 9.
 
 ---
 ## PR B: Actions
 
-Branch `feat/cards-b` from `main` once PR A has merged (or from `feat/cards-a` while it is in review, rebasing later).
+Branch `feat/project-cards-b` from `main` once PR A has merged (or from `feat/project-cards-a` while it is in review, rebasing later).
 
-### Task 9: Draft state, `cards.add_change` and `cards.undo_change`
+### Task 9: Draft state, `project_cards.add_change` and `project_cards.undo_change`
 
 **Files:**
-- Create: `packages/netstead-cards/netstead_cards/state.py`, `flow.py`, `actions.py`, `handlers.py`
-- Modify: `packages/netstead-cards/netstead_cards/plugin.py`, `__init__.py`
-- Test: `packages/netstead-cards/tests/test_actions.py`
+- Create: `plugins/project-cards/netstead_project_cards/state.py`, `flow.py`, `actions.py`, `handlers.py`
+- Modify: `plugins/project-cards/netstead_project_cards/plugin.py`, `__init__.py`
+- Test: `plugins/project-cards/tests/test_actions.py`
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `packages/netstead-cards/tests/test_actions.py`:
+Create `plugins/project-cards/tests/test_actions.py`:
 
 ```python
-"""cards.add_change / cards.undo_change: applied through core, recorded, drafted per network, replayable."""
+"""project_cards.add_change / undo_change: applied through core, recorded, drafted per network, replayable."""
 
 import pytest
 from netstead.workbench.actions import ClearSelection, EditCells, SaveSelection, Select
 from netstead.workbench.errors import ActionError, NotSupportedYet
-from netstead_cards.actions import AddChange, UndoChange
-from netstead_cards.types import (
+from netstead_project_cards.actions import AddChange, UndoChange
+from netstead_project_cards.types import (
     PropertyChange,
     RoadwayDeletion,
     RoadwayPropertyChange,
@@ -2695,7 +2770,7 @@ def cell(session, key, column):
 
 
 def draft(session):
-    return session.state()["plugins"]["cards"]["drafts"].get(NET)
+    return session.state()["plugins"]["project_cards"]["drafts"].get(NET)
 
 
 def test_a_pick_is_applied_recorded_and_drafted(session):
@@ -2710,9 +2785,9 @@ def test_a_pick_is_applied_recorded_and_drafted(session):
         "resolved": None,
         "ignore_missing": False,
     }  # a pick is written by id, ignore_missing false
-    assert session.edits[NET].last().source == "cards"
-    assert session.network(NET).lineage[-1] == "cards: roadway_property_change link 1: free_speed 40 → 30"
-    assert session.history[-1].imports == "from netstead_cards.actions import AddChange"
+    assert session.edits[NET].last().source == "project_cards"
+    assert session.network(NET).lineage[-1] == "project_cards: roadway_property_change link 1: free_speed 40 → 30"
+    assert session.history[-1].imports == "from netstead_project_cards.actions import AddChange"
     assert draft(session) == {
         "project": "",
         "count": 1,
@@ -2795,7 +2870,7 @@ def test_undo_reverses_the_last_change_then_the_one_before(session):
 
 
 def test_undo_takes_back_every_step_of_a_deletion(session):
-    from netstead_cards.types import RoadwayAddition
+    from netstead_project_cards.types import RoadwayAddition
 
     node = {"node_id": 9001, "x_coord": -120.66, "y_coord": 47.6}
     link = {
@@ -2823,7 +2898,7 @@ def test_undo_refuses_when_core_made_the_newest_change(session):
 
 
 def test_every_cards_action_is_drafted_by_the_assistant(session):
-    types = [t for t in session.actions.types() if t.startswith("cards.")]
+    types = [t for t in session.actions.types() if t.startswith("project_cards.")]
     assert types and all(session.actions.model(t).mutates for t in types)
 
 
@@ -2843,20 +2918,20 @@ def test_a_replayed_session_reproduces_the_network(session, make_session):
     links = other.network(NET).links_df()
     assert links.loc[links.link_id == 1, "free_speed"].tolist() == [30.0]
     assert links.loc[links.link_id.isin([1, 5, 6, 8]), "lanes"].tolist() == [2, 2, 2, 2]
-    assert other.state()["plugins"]["cards"]["drafts"][NET]["count"] == 2
+    assert other.state()["plugins"]["project_cards"]["drafts"][NET]["count"] == 2
 ```
 
 - [ ] **Step 2: Run them to confirm they fail**
 
-Run: `uv run --all-extras pytest packages/netstead-cards/tests/test_actions.py -q`
-Expected: FAIL with `ModuleNotFoundError: No module named 'netstead_cards.actions'`.
+Run: `uv run --all-extras pytest plugins/project-cards/tests/test_actions.py -q`
+Expected: FAIL with `ModuleNotFoundError: No module named 'netstead_project_cards.actions'`.
 
 - [ ] **Step 3: The Action models**
 
-Create `packages/netstead-cards/netstead_cards/actions.py`:
+Create `plugins/project-cards/netstead_project_cards/actions.py`:
 
 ```python
-"""The cards plugin's Actions: recorded in history, replayable with "Copy as Python", dispatchable over HTTP.
+"""The project cards plugin's Actions: recorded in history, replayable with "Copy as Python", dispatchable over HTTP.
 
 Each one changes a network, registers or closes a preview network, or writes a file, so each sets ``mutates``: the
 natural-language assistant drafts them for the user to approve.
@@ -2900,20 +2975,20 @@ class AddChange(_ChangeAction):
     preview stands for the network it previews).
     """
 
-    type: Literal["cards.add_change"] = "cards.add_change"
+    type: Literal["project_cards.add_change"] = "project_cards.add_change"
 
 
 class UndoChange(BaseAction):
     """Undo the last change of a network's draft ProjectCard (committed cards are not undone)."""
 
-    type: Literal["cards.undo_change"] = "cards.undo_change"
+    type: Literal["project_cards.undo_change"] = "project_cards.undo_change"
     mutates: ClassVar[bool] = True
     net_id: str | None = None
 ```
 
 - [ ] **Step 4: Draft state**
 
-Create `packages/netstead-cards/netstead_cards/state.py`:
+Create `plugins/project-cards/netstead_project_cards/state.py`:
 
 ```python
 """The plugin's own nouns: one draft card per network, the cards committed this session, and the open preview.
@@ -3018,7 +3093,7 @@ class CardsState:
             return card_id
 
     def snapshot(self, is_open: Callable[[str], bool]) -> dict[str, Any]:
-        """JSON-safe state for ``/api/state`` (``plugins.cards``); drops drafts and previews of closed networks.
+        """JSON-safe state for ``/api/state`` (``plugins.project_cards``); drops drafts and previews of closed networks.
 
         A closed network's pending edits went with it, so its draft can never be committed or undone.
         """
@@ -3050,7 +3125,7 @@ class CardsState:
 
 - [ ] **Step 5: Shared handler steps**
 
-Create `packages/netstead-cards/netstead_cards/flow.py`:
+Create `plugins/project-cards/netstead_project_cards/flow.py`:
 
 ```python
 """Steps the Action handlers and the routes share: which network, which facility, is it a valid card, and errors."""
@@ -3181,10 +3256,10 @@ def check_card_shape(change: NetworkChange, mapping: FieldMap) -> None:
 
 - [ ] **Step 6: The handlers**
 
-Create `packages/netstead-cards/netstead_cards/handlers.py`:
+Create `plugins/project-cards/netstead_project_cards/handlers.py`:
 
 ```python
-"""The cards plugin's Action handlers, sharing one session's drafts (:class:`~netstead_cards.state.CardsState`).
+"""The project cards plugin's Action handlers, sharing one session's drafts (``state.CardsState``).
 
 Each handler does every fallible step (Host calls included) before it touches the draft state: when a handler
 fails, the Workbench rolls back its network changes, and the drafts must still describe the network.
@@ -3246,7 +3321,7 @@ class Handlers:
         return {"net_id": net, "undone": describe(change), "count": len(draft.steps)}
 ```
 
-Replace `packages/netstead-cards/netstead_cards/plugin.py`'s `plugin()` and imports with:
+Replace `plugins/project-cards/netstead_project_cards/plugin.py`'s `plugin()` and imports with:
 
 ```python
 from __future__ import annotations
@@ -3270,8 +3345,8 @@ def plugin() -> WorkbenchPlugin:
     state = CardsState()
     handlers = Handlers(state, load_mapping())
     return WorkbenchPlugin(
-        id="cards",
-        name="ProjectCards",
+        id="project_cards",
+        name="Project cards",
         version=__version__,
         requires_api=REQUIRES_API,
         actions=handlers.specs(),
@@ -3284,43 +3359,43 @@ def plugin() -> WorkbenchPlugin:
 
 - [ ] **Step 7: Run the tests**
 
-Run: `uv run --all-extras pytest packages/netstead-cards/tests -q`
+Run: `uv run --all-extras pytest plugins/project-cards/tests -q`
 Expected: all pass.
 
 - [ ] **Step 8: Lint and commit**
 
 ```bash
-uv run ruff check --fix packages/netstead-cards && uv run ruff format packages/netstead-cards
+uv run ruff check --fix plugins/project-cards && uv run ruff format plugins/project-cards
 uv run ruff check . && uv run ruff format --check . && uv run lint-imports
-git add packages/netstead-cards/netstead_cards/actions.py packages/netstead-cards/netstead_cards/state.py \
-  packages/netstead-cards/netstead_cards/flow.py packages/netstead-cards/netstead_cards/handlers.py \
-  packages/netstead-cards/netstead_cards/plugin.py packages/netstead-cards/netstead_cards/__init__.py \
-  packages/netstead-cards/tests/test_actions.py
-git commit -m "feat(cards): cards.add_change and cards.undo_change with per-network draft cards"
+git add plugins/project-cards/netstead_project_cards/actions.py plugins/project-cards/netstead_project_cards/state.py \
+  plugins/project-cards/netstead_project_cards/flow.py plugins/project-cards/netstead_project_cards/handlers.py \
+  plugins/project-cards/netstead_project_cards/plugin.py plugins/project-cards/netstead_project_cards/__init__.py \
+  plugins/project-cards/tests/test_actions.py
+git commit -m "feat(project-cards): project_cards.add_change and project_cards.undo_change with per-network draft cards"
 ```
 
 ---
-### Task 10: `cards.commit` and `cards.import`
+### Task 10: `project_cards.commit` and `project_cards.import`
 
 **Files:**
-- Modify: `packages/netstead-cards/netstead_cards/actions.py`, `handlers.py`, `__init__.py`
-- Test: `packages/netstead-cards/tests/test_commit_import.py`
+- Modify: `plugins/project-cards/netstead_project_cards/actions.py`, `handlers.py`, `__init__.py`
+- Test: `plugins/project-cards/tests/test_commit_import.py`
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `packages/netstead-cards/tests/test_commit_import.py`:
+Create `plugins/project-cards/tests/test_commit_import.py`:
 
 ```python
-"""cards.commit writes a projectcard-valid YAML file (warnings confirmed first); cards.import applies one."""
+"""project_cards.commit writes a projectcard-valid YAML file (warnings confirmed first); .import applies one."""
 
 from typing import ClassVar, Literal
 
 import pytest
 from netstead.workbench.errors import ActionError, NotSupportedYet, PathNotAllowed
 from netstead.workbench.plugins import HOST_API, ActionSpec, BaseAction, WorkbenchPlugin
-from netstead_cards.actions import AddChange, CommitCard, ImportCard, UndoChange
-from netstead_cards.card import DraftCard
-from netstead_cards.types import PropertyChange, RoadwayPropertyChange, Selection
+from netstead_project_cards.actions import AddChange, CommitCard, ImportCard, UndoChange
+from netstead_project_cards.card import DraftCard
+from netstead_project_cards.types import PropertyChange, RoadwayPropertyChange, Selection
 
 NET = "leavenworth"
 
@@ -3337,14 +3412,14 @@ def cell(session, key, column):
 
 
 def cards_state(session):
-    return session.state()["plugins"]["cards"]
+    return session.state()["plugins"]["project_cards"]
 
 
 def test_commit_writes_a_card_projectcard_reads_and_starts_a_new_draft(session, tmp_path):
     import projectcard
 
     session.dispatch(AddChange(change=lanes(1, 2)))
-    path = tmp_path / "cards" / "speed.yml"
+    path = tmp_path / "project_cards" / "speed.yml"
     result = session.dispatch(CommitCard(path=str(path), project="Speed fixes", tags=["fixes"]))
     assert result == {
         "card_id": "speed-fixes",
@@ -3360,7 +3435,7 @@ def test_commit_writes_a_card_projectcard_reads_and_starts_a_new_draft(session, 
     with pytest.raises(ActionError, match="nothing to undo"):
         session.dispatch(UndoChange())  # a committed card is frozen
     session.dispatch(AddChange(change=lanes(2, 2)))
-    other = tmp_path / "cards" / "speed-2.yml"
+    other = tmp_path / "project_cards" / "speed-2.yml"
     assert session.dispatch(CommitCard(path=str(other), project="Speed fixes"))["card_id"] == "speed-fixes-2"
 
 
@@ -3507,12 +3582,12 @@ def test_import_refusals(session, tmp_path):
 
 - [ ] **Step 2: Run them to confirm they fail**
 
-Run: `uv run --all-extras pytest packages/netstead-cards/tests/test_commit_import.py -q`
-Expected: FAIL with `ImportError: cannot import name 'CommitCard' from 'netstead_cards.actions'`.
+Run: `uv run --all-extras pytest plugins/project-cards/tests/test_commit_import.py -q`
+Expected: FAIL with `ImportError: cannot import name 'CommitCard' from 'netstead_project_cards.actions'`.
 
 - [ ] **Step 3: The Action models**
 
-In `packages/netstead-cards/netstead_cards/actions.py`: the typing import becomes
+In `plugins/project-cards/netstead_project_cards/actions.py`: the typing import becomes
 `from typing import Any, ClassVar, Literal`, `__all__` becomes `["AddChange", "CommitCard", "ImportCard",
 "UndoChange"]`, and append:
 
@@ -3525,7 +3600,7 @@ class CommitCard(BaseAction):
     ``catalog`` plugin is installed, the card is also added to it (``catalog.add_card``).
     """
 
-    type: Literal["cards.commit"] = "cards.commit"
+    type: Literal["project_cards.commit"] = "project_cards.commit"
     mutates: ClassVar[bool] = True
     # The user confirmed in the live session; a replayed script writes the same card again without stopping.
     replay_overrides: ClassVar[dict[str, Any]] = {"confirm_warnings": True, "overwrite": True}
@@ -3547,7 +3622,7 @@ class ImportCard(BaseAction):
     ``apply_card``). ``path`` must be inside ``io.allowed_roots``.
     """
 
-    type: Literal["cards.import"] = "cards.import"
+    type: Literal["project_cards.import"] = "project_cards.import"
     mutates: ClassVar[bool] = True
     net_id: str | None = None
     path: str = Field(min_length=1, max_length=1000)
@@ -3555,7 +3630,7 @@ class ImportCard(BaseAction):
 
 - [ ] **Step 4: The handlers**
 
-In `packages/netstead-cards/netstead_cards/handlers.py`:
+In `plugins/project-cards/netstead_project_cards/handlers.py`:
 - imports become:
 
 ```python
@@ -3672,46 +3747,46 @@ from .validate import card_problems
 ```
 
 In `__init__.py`, import and export `CommitCard` and `ImportCard` as well (`uv run ruff check --fix
-packages/netstead-cards` keeps `__all__` sorted).
+plugins/project-cards` keeps `__all__` sorted).
 
 - [ ] **Step 5: Run the tests**
 
-Run: `uv run --all-extras pytest packages/netstead-cards/tests -q`
+Run: `uv run --all-extras pytest plugins/project-cards/tests -q`
 Expected: all pass. Note `test_import_is_all_or_nothing`: the first change's mutation is undone by the Workbench
 because the handler failed, and the draft is untouched because the handler adds to it only at the end.
 
 - [ ] **Step 6: Lint and commit**
 
 ```bash
-uv run ruff format packages/netstead-cards && uv run ruff check . && uv run ruff format --check . && uv run lint-imports
-git add packages/netstead-cards/netstead_cards/actions.py packages/netstead-cards/netstead_cards/handlers.py \
-  packages/netstead-cards/netstead_cards/__init__.py packages/netstead-cards/tests/test_commit_import.py
-git commit -m "feat(cards): cards.commit (warnings, allowed roots, catalog) and cards.import"
+uv run ruff format plugins/project-cards && uv run ruff check . && uv run ruff format --check . && uv run lint-imports
+git add plugins/project-cards/netstead_project_cards/actions.py plugins/project-cards/netstead_project_cards/handlers.py \
+  plugins/project-cards/netstead_project_cards/__init__.py plugins/project-cards/tests/test_commit_import.py
+git commit -m "feat(project-cards): project_cards.commit (warnings, allowed roots, catalog) and project_cards.import"
 ```
 
 ---
 
-### Task 11: `cards.preview` and `cards.close_preview`
+### Task 11: `project_cards.preview` and `project_cards.close_preview`
 
 A preview is a derived network (`host.derive`) with the change applied, made active so the map shows it; the base is
-untouched. `cards.add_change` while a preview is active targets the base (Task 9's `target_network`).
+untouched. `project_cards.add_change` while a preview is active targets the base (Task 9's `target_network`).
 
 **Files:**
-- Modify: `packages/netstead-cards/netstead_cards/actions.py`, `handlers.py`, `__init__.py`
-- Test: `packages/netstead-cards/tests/test_preview.py`
+- Modify: `plugins/project-cards/netstead_project_cards/actions.py`, `handlers.py`, `__init__.py`
+- Test: `plugins/project-cards/tests/test_preview.py`
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `packages/netstead-cards/tests/test_preview.py`:
+Create `plugins/project-cards/tests/test_preview.py`:
 
 ```python
-"""cards.preview applies a change to a derived copy and shows it; the base network is untouched."""
+"""project_cards.preview applies a change to a derived copy and shows it; the base network is untouched."""
 
 import pytest
 from netstead.workbench.actions import Select
 from netstead.workbench.errors import ActionError
-from netstead_cards.actions import AddChange, ClosePreview, PreviewChange
-from netstead_cards.types import PropertyChange, RoadwayPropertyChange, Selection
+from netstead_project_cards.actions import AddChange, ClosePreview, PreviewChange
+from netstead_project_cards.types import PropertyChange, RoadwayPropertyChange, Selection
 
 NET = "leavenworth"
 LANES_3 = RoadwayPropertyChange(property_changes={"lanes": PropertyChange(set=3)})
@@ -3729,7 +3804,7 @@ def test_a_preview_is_a_derived_network_made_active(session):
     assert preview != NET and session.active == preview and result["base"] == NET
     assert lanes(session, preview) == [3] and lanes(session, NET) == [1] and session.network(NET).version == 0
     assert session.network(preview).derived_from == NET
-    assert session.state()["plugins"]["cards"]["preview"] == {
+    assert session.state()["plugins"]["project_cards"]["preview"] == {
         "net_id": preview,
         "base": NET,
         "describe": "roadway_property_change link 1: lanes → 3",
@@ -3747,7 +3822,7 @@ def test_close_preview_returns_to_the_base(session):
     session.dispatch(Select(link_ids=[1]))
     preview = session.dispatch(PreviewChange(use_selection=True, change=LANES_3))["preview"]
     assert session.dispatch(ClosePreview()) == {"closed": preview, "active": NET}
-    assert preview not in session.registry.ids() and session.state()["plugins"]["cards"]["preview"] is None
+    assert preview not in session.registry.ids() and session.state()["plugins"]["project_cards"]["preview"] is None
     with pytest.raises(ActionError, match="no preview is open"):
         session.dispatch(ClosePreview())
 
@@ -3768,7 +3843,7 @@ def test_a_failing_preview_leaves_nothing_behind(session):
 
 - [ ] **Step 2: Run them to confirm they fail**
 
-Run: `uv run --all-extras pytest packages/netstead-cards/tests/test_preview.py -q`
+Run: `uv run --all-extras pytest plugins/project-cards/tests/test_preview.py -q`
 Expected: FAIL with `ImportError: cannot import name 'ClosePreview'`.
 
 - [ ] **Step 3: Implement**
@@ -3779,17 +3854,17 @@ In `actions.py`, `__all__` gains `"ClosePreview"` and `"PreviewChange"`; append:
 class PreviewChange(_ChangeAction):
     """Preview one roadway change on a copy of a network, shown on the map; the network itself is untouched.
 
-    Takes the same fields as ``cards.add_change``. A second preview replaces the first; ``cards.close_preview``
-    returns to the network.
+    Takes the same fields as ``project_cards.add_change``. A second preview replaces the first;
+    ``project_cards.close_preview`` returns to the network.
     """
 
-    type: Literal["cards.preview"] = "cards.preview"
+    type: Literal["project_cards.preview"] = "project_cards.preview"
 
 
 class ClosePreview(BaseAction):
     """Close the open preview and show the network it previewed again."""
 
-    type: Literal["cards.close_preview"] = "cards.close_preview"
+    type: Literal["project_cards.close_preview"] = "project_cards.close_preview"
     mutates: ClassVar[bool] = True  # it closes (unregisters) the preview network
 ```
 
@@ -3833,39 +3908,39 @@ and append to `Handlers`:
         return {"closed": preview["net_id"], "active": host.active}
 ```
 
-In `__init__.py`, export `ClosePreview` and `PreviewChange` too (then `uv run ruff check --fix packages/netstead-cards`).
+In `__init__.py`, export `ClosePreview` and `PreviewChange` too (then `uv run ruff check --fix plugins/project-cards`).
 
 - [ ] **Step 4: Run the tests**
 
-Run: `uv run --all-extras pytest packages/netstead-cards/tests -q`
+Run: `uv run --all-extras pytest plugins/project-cards/tests -q`
 Expected: all pass.
 
 - [ ] **Step 5: Lint and commit**
 
 ```bash
-uv run ruff format packages/netstead-cards && uv run ruff check . && uv run ruff format --check . && uv run lint-imports
-git add packages/netstead-cards/netstead_cards/actions.py packages/netstead-cards/netstead_cards/handlers.py \
-  packages/netstead-cards/netstead_cards/__init__.py packages/netstead-cards/tests/test_preview.py
-git commit -m "feat(cards): cards.preview on a derived network, cards.close_preview"
+uv run ruff format plugins/project-cards && uv run ruff check . && uv run ruff format --check . && uv run lint-imports
+git add plugins/project-cards/netstead_project_cards/actions.py plugins/project-cards/netstead_project_cards/handlers.py \
+  plugins/project-cards/netstead_project_cards/__init__.py plugins/project-cards/tests/test_preview.py
+git commit -m "feat(project-cards): project_cards.preview on a derived network, project_cards.close_preview"
 ```
 
 ---
 
-### Task 12: The assistant drafts every `cards.*` Action for approval
+### Task 12: The assistant drafts every `project_cards.*` Action for approval
 
-The mechanism is core's and generic (Facts, item 10): with `assistant.plugins = ["cards"]` the plugin's Actions
-become tools `cards__<name>`, and `mutates = True` makes the assistant draft them. This task pins that for the cards
+The mechanism is core's and generic (Facts, item 10): with `assistant.plugins = ["project_cards"]` the plugin's Actions
+become tools `project_cards__<name>`, and `mutates = True` makes the assistant draft them. This task pins that for the cards
 plugin, end to end, with a scripted provider.
 
 **Files:**
-- Test: `packages/netstead-cards/tests/test_assistant.py`
+- Test: `plugins/project-cards/tests/test_assistant.py`
 
 - [ ] **Step 1: Write the test**
 
-Create `packages/netstead-cards/tests/test_assistant.py`:
+Create `plugins/project-cards/tests/test_assistant.py`:
 
 ```python
-"""With the plugin opted in, the assistant offers cards.* as tools and drafts them for the user to approve."""
+"""With the plugin opted in, the assistant offers project_cards.* as tools and drafts them for the user to approve."""
 
 from netstead.llm.types import Completion, ToolCall
 from netstead.workbench.assistant.tools import tool_specs
@@ -3893,26 +3968,29 @@ def reply(*calls):
     return Completion(tool_calls=tuple(ToolCall(n, a) for n, a in calls), text="", input_tokens=100, output_tokens=20)
 
 
-OPTED_IN = {"assistant.plugins": ["cards"], "assistant.compact_tools": "off"}
+OPTED_IN = {"assistant.plugins": ["project_cards"], "assistant.compact_tools": "off"}
 SELECT = ("select", {"utterance": "Benton Street", "facility": {"name": "Benton Street"}})
 ADD = (
-    "cards__add_change",
+    "project_cards__add_change",
     {"use_selection": True, "change": {"type": "roadway_property_change", "property_changes": {"lanes": {"set": 2}}}},
 )
 
 
 def test_every_cards_action_is_a_drafted_tool(make_session):
     session = make_session(overrides=OPTED_IN)
-    specs = {s.action_type: s for s in tool_specs(session) if s.plugin == "cards"}
+    specs = {s.action_type: s for s in tool_specs(session) if s.plugin == "project_cards"}
     assert set(specs) == {
-        "cards.add_change",
-        "cards.undo_change",
-        "cards.commit",
-        "cards.import",
-        "cards.preview",
-        "cards.close_preview",
+        "project_cards.add_change",
+        "project_cards.undo_change",
+        "project_cards.commit",
+        "project_cards.import",
+        "project_cards.preview",
+        "project_cards.close_preview",
     }
-    assert all(s.mutates for s in specs.values()) and specs["cards.add_change"].tool.name == "cards__add_change"
+    assert (
+        all(s.mutates for s in specs.values())
+        and specs["project_cards.add_change"].tool.name == "project_cards__add_change"
+    )
 
 
 def test_a_card_change_from_the_assistant_waits_for_approval(make_session):
@@ -3922,59 +4000,61 @@ def test_a_card_change_from_the_assistant_waits_for_approval(make_session):
     assert session.network(NET).version == 0  # nothing applied yet
     out = session.assistant.approve(turn["draft_id"])
     assert out["steps"][1]["status"] == "done"
-    assert session.history[-1].action["type"] == "cards.add_change" and session.history[-1].via == "assistant"
-    assert session.state()["plugins"]["cards"]["drafts"][NET]["count"] == 1 and session.network(NET).version == 1
+    assert session.history[-1].action["type"] == "project_cards.add_change" and session.history[-1].via == "assistant"
+    assert (
+        session.state()["plugins"]["project_cards"]["drafts"][NET]["count"] == 1 and session.network(NET).version == 1
+    )
 
 
 def test_without_the_opt_in_the_assistant_has_no_cards_tools(make_session):
-    assert not [s for s in tool_specs(make_session()) if s.plugin == "cards"]
+    assert not [s for s in tool_specs(make_session()) if s.plugin == "project_cards"]
 ```
 
 - [ ] **Step 2: Run it**
 
-Run: `uv run --all-extras pytest packages/netstead-cards/tests/test_assistant.py -q`
+Run: `uv run --all-extras pytest plugins/project-cards/tests/test_assistant.py -q`
 Expected: all pass with no code change (the mechanism is core's). If `test_every_cards_action_is_a_drafted_tool`
-fails because a `cards.*` Action is missing from the tools, check `offerable()` in
+fails because a `project_cards.*` Action is missing from the tools, check `offerable()` in
 `netstead/workbench/assistant/tools.py` and the Action's JSON schema; do not set `assistant = False` to make it pass.
 
 - [ ] **Step 3: Lint, commit, open PR B**
 
 ```bash
-uv run ruff format packages/netstead-cards && uv run ruff check . && uv run ruff format --check . && uv run lint-imports
-uv run --all-extras pytest packages -n auto -m "" -q
-git add packages/netstead-cards/tests/test_assistant.py
-git commit -m "test(cards): the assistant drafts cards.* Actions for approval"
+uv run ruff format plugins/project-cards && uv run ruff check . && uv run ruff format --check . && uv run lint-imports
+uv run --all-extras pytest packages plugins -n auto -m "" -q
+git add plugins/project-cards/tests/test_assistant.py
+git commit -m "test(project-cards): the assistant drafts project_cards.* Actions for approval"
 ```
 
-Push `feat/cards-b` and open PR B ("Cards plugin B: Actions"), listing Tasks 9–12 and Facts items 5, 7, 8, 10, 11.
+Push `feat/project-cards-b` and open PR B ("Project cards plugin B: Actions"), listing Tasks 9–12 and Facts items 5, 7, 8, 10, 11.
 
 ---
 ## PR C: UI and docs
 
-Branch `feat/cards-c` from `main` once PR B has merged.
+Branch `feat/project-cards-c` from `main` once PR B has merged.
 
 ### Task 13: The `/form` and `/commit-check` routes
 
 Read-only routes that tell the browser what a form should hold. Every change still goes through an Action.
 
 **Files:**
-- Create: `packages/netstead-cards/netstead_cards/routes.py`
-- Modify: `packages/netstead-cards/netstead_cards/plugin.py`
-- Test: `packages/netstead-cards/tests/test_routes.py`
+- Create: `plugins/project-cards/netstead_project_cards/routes.py`
+- Modify: `plugins/project-cards/netstead_project_cards/plugin.py`
+- Test: `plugins/project-cards/tests/test_routes.py`
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `packages/netstead-cards/tests/test_routes.py`:
+Create `plugins/project-cards/tests/test_routes.py`:
 
 ```python
-"""GET /api/plugins/cards/form and /commit-check: what the panel's forms and the commit dialog show."""
+"""GET /api/plugins/project_cards/form and /commit-check: what the panel's forms and the commit dialog show."""
 
 import pytest
 from fastapi.testclient import TestClient
 from netstead.workbench import build_app
 from netstead.workbench.actions import Select
-from netstead_cards.actions import AddChange
-from netstead_cards.types import PropertyChange, RoadwayPropertyChange, Selection
+from netstead_project_cards.actions import AddChange
+from netstead_project_cards.types import PropertyChange, RoadwayPropertyChange, Selection
 
 
 @pytest.fixture
@@ -3983,7 +4063,7 @@ def client(session):
 
 
 def form(client, **params):
-    response = client.get("/api/plugins/cards/form", params=params)
+    response = client.get("/api/plugins/project_cards/form", params=params)
     assert response.status_code == 200, response.text
     return response.json()
 
@@ -4029,21 +4109,21 @@ def test_transit_forms_say_not_yet_supported(client):
 
 
 def test_form_errors_are_400_or_404(client):
-    assert client.get("/api/plugins/cards/form", params={"type": "pycode"}).status_code == 404
+    assert client.get("/api/plugins/project_cards/form", params={"type": "pycode"}).status_code == 404
     response = client.get(
-        "/api/plugins/cards/form", params={"type": "roadway_property_change", "use_selection": "true"}
+        "/api/plugins/project_cards/form", params={"type": "roadway_property_change", "use_selection": "true"}
     )
     assert response.status_code == 400 and "nothing is selected" in response.json()["detail"]
 
 
 def test_commit_check_shows_warnings_problems_and_the_yaml(client, session):
-    empty = client.get("/api/plugins/cards/commit-check").json()
+    empty = client.get("/api/plugins/project_cards/commit-check").json()
     assert empty["changes"] == 0 and empty["problems"] == ["the draft card has no changes"]
     bad_end = RoadwayPropertyChange(
         facility=Selection(ids=[1]), property_changes={"from_node_id": PropertyChange(set=424242)}
     )
     session.dispatch(AddChange(change=bad_end))
-    got = client.get("/api/plugins/cards/commit-check", params={"project": "Bad end"}).json()
+    got = client.get("/api/plugins/project_cards/commit-check", params={"project": "Bad end"}).json()
     assert got["changes"] == 1 and got["problems"] == []
     assert [w["code"] for w in got["warnings"]] == ["edit.fk_missing"]
     assert got["yaml"].startswith("project: Bad end\n") and "A:\n" in got["yaml"]
@@ -4051,15 +4131,15 @@ def test_commit_check_shows_warnings_problems_and_the_yaml(client, session):
 
 - [ ] **Step 2: Run them to confirm they fail**
 
-Run: `uv run --all-extras pytest packages/netstead-cards/tests/test_routes.py -q`
+Run: `uv run --all-extras pytest plugins/project-cards/tests/test_routes.py -q`
 Expected: FAIL with 404s (the plugin has no router yet).
 
 - [ ] **Step 3: Implement**
 
-Create `packages/netstead-cards/netstead_cards/routes.py`:
+Create `plugins/project-cards/netstead_project_cards/routes.py`:
 
 ```python
-"""The plugin's HTTP routes (mounted at ``/api/plugins/cards``): what the browser's forms need to know.
+"""The plugin's HTTP routes (mounted at ``/api/plugins/project_cards``): what the browser's forms need to know.
 
 ``GET /form`` describes the form for a change type on the shared (or a saved) selection: the target, each column with
 its current value, and the options. ``GET /commit-check`` returns the live edit warnings, the schema problems and the
@@ -4261,8 +4341,8 @@ def plugin() -> WorkbenchPlugin:
     mapping = load_mapping()
     handlers = Handlers(state, mapping)
     return WorkbenchPlugin(
-        id="cards",
-        name="ProjectCards",
+        id="project_cards",
+        name="Project cards",
         version=__version__,
         requires_api=REQUIRES_API,
         actions=handlers.specs(),
@@ -4273,16 +4353,16 @@ def plugin() -> WorkbenchPlugin:
 
 - [ ] **Step 4: Run the tests**
 
-Run: `uv run --all-extras pytest packages/netstead-cards/tests -q`
+Run: `uv run --all-extras pytest plugins/project-cards/tests -q`
 Expected: all pass.
 
 - [ ] **Step 5: Lint and commit**
 
 ```bash
-uv run ruff format packages/netstead-cards && uv run ruff check . && uv run ruff format --check . && uv run lint-imports
-git add packages/netstead-cards/netstead_cards/routes.py packages/netstead-cards/netstead_cards/plugin.py \
-  packages/netstead-cards/tests/test_routes.py
-git commit -m "feat(cards): /form and /commit-check routes for the panel"
+uv run ruff format plugins/project-cards && uv run ruff check . && uv run ruff format --check . && uv run lint-imports
+git add plugins/project-cards/netstead_project_cards/routes.py plugins/project-cards/netstead_project_cards/plugin.py \
+  plugins/project-cards/tests/test_routes.py
+git commit -m "feat(project-cards): /form and /commit-check routes for the panel"
 ```
 
 ---
@@ -4293,22 +4373,22 @@ Both are DOM-free, so they run under node. `cardmodel.js` is pure (the change a 
 only draws.
 
 **Files:**
-- Create: `packages/netstead-cards/netstead_cards/static/cardmodel.js`
-- Create: `packages/netstead-cards/netstead_cards/static/controller.js`
-- Test: `packages/netstead-cards/tests/test_frontend_model.py`
+- Create: `plugins/project-cards/netstead_project_cards/static/cardmodel.js`
+- Create: `plugins/project-cards/netstead_project_cards/static/controller.js`
+- Test: `plugins/project-cards/tests/test_frontend_model.py`
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `packages/netstead-cards/tests/test_frontend_model.py`:
+Create `plugins/project-cards/tests/test_frontend_model.py`:
 
 ```python
 """cardmodel.js and controller.js under node: the change a form describes, the badge, and the panel's flow."""
 
 from pathlib import Path
 
-import netstead_cards
+import netstead_project_cards
 
-STATIC = Path(netstead_cards.__file__).parent / "static"
+STATIC = Path(netstead_project_cards.__file__).parent / "static"
 MODEL = {"cardmodel.js": STATIC / "cardmodel.js"}
 BOTH = {**MODEL, "controller.js": STATIC / "controller.js"}
 
@@ -4355,9 +4435,9 @@ console.log(JSON.stringify({
     assert got["del"] == {"type": "roadway_deletion", "clean_nodes": True}
     assert got["add"]["links"] == [{"link_id": 340, "from_node_id": 1, "to_node_id": 122, "lanes": 1}]
     assert got["add"]["nodes"] == [{"node_id": 122, "x_coord": 1, "y_coord": 2}] and got["linkOnly"]["nodes"] == []
-    assert got["onSelection"] == {"type": "cards.add_change", "change": got["del"], "use_selection": True}
-    assert got["onSaved"] == {"type": "cards.preview", "change": got["del"], "saved_selection": "ski"}
-    assert got["addAction"] == {"type": "cards.add_change", "change": got["add"]}
+    assert got["onSelection"] == {"type": "project_cards.add_change", "change": got["del"], "use_selection": True}
+    assert got["onSaved"] == {"type": "project_cards.preview", "change": got["del"], "saved_selection": "ski"}
+    assert got["addAction"] == {"type": "project_cards.add_change", "change": got["add"]}
     assert got["needs"] == [True, True, False]
 
 
@@ -4366,7 +4446,7 @@ def test_the_badge_follows_the_draft_and_the_preview(run_js):
         MODEL,
         """
 import { draftBadge, draftNet, warningLines } from "./cardmodel.js";
-const state = { plugins: { cards: { drafts: { base: { count: 2, project: "", changes: [] } },
+const state = { plugins: { project_cards: { drafts: { base: { count: 2, project: "", changes: [] } },
                                     preview: { net_id: "base-2", base: "base" } } } };
 console.log(JSON.stringify({
   badge: draftBadge(state, "base"), none: draftBadge(state, "other"), net: draftNet(state, "base-2"),
@@ -4392,7 +4472,7 @@ const wb = {
       if (path.startsWith("/commit-check")) return { warnings: [{ code: "edit.fk_missing" }], problems: [], yaml: "" };
       return forms[new URLSearchParams(path.split("?")[1]).get("type")]; },
     dispatch: async action => { calls.push(["dispatch", action]);
-      return action.type === "cards.preview" ? { preview: "net-2" } : { count: 1, describe: "x" }; },
+      return action.type === "project_cards.preview" ? { preview: "net-2" } : { count: 1, describe: "x" }; },
   },
   toast: message => calls.push(["toast", message]),
 };
@@ -4419,27 +4499,33 @@ def test_the_controller_reads_the_form_then_dispatches_actions(run_js):
         "type": "roadway_property_change",
         "property_changes": {"lanes": {"set": 3, "existing": 1, "existing_value_conflict": "error"}},
     }
-    assert calls[3] == ["dispatch", {"type": "cards.preview", "change": change, "use_selection": True}]
+    assert calls[3] == ["dispatch", {"type": "project_cards.preview", "change": change, "use_selection": True}]
     assert got["afterPreview"] == {"preview": "net-2"}
-    assert calls[4] == ["dispatch", {"type": "cards.add_change", "change": change, "use_selection": True}]
-    assert calls[5] == ["dispatch", {"type": "cards.close_preview"}]  # adding closes the preview
+    assert calls[4] == ["dispatch", {"type": "project_cards.add_change", "change": change, "use_selection": True}]
+    assert calls[5] == ["dispatch", {"type": "project_cards.close_preview"}]  # adding closes the preview
     assert calls[6] == ["get", "/commit-check?project=Lanes"]
     assert calls[7] == [
         "dispatch",
-        {"type": "cards.commit", "project": "Lanes", "path": "cards/lanes.yml", "tags": [], "confirm_warnings": True},
+        {
+            "type": "project_cards.commit",
+            "project": "Lanes",
+            "path": "cards/lanes.yml",
+            "tags": [],
+            "confirm_warnings": True,
+        },
     ]  # the dialog showed a warning: committing confirms it
     assert got["compose"] is None and got["preview"] is None
 ```
 
 - [ ] **Step 2: Run them to confirm they fail**
 
-Run: `uv run --all-extras pytest packages/netstead-cards/tests/test_frontend_model.py -q`
+Run: `uv run --all-extras pytest plugins/project-cards/tests/test_frontend_model.py -q`
 Expected: FAIL (`FileNotFoundError` copying `static/cardmodel.js`), or SKIP if node is not installed: install node
 (it is a dev prerequisite of the Workbench's own JS tests) and run again.
 
 - [ ] **Step 3: Implement**
 
-Create `packages/netstead-cards/netstead_cards/static/cardmodel.js`:
+Create `plugins/project-cards/netstead_project_cards/static/cardmodel.js`:
 
 ```js
 // Pure rules for the cards panel: change types, the change a form describes, the draft badge. No DOM, no wb, so
@@ -4497,7 +4583,7 @@ export function addition(link, node, options = {}) {
 // The Action for a change (`kind`: "add_change" or "preview"), on the shared selection or a saved one when it needs
 // one.
 export function changeAction(kind, change, { saved = null } = {}) {
-  const action = { type: `cards.${kind}`, change };
+  const action = { type: `project_cards.${kind}`, change };
   if (needsSelection(change.type)) {
     if (saved) action.saved_selection = saved;
     else action.use_selection = true;
@@ -4505,7 +4591,7 @@ export function changeAction(kind, change, { saved = null } = {}) {
   return action;
 }
 
-const cards = state => (state && state.plugins && state.plugins.cards) || {};
+const cards = state => (state && state.plugins && state.plugins.project_cards) || {};
 
 // The network a draft belongs to: an open preview stands for the network it previews.
 export function draftNet(state, netId) {
@@ -4525,7 +4611,7 @@ export function draftBadge(state, netId) {
 export const warningLines = warnings => (warnings || []).map(w => `${w.table} ${w.key}: ${w.message}`);
 ```
 
-Create `packages/netstead-cards/netstead_cards/static/controller.js`:
+Create `plugins/project-cards/netstead_project_cards/static/controller.js`:
 
 ```js
 // The cards panel's flow without the DOM: which route each step reads and which Action it dispatches. main.js draws
@@ -4571,7 +4657,7 @@ export function createController(wb) {
   }
 
   async function closePreview() {
-    await wb.api.dispatch({ type: "cards.close_preview" });
+    await wb.api.dispatch({ type: "project_cards.close_preview" });
     state.preview = null;
   }
 
@@ -4587,7 +4673,7 @@ export function createController(wb) {
     if (state.preview) await closePreview();
   }
 
-  const undo = () => wb.api.dispatch({ type: "cards.undo_change" });
+  const undo = () => wb.api.dispatch({ type: "project_cards.undo_change" });
 
   // Before committing: the live edit warnings, the schema problems and the card as YAML, for the commit dialog.
   async function check(fields) {
@@ -4599,10 +4685,10 @@ export function createController(wb) {
   function commit(fields) {
     const confirm = Boolean(state.check && state.check.warnings.length);
     state.check = null;
-    return wb.api.dispatch({ type: "cards.commit", ...fields, confirm_warnings: confirm });
+    return wb.api.dispatch({ type: "project_cards.commit", ...fields, confirm_warnings: confirm });
   }
 
-  const importCard = path => wb.api.dispatch({ type: "cards.import", path });
+  const importCard = path => wb.api.dispatch({ type: "project_cards.import", path });
 
   return { state, start, changeFrom, preview, closePreview, add, cancel, undo, check, commit, importCard };
 }
@@ -4610,15 +4696,15 @@ export function createController(wb) {
 
 - [ ] **Step 4: Run the tests**
 
-Run: `uv run --all-extras pytest packages/netstead-cards/tests/test_frontend_model.py -q`
+Run: `uv run --all-extras pytest plugins/project-cards/tests/test_frontend_model.py -q`
 Expected: all pass.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/netstead-cards/netstead_cards/static/cardmodel.js packages/netstead-cards/netstead_cards/static/controller.js \
-  packages/netstead-cards/tests/test_frontend_model.py
-git commit -m "feat(cards): front-end rules (cardmodel.js) and panel flow (controller.js)"
+git add plugins/project-cards/netstead_project_cards/static/cardmodel.js plugins/project-cards/netstead_project_cards/static/controller.js \
+  plugins/project-cards/tests/test_frontend_model.py
+git commit -m "feat(project-cards): front-end rules (cardmodel.js) and panel flow (controller.js)"
 ```
 
 ---
@@ -4632,23 +4718,23 @@ The panel composes a change with `wb.schemaForm`, previews it, adds it, lists th
 `<dialog>` that shows the live edit warnings and the card's YAML.
 
 **Files:**
-- Create: `packages/netstead-cards/netstead_cards/static/main.js`
-- Modify: `packages/netstead-cards/netstead_cards/plugin.py`
-- Test: `packages/netstead-cards/tests/test_frontend_main.py`
+- Create: `plugins/project-cards/netstead_project_cards/static/main.js`
+- Modify: `plugins/project-cards/netstead_project_cards/plugin.py`
+- Test: `plugins/project-cards/tests/test_frontend_main.py`
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `packages/netstead-cards/tests/test_frontend_main.py`:
+Create `plugins/project-cards/tests/test_frontend_main.py`:
 
 ```python
 """main.js under node, against the Workbench's real wb factory and slots (registration, whens, badge, commands)."""
 
 from pathlib import Path
 
-import netstead_cards
+import netstead_project_cards
 from netstead.workbench.server import STATIC_DIR
 
-STATIC = Path(netstead_cards.__file__).parent / "static"
+STATIC = Path(netstead_project_cards.__file__).parent / "static"
 CORE = ("wbhost.js", "slots.js", "layers.js", "store.js", "hub.js")
 FILES = {
     **{name: STATIC_DIR / "js" / name for name in CORE},
@@ -4664,8 +4750,8 @@ import { activeSelection, createStore } from "./store.js";
 import { createHub } from "./hub.js";
 
 const slots = createSlots(), hub = createHub(), calls = [], panels = [];
-const server = { networks: [], active: "base", selection: null,
-                 plugins: { cards: { drafts: { base: { count: 2, project: "", changes: [] } }, preview: null } } };
+const drafts = { base: { count: 2, project: "", changes: [] } };
+const server = { networks: [], active: "base", selection: null, plugins: { project_cards: { drafts, preview: null } } };
 const store = createStore({ server });
 const deps = {
   hostApi: "1.5", store, activeSelection, events: hub, actionTypes: new Set(), actionSchema: () => null,
@@ -4683,15 +4769,15 @@ const deps = {
   toast: m => calls.push(["toast", m]),
   onError: (id, phase, e) => calls.push(["error", id, phase, String(e.message || e)]),
 };
-const { wb } = createWb("cards", deps);
+const { wb } = createWb("project_cards", deps);
 activate(wb);
 const commands = slots.commands.list();
 const byId = Object.fromEntries(commands.map(c => [c.id, c]));
 const none = { selectionCount: 0, state: server, network: { id: "base" } };
 const two = { selectionCount: 2, state: server, network: { id: "base" } };
-await byId["cards.new_roadway_property_change"].run(two);
-await byId["cards.new_transit_routing_change"].run(two);
-await byId["cards.undo"].run(two);
+await byId["project_cards.new_roadway_property_change"].run(two);
+await byId["project_cards.new_transit_routing_change"].run(two);
+await byId["project_cards.undo"].run(two);
 console.log(JSON.stringify({
   panels: slots.panels.list().map(p => [p.id, p.workspace, p.title]),
   commands: commands.map(c => [c.id, c.group || null, c.contexts]),
@@ -4705,22 +4791,22 @@ console.log(JSON.stringify({
 
 def test_main_registers_the_panel_and_the_commands(run_js):
     got = run_js(FILES, HARNESS)
-    assert got["panels"] == [["cards.draft", "*", "Card"]]
+    assert got["panels"] == [["project_cards.draft", "*", "Card"]]
     ids = [c[0] for c in got["commands"]]
     assert ids == [
-        "cards.new_roadway_property_change",
-        "cards.new_roadway_deletion",
-        "cards.new_roadway_addition",
-        "cards.new_transit_property_change",
-        "cards.new_transit_routing_change",
-        "cards.new_transit_route_addition",
-        "cards.new_transit_service_deletion",
-        "cards.undo",
+        "project_cards.new_roadway_property_change",
+        "project_cards.new_roadway_deletion",
+        "project_cards.new_roadway_addition",
+        "project_cards.new_transit_property_change",
+        "project_cards.new_transit_routing_change",
+        "project_cards.new_transit_route_addition",
+        "project_cards.new_transit_service_deletion",
+        "project_cards.undo",
     ]
     groups_contexts = {c[0]: (c[1], c[2]) for c in got["commands"]}
-    assert groups_contexts["cards.new_roadway_property_change"] == ("New change", ["selection", "palette"])
-    assert groups_contexts["cards.new_roadway_addition"] == ("New change", ["palette"])
-    assert groups_contexts["cards.new_transit_property_change"] == ("New change", ["palette"])
+    assert groups_contexts["project_cards.new_roadway_property_change"] == ("New change", ["selection", "palette"])
+    assert groups_contexts["project_cards.new_roadway_addition"] == ("New change", ["palette"])
+    assert groups_contexts["project_cards.new_transit_property_change"] == ("New change", ["palette"])
     assert got["whenNone"][:3] == [False, False, True]  # property change and deletion need a selection
     assert got["whenTwo"][:3] == [True, True, True]
     assert got["badge"] == {"text": "2", "dirty": True, "title": "2 uncommitted card change(s)"}
@@ -4728,32 +4814,32 @@ def test_main_registers_the_panel_and_the_commands(run_js):
 
 def test_commands_open_the_form_or_say_not_yet_supported(run_js):
     calls = run_js(FILES, HARNESS)["calls"]
-    assert calls[0] == ["get", "/api/plugins/cards/form?type=roadway_property_change&use_selection=true"]
-    assert calls[1] == ["show", "cards.draft"]
-    assert calls[2] == ["get", "/api/plugins/cards/form?type=transit_routing_change"]
-    assert calls[3] == ["toast", "cards: transit_routing_change is not yet supported"]
-    assert calls[4] == ["dispatch", "cards.undo_change"]
+    assert calls[0] == ["get", "/api/plugins/project_cards/form?type=roadway_property_change&use_selection=true"]
+    assert calls[1] == ["show", "project_cards.draft"]
+    assert calls[2] == ["get", "/api/plugins/project_cards/form?type=transit_routing_change"]
+    assert calls[3] == ["toast", "project_cards: transit_routing_change is not yet supported"]
+    assert calls[4] == ["dispatch", "project_cards.undo_change"]
     assert not [c for c in calls if c[0] == "error"]
 ```
 
 - [ ] **Step 2: Run them to confirm they fail**
 
-Run: `uv run --all-extras pytest packages/netstead-cards/tests/test_frontend_main.py -q`
+Run: `uv run --all-extras pytest plugins/project-cards/tests/test_frontend_main.py -q`
 Expected: FAIL (`main.js` does not exist).
 
 - [ ] **Step 3: Implement `main.js`**
 
-Create `packages/netstead-cards/netstead_cards/static/main.js`:
+Create `plugins/project-cards/netstead_project_cards/static/main.js`:
 
 ```js
-// The cards plugin's front end: a "Card" dock panel (compose a change, preview it, the draft card's changes, commit
+// The project cards plugin's front end: a "Card" dock panel (compose a change, preview it, the draft card's changes, commit
 // and import) and "New change ▸ …" commands. Everything goes through `wb` (see the cookbook page "Write a Workbench
 // plugin"); the flow lives in controller.js and the rules in cardmodel.js, both tested under node.
 import { ROADWAY_TYPES, TRANSIT_TYPES, TYPE_TITLES, draftBadge, draftNet, draftOf, needsSelection, warningLines }
   from "./cardmodel.js";
 import { createController } from "./controller.js";
 
-const PANEL = "cards.draft";
+const PANEL = "project_cards.draft";
 
 // A DOM element: `props.text` is its text (never markup), `props.onclick` its handler, other props attributes.
 function h(tag, props = {}, ...children) {
@@ -4794,7 +4880,7 @@ export function activate(wb) {
 
   for (const type of ROADWAY_TYPES) {
     wb.registerCommand({
-      id: `cards.new_${type}`,
+      id: `project_cards.new_${type}`,
       title: TYPE_TITLES[type],
       group: "New change",
       contexts: needsSelection(type) ? ["selection", "palette"] : ["palette"],
@@ -4804,7 +4890,7 @@ export function activate(wb) {
   }
   for (const type of TRANSIT_TYPES) {
     wb.registerCommand({
-      id: `cards.new_${type}`,
+      id: `project_cards.new_${type}`,
       title: `${TYPE_TITLES[type]} (not yet supported)`,
       group: "New change",
       contexts: ["palette"],
@@ -4812,7 +4898,7 @@ export function activate(wb) {
     });
   }
   wb.registerCommand({
-    id: "cards.undo",
+    id: "project_cards.undo",
     title: "Undo the draft card's last change",
     group: "Card",
     contexts: ["palette"],
@@ -4820,7 +4906,7 @@ export function activate(wb) {
     run: () => ctl.undo(),
   });
 
-  wb.store.subscribe(["plugins.cards", "active"], () => {
+  wb.store.subscribe(["plugins.project_cards", "active"], () => {
     panel.refreshBadge();
     if (view) view.draw();
   });
@@ -4876,7 +4962,7 @@ function createView(wb, ctl, el, netId) {
   function drawDraft() {
     draftBox.replaceChildren();
     const state = wb.store.get();
-    const preview = state.plugins && state.plugins.cards && state.plugins.cards.preview;
+    const preview = state.plugins && state.plugins.project_cards && state.plugins.project_cards.preview;
     if (preview) {
       draftBox.append(h("p", { text: `Previewing ${preview.describe} on ${preview.net_id}. ` },
         h("button", { class: "ghost mini", onclick: guard(async () => { await ctl.closePreview(); draw(); }) },
@@ -4956,7 +5042,7 @@ In `plugin.py`, add `from pathlib import Path`, a module constant
 `STATIC = Path(__file__).parent / "static"` (with `#: The front end: main.js, controller.js, cardmodel.js.`), and
 `static_dir=STATIC,` to the `WorkbenchPlugin(...)` call (after `router=`). `frontend` stays the default `main.js`.
 
-Add a Python test in `packages/netstead-cards/tests/test_plugin_loads.py`:
+Add a Python test in `plugins/project-cards/tests/test_plugin_loads.py`:
 
 ```python
 def test_the_front_end_is_served(make_session):
@@ -4964,47 +5050,47 @@ def test_the_front_end_is_served(make_session):
     from netstead.workbench import build_app
 
     session = make_session(open_network=False)
-    (status,) = [s for s in session.plugin_status if s.id == "cards"]
-    assert status.frontend == "/plugins/cards/main.js"
+    (status,) = [s for s in session.plugin_status if s.id == "project_cards"]
+    assert status.frontend == "/plugins/project_cards/main.js"
     client = TestClient(build_app(session))
     for name in ("main.js", "controller.js", "cardmodel.js"):
-        assert client.get(f"/plugins/cards/{name}").status_code == 200
+        assert client.get(f"/plugins/project_cards/{name}").status_code == 200
 ```
 
 - [ ] **Step 4: Run the tests**
 
-Run: `uv run --all-extras pytest packages/netstead-cards/tests -q`
+Run: `uv run --all-extras pytest plugins/project-cards/tests -q`
 Expected: all pass.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-uv run ruff format packages/netstead-cards && uv run ruff check . && uv run ruff format --check .
-git add packages/netstead-cards/netstead_cards/static/main.js packages/netstead-cards/netstead_cards/plugin.py \
-  packages/netstead-cards/tests/test_frontend_main.py packages/netstead-cards/tests/test_plugin_loads.py
-git commit -m "feat(cards): the Card dock panel and New change commands"
+uv run ruff format plugins/project-cards && uv run ruff check . && uv run ruff format --check .
+git add plugins/project-cards/netstead_project_cards/static/main.js plugins/project-cards/netstead_project_cards/plugin.py \
+  plugins/project-cards/tests/test_frontend_main.py plugins/project-cards/tests/test_plugin_loads.py
+git commit -m "feat(project-cards): the Card dock panel and New change commands"
 ```
 
 ---
 ### Task 16: Docs: cookbook page, indexes, contributing, changelogs
 
 **Files:**
-- Create: `packages/netstead/docs/cookbook/workbench-cards.md`
+- Create: `packages/netstead/docs/cookbook/workbench-project-cards.md`
 - Modify: `packages/netstead/docs/cookbook/index.md`, `packages/netstead/mkdocs.yml`, `CONTRIBUTING.md`
 - Modify: `packages/netstead/tests/test_documented_api_contract.py` (two provenance keys are not attribute paths)
 - Modify: `docs/design/README.md`, `docs/design/2026-10-07-cards-plugin-scope.md` (status line only),
-  `packages/netstead-cards/CHANGELOG.md`, `packages/netstead-cards/README.md`
+  `plugins/project-cards/CHANGELOG.md`, `plugins/project-cards/README.md`
 
 - [ ] **Step 1: Write the cookbook page**
 
-Create `packages/netstead/docs/cookbook/workbench-cards.md` (follow `packages/netstead/docs/_page-style-guide.md`):
+Create `packages/netstead/docs/cookbook/workbench-project-cards.md` (follow `packages/netstead/docs/_page-style-guide.md`):
 
 ````markdown
 ---
 title: Author ProjectCards in the Workbench
 audience: users
 kind: howto
-summary: Turn Workbench edits into network_wrangler ProjectCards with the cards plugin: select, change, preview, commit.
+summary: Turn Workbench edits into network_wrangler ProjectCards with the project cards plugin: select, change, preview, commit.
 ---
 
 # Author ProjectCards in the Workbench
@@ -5013,12 +5099,12 @@ summary: Turn Workbench edits into network_wrangler ProjectCards with the cards 
 
 You edit a GMNS network in the [Workbench](workbench.md) and want the edits as a
 [ProjectCard](https://github.com/network-wrangler/projectcard): a YAML file network_wrangler applies to its own
-network, reviewed like code. The `cards` plugin (the `netstead-cards` package) adds that to the Workbench.
+network, reviewed like code. The `project_cards` plugin (the `netstead-project-cards` package) adds that to the Workbench.
 
 ## Install
 
-In the netstead workspace, `uv sync --all-packages` installs `netstead-cards` next to netstead. Elsewhere,
-`pip install netstead-cards`. Then run `uv run netstead app`; **Settings → Plugins** lists *ProjectCards* as loaded.
+In the netstead workspace, `uv sync --all-packages` installs `netstead-project-cards` next to netstead. Elsewhere,
+`pip install netstead-project-cards`. Then run `uv run netstead app`; **Settings → Plugins** lists *Project cards* as loaded.
 
 ## Make a card
 
@@ -5034,7 +5120,7 @@ In the netstead workspace, `uv sync --all-packages` installs `netstead-cards` ne
 4. **Preview** applies the change to a copy of the network and shows the copy on the map. The network itself is
    untouched. **Back to the network** closes the copy.
 5. **Add to card** applies the change to the network and lists it in the draft card. Core's **Edits** panel lists it
-   too, with `cards` as its source, and the live checks run as for any edit. **Undo last change** takes back the
+   too, with `project_cards` as its source, and the live checks run as for any edit. **Undo last change** takes back the
    draft's newest change (core's Undo leaves plugin changes alone, and the plugin's undo leaves yours alone).
 6. **Commit**: give the card a project name, tags and a file inside `io.allowed_roots`, then **Commit…**. The dialog
    shows the live edit warnings and the card's YAML. With warnings, the button reads **Commit anyway**. The card is
@@ -5053,7 +5139,7 @@ validation report's "Fix locally" editor downloads.
 | Added a link | `roadway_addition` in network_wrangler's names (`A`, `B`, `roadway`, `model_link_id`), with `walk_access` / `bike_access` / `drive_access` derived from `allowed_uses`. |
 | Wrote a note | `netstead.note[<i>]: …` in the card's `notes` (a change itself has no notes field). |
 
-GMNS names map to network_wrangler's through a maintained data file, `netstead_cards/mappings/gmns_to_wrangler.yaml`.
+GMNS names map to network_wrangler's through a maintained data file, `netstead_project_cards/mappings/gmns_to_wrangler.yaml`.
 A column it doesn't list keeps its GMNS name.
 
 ## Limits
@@ -5073,7 +5159,7 @@ Every step is a recorded Action, so "Copy as Python" replays it:
 <!-- doctest: skip -->
 ```python
 from netstead.workbench import Select
-from netstead_cards import AddChange, CommitCard, PropertyChange, RoadwayPropertyChange
+from netstead_project_cards import AddChange, CommitCard, PropertyChange, RoadwayPropertyChange
 
 app.do(Select(utterance="Benton Street"))
 app.do(AddChange(use_selection=True,
@@ -5084,51 +5170,62 @@ app.do(CommitCard(path="cards/benton-lanes.yml", project="Benton Street lanes", 
 - [ ] **Step 2: Index it**
 
 - `packages/netstead/docs/cookbook/index.md`: after the "Write a Workbench plugin" bullet, add
-  `* [Author ProjectCards in the Workbench](workbench-cards.md) — the cards plugin: select, change, preview and commit network_wrangler project cards.`
+  `* [Author ProjectCards in the Workbench](workbench-project-cards.md) — the project cards plugin: select, change, preview and commit network_wrangler project cards.`
 - `packages/netstead/mkdocs.yml`: after `- Write a Workbench plugin: cookbook/workbench-plugins.md` add
-  `      - Author ProjectCards: cookbook/workbench-cards.md` (same indentation).
+  `      - Author ProjectCards: cookbook/workbench-project-cards.md` (same indentation).
 - `packages/netstead/docs/cookbook/workbench-plugins.md`: in "When to use this", link "authoring project cards" to
-  `workbench-cards.md`, and add after the hello walk-through's first paragraph: "For a full plugin built on the same
-  API (Actions with undo, routes, a dock panel, schema forms, a derived-network preview), read the `netstead-cards`
-  package in `packages/netstead-cards`."
+  `workbench-project-cards.md`, and add after the hello walk-through's first paragraph: "For a full plugin built on the same
+  API (Actions with undo, routes, a dock panel, schema forms, a derived-network preview), read the `netstead-project-cards`
+  package in `plugins/project-cards`."
 
 - [ ] **Step 3: CONTRIBUTING.md**
 
 In "Running tests": change the first sentence to "Tests live in `packages/corral/tests`, `packages/netstead/tests`
-and `packages/netstead-cards/tests` …", and add a row to the per-domain table:
+and `plugins/project-cards/tests` …", and add a row to the per-domain table:
 
 ```markdown
-| `netstead-cards` (the cards plugin) | `packages/netstead-cards/tests` |
+| `plugins/project-cards` (the project cards plugin) | `plugins/project-cards/tests` |
+```
+
+Add a short section before "Running tests":
+
+```markdown
+### First-party plugins
+
+First-party plugins live in `plugins/<name>`, each its own workspace package that may import only
+`netstead.workbench.plugins`' public API. Give each one an import-linter contract (see the `project_cards` one in
+`pyproject.toml`), a test step in `.github/workflows/tests.yml` with its own coverage gate, and an entry in
+`scripts/lint_no_sql.py`.
 ```
 
 - [ ] **Step 4: Design index and changelog**
 
 In `docs/design/README.md`:
 - in "Implementation plans", add
-  `| [Cards plugin (ProjectCard authoring)](2026-10-19-cards-plugin-plan.md) | cards scope | implemented | #<A>, #<B>, #<C> |`
+  `| [Project cards plugin (ProjectCard authoring)](2026-10-19-cards-plugin-plan.md) | cards scope | implemented | #<A>, #<B>, #<C> |`
   (the three PR numbers);
-- in "Scopes", the cards row becomes
-  `| [Cards plugin (ProjectCard authoring)](2026-10-07-cards-plugin-scope.md) | 10-07 | implemented | #<A>, #<B>, #<C> | see the scope's "Follow-ups" |`;
+- in "Scopes", the project cards row becomes
+  `| [Project cards plugin (ProjectCard authoring)](2026-10-07-cards-plugin-scope.md) | 10-07 | implemented | #<A>, #<B>, #<C> | see the scope's "Follow-ups" |`;
 - move the plan out of "In flight" if it was listed there.
 
 In `docs/design/2026-10-07-cards-plugin-scope.md` and this plan, set the status line to
 `Status: **implemented** (#<A>, #<B>, #<C>) · …`.
 
-In `packages/netstead-cards/CHANGELOG.md`, under `## [Unreleased]`:
+In `plugins/project-cards/CHANGELOG.md`, under `## [Unreleased]`:
 
 ```markdown
 ### Added
 
-- The Workbench plugin `cards`: ProjectCard authoring. A **Card** dock panel and
+- The Workbench plugin `project_cards`: ProjectCard authoring. A **Card** dock panel and
   **New change ▸ Property change / Deletion / Addition** commands; a preview on a
   derived network; per-network draft cards with undo; commit to a ProjectCard
   YAML file validated by `projectcard` (live edit warnings confirmed first; the
   card is also added to a `catalog` plugin when one is installed); import of
   cards and of the offline report's edit log.
-- Actions `cards.add_change`, `cards.undo_change`, `cards.preview`,
-  `cards.close_preview`, `cards.commit`, `cards.import` (recorded, replayable,
+- Actions `project_cards.add_change`, `project_cards.undo_change`, `project_cards.preview`,
+  `project_cards.close_preview`, `project_cards.commit`, `project_cards.import` (recorded, replayable,
   drafted for approval by the assistant).
-- Routes `GET /api/plugins/cards/form` and `/commit-check`.
+- Routes `GET /api/plugins/project_cards/form` and `/commit-check`.
 - Requires netstead with plugin Host API 1.5 and `projectcard>=0.3.3,<0.4`.
 ```
 
@@ -5139,8 +5236,8 @@ In `packages/netstead-cards/CHANGELOG.md`, under `## [Unreleased]`:
 `packages/netstead/tests/test_documented_api_contract.py`, add to `_KNOWN_FICTIONAL`, after `"corral.quality.rules",`:
 
 ```python
-    # The cards plugin's provenance keys in a ProjectCard's `notes` text (`netstead.resolved[<i>]: ...`,
-    # `netstead.note[<i>]: ...`; cookbook/workbench-cards.md), not Python attribute paths.
+    # The project cards plugin's provenance keys in a ProjectCard's `notes` text (`netstead.resolved[<i>]: ...`,
+    # `netstead.note[<i>]: ...`; cookbook/workbench-project-cards.md), not Python attribute paths.
     "netstead.resolved",
     "netstead.note",
 ```
@@ -5162,12 +5259,12 @@ Expected: the site builds as in CI (`.github/workflows/documentation.yml`) and p
 - [ ] **Step 7: Commit**
 
 ```bash
-git add packages/netstead/docs/cookbook/workbench-cards.md packages/netstead/docs/cookbook/index.md \
+git add packages/netstead/docs/cookbook/workbench-project-cards.md packages/netstead/docs/cookbook/index.md \
   packages/netstead/tests/test_documented_api_contract.py \
   packages/netstead/docs/cookbook/workbench-plugins.md packages/netstead/mkdocs.yml CONTRIBUTING.md \
   docs/design/README.md docs/design/2026-10-07-cards-plugin-scope.md docs/design/2026-10-19-cards-plugin-plan.md \
-  packages/netstead-cards/CHANGELOG.md packages/netstead-cards/README.md
-git commit -m "docs(cards): cookbook page, indexes, contributing and changelog"
+  plugins/project-cards/CHANGELOG.md plugins/project-cards/README.md
+git commit -m "docs(project-cards): cookbook page, indexes, contributing and changelog"
 ```
 
 (Fill the PR numbers in a fixup commit once PR C has its number; A and B are known by then.)
@@ -5184,14 +5281,14 @@ git commit -m "docs(cards): cookbook page, indexes, contributing and changelog"
 
 ```bash
 uv run ruff check . && uv run ruff format --check . && uv run lint-imports && uv run python scripts/lint_no_sql.py
-uv run --all-extras pytest packages -n auto -m "" -q
-uv run --all-extras pytest -m "" -n auto packages/netstead-cards/tests --doctest-modules \
-  packages/netstead-cards/netstead_cards --cov=netstead_cards --cov-report=term-missing
+uv run --all-extras pytest packages plugins -n auto -m "" -q
+uv run --all-extras pytest -m "" -n auto plugins/project-cards/tests --doctest-modules \
+  plugins/project-cards/netstead_project_cards --cov=netstead_project_cards --cov-report=term-missing
 ```
 
-Expected: all green. Read the coverage total `T` (the plan's dry run measured 94.9 %, so expect a gate of 93) and
+Expected: all green. Read the coverage total `T` (the plan's dry run measured 95 %, so expect a gate of 93) and
 set the CI gate to `floor(T) - 1` (at least 85) in the "Test
-netstead-cards" step of `.github/workflows/tests.yml` (`--cov-fail-under=<gate>`). A line the report lists as missed
+netstead-project-cards" step of `.github/workflows/tests.yml` (`--cov-fail-under=<gate>`). A line the report lists as missed
 in `handlers.py`, `flow.py` or `lower.py` is a refusal path: add a test for it rather than lowering the gate.
 
 - [ ] **Step 2: Walk through it in the browser**
@@ -5202,20 +5299,20 @@ uv run netstead app packages/netstead/netstead/fixtures/leavenworth/parquet
 
 Check, in order:
 
-1. **Settings → Plugins** lists ProjectCards 0.1.0 as loaded, with no front-end error.
+1. **Settings → Plugins** lists Project cards 0.1.0 as loaded, with no front-end error.
 2. Click link 1; right-click it: the menu has **Selection (1 link) → New change ▸ Property change** and **Deletion**.
 3. Choose Property change: the **Card** panel shows "1 picked link" and a form whose fields read "lanes (now 1)" etc.
    Set lanes 2, **Preview**: a "Preview: …" network becomes active and link 1 is drawn with 2 lanes; the base network
    still says 1 when you switch back in the network switcher.
 4. **Add to card**: the preview closes, the draft lists the change, the panel tab and the workspace tab show the
-   dirty dot and "1"; core's **Edits** panel lists the edit with source `cards`.
+   dirty dot and "1"; core's **Edits** panel lists the edit with source `project_cards`.
 5. Type "Benton Street" in the command bar, **New change ▸ Property change**, set lanes 3 with **How: set**, **Add
    to card**. The draft has 2 changes. **Undo last change**: back to 1; Benton Street's links are back to their lanes.
 6. Fill project "Leavenworth fixes", file `cards/leavenworth-fixes.yml` (inside an allowed root), **Commit…**: the
    dialog shows the YAML with `model_link_id: [1]` and `ignore_missing: false`. **Commit**. The badge clears.
 7. Open the command palette: **New change ▸ Transit route addition (not yet supported)** toasts "not yet supported".
 8. **Copy as Python** in the history strip: the `AddChange`, `UndoChange` and `CommitCard` lines import from
-   `netstead_cards.actions`.
+   `netstead_project_cards.actions`.
 9. Run `uv run python -c "import projectcard; print(projectcard.read_card('cards/leavenworth-fixes.yml', validate=True).project)"`:
    prints `Leavenworth fixes`.
 
@@ -5232,13 +5329,13 @@ Not filed as issues yet; each is small and independent.
 
 - **The offline report's edit-log writer is not schema-valid.** `netstead.map.edits.dump_edit_log` writes
   `facility: {model_link_id: [...]}` (the schema wants `facility.links.model_link_id` plus `ignore_missing`) and a
-  per-change `notes` (forbidden by `additionalProperties: false`). The cards plugin reads it tolerantly. Make the
+  per-change `notes` (forbidden by `additionalProperties: false`). The project cards plugin reads it tolerantly. Make the
   writer emit `links: {model_link_id: [...], ignore_missing: false}` and move each change's note to a
   `netstead.note[<i>]: …` line in the card's `notes` (the plugin's provenance format), keeping `apply_edits` reading
   both shapes; then the plugin's tolerant path can stay for old files only.
 - **Host: a lineage entry on commit.** The scope wants a committed card's id in the network's lineage; `Host` has no
   method for it (only `host.mutate` appends). Candidate: `host.note_lineage(net_id, text)` in a Host API minor.
-- **Host: a read-path check.** `cards.import` vets the file it reads with `host.writable`. Candidate:
+- **Host: a read-path check.** `project_cards.import` vets the file it reads with `host.writable`. Candidate:
   `host.readable(path)`.
 - **projectcard upstream.** Its `validate_card` fills defaults into the caller's dict (`parse_defaults=True` by
   default); `property_changes` is never type-checked (its `anyOf` alternatives are not keywords); `utils.py` has an
@@ -5246,17 +5343,17 @@ Not filed as issues yet; each is small and independent.
 - **`apply_card`:** re-resolve a card's query selections on another network version (out of scope for v1).
 ```
 
-In `docs/design/README.md`, set the cards scope row's "Open follow-ups" cell to
+In `docs/design/README.md`, set the project cards scope row's "Open follow-ups" cell to
 `offline edit-log writer; Host lineage + read-path; projectcard upstream; apply_card (see the scope's Follow-ups)`.
 
 - [ ] **Step 4: Commit and open PR C**
 
 ```bash
 git add .github/workflows/tests.yml docs/design/2026-10-07-cards-plugin-scope.md docs/design/README.md
-git commit -m "chore(cards): coverage gate and follow-up notes"
+git commit -m "chore(project-cards): coverage gate and follow-up notes"
 ```
 
-Push `feat/cards-c` and open PR C ("Cards plugin C: UI and docs"), with the walk-through's results.
+Push `feat/project-cards-c` and open PR C ("Project cards plugin C: UI and docs"), with the walk-through's results.
 
 ---
 ## Self-review (against the scope)
@@ -5277,16 +5374,18 @@ Push `feat/cards-c` and open PR C ("Cards plugin C: UI and docs"), with the walk
 | FieldMap and the mapping file (selectors, fields, values, derived access flags) | 3 |
 | Lowering through `host.plan_update` / `plan_delete` / `plan_add` and `host.mutate`; `existing` conflicts (`error`, `warn`, `skip`); delta grouped by current value; `clean_nodes`; addition end-node and key checks | 7, 8 |
 | One change = one undo step, atomic | 7, 8, 9 (a deletion is one or two pending edits, undone together; atomic at the Action) — see Facts 5 |
-| The change's note names it (`cards: roadway_property_change link 1: free_speed 40 → 30`) | 7 |
-| Draft card as plugin state with a dirty badge; `cards.*` Actions; recorded and replayable | 9 (state, replay test), 15 (badge) |
-| `cards.undo_change` LIFO through `host.undo`; refused when core's change is newer | 9 |
+| The change's note names it (`project_cards: roadway_property_change link 1: free_speed 40 → 30`) | 7 |
+| Draft card as plugin state with a dirty badge; `project_cards.*` Actions; recorded and replayable | 9 (state, replay test), 15 (badge) |
+| `project_cards.undo_change` LIFO through `host.undo`; refused when core's change is newer | 9 |
 | Commit: live warnings confirmed first; written through `host.writable`; `catalog.add_card` when it exists | 10 |
 | Import all or nothing ("change 2 of 2: …") | 10 |
 | Saved selections (P3a) seed a card's facility via `host.saved_selection` | 9 (`saved_selection`), 13 (`saved` on `/form`) |
-| Assistant: mutating `cards.*` Actions go through draft approval | 9 (all `mutates`), 12 |
+| Assistant: mutating `project_cards.*` Actions go through draft approval | 9 (all `mutates`), 12 |
 | A card the plugin writes loads with `projectcard`'s own reader | 6, 10, 17 |
 | CI (own test run, coverage gate), workspace and lock, docs (cookbook, design index, changelog) | 2, 16, 17 |
 | Out of scope respected: `apply_card`, scenarios, catalog plugin, transit, `pycode`, managed lanes | not built; recorded in 17's follow-ups |
+| First-party plugin location and name: `plugins/project-cards`, `netstead-project-cards`, `netstead_project_cards`, id `project_cards`; `plugins/*` in the workspace; the convention in CONTRIBUTING.md | 2, 16 |
+| Reuse `projectcard` where it works (validator, reader, change-type list, schema); keep a duplicate only with a one-line reason | "Reuse of `projectcard`" table; 4, 5, 6 |
 
 The committed card's id does not join the network's lineage (Facts 7): the Host has no method for it. It is
 recorded in plugin state and listed as a follow-up.
@@ -5299,9 +5398,9 @@ setting it.
 `not_supported` (4); `DraftCard`, `Dependencies`, `read_card_file` (6); `apply_change`, `Applied`, `describe`,
 `few`, `rows_by_key`, `KEYS` (7); `CardsState`, `Draft`, `slug` (9); `target_network`, `complete_change`,
 `selection_facility`, `check_card_shape`, `refuse_transit`, `as_action_errors`, `is_open` (9); `Handlers.specs`
-(9, extended in 10, 11); Actions `AddChange` / `cards.add_change`, `UndoChange` / `cards.undo_change` (9),
-`CommitCard` / `cards.commit`, `ImportCard` / `cards.import` (10), `PreviewChange` / `cards.preview`,
-`ClosePreview` / `cards.close_preview` (11); `build_router` (13); JS `propertyChange`, `deletion`, `addition`,
+(9, extended in 10, 11); Actions `AddChange` / `project_cards.add_change`, `UndoChange` / `project_cards.undo_change` (9),
+`CommitCard` / `project_cards.commit`, `ImportCard` / `project_cards.import` (10), `PreviewChange` / `project_cards.preview`,
+`ClosePreview` / `project_cards.close_preview` (11); `build_router` (13); JS `propertyChange`, `deletion`, `addition`,
 `changeAction`, `draftNet`, `draftOf`, `draftBadge`, `warningLines` (14), `createController` (14), `activate` (15);
-panel id `cards.draft`; command ids `cards.new_<type>`, `cards.undo`; state keys `plugins.cards.drafts`,
+panel id `project_cards.draft`; command ids `project_cards.new_<type>`, `project_cards.undo`; state keys `plugins.project_cards.drafts`,
 `committed`, `preview`, `change_types`, `supported`.
