@@ -40,7 +40,7 @@ from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any, Final
 from urllib.parse import urlparse
 
-import fsspec
+from fsspec.core import url_to_fs
 
 from corral.io import _scheme_of, dispatch, register_adapter
 from corral.io.base import (
@@ -265,17 +265,27 @@ class RemoteAdapter:
 
     # ----- scan ------------------------------------------------------------
 
-    def scan(self, source: SourceRef, engine: Engine | None = None) -> ResourceListing:
+    def scan(
+        self,
+        source: SourceRef,
+        engine: Engine | None = None,
+        *,
+        credentials: dict | None = None,
+    ) -> ResourceListing:
         """List one-or-more resources at ``source``.
 
         For a URL pointing at a single file the listing has one entry,
         except a zip of csvs, whose members are listed by the zipcsv
         adapter (refs carry ``container_adapter``/``member``; read each
         back with ``read(ref.container, format=ref.container_adapter,
-        table=ref.member)``). For a URL pointing at a directory-like prefix (``s3://b/p/``),
-        ``fsspec.filesystem(scheme).ls(...)`` is consulted. Each child
-        that has a recognised extension contributes one
-        :class:`ResourceRef`.
+        table=ref.member)``). For a URL pointing at a directory-like
+        prefix (``s3://b/p/``), the fsspec filesystem for the URL is
+        consulted — built from ``credentials`` when given, else from the
+        credentials cascade for the host (same rule as :meth:`read`).
+        Each child with a recognised extension contributes one
+        :class:`ResourceRef` whose path is the child's full URL (same
+        scheme and host as ``source``), so reading it routes back through
+        this adapter and the same credentials.
         """
         url_str = str(source)
         parsed = _parse(url_str)
@@ -285,8 +295,8 @@ class RemoteAdapter:
 
         if looks_like_dir or _path_has_no_extension(parsed):
             try:
-                storage_options = self._storage_options_for(parsed, None)
-                fs = fsspec.filesystem(parsed.scheme, **storage_options)
+                storage_options = self._storage_options_for(parsed, credentials)
+                fs, dir_path = url_to_fs(url_str, **storage_options)
             except (ValueError, ImportError):
                 # fsspec couldn't build a filesystem for this scheme
                 # (missing optional dep, etc.). Fall back to single-resource.
@@ -301,7 +311,7 @@ class RemoteAdapter:
                 # programmer errors.
                 is_dir = False
                 try:
-                    is_dir = bool(fs.isdir(parsed.stripped))
+                    is_dir = bool(fs.isdir(dir_path))
                 except (FileNotFoundError, PermissionError, OSError) as exc:
                     _logger.warning(
                         "listing fell back to single-resource for host=%s: %s",
@@ -310,8 +320,16 @@ class RemoteAdapter:
                     )
                     is_dir = looks_like_dir
                 if is_dir:
-                    entries = fs.ls(parsed.stripped)
-                    return [_resource_ref_for(entry) for entry in entries if _has_known_extension(str(entry))]
+                    # ``ls`` names children in the filesystem's own form (``bucket/p/x.csv``,
+                    # no scheme; adlfs also drops the ``@account``). Rebuild each child's URL
+                    # from the listed URL so the scheme and host survive exactly as given.
+                    base = url_str.rstrip("/")
+                    children = [str(child) for child in fs.ls(dir_path, detail=False)]
+                    return [
+                        _resource_ref_for(f"{base}/{PurePosixPath(child).name}")
+                        for child in children
+                        if _has_known_extension(child)
+                    ]
 
         try:
             inner = self._inner_adapter(parsed)

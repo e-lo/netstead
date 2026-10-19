@@ -170,6 +170,7 @@ class Network(Package):
         engine: Engine | None = None,
         spec_version: str | None = None,
         tables: Iterable[str] | None = None,
+        credentials: dict[str, str] | None = None,
     ) -> Network:
         """Load a GMNS network from ``source``, defaulting the spec to gmns@spec_version.
 
@@ -193,6 +194,10 @@ class Network(Package):
             tables: Optional subset of resource names to load. Useful
                 for memory-efficient partial loads (e.g. ``["link",
                 "node"]``).
+            credentials: Optional explicit credentials for a URL
+                ``source`` (fsspec storage options, e.g. ``{"key": ...,
+                "secret": ...}`` for S3). Forwarded to
+                :meth:`Package.from_source`; ignored for local paths.
 
         Returns:
             A populated :class:`Network` with lazy
@@ -222,7 +227,7 @@ class Network(Package):
         # Delegate to Package.from_source — composition over copy-paste.
         # Package returns a `Package` instance; we re-pack into `cls`
         # (always `Network` in practice) so the named accessors light up.
-        base = Package.from_source(source, engine=engine, spec=gmns_spec, tables=tables)
+        base = Package.from_source(source, engine=engine, spec=gmns_spec, tables=tables, credentials=credentials)
         # Canonicalise geometry to WKB bytes in memory (geometry ADR): CSV
         # packages arrive as WKT, GeoParquet as WKB — this converges both.
         from netstead._geometry import convert_geometry_to_wkb

@@ -34,7 +34,7 @@ import zipfile
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import pyarrow as pa
 
@@ -63,6 +63,7 @@ from .table import Table
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from corral.engines.base import Engine
+    from corral.io.remote import RemoteAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -237,7 +238,8 @@ class Package:
                 this becomes the inner-format hint passed through
                 :class:`~corral.io.remote.RemoteAdapter`.
             credentials: Optional explicit credentials dict forwarded
-                to :class:`~corral.io.remote.RemoteAdapter`. Only
+                to :class:`~corral.io.remote.RemoteAdapter`, for the
+                listing of a URL prefix and for every table read. Only
                 the remote adapter consumes it; local-fs reads ignore
                 the kwarg. Caller-provided keys win over env / keyring /
                 netrc — see
@@ -272,7 +274,7 @@ class Package:
         # 2. Discover resources. ``format=`` narrows the top-level
         #    dispatch; the directory-of-known-formats walk still uses
         #    per-child extension dispatch (no per-child override surface).
-        listing = _scan_source(source_str, format=format)
+        listing = _scan_source(source_str, format=format, credentials=credentials)
 
         # 3. Filter by requested subset (if any).
         wanted: set[str] | None = set(tables) if tables is not None else None
@@ -1177,7 +1179,12 @@ def _looks_remote(path: str) -> bool:
     return _scheme_of(path) in REMOTE_SCHEMES
 
 
-def _scan_source(source_str: str, *, format: str | None = None) -> ResourceListing:
+def _scan_source(
+    source_str: str,
+    *,
+    format: str | None = None,
+    credentials: dict[str, str] | None = None,
+) -> ResourceListing:
     """Resolve ``source_str`` to a :class:`ResourceListing`.
 
     Two branches, in order of preference:
@@ -1188,7 +1195,9 @@ def _scan_source(source_str: str, *, format: str | None = None) -> ResourceListi
            file to the right adapter.
         2. Otherwise let :func:`corral.io.dispatch` resolve the
            source (honouring ``format=`` when given) and call the
-           adapter's ``scan`` method.
+           adapter's ``scan`` method. ``credentials`` reach the remote
+           adapter only (a URL prefix is listed with them); other
+           adapters' ``scan`` takes no such kwarg.
     """
     source_path = Path(source_str)
     if source_path.exists() and source_path.is_dir() and not _is_partitioned_parquet_dir(source_path):
@@ -1197,6 +1206,9 @@ def _scan_source(source_str: str, *, format: str | None = None) -> ResourceListi
         adapter = dispatch(source_str, format=format)
     except FormatNotDetected:
         return []
+    if credentials is not None and adapter.name == "remote":
+        # Only RemoteAdapter.scan takes credentials; the registry hands back the protocol type.
+        return cast("RemoteAdapter", adapter).scan(source_str, credentials=credentials)
     return adapter.scan(source_str)
 
 
