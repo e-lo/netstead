@@ -215,7 +215,7 @@ The warning is informational: it tells you the in-memory FK index reflects the p
     ```
 
 ??? note "Run one op from the shell"
-    Useful in pipelines; the CLI opens the session, writes the result, and suppresses the dirty-write warning for you.
+    Useful in pipelines; the CLI opens the session, writes the result, and suppresses the dirty-write warning for you. Without `--dest` the edited network is written back over `<src>` in its own format.
 
     ```bash
     netstead clean remove-orphans <src> --dest ./out.parquet
@@ -269,6 +269,7 @@ The warning is informational: it tells you the in-memory FK index reflects the p
 * **Pass `--dest` to the CLI ops when the source is a CSV directory.** Without it the op writes back over the source as parquet, and that in-place rewrite currently fails partway after the CSVs are gone ([tracked as a follow-up](https://github.com/e-lo/netstead/issues)). `--dry-run` is safe either way.
 * **`OutOfSyncWarning` on write is expected after an edit** ([#164](https://github.com/e-lo/netstead/issues/164)). It means the in-memory FK index still reflects the pre-edit rows; it is not an error. Suppress it for the write (step 6) — re-reading the written network rebuilds the index.
 * **A 100%-null column can break the write** ([#163](https://github.com/e-lo/netstead/issues/163)). Writing an edited table could fail when a column was entirely null. The issue's original repro (`netstead clean remove-orphans` on the Leavenworth fixture) now succeeds. If you still hit it, cast the all-null column to a concrete type (or drop it) before the write, and add your case to the issue. The old `--engine pandas` workaround no longer exists: DuckDB is the only engine since #195.
+* **The CLI ops overwrite `<src>` unless you pass `--dest`.** The write is staged beside the source and swapped in once complete, so a failure leaves the original in place, and a directory source keeps its format (a CSV directory stays CSV). It is still an overwrite, though: there is no undo once the swap has happened. Pass `--dest` (or run with `--dry-run` first) to keep the original.
 * **Don't mutate tables outside the session.** Direct `net.links.expr.execute().assign(...)` writes bypass the session entirely and aren't rollback-able.
 * **The session captures snapshots, not journals.** Memory cost scales with the size of the tables an op touches; the bulk `replace_table` path snapshots the whole affected table. Long sessions over large networks should commit periodically.
 
