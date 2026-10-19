@@ -62,6 +62,27 @@ def host(session: Session) -> Any:
 
 
 @pytest.fixture
+def race_before(host: Any, monkeypatch: pytest.MonkeyPatch) -> Callable[[str], None]:
+    """``race_before("plan_update")``: that ``host`` method's first call lets another edit land (lanes = 7 on link 3).
+
+    It then plans against a newer network than the change read, which is what a concurrent edit looks like.
+    """
+
+    def install(name: str) -> None:
+        real, plan_update, raced = getattr(host, name), host.plan_update, []
+
+        def racing(*args: Any, **kwargs: Any) -> Any:
+            if not raced:
+                raced.append(True)
+                host.mutate(NET, plan_update(NET, "link", [3], {"lanes": 7}).edits, note="race")
+            return real(*args, **kwargs)
+
+        monkeypatch.setattr(host, name, racing)
+
+    return install
+
+
+@pytest.fixture
 def run_js(tmp_path: Path) -> Callable[[dict[str, Path], str], Any]:
     """``run_js({"a.js": path, ...}, harness)``: copy the files, run ``harness`` as an ES module, return its JSON.
 

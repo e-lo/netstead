@@ -6,11 +6,16 @@ is now, so the links that used a node must be gone before that plan is made. Cal
 Action handler: if a later step fails, the handler's failure undoes the earlier ones. Core's planner refuses what
 storage cannot hold (``EditRefused``, raised here as :class:`~netstead_project_cards.errors.CardError`); the live checks
 report the rest as warnings (``host.edit_warnings``).
+
+Each step reads the network's version before the frames it decides on (they are cached per version), refuses plans
+made against any other version, and passes that version to ``host.mutate``: an edit landing anywhere between the read
+and the mutation refuses the step rather than applying a plan made from stale values.
 """
 
 from __future__ import annotations
 
 import math
+import numbers
 from collections import defaultdict
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
@@ -18,7 +23,7 @@ from typing import Any
 
 from netstead.workbench.plugins import EditPlan, EditRefused, Host
 
-from .errors import CardError, not_supported
+from .errors import CardError, CardNotSupported, not_supported
 from .types import (
     TRANSIT_TYPES,
     NetworkChange,
@@ -37,7 +42,11 @@ KEYS = {"link": "link_id", "node": "node_id"}
 
 @dataclass
 class Applied:
-    """A change as applied: how many ``host.mutate`` calls it took (undone together), and what happened."""
+    """A change as applied: how many ``host.mutate`` calls it took, and what happened.
+
+    Each ``host.mutate`` is one pending edit. A deletion of links and nodes takes two (``steps == 2``), so undoing the
+    change outside an Action takes ``steps`` calls to ``host.undo``.
+    """
 
     change: NetworkChange
     steps: int = 0
@@ -60,10 +69,15 @@ class Applied:
 def apply_change(host: Host, net_id: str, change: NetworkChange) -> Applied:
     """Plan ``change`` with core and apply it to network ``net_id``; the lineage gets ``"project_cards: <describe>"``.
 
+    Everything this module can check is checked before the first ``host.mutate``, including a deleted node that links
+    this change keeps still use. A deletion of links and nodes is still two mutations, though: if the second fails for
+    any other reason (core refuses its plan, or the network changed in between), the first stays applied unless the
+    calling Action's failure rolls it back. Call it from an Action handler.
+
     Raises:
-        CardNotSupported: a transit change.
-        CardError: an incomplete change, a conflict with ``existing``, a missing record or column, or anything
-            core's planner refuses.
+        CardNotSupported: a transit change, or an added record field with no column in the network.
+        CardError: an incomplete change, a conflict with ``existing``, a missing record or column, a node still in
+            use, a network that changed while the change was planned, or anything core's planner refuses.
     """
     if change.type in TRANSIT_TYPES:
         raise not_supported(change.type)
@@ -83,7 +97,7 @@ def describe(change: Any) -> str:
     if isinstance(change, RoadwayDeletion):
         bits = [f"link {few(change.links)}"] if change.links else []
         bits += [f"node {few(change.nodes)}"] if change.nodes else []
-        clean = " (and unused end nodes)" if change.clean_nodes else ""
+        clean = " (and unused end nodes)" if change.clean_nodes and change.links else ""
         return f"roadway_deletion {' and '.join(bits) or 'the selection'}{clean}"
     if isinstance(change, RoadwayAddition):
         bits = [f"link {few([r['link_id'] for r in change.links])}"] if change.links else []
@@ -124,8 +138,10 @@ def _py(value: Any) -> Any:
 
 
 def _what(pc: PropertyChange) -> str:
-    new = f"{pc.set}" if pc.set is not None else f"{pc.change:+g}"
-    return f"{pc.existing} → {new}" if pc.existing is not None else (f"→ {new}" if pc.set is not None else new)
+    if pc.set is None:
+        delta = f"{pc.change:+g}"
+        return f"{delta} (was {pc.existing})" if pc.existing is not None else delta
+    return f"{pc.existing} → {pc.set}" if pc.existing is not None else f"→ {pc.set}"
 
 
 def _frame(host: Host, net_id: str, table: str) -> Any:
@@ -140,22 +156,33 @@ def _plan(fn: Callable[..., EditPlan], *args: Any) -> EditPlan:
         raise CardError(str(exc)) from exc
 
 
-def _mutate(host: Host, net_id: str, plans: list[EditPlan], note: str) -> None:
-    """Apply the plans' edits in one ``host.mutate``, refused if the network moved since the first plan."""
+def _mutate(host: Host, net_id: str, version: int, plans: list[EditPlan], note: str) -> None:
+    """Apply the plans' edits in one ``host.mutate``, refused unless every plan, and the network, is at ``version``.
+
+    ``version`` is the one read before the frames that decided what to plan; a plan stamped otherwise was made
+    against a network that changed after those reads.
+    """
+    if any(p.version != version for p in plans):
+        raise CardError(f"{net_id} changed while the change was being planned; apply it again")
     edits = [e for p in plans for e in p.edits]
-    host.mutate(net_id, edits, note=note, expected_version=plans[0].version)
+    host.mutate(net_id, edits, note=note, expected_version=version)
 
 
 def _same(current: Any, existing: Any) -> bool:
+    """Whether a cell holding ``current`` matches a card's ``existing``: text as text, anything else as a number."""
     if current is None:
         return False
+    if isinstance(current, str):
+        return current == str(existing)
     try:
-        return math.isclose(float(current), float(existing), rel_tol=1e-9, abs_tol=1e-9)
+        return math.isclose(float(current), float(existing), rel_tol=1e-9, abs_tol=1e-9)  # True matches 1
     except (TypeError, ValueError):
         return str(current) == str(existing)
 
 
-def _groups(pc: PropertyChange, ids: list[Any], current: dict[str, dict[str, Any]], prop: str) -> dict[Any, list[Any]]:
+def _groups(
+    pc: PropertyChange, ids: list[Any], current: dict[str, dict[str, Any]], table: str, prop: str
+) -> dict[Any, list[Any]]:
     """New value -> the ids that get it: one group for ``set``; one per distinct current value for ``change``."""
     if pc.set is not None:
         return {pc.set: list(ids)}
@@ -163,10 +190,13 @@ def _groups(pc: PropertyChange, ids: list[Any], current: dict[str, dict[str, Any
     for i in ids:
         now = current[str(i)][prop]
         if now is None:
-            raise CardError(f"{prop} on {i} is empty: set it rather than changing it by {pc.change:+g}")
-        if isinstance(now, bool) or not isinstance(now, int | float):
+            raise CardError(f"{prop} is empty on {table} {i}: set it rather than changing it by {pc.change:+g}")
+        if isinstance(now, bool) or not isinstance(now, numbers.Number):
             raise CardError(f"{prop} holds {type(now).__name__} values: only numbers change by a delta")
-        new = now + pc.change
+        try:
+            new = now + pc.change
+        except TypeError:  # a Decimal plus a float delta: add the delta as the cell's own type
+            new = now + type(now)(str(pc.change))
         groups[int(new) if isinstance(now, int) and float(new).is_integer() else new].append(i)
     return dict(groups)
 
@@ -177,6 +207,7 @@ def _groups(pc: PropertyChange, ids: list[Any], current: dict[str, dict[str, Any
 def _property_change(host: Host, net_id: str, change: RoadwayPropertyChange, note: str) -> Applied:
     sel = change.facility
     pk = KEYS[sel.table]
+    version = host.network(net_id).version  # before the frame: it decides the conflicts and the deltas
     frame = _frame(host, net_id, sel.table)
     unknown = [p for p in change.property_changes if p not in frame.columns]
     if unknown:
@@ -200,10 +231,10 @@ def _property_change(host: Host, net_id: str, change: RoadwayPropertyChange, not
                     out.skipped.append(message)
                     continue
                 out.warnings.append(message)
-        for value, group in _groups(pc, ids, current, prop).items():
+        for value, group in _groups(pc, ids, current, sel.table, prop).items():
             plans.append(_plan(host.plan_update, net_id, sel.table, group, {prop: value}))
     if plans:
-        _mutate(host, net_id, plans, note)
+        _mutate(host, net_id, version, plans, note)
         out.steps, out.rows = 1, {sel.table: len(ids)}
     return out
 
@@ -213,50 +244,80 @@ def _add_rows(into: dict[str, int], rows: dict[str, int]) -> None:
         into[table] = into.get(table, 0) + n
 
 
-def _used(links: Any, nodes: set[Any]) -> set[Any]:
-    """The nodes among ``nodes`` that some link (in the ``links`` frame) still starts or ends at."""
-    wanted = {str(n) for n in nodes}
-    hit = links["from_node_id"].astype(str).isin(wanted) | links["to_node_id"].astype(str).isin(wanted)
-    sub = links.loc[hit, ["from_node_id", "to_node_id"]]
-    found = {str(_py(v)) for v in [*sub["from_node_id"], *sub["to_node_id"]]}
-    return {n for n in nodes if str(n) in found}
+def _users(links: Any, nodes: Sequence[Any], deleted: Sequence[Any]) -> dict[str, list[Any]]:
+    """``{str(node): [link ids]}``: the links in the ``links`` frame, other than ``deleted``, at each of ``nodes``.
+
+    A link counts when it starts or ends at the node; a node no remaining link uses is absent.
+    """
+    wanted, gone = {str(n) for n in nodes}, {str(i) for i in deleted}
+    ends = links["from_node_id"].astype(str), links["to_node_id"].astype(str)
+    hit = (ends[0].isin(wanted) | ends[1].isin(wanted)) & ~links["link_id"].astype(str).isin(gone)
+    users: dict[str, list[Any]] = defaultdict(list)
+    for r in links.loc[hit, ["link_id", "from_node_id", "to_node_id"]].to_dict("records"):
+        for end in dict.fromkeys(str(_py(r[c])) for c in ("from_node_id", "to_node_id")):  # a self-loop counts once
+            if end in wanted:
+                users[end].append(_py(r["link_id"]))
+    return dict(users)
 
 
 def _deletion(host: Host, net_id: str, change: RoadwayDeletion, note: str) -> Applied:
+    """Links, then nodes. Which nodes go (and whether any is still in use) is decided before the first mutation."""
     out = Applied(change)
     two_steps = bool(change.links) and (bool(change.nodes) or change.clean_nodes)
-    ends: set[Any] = set()
+    version = host.network(net_id).version  # before the frame: it decides which nodes go
+    links = _frame(host, net_id, "link")
+    if in_use := _users(links, change.nodes, change.links):  # core would refuse it only at step 2, after step 1
+        raise CardError(_in_use(in_use))
+    nodes = list(change.nodes)
+    if change.links and change.clean_nodes:
+        rows = rows_by_key(links, "link_id", change.links, ["from_node_id", "to_node_id"])
+        ends = list(
+            dict.fromkeys(v for r in rows.values() for v in (r["from_node_id"], r["to_node_id"]) if v is not None)
+        )
+        used = _users(links, ends, change.links)
+        taken = {str(n) for n in nodes}
+        nodes += [e for e in ends if str(e) not in used and str(e) not in taken]
     if change.links:
-        if change.clean_nodes:
-            rows = rows_by_key(_frame(host, net_id, "link"), "link_id", change.links, ["from_node_id", "to_node_id"])
-            ends = {v for r in rows.values() for v in (r["from_node_id"], r["to_node_id"]) if v is not None}
         plan = _plan(host.plan_delete, net_id, "link", change.links)
-        host.mutate(net_id, plan.edits, note=f"{note} (links)" if two_steps else note, expected_version=plan.version)
+        _mutate(host, net_id, version, [plan], f"{note} (links)" if two_steps else note)
         out.steps += 1
         _add_rows(out.rows, plan.rows)
-    nodes = list(change.nodes)
-    if ends:  # read the links again: the deleted ones are gone now
-        unused = ends - _used(_frame(host, net_id, "link"), ends)
-        nodes += [n for n in sorted(unused, key=str) if n not in nodes]
     if nodes:
-        plan = _plan(host.plan_delete, net_id, "node", nodes)  # refuses a node a link still uses, naming the links
-        host.mutate(net_id, plan.edits, note=f"{note} (nodes)" if two_steps else note, expected_version=plan.version)
+        version = host.network(net_id).version  # the network after step 1, which core plans the nodes against
+        plan = _plan(host.plan_delete, net_id, "node", nodes)
+        _mutate(host, net_id, version, [plan], f"{note} (nodes)" if two_steps else note)
         out.steps += 1
         _add_rows(out.rows, plan.rows)
     return out
 
 
+def _in_use(users: dict[str, list[Any]]) -> str:
+    """``node 1 is still used by links 3, 4, ..., which this change does not delete; add them or drop the node``."""
+    used = "; ".join(
+        f"node {n} is still used by link{'s' if len(ids) > 1 else ''} {few(ids)}" for n, ids in users.items()
+    )
+    one_link = sum(len(ids) for ids in users.values()) == 1
+    nodes = "node" if len(users) == 1 else "nodes"
+    return f"{used}, which this change does not delete; add {'it' if one_link else 'them'} or drop the {nodes}"
+
+
 def _addition(host: Host, net_id: str, change: RoadwayAddition, note: str) -> Applied:
+    """Nodes, then links, in one mutation; ids, end nodes and record fields are checked before it."""
+    version = host.network(net_id).version  # before the frames: they decide which ids are free
     nodes_frame = _frame(host, net_id, "node")
     frames = {"node": nodes_frame, "link": _frame(host, net_id, "link")}
     for name, records in (("node", change.nodes), ("link", change.links)):
+        columns = set(frames[name].columns)
+        for field_name in dict.fromkeys(k for r in records for k in r):
+            if field_name not in columns:  # a foreign card's flag (walk_access, bus_only): nothing to store it in
+                raise CardNotSupported(f"{name} record field {field_name!r} has no column in this network")
         pk = KEYS[name]
         ids = [r[pk] for r in records]
         if len({str(i) for i in ids}) != len(ids):
             raise CardError(f"{name} ids repeat within the change")
-        taken = rows_by_key(frames[name], pk, ids, [])
-        if taken:
-            raise CardError(f"{name} {few(sorted(taken))} already exist")
+        found = rows_by_key(frames[name], pk, ids, [])
+        if taken := [i for i in ids if str(i) in found]:
+            raise CardError(f"{name} {few(taken)} {'already exists' if len(taken) == 1 else 'already exist'}")
     if change.links:
         ends = list(dict.fromkeys(r[c] for r in change.links for c in ("from_node_id", "to_node_id")))
         present = set(rows_by_key(nodes_frame, "node_id", ends, [])) | {str(r["node_id"]) for r in change.nodes}
@@ -270,7 +331,7 @@ def _addition(host: Host, net_id: str, change: RoadwayAddition, note: str) -> Ap
         plans.append(_plan(host.plan_add, net_id, "node", change.nodes))
     if change.links:
         plans.append(_plan(host.plan_add, net_id, "link", change.links))
-    _mutate(host, net_id, plans, note)
+    _mutate(host, net_id, version, plans, note)
     out = Applied(change, steps=1)
     for plan in plans:
         _add_rows(out.rows, plan.rows)

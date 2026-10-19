@@ -1,9 +1,18 @@
 """A property change becomes core edit plans (host.plan_update) applied in one host.mutate."""
 
+from decimal import Decimal
+
 import pytest
+from netstead_project_cards import lower
 from netstead_project_cards.errors import CardError, CardNotSupported
 from netstead_project_cards.lower import apply_change, describe
-from netstead_project_cards.types import PropertyChange, RoadwayPropertyChange, Selection, TransitPropertyChange
+from netstead_project_cards.types import (
+    PropertyChange,
+    RoadwayAddition,
+    RoadwayPropertyChange,
+    Selection,
+    TransitPropertyChange,
+)
 
 NET = "leavenworth"
 
@@ -35,6 +44,9 @@ def test_describe_names_the_change():
     )
     assert describe(change([1, 2, 3, 4, 5, 6], lanes={"change": 1})) == (
         "roadway_property_change link 1, 2, 3, 4, 5 (+1 more): lanes +1"
+    )
+    assert (
+        describe(change([1], lanes={"existing": 1, "change": 1})) == "roadway_property_change link 1: lanes +1 (was 1)"
     )
 
 
@@ -110,3 +122,65 @@ def test_an_incomplete_change_and_transit_are_refused(host):
         apply_change(host, NET, RoadwayPropertyChange(property_changes={"lanes": PropertyChange(set=2)}))
     with pytest.raises(CardNotSupported, match="P6"):
         apply_change(host, NET, TransitPropertyChange())
+
+
+# ---------------------------------------------------------------- review fixes
+
+
+def test_an_edit_between_reading_and_planning_is_refused(session, host, race_before):
+    race_before("plan_update")
+    with pytest.raises(CardError, match="leavenworth changed while the change was being planned; apply it again"):
+        apply_change(host, NET, change([3], lanes={"existing": 2, "set": 3}))
+    assert cell(session, 3, "lanes") == [7] and session.network(NET).version == 1  # the race's edit, not the card's
+
+
+NULL_LANES = {"link_id": 9001, "from_node_id": 1, "to_node_id": 2, "name": "Blank Street"}
+
+
+def test_a_delta_on_an_empty_value_says_to_set_it(session, host):
+    apply_change(host, NET, RoadwayAddition(links=[NULL_LANES]))
+    with pytest.raises(CardError, match=r"^lanes is empty on link 9001: set it rather than changing it by \+1$"):
+        apply_change(host, NET, change([9001], lanes={"change": 1}))
+
+
+def test_existing_against_an_empty_value_is_a_conflict(session, host):
+    apply_change(host, NET, RoadwayAddition(links=[NULL_LANES]))
+    with pytest.raises(CardError, match="conflict: lanes: expected 1 on link 9001, found None"):
+        apply_change(host, NET, change([9001], lanes={"existing": 1, "set": 2}))
+
+
+@pytest.mark.parametrize(("existing", "column"), [(40, "free_speed"), ("40", "free_speed"), ("1", "lanes")])
+def test_existing_matches_across_number_types(session, host, existing, column):
+    apply_change(host, NET, change([1], **{column: {"existing": existing, "set": 2}}))
+    assert cell(session, 1, column) == [2]
+
+
+@pytest.mark.parametrize(
+    ("current", "existing", "same"),
+    [
+        ("1", "01", False),  # text compares as text
+        ("10", "1e1", False),
+        ("Front Street", "Front Street", True),
+        ("40", 40, True),
+        (40.0, 40, True),
+        (40, "40", True),
+        (True, 1, True),
+        (1, True, True),
+        (None, 1, False),
+    ],
+)
+def test_same_compares_text_as_text(current, existing, same):
+    assert lower._same(current, existing) is same
+
+
+def test_a_text_existing_never_matches_numerically(session, host):
+    apply_change(host, NET, change([1], name={"set": "1"}))
+    with pytest.raises(CardError, match="conflict"):
+        apply_change(host, NET, change([1], name={"existing": "01", "set": "x"}))
+
+
+def test_a_delta_on_a_decimal_value():
+    pc = PropertyChange(change=0.5)
+    assert lower._groups(pc, [1], {"1": {"lanes": Decimal("1.5")}}, "link", "lanes") == {Decimal("2.0"): [1]}
+    with pytest.raises(CardError, match="only numbers"):
+        lower._groups(pc, [1], {"1": {"lanes": True}}, "link", "lanes")

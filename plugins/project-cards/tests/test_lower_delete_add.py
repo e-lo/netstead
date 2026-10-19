@@ -1,8 +1,8 @@
 """Deletions cascade through core's plans (links, then nodes); additions are one mutation, nodes first."""
 
 import pytest
-from netstead_project_cards.errors import CardError
-from netstead_project_cards.lower import apply_change
+from netstead_project_cards.errors import CardError, CardNotSupported
+from netstead_project_cards.lower import apply_change, describe
 from netstead_project_cards.types import RoadwayAddition, RoadwayDeletion
 
 NET = "leavenworth"
@@ -74,7 +74,7 @@ def test_clean_nodes_deletes_end_nodes_nothing_else_uses(session, host):
 @pytest.mark.parametrize(
     ("change", "message"),
     [
-        (RoadwayAddition(links=[{**NEW_LINK, "link_id": 1}], nodes=[NEW_NODE]), "link 1 already exist"),
+        (RoadwayAddition(links=[{**NEW_LINK, "link_id": 1}], nodes=[NEW_NODE]), "^link 1 already exists$"),
         (RoadwayAddition(links=[{**NEW_LINK, "to_node_id": 424242}]), "node.* 424242, which are not in the network"),
         (RoadwayAddition(links=[{**NEW_LINK, "colour": "red"}], nodes=[NEW_NODE]), "no column"),
         (RoadwayAddition(nodes=[NEW_NODE, NEW_NODE]), "repeat"),
@@ -85,3 +85,87 @@ def test_bad_additions_are_refused_and_leave_nothing_behind(session, host, chang
     with pytest.raises(CardError, match=message):
         apply_change(host, NET, change)
     assert counts(session) == before and session.network(NET).version == 0
+
+
+# ---------------------------------------------------------------- review fixes
+
+NODE_USERS = [1, 2, 3, 4, 5, 185, 209, 293]  # every link that starts or ends at node 1
+
+
+@pytest.mark.parametrize(
+    ("planner", "change"),
+    [
+        ("plan_delete", RoadwayDeletion(links=[1])),
+        ("plan_delete", RoadwayDeletion(links=[1], clean_nodes=True)),  # step 1 of two
+        ("plan_add", RoadwayAddition(nodes=[NEW_NODE], links=[NEW_LINK])),
+    ],
+)
+def test_an_edit_between_reading_and_planning_is_refused(session, host, race_before, planner, change):
+    before = counts(session)
+    race_before(planner)
+    with pytest.raises(CardError, match="leavenworth changed while the change was being planned; apply it again"):
+        apply_change(host, NET, change)
+    assert counts(session) == before and session.network(NET).version == 1  # only the race's edit landed
+
+
+def test_a_node_other_links_still_use_is_refused_before_anything_changes(session, host):
+    message = (
+        r"^node 1 is still used by links 2, 3, 4, 5, 185 \(\+2 more\), which this change does not delete; "
+        r"add them or drop the node$"
+    )
+    with pytest.raises(CardError, match=message):
+        apply_change(host, NET, RoadwayDeletion(links=[1], nodes=[1]))
+    assert session.network(NET).version == 0  # step 1 (the link) was never applied
+    with pytest.raises(CardError, match=r"^node 1 is still used by link 293, which"):
+        apply_change(host, NET, RoadwayDeletion(links=NODE_USERS[:-1], nodes=[1]))
+    assert session.network(NET).version == 0
+
+
+def test_deleting_a_node_with_all_its_links(session, host):
+    before = counts(session)
+    applied = apply_change(host, NET, RoadwayDeletion(links=NODE_USERS, nodes=[1]))
+    assert applied.steps == 2 and counts(session)["node"] == before["node"] - 1
+    assert counts(session)["link"] == before["link"] - len(NODE_USERS)
+
+
+def test_clean_nodes_with_a_self_loop(session, host):
+    loop = {**NEW_LINK, "link_id": 9002, "from_node_id": 9001, "to_node_id": 9001}
+    apply_change(host, NET, RoadwayAddition(nodes=[NEW_NODE], links=[loop]))
+    nodes = counts(session)["node"]
+    applied = apply_change(host, NET, RoadwayDeletion(links=[9002], clean_nodes=True))
+    assert counts(session)["node"] == nodes - 1 and applied.rows["node"] == 1
+
+
+def test_clean_nodes_with_two_deleted_links_sharing_a_node(session, host):
+    other = {**NEW_NODE, "node_id": 9002}
+    onward = {**NEW_LINK, "link_id": 9002, "from_node_id": 9001, "to_node_id": 9002}
+    apply_change(host, NET, RoadwayAddition(nodes=[NEW_NODE, other], links=[NEW_LINK, onward]))
+    nodes = counts(session)["node"]
+    applied = apply_change(host, NET, RoadwayDeletion(links=[9001, 9002], clean_nodes=True))
+    assert counts(session)["node"] == nodes - 2  # 9001 (shared) and 9002 went; node 1 stays
+    assert applied.rows["node"] == 2
+
+
+def test_describe_many_ids():
+    assert describe(RoadwayDeletion(links=list(range(1, 8)), nodes=[1])) == (
+        "roadway_deletion link 1, 2, 3, 4, 5 (+2 more) and node 1"
+    )
+    added = RoadwayAddition(nodes=[{**NEW_NODE, "node_id": 9000 + i} for i in range(6)])
+    assert describe(added) == "roadway_addition node 9000, 9001, 9002, 9003, 9004 (+1 more)"
+
+
+def test_clean_nodes_without_links_does_not_mention_end_nodes():
+    assert describe(RoadwayDeletion(nodes=[1], clean_nodes=True)) == "roadway_deletion node 1"
+
+
+def test_already_exist_keeps_the_input_order(host):
+    links = [{**NEW_LINK, "link_id": 5}, {**NEW_LINK, "link_id": 9002}, {**NEW_LINK, "link_id": 1}]
+    with pytest.raises(CardError, match=r"^link 5, 1 already exist$"):
+        apply_change(host, NET, RoadwayAddition(links=links, nodes=[NEW_NODE]))
+
+
+@pytest.mark.parametrize("flag", ["walk_access", "bike_access", "drive_access", "bus_only", "rail_only"])
+def test_a_foreign_field_with_no_column_is_not_supported(session, host, flag):
+    with pytest.raises(CardNotSupported, match=f"^link record field '{flag}' has no column in this network$"):
+        apply_change(host, NET, RoadwayAddition(nodes=[NEW_NODE], links=[{**NEW_LINK, flag: 1}]))
+    assert session.network(NET).version == 0
