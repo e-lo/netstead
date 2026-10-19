@@ -8,6 +8,10 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Added
 
+- **Plugin Host API 1.5:** `ActionError` and `NotSupportedYet` are exported from
+  `netstead.workbench.plugins`, so a plugin handler can refuse with a message the
+  user sees (anything else it raises is still an internal error).
+
 - **Workbench: verify a selection** (P3a). A **Selection** dock panel in every
   workspace (the selection's status, anchors, diagnostics, export and saved
   selections moved out of Details).

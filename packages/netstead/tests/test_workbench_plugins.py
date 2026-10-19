@@ -1104,8 +1104,8 @@ def test_the_plugin_id_core_is_reserved(make_session):
 
 
 def test_a_plugin_built_for_api_1_0_installs_on_this_host(make_session):
-    """A minor bump only adds: a plugin that declares 1.0 still installs (and its Action registers) on 1.4."""
-    assert HOST_API == "1.4"
+    """A minor bump only adds: a plugin that declares 1.0 still installs (and its Action registers) on 1.5."""
+    assert HOST_API == "1.5"
     session = make_session(make_hello(requires_api="1.0"))
     assert _status(session, "hello").state == "loaded" and session.actions.has("hello.greet")
 
@@ -1243,3 +1243,23 @@ def test_the_plugin_guide_documents_assistant_exposure():
 
     text = (Path(__file__).resolve().parents[1] / "docs" / "cookbook" / "workbench-plugins.md").read_text()
     assert "assistant: ClassVar[bool] = False" in text and "assistant.plugins" in text
+
+
+# ---------------------------------------------------------------------------- Host API 1.5: user-facing refusals
+
+
+class Refuse(BaseAction):
+    type: Literal["hello.refuse"] = "hello.refuse"
+    why: str = "now"
+
+
+def test_a_plugin_refusal_is_a_user_facing_error_not_an_internal_one(make_session):
+    from netstead.workbench.plugins import ActionError, NotSupportedYet
+
+    def refuse(host, action: Refuse) -> None:
+        raise (NotSupportedYet if action.why == "later" else ActionError)("no lanes on a footway")
+
+    session = make_session(make_hello(actions=(ActionSpec(Refuse, refuse),)))
+    entry = session.dispatch_recorded(Refuse())
+    assert not entry.ok and entry.error == "no lanes on a footway" and entry.error_type == "ActionError"
+    assert session.dispatch_recorded(Refuse(why="later")).error_type == "NotSupportedYet"

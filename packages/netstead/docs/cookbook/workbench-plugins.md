@@ -121,7 +121,10 @@ class Greet(BaseAction):
 Each Action is paired with its handler in a `netstead.workbench.plugins.ActionSpec`. The handler
 signature is `handler(host, action) -> result`. It runs under the session lock. Its return value
 is what `session.dispatch` returns, and over HTTP it is the `result` field of the `POST /api/actions`
-response, next to `ok`, `error` and the recorded history `entry`. Set `mutates: ClassVar[bool] = True`
+response, next to `ok`, `error` and the recorded history `entry`. Raise
+`netstead.workbench.plugins.ActionError("…")` to refuse: the message is shown to the user and the
+Action is recorded as failed (`NotSupportedYet` for "not in this version"). Any other exception is
+recorded as an internal error, and its message is redacted. Set `mutates: ClassVar[bool] = True`
 on an Action that changes a network in place, so the assistant drafts it for the user to confirm
 instead of applying it. Plugin Actions can't be `runs_as_job`. For slow work, call `host.submit_job`
 from the handler.
@@ -288,8 +291,7 @@ Plan a change with core's rules, apply it, check it, and undo it yourself if you
 
 <!-- doctest: skip -->
 ```python
-from netstead.workbench import ActionError
-from netstead.workbench.plugins import EditRefused
+from netstead.workbench.plugins import ActionError, EditRefused
 
 
 def retag(host: Host, action: Retag) -> list[dict]:
@@ -419,7 +421,7 @@ export function activate(wb) {
 
 | Member | What it gives you |
 |---|---|
-| `wb.id`, `wb.hostApi` | This plugin's id, and the plugin API this netstead provides (`"1.3"`). |
+| `wb.id`, `wb.hostApi` | This plugin's id, and the plugin API this netstead provides (`"1.5"`). |
 | `wb.api.fetch(path, init)`, `wb.api.get(path)`, `wb.api.post(path, body)` | `fetch`, and JSON helpers, scoped to your router: `"/count"` is `/api/plugins/<id>/count`. A path must start with `/` and, once resolved (`%2e%2e` and `\` count as `..` and `/`), stay under that prefix; other hosts are refused. |
 | `wb.api.dispatch(action)` | Posts any Action (yours, another plugin's, core's) to `POST /api/actions` and resolves to its result. |
 | `wb.store.get()`, `wb.store.subscribe(keys, fn)` | The server state (`/api/state`), and a listener that fires when any of `keys` changes. Keys may be dotted (`"plugins.hello"`). `get()` and the listener's argument are a frozen copy: changing it throws (changes go through Actions). Returns an unsubscribe function. |
@@ -622,6 +624,8 @@ A minor bump only adds to the API and a major bump breaks it.
 | `1.1` | The browser API: `activate(wb)` and the `wb` object (workspaces, dock panels, commands, map layers, `schemaForm`), and `GET /api/actions`. A plugin with a front end should pass `requires_api="1.1"` (or `HOST_API`); a `1.0` plugin still runs. |
 | `1.2` | Editing: `host.undo`, `host.edit_warnings` and `host.plan_update` / `plan_delete` / `plan_add` (with `EditPlan` and `EditRefused` exported from `netstead.workbench.plugins`), and `host.mutate(..., expected_version=plan.version)`, which refuses a stale plan. Every `host.mutate` becomes a pending edit with the plugin's id as its source, re-checked live (`host.edit_warnings`), and listed in core's Edits panel. `host.selection` adds `anchors_unplaced`. |
 | `1.3` | Saved selections: `host.saved_selections()` and `host.saved_selection(name)`. `host.selection`'s anchors carry `anchor`, `confidence`, `pinned` and `candidates`, and the payload carries `stale_pins`. New core Actions a plugin may dispatch: `PinAnchor`, `SaveSelection`, `UseSelection`, `DeleteSelection`, `Filter`, `Style(width_by=…)` and `Navigate(record=…)`. |
+| `1.4` | `BaseAction.assistant = False` keeps an Action out of the natural-language assistant's tools. |
+| `1.5` | `ActionError` and `NotSupportedYet` are exported from `netstead.workbench.plugins`: a handler raises them to refuse with a message the user sees. |
 
 **The plugin API is provisional until netstead v1.0.** Until then it may change without a major
 bump. Pin the netstead versions you support in your package's dependencies, and check the changelog
