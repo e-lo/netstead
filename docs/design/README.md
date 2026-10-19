@@ -81,7 +81,7 @@ architecture.md and this index in the same PR.
 | [Data-table exploration view](data-table-exploration-scope.md) | 09-30 | Phases 0–1 implemented | #194 | Phase 2+ (cross-linking, export) not scheduled |
 | [Overture → GMNS pipeline](overture-to-gmns-pipeline-scope.md) | 09-30 | implemented | #196 | "Phase 2" attribute refinements listed in the scope |
 | [Benchmarking suite](benchmarking-suite-scope.md) | 09-30 | implemented (DuckDB-only) | #197 | nightly perf regression job: [#100](https://github.com/e-lo/netstead/issues/100) |
-| [Cards plugin (external ProjectCard editing)](2026-10-07-cards-plugin-scope.md) | 10-07 | proposed | — | `ignore_missing` defaults and importing the offline report's edit log are pending with the user |
+| [Cards plugin (ProjectCard editing)](2026-10-07-cards-plugin-scope.md) | 10-07 | implemented: PR A (#228), PR B (#229); UI panels pending | #228, #229 | `ignore_missing` defaults and importing the offline report's edit log are pending with the user |
 | [Documentation assessment and refresh](2026-10-19-docs-assessment-scope.md) | 10-19 | implemented (refresh); recommendations open | — | screenshots, a Workbench quickstart, CLI and HTTP API reference pages, harness coverage of accordion blocks |
 
 ## In flight (not on `main` yet)

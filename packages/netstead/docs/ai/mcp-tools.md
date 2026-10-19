@@ -225,9 +225,6 @@ Count weakly-connected components in the network graph. Requires the `[graph]` e
 
 Build a network-aware scope from a list of seed node ids and return the resulting node + link sets.
 
-!!! warning "Known issue"
-    Today this tool fails at the MCP boundary with `Unable to serialize unknown type: <class 'numpy.int64'>`: the scope's node ids come back from the graph index as numpy integers, which the MCP SDK's JSON encoder refuses. The Python API (`netstead.scope.from_nodes`) works; the shape below is what the tool is meant to return once the ids are cast.
-
 **Parameters**
 
 | Name | Type | Default | Description |

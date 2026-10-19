@@ -134,7 +134,7 @@ Expected:
 }
 ```
 
-The seed ids come back as integers and the path-interior node ids as strings — a known serialisation bug (`numpy.int64` values are stringified on the way to JSON). Cast with `int()` when you consume `node_ids`.
+Every id in `node_ids` and `link_ids` is a plain integer.
 
 ## Common variations
 

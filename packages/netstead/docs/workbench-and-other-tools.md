@@ -98,7 +98,8 @@ it as a feature service or run Network Analyst solvers on it.
 [Network Wrangler](https://github.com/network-wrangler/network_wrangler) manages scenarios as a base network
 plus an ordered set of [ProjectCards](https://github.com/network-wrangler/projectcard). Netstead reads and
 writes the card format rather than depending on Wrangler's pandas stack: Workbench selections export as card
-facility objects, the fix workflow downloads a card, and a planned `cards` plugin will author cards from edits.
+facility objects, the fix workflow downloads a card, and the project-cards plugin (`plugins/project-cards` in the
+repository) authors cards from Workbench edits.
 See [Triage and fix findings](cookbook/fix-findings.md) for the field mapping.
 
 ### Model engines

@@ -64,14 +64,15 @@ page describes them.
    and modified features and validation-issue deltas.
 3. **Workbench P6: Transit.** A GTFS component beside the roadway network: routes and stops
    layers, transit selections, roadway-to-transit consistency checks.
-4. **Cards plugin.** An external plugin that authors
-   [ProjectCards](https://github.com/network-wrangler/projectcard) from Workbench edits and
-   assembles scenarios. Today the shipped ProjectCard path is selection export and the
-   fix-findings download.
+4. **Project cards plugin.** Lives in the repository at `plugins/project-cards` and authors
+   [ProjectCards](https://github.com/network-wrangler/projectcard) from Workbench edits. The change
+   model, draft cards written as YAML or JSON in Wrangler names, import of card files and of the
+   offline edit log, and the `project_cards.*` Actions (add a change, undo, commit, import, preview)
+   are on `main`; its Edit workspace panels are next.
 
 ## Designed, not scheduled
 
-- Applying cards and scenario management inside netstead (depends on the cards plugin).
+- Applying cards and scenario management inside netstead (builds on the project-cards plugin).
 - Cross-linking and export in the data-table view (phase 2 of that scope).
 - A nightly performance-regression job for the benchmark suite.
 - A GeoLibre plugin that mirrors the Workbench selection; see

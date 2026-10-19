@@ -50,7 +50,8 @@ natural-language selection, which are the largest things shipped since beta.1.
   the design index and the Workbench records mark P3b as merged (#227); the netstead changelog gained the
   missing entries for #222, #223, #224 and #225.
 
-Code bugs found by the audit are not fixed here; they are flagged as separate tasks: numpy ids leaking from
+Code bugs found by the audit are not fixed here; they are flagged as separate tasks (the stale-reference and
+numpy-id fixes have since merged as #230 and #233): numpy ids leaking from
 scope into MCP/CLI JSON; `doctor` probing igraph; `clean simplify-geometry` not assembling geometry; stale
 `NETSTEAD_AUTO_APPROVE` docstrings; explicit `credentials=` possibly not reaching remote table reads.
 
