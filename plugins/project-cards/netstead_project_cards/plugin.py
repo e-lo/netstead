@@ -13,7 +13,7 @@ from __future__ import annotations
 from netstead.workbench.plugins import WorkbenchPlugin
 
 from ._version import __version__
-from .flow import is_open
+from .flow import open_handle
 from .handlers import Handlers
 from .mapping import load_mapping
 from .state import CardsState
@@ -34,5 +34,5 @@ def plugin() -> WorkbenchPlugin:
         version=__version__,
         requires_api=REQUIRES_API,
         actions=handlers.specs(),
-        state=lambda host: state.snapshot(lambda net_id: is_open(host, net_id)),
+        state=lambda host: state.snapshot(lambda net_id: open_handle(host, net_id)),
     )

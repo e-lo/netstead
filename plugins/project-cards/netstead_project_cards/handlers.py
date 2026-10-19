@@ -1,7 +1,9 @@
 """The project cards plugin's Action handlers, sharing one session's drafts (``state.CardsState``).
 
 Each handler does every fallible step (Host calls included) before it touches the draft state: when a handler
-fails, the Workbench rolls back its network changes, and the drafts must still describe the network.
+fails, the Workbench rolls back its network changes, and the drafts must still describe the network. A handler
+nested in an Action that fails later is rolled back after it returned; ``target_network`` reconciles the draft with
+the network at the start of every handler, so such a change never reaches an undo or a commit.
 """
 
 from __future__ import annotations
@@ -14,7 +16,7 @@ from .actions import AddChange, ClosePreview, CommitCard, ImportCard, PreviewCha
 from .card import Dependencies, read_card_file
 from .errors import CardError
 from .flow import as_action_errors, check_card_shape, complete_change, is_open, refuse_transit, target_network
-from .lower import Applied, apply_change, describe
+from .lower import Applied, apply_change, describe, mark_after
 from .mapping import FieldMap
 from .state import CardsState
 from .validate import card_problems
@@ -49,7 +51,7 @@ class Handlers:
             check_card_shape(change, self.mapping)
             applied = apply_change(host, net, change)
         applied.warnings[:0] = warnings
-        count = self.state.add(net, applied)
+        count = self.state.extend(net, host.network(net), [applied])
         host.publish("changed", {"net_id": net, "count": count})
         return {"net_id": net, "count": count, "change": change.model_dump(mode="json"), **applied.summary()}
 
@@ -57,18 +59,27 @@ class Handlers:
         """Undo the draft's last change: as many ``host.undo`` calls as it made mutations (LIFO), then drop it.
 
         ``host.undo`` refuses (``ActionError``) when the network's newest edit is not this plugin's; a refusal part
-        way through a two-step change rolls the earlier step back with the Action.
+        way through a two-step change rolls the earlier step back with the Action. Each undone edit must be the
+        mutation the draft recorded (its ledger note and version), so a plugin edit the draft does not hold is
+        refused rather than undone in its place.
         """
         with as_action_errors():
             net = target_network(host, self.state, action.net_id)
-        draft = self.state.drafts.get(net)
-        if draft is None or not draft.steps:
+        entry = self.state.last(net)
+        if entry is None:
             raise ActionError("nothing to undo: the draft card has no changes (committed cards are not undone)")
-        for _ in range(draft.steps[-1]):
-            host.undo(net)
-        change = self.state.pop(net)
-        host.publish("changed", {"net_id": net, "count": len(draft.steps)})
-        return {"net_id": net, "undone": describe(change), "count": len(draft.steps)}
+        undo_marks = []
+        for mark in reversed(entry.marks):
+            undone = host.undo(net)
+            if (undone["note"], undone["version"]) != (mark.note, mark.version):
+                raise ActionError(
+                    f"the newest project cards edit on {net} ({undone['note']}) is not the draft's last change "
+                    f"({mark.note}); nothing was undone"
+                )
+            undo_marks.append(mark_after(host, net, f"undo: {mark.note}"))
+        count = self.state.pop(net, entry, undo_marks)
+        host.publish("changed", {"net_id": net, "count": count})
+        return {"net_id": net, "undone": describe(entry.change), "count": count}
 
     def commit(self, host: Host, action: CommitCard) -> dict[str, Any]:
         """Check, write and record the draft as a card; dispatch ``catalog.add_card`` when a catalog is installed.
@@ -78,8 +89,8 @@ class Handlers:
         """
         with as_action_errors():
             net = target_network(host, self.state, action.net_id)
-            draft = self.state.drafts.get(net)
-            if draft is None or not draft.steps:
+            draft = self.state.card(net)
+            if draft is None:
                 raise CardError("the draft card has no changes to commit")
             warnings = host.edit_warnings(net)
             if warnings and not action.confirm_warnings:
@@ -87,7 +98,7 @@ class Handlers:
                     f"{net} has {len(warnings)} live edit warning(s); review them in the Edits panel, "
                     "then commit with confirm_warnings=True"
                 )
-            card = draft.card.model_copy(
+            card = draft.model_copy(
                 update={
                     "project": action.project,
                     "tags": list(action.tags),
@@ -150,20 +161,9 @@ class Handlers:
             with as_action_errors(f"change {k} of {total}: "):
                 check_card_shape(change, self.mapping)
                 applied.append(apply_change(host, net, change))
-        draft = self.state.draft(net)
-        if not draft.steps and not draft.card.project:
-            self.state.name(
-                net,
-                project=incoming.project,
-                tags=incoming.tags,
-                dependencies=incoming.dependencies,
-                notes=incoming.notes,
-            )
-        count = len(draft.steps)
-        for one in applied:
-            count = self.state.add(net, one)
+        count = self.state.extend(net, host.network(net), applied, name_from=incoming)
         host.publish("changed", {"net_id": net, "count": count})
-        return {"net_id": net, "imported": total, "project": self.state.draft(net).card.project, "count": count}
+        return {"net_id": net, "imported": total, "project": self.state.project(net), "count": count}
 
     def preview(self, host: Host, action: PreviewChange) -> dict[str, Any]:
         """Derive a copy of the base, apply the change to it, and make it active; then close any older preview.

@@ -23,6 +23,7 @@ __all__ = [
     "check_card_shape",
     "complete_change",
     "is_open",
+    "open_handle",
     "refuse_transit",
     "selection_facility",
     "target_network",
@@ -52,25 +53,35 @@ def as_action_errors(prefix: str = "") -> Iterator[None]:
         raise ActionError(prefix + "; ".join(e["msg"] for e in errors)) from exc
 
 
+def open_handle(host: Host, net_id: str) -> Any | None:
+    """The handle of the open network with this id (``None`` when there is none)."""
+    try:
+        return host.network(net_id)
+    except ActionError:
+        return None
+
+
 def is_open(host: Host, net_id: str) -> bool:
     """Whether a network with this id is open in the session."""
-    try:
-        host.network(net_id)
-    except ActionError:
-        return False
-    return True
+    return open_handle(host, net_id) is not None
 
 
 def target_network(host: Host, state: CardsState, net_id: str | None) -> str:
-    """The network a change goes to: ``net_id``, else the active one; an open preview stands for its base."""
+    """The network a change goes to: ``net_id``, else the active one; an open preview stands for its base.
+
+    Its draft is reconciled with the network first (:meth:`CardsState.sync`), so every handler starts from a draft
+    that describes the network.
+    """
     net = net_id or host.active
     if net is None:
         raise CardError("no network is open")
     preview = state.preview
     if preview is not None and net == preview["net_id"]:
         net = preview["base"]
-    if not is_open(host, net):
+    handle = open_handle(host, net)
+    if handle is None:
         raise CardError(f"there is no open network {net!r}")
+    state.sync(net, handle)
     return net
 
 

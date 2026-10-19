@@ -37,25 +37,55 @@ from .types import (
     incomplete,
 )
 
-__all__ = ["KEYS", "Applied", "apply_change", "describe", "few", "rows_by_key"]
+__all__ = ["KEYS", "Applied", "Mark", "apply_change", "describe", "few", "mark_after", "rows_by_key"]
 
 #: The key column of each table a roadway change edits (GMNS names), from the mapping file's selectors.
 KEYS = {table: load_mapping().selector(table)[0] for table in ("link", "node")}
 
 
+@dataclass(frozen=True)
+class Mark:
+    """What one ``host.mutate`` (or ``host.undo``) left on a network: its lineage line, version and ledger note.
+
+    ``index`` is the line's position in the network's lineage. Core only appends to a lineage, except that a failed
+    Action's rollback cuts off the lines it added (and sets the version back), so a mark whose line is gone, or whose
+    version is newer than the network's, describes a change the network no longer has.
+    """
+
+    index: int
+    line: str
+    version: int
+    note: str
+
+    def holds(self, lineage: Sequence[str], version: int) -> bool:
+        """Whether the network (its ``lineage`` and ``version`` now) still has this change."""
+        return self.index < len(lineage) and lineage[self.index] == self.line and version >= self.version
+
+
+def mark_after(host: Host, net_id: str, note: str) -> Mark:
+    """The mark the ``host.mutate`` or ``host.undo`` with ledger note ``note`` just left on ``net_id``."""
+    h = host.network(net_id)
+    return Mark(len(h.lineage) - 1, h.lineage[-1], h.version, note)
+
+
 @dataclass
 class Applied:
-    """A change as applied: how many ``host.mutate`` calls it took, and what happened.
+    """A change as applied: the ``host.mutate`` calls it took (their marks), and what happened.
 
     Each ``host.mutate`` is one pending edit. A deletion of links and nodes takes two (``steps == 2``), so undoing the
     change outside an Action takes ``steps`` calls to ``host.undo``.
     """
 
     change: NetworkChange
-    steps: int = 0
+    marks: list[Mark] = field(default_factory=list)
     rows: dict[str, int] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
+
+    @property
+    def steps(self) -> int:
+        """How many ``host.mutate`` calls (pending edits) the change took."""
+        return len(self.marks)
 
     def summary(self) -> dict[str, Any]:
         """JSON-safe: the type, its description, steps, rows per table, warnings and what was skipped."""
@@ -163,7 +193,7 @@ def _plan(fn: Callable[..., EditPlan], *args: Any) -> EditPlan:
         raise CardError(str(exc)) from exc
 
 
-def _mutate(host: Host, net_id: str, version: int, plans: list[EditPlan], note: str) -> None:
+def _mutate(host: Host, net_id: str, version: int, plans: list[EditPlan], note: str) -> Mark:
     """Apply the plans' edits in one ``host.mutate`` at ``version``, the one read before the frames that decided them.
 
     A plan stamped with another version was made against a network that changed after those reads: ``CardError``
@@ -173,6 +203,7 @@ def _mutate(host: Host, net_id: str, version: int, plans: list[EditPlan], note: 
         raise CardError(f"{net_id} changed while the change was being planned; apply it again")
     edits = [e for p in plans for e in p.edits]
     host.mutate(net_id, edits, note=note, expected_version=version)
+    return mark_after(host, net_id, note)
 
 
 def _same(current: Any, existing: Any) -> bool:
@@ -246,8 +277,8 @@ def _property_change(host: Host, net_id: str, change: RoadwayPropertyChange, not
         for value, group in _groups(pc, ids, current, sel.table, prop).items():
             plans.append(_plan(host.plan_update, net_id, sel.table, group, {prop: value}))
     if plans:
-        _mutate(host, net_id, version, plans, note)
-        out.steps, out.rows = 1, {sel.table: len(ids)}
+        out.marks.append(_mutate(host, net_id, version, plans, note))
+        out.rows = {sel.table: len(ids)}
     return out
 
 
@@ -291,14 +322,12 @@ def _deletion(host: Host, net_id: str, change: RoadwayDeletion, note: str) -> Ap
         nodes += [e for e in ends if str(e) not in used and str(e) not in taken]
     if change.links:
         plan = _plan(host.plan_delete, net_id, "link", change.links)
-        _mutate(host, net_id, version, [plan], f"{note} (links)" if two_steps else note)
-        out.steps += 1
+        out.marks.append(_mutate(host, net_id, version, [plan], f"{note} (links)" if two_steps else note))
         _add_rows(out.rows, plan.rows)
     if nodes:
         version = host.network(net_id).version  # the network after step 1, which core plans the nodes against
         plan = _plan(host.plan_delete, net_id, "node", nodes)
-        _mutate(host, net_id, version, [plan], f"{note} (nodes)" if two_steps else note)
-        out.steps += 1
+        out.marks.append(_mutate(host, net_id, version, [plan], f"{note} (nodes)" if two_steps else note))
         _add_rows(out.rows, plan.rows)
     return out
 
@@ -343,8 +372,7 @@ def _addition(host: Host, net_id: str, change: RoadwayAddition, note: str) -> Ap
         plans.append(_plan(host.plan_add, net_id, "node", change.nodes))
     if change.links:
         plans.append(_plan(host.plan_add, net_id, "link", change.links))
-    _mutate(host, net_id, version, plans, note)
-    out = Applied(change, steps=1)
+    out = Applied(change, marks=[_mutate(host, net_id, version, plans, note)])
     for plan in plans:
         _add_rows(out.rows, plan.rows)
     return out
