@@ -182,6 +182,22 @@ def test_from_nodes_path_between_includes_path_nodes():
     assert len(scope.node_ids) > 2
 
 
+def test_from_nodes_path_between_ids_are_plain_python_ints():
+    """Path-expanded ids must be plain ``int`` so scopes serialise as JSON.
+
+    Regression: ``GMNSGraph.shortest_path`` yields ``numpy.int64`` node ids;
+    the scope must normalise them at collection time (``json.dumps`` and
+    FastMCP both reject numpy scalars).
+    """
+    from netstead.scope import from_nodes
+
+    net = _grid_network()
+    scope = from_nodes(net, [1, 9], path_between=True)
+    assert len(scope.node_ids) > 2  # path nodes were actually added
+    assert all(type(n) is int for n in scope.node_ids)
+    assert all(type(lid) is int for lid in scope.link_ids)
+
+
 def test_from_nodes_drops_unknown_ids():
     """Loose lists with unknown ids don't raise; the unknown ones just don't show up."""
     from netstead.scope import from_nodes

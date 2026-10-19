@@ -221,6 +221,19 @@ class NetworkScope:
     network: Network = field(repr=False, hash=False, compare=False)
     provenance: str = ""
 
+    def __post_init__(self) -> None:
+        """Normalise id sets to plain Python ``int``.
+
+        Constructors collect ids from numpy / scipy results (e.g.
+        ``GMNSGraph.shortest_path`` yields ``numpy.int64``), and numpy
+        scalars are rejected by ``json.dumps`` and by FastMCP's result
+        serialiser. Enforcing the invariant here means every constructor
+        and composition op (which go through ``dataclasses.replace``)
+        produces JSON-safe ids without each call site remembering to.
+        """
+        object.__setattr__(self, "node_ids", _as_int_frozenset(self.node_ids))
+        object.__setattr__(self, "link_ids", _as_int_frozenset(self.link_ids))
+
     def __len__(self) -> int:
         """Total ids in the scope (links + nodes) — useful for sanity-checking sizes."""
         return len(self.node_ids) + len(self.link_ids)
@@ -360,6 +373,11 @@ class NetworkScope:
         )
 
 
+def _as_int_frozenset(ids: Iterable[int]) -> frozenset[int]:
+    """Return ``ids`` as a frozenset of plain ``int`` (drops numpy scalar types)."""
+    return frozenset(int(i) for i in ids)
+
+
 def _require_same_network(left: NetworkScope, right: NetworkScope, op: str) -> None:
     """Composition only makes sense within one network — raise if not."""
     if left.network is not right.network:
@@ -415,8 +433,10 @@ def from_nodes(
         for i, src in enumerate(seed_list):
             for dst in seed_list[i + 1 :]:
                 # GMNSGraph.shortest_path returns a ShortestPathResult; .nodes is
-                # the ordered node-id list (empty when unreachable).
-                nodes.update(graph.shortest_path(src, dst).nodes)
+                # the ordered node-id list (empty when unreachable). Its ids are
+                # numpy scalars (indexed off the graph's node array) — coerce so
+                # _induced_link_ids and the scope hold plain ints.
+                nodes.update(int(n) for n in graph.shortest_path(src, dst).nodes)
 
     link_ids = _induced_link_ids(net, nodes)
     return NetworkScope(
