@@ -272,9 +272,10 @@ exclude_lines = [
     "@overload",
 ]
 # Workspace-wide gate. Per-package gates are enforced separately in
-# the Tests workflow (corral ≥86%, netstead ≥84%, project-cards ≥85%) so a
+# the Tests workflow (corral ≥86%, netstead ≥84%, project-cards ≥96%) so a
 # regression in one package can't be masked by overshoot in another. Baseline
-# measured 2026-05-26: combined 86%, corral 87%, netstead 85% —
-# gates set one point below current to flag regressions immediately
-# without flaking on stat-noise.
+# measured 2026-05-26: combined 86%, corral 87%, netstead 85%; project-cards
+# measured 2026-10-19: 97.7% —
+# gates set one point below current (rounded down) to flag regressions
+# immediately without flaking on stat-noise.
 fail_under = 85

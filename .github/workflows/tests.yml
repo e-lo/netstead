@@ -140,7 +140,7 @@ jobs:
         run: >-
           uv run pytest -m "" -n auto plugins/project-cards/tests
           --doctest-modules plugins/project-cards/netstead_project_cards
-          ${{ matrix.coverage && '--cov=netstead_project_cards --cov-fail-under=85 --cov-report=term --cov-report=xml:coverage-project-cards.xml' || '' }}
+          ${{ matrix.coverage && '--cov=netstead_project_cards --cov-fail-under=96 --cov-report=term --cov-report=xml:coverage-project-cards.xml' || '' }}
       - name: Upload coverage
         if: matrix.coverage
         uses: codecov/codecov-action@v5

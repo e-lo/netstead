@@ -82,6 +82,7 @@ def race_before(host: Any, monkeypatch: pytest.MonkeyPatch) -> Callable[[str], N
     return install
 
 
+# Unused in PR A: PR B's JS tests use it.
 @pytest.fixture
 def run_js(tmp_path: Path) -> Callable[[dict[str, Path], str], Any]:
     """``run_js({"a.js": path, ...}, harness)``: copy the files, run ``harness`` as an ES module, return its JSON.
