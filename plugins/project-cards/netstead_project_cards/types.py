@@ -130,9 +130,11 @@ class Selection(_Model):
             raise ValueError("give exactly one of ids or query")
         if self.ids is not None and not self.ids:
             raise ValueError("ids must not be empty")
+        if self.ids is not None and self.resolved is not None:
+            raise ValueError("resolved records what a query matched: give it with query, not ids")
         if self.query is not None:
-            if self.table != "link":
-                raise ValueError("a query selects links")
+            if self.table != "link" or not isinstance(self.query.get("links"), dict):
+                raise ValueError("a query selects links: its 'links' must be a mapping")
             if not self.resolved:
                 raise ValueError("a query must record the link ids it resolved to (resolved=[...])")
         return self

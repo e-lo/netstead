@@ -7,7 +7,8 @@ provenance travels in the card-level ``notes``, one ``netstead.<what>[<i>]: <val
 them back. It also reads the offline validation report's edit log (``netstead.map.edits.dump_edit_log``), whose
 facility puts ``model_link_id`` at the top level and whose changes carry their own ``notes``.
 
-Files are read with ``projectcard.read_card`` (YAML, JSON or TOML, its key normalisation and schema defaults) and
+Files are read with ``projectcard.read_card`` (YAML or JSON, its key normalisation and schema defaults; its TOML reader
+is broken in 0.3.3, so a ``.toml`` card is refused) and
 written with ``yaml.safe_dump``, not ``projectcard.write_card``, which comments out every line containing ``#`` (so a
 street named ``Hwy #2`` makes the card unreadable) and always writes ``dependencies: {}``.
 """
@@ -23,7 +24,8 @@ from typing import Any
 
 import yaml
 from projectcard import read_card
-from projectcard.errors import ProjectCardReadError
+from projectcard.errors import ProjectCardReadError, ProjectCardValidationError
+from projectcard.projectcard import CHANGE_TYPES as _PROJECTCARD_TYPES
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from .errors import CardError, CardNotSupported, not_supported
@@ -44,15 +46,18 @@ __all__ = ["Dependencies", "DraftCard", "read_card_file"]
 
 _PROVENANCE = re.compile(r"^netstead\.(resolved|note)\[(\d+)\]: (.*)$")
 _PROP_KEYS = ("existing", "set", "change", "existing_value_conflict")
+#: Every key a card may hold a change under: projectcard's types, plus managed lanes (refused clearly on read).
+_CARD_CHANGE_KEYS = (*_PROJECTCARD_TYPES, "roadway_managed_lanes")
+_UNSUPPORTED = frozenset({*TRANSIT_TYPES, "pycode", "roadway_managed_lanes"})
 
 
 class Dependencies(BaseModel):
     """A card's ProjectCard ``dependencies``: other projects, by name."""
 
     model_config = ConfigDict(extra="forbid")
-    prerequisites: list[str] = Field(default_factory=list)
-    corequisites: list[str] = Field(default_factory=list)
-    conflicts: list[str] = Field(default_factory=list)
+    prerequisites: list[str] = Field(default_factory=list, strict=True)
+    corequisites: list[str] = Field(default_factory=list, strict=True)
+    conflicts: list[str] = Field(default_factory=list, strict=True)
 
     def to_card(self) -> dict[str, list[str]]:
         """Only the non-empty lists (the schema has no required keys)."""
@@ -97,7 +102,8 @@ class DraftCard(BaseModel):
         """Read a ProjectCard dict (a ``changes`` list, or one top-level change) back into GMNS names.
 
         Raises:
-            CardError: not a ProjectCard (no ``project``), or a malformed change (named by its number).
+            CardError: not a ProjectCard (no ``project``), malformed ``tags``, ``dependencies`` or provenance notes,
+                or a malformed change (the message starts ``change <n>:``).
             CardNotSupported: transit, ``pycode``, managed lanes, or a query selection without netstead provenance.
         """
         m = mapping or load_mapping()
@@ -105,40 +111,55 @@ class DraftCard(BaseModel):
             raise CardError("not a ProjectCard: expected a top-level 'project'")
         raw = data.get("changes")
         if raw is None:
-            raw = [{k: data[k]} for k in (*CHANGE_TYPES, "roadway_managed_lanes", "pycode") if k in data]
-        notes, resolved, why = _split_notes(data.get("notes"))
+            raw = [{k: data[k]} for k in _CARD_CHANGE_KEYS if k in data]
+        raw = _list(raw, "changes")
+        notes, resolved, why = _split_notes(data.get("notes"), len(raw))
         changes = []
         for i, item in enumerate(raw):
             if not isinstance(item, Mapping) or len(item) != 1:
                 raise CardError(f"change {i + 1}: expected exactly one change type")
             ((kind, body),) = item.items()
             try:
-                changes.append(_change(kind, body or {}, m, resolved.get(i), why.get(i)))
+                changes.append(_change(kind, body, m, resolved.get(i), why.get(i)))
             except ValidationError as exc:
-                first = exc.errors(include_url=False, include_input=False)[0]["msg"]
-                raise CardError(f"change {i + 1}: {first}") from exc
-        deps = {k: list(v) for k, v in (data.get("dependencies") or {}).items()}
+                raise CardError(f"change {i + 1}: {_message(exc)}") from exc
+            except CardError as exc:
+                raise type(exc)(f"change {i + 1}: {exc}") from exc
+        tags = data.get("tags") or []
+        if not isinstance(tags, list) or not all(isinstance(t, str) for t in tags):
+            raise CardError(f"tags: expected a list of strings, got {tags!r}")
         return cls(
             project=str(data["project"]),
-            tags=[str(t) for t in data.get("tags") or []],
-            dependencies=Dependencies(**deps),
+            tags=tags,
+            dependencies=_dependencies(data.get("dependencies")),
             notes=notes,
             changes=changes,
         )
 
 
 def read_card_file(path: str | Path, mapping: FieldMap | None = None) -> DraftCard:
-    """Read a ProjectCard file (YAML, JSON or TOML) or an offline-report edit log as a :class:`DraftCard`.
+    """Read a ProjectCard file (YAML or JSON) or an offline-report edit log as a :class:`DraftCard`.
 
     ``projectcard.read_card(validate=False)`` reads it (an edit log is not schema-valid) and fills schema defaults: a
     selector without ``ignore_missing`` reads as ``true``, Wrangler's default.
+
+    Raises:
+        FileNotFoundError: there is no file at ``path``.
+        CardNotSupported: a TOML card (projectcard 0.3.3 cannot read one), or a change this version cannot read.
+        CardError: a file projectcard cannot read (bad YAML or JSON, not a mapping, an unsupported extension), or a
+            card :meth:`DraftCard.from_card` refuses.
     """
+    path = Path(path)
+    if path.suffix.lower() == ".toml":
+        raise CardNotSupported("TOML cards can't be read with projectcard 0.3.3; use YAML or JSON")
     try:
-        card = read_card(Path(path), validate=False)
+        card = read_card(path, validate=False)
     except KeyError as exc:  # projectcard looks the project name up first
         raise CardError(f"not a ProjectCard: expected a top-level {exc.args[0]!r}") from None
     except ProjectCardReadError as exc:  # an unsupported file type
         raise CardError(str(exc)) from exc
+    except (yaml.YAMLError, ValueError, TypeError, AttributeError, ProjectCardValidationError) as exc:
+        raise CardError(f"{path}: not a readable ProjectCard: {exc}") from exc
     return DraftCard.from_card({k: v for k, v in card.to_dict.items() if k != "file"}, mapping)
 
 
@@ -219,17 +240,62 @@ def _body(i: int, c: Any, m: FieldMap) -> dict[str, Any]:
 # ---------------------------------------------------------------- reading
 
 
-def _split_notes(notes: Any) -> tuple[str | None, dict[int, list[Any]], dict[int, str]]:
-    """``(the user's notes, {i: resolved ids}, {i: note})`` from a card's ``notes`` text."""
+def _message(exc: ValidationError) -> str:
+    """The first error's message, without pydantic's ``Value error, `` prefix."""
+    return exc.errors(include_url=False, include_input=False)[0]["msg"].removeprefix("Value error, ")
+
+
+def _mapping(value: Any, where: str) -> Mapping[str, Any]:
+    if not isinstance(value, Mapping):
+        raise CardError(f"{where}: expected a mapping, got {value!r}")
+    return value
+
+
+def _list(value: Any, where: str) -> list[Any]:
+    if not isinstance(value, list):
+        raise CardError(f"{where}: expected a list, got {value!r}")
+    return value
+
+
+def _dependencies(value: Any) -> Dependencies:
+    try:
+        return Dependencies.model_validate(value or {})
+    except ValidationError as exc:
+        error = exc.errors(include_url=False, include_input=False)[0]
+        where = ".".join(str(p) for p in error["loc"])
+        raise CardError(f"dependencies: {where + ': ' if where else ''}{_message(exc)}") from exc
+    except (TypeError, AttributeError) as exc:
+        raise CardError(f"dependencies: {exc}") from exc
+
+
+def _resolved_ids(line: str, value: str) -> list[Any]:
+    """The ids of a ``netstead.resolved[i]: <key>=<json list>`` line (``CardError`` naming the line otherwise)."""
+    _, eq, ids = value.partition("=")
+    if not eq:
+        raise CardError(f"notes: {line!r}: expected <selector>=[ids]")
+    try:
+        parsed = json.loads(ids)
+    except ValueError as exc:
+        raise CardError(f"notes: {line!r}: the ids are not JSON ({exc})") from exc
+    if not isinstance(parsed, list) or not all(isinstance(i, int | str) and not isinstance(i, bool) for i in parsed):
+        raise CardError(f"notes: {line!r}: expected a list of ids")
+    return parsed
+
+
+def _split_notes(notes: Any, count: int) -> tuple[str | None, dict[int, list[Any]], dict[int, str]]:
+    """``(the user's notes, {i: resolved ids}, {i: note})`` from a card's ``notes`` text.
+
+    A provenance line for a change the card does not have (``i >= count``) stays in the user's notes.
+    """
     if not isinstance(notes, str):
         return None, {}, {}
     kept, resolved, why = [], {}, {}
     for line in notes.splitlines():
         match = _PROVENANCE.match(line.strip())
-        if match is None:
+        if match is None or int(match[2]) >= count:
             kept.append(line)
         elif match[1] == "resolved":
-            resolved[int(match[2])] = json.loads(match[3].split("=", 1)[1])
+            resolved[int(match[2])] = _resolved_ids(line.strip(), match[3])
         else:
             why[int(match[2])] = match[3]
     text = "\n".join(kept).strip()
@@ -240,12 +306,13 @@ def _as_list(value: Any) -> list[Any]:
     return list(value) if isinstance(value, list | tuple) else [value]
 
 
-def _selector_ids(selector: Any, table: str, m: FieldMap) -> list[Any]:
+def _selector_ids(selector: Any, table: str, m: FieldMap, where: str) -> list[Any]:
     if not selector:
         return []
+    selector = _mapping(selector, where)
     _, key = m.selector(table)
     if key not in selector:
-        raise CardNotSupported(f"only {key} selections can be read for a deletion in this version")
+        raise CardNotSupported(f"only {key} selections of {table}s can be read in this version")
     return _as_list(selector[key])
 
 
@@ -255,13 +322,16 @@ def _selection(facility: Mapping[str, Any], m: FieldMap, resolved: list[Any] | N
         if key in facility:
             return Selection(table=table, ids=_as_list(facility[key]))
     if facility.get("nodes") is not None:
-        nodes = facility["nodes"]
+        nodes = _mapping(facility["nodes"], "facility nodes")
         return Selection(
-            table="node", ids=_selector_ids(nodes, "node", m), ignore_missing=bool(nodes.get("ignore_missing"))
+            table="node",
+            ids=_selector_ids(nodes, "node", m, "facility nodes"),
+            ignore_missing=bool(nodes.get("ignore_missing")),
         )
     links = facility.get("links")
     if links is None:
         raise CardError("a property change needs a facility with links or nodes")
+    links = _mapping(links, "facility links")
     _, key = m.selector("link")
     by_id = key in links and set(links) <= {key, "ignore_missing"} and "from" not in facility and "to" not in facility
     if by_id:
@@ -278,28 +348,37 @@ def _from_record(record: Mapping[str, Any], table: str, m: FieldMap) -> dict[str
     return {m.from_card(table, k): m.gmns_value(k, v) for k, v in record.items() if k not in m.derived}
 
 
-def _change(kind: str, body: Mapping[str, Any], m: FieldMap, resolved: list[Any] | None, note: str | None) -> Any:
-    if kind not in CHANGE_TYPES or kind in TRANSIT_TYPES:
+def _records(body: Mapping[str, Any], kind: str, table: str, m: FieldMap) -> list[dict[str, Any]]:
+    records = _list(body.get(kind) or [], kind)
+    return [_from_record(_mapping(r, f"{kind}[{j}]"), table, m) for j, r in enumerate(records)]
+
+
+def _properties(body: Mapping[str, Any], sel: Selection, m: FieldMap) -> dict[str, PropertyChange]:
+    props = {}
+    for name, spec in _mapping(body.get("property_changes") or {}, "property_changes").items():
+        spec = _mapping(spec, f"property {name}")
+        values = {
+            k: (m.gmns_value(name, v) if k in ("existing", "set") else v) for k, v in spec.items() if k in _PROP_KEYS
+        }
+        props[m.from_card(sel.table, name)] = PropertyChange(**values)
+    return props
+
+
+def _change(kind: str, body: Any, m: FieldMap, resolved: list[Any] | None, note: str | None) -> Any:
+    if kind in _UNSUPPORTED:
         raise CardNotSupported(f"{kind} changes are not supported yet")
+    if kind not in CHANGE_TYPES:
+        raise CardError(f"unknown change type {kind!r}")
+    body = {} if body is None else _mapping(body, kind)
     if note is None and isinstance(body.get("notes"), str):  # the offline report's per-change notes
         note = body["notes"]
     if kind == "roadway_property_change":
-        sel = _selection(body.get("facility") or {}, m, resolved)
-        props = {
-            m.from_card(sel.table, name): PropertyChange(
-                **{
-                    k: (m.gmns_value(name, v) if k in ("existing", "set") else v)
-                    for k, v in spec.items()
-                    if k in _PROP_KEYS
-                }
-            )
-            for name, spec in (body.get("property_changes") or {}).items()
-        }
-        return RoadwayPropertyChange(facility=sel, property_changes=props, note=note)
+        sel = _selection(_mapping(body.get("facility") or {}, "facility"), m, resolved)
+        return RoadwayPropertyChange(facility=sel, property_changes=_properties(body, sel, m), note=note)
     if kind == "roadway_deletion":
         change = RoadwayDeletion(
-            links=_selector_ids(body.get("links"), "link", m),
-            nodes=_selector_ids(body.get("nodes"), "node", m),
+            links=_selector_ids(body.get("links"), "link", m, "links"),
+            nodes=_selector_ids(body.get("nodes"), "node", m, "nodes"),
             clean_nodes=bool(body.get("clean_nodes")),
             note=note,
         )
@@ -307,7 +386,5 @@ def _change(kind: str, body: Mapping[str, Any], m: FieldMap, resolved: list[Any]
             raise CardError(problem)
         return change
     return RoadwayAddition(
-        links=[_from_record(r, "link", m) for r in body.get("links") or []],
-        nodes=[_from_record(r, "node", m) for r in body.get("nodes") or []],
-        note=note,
+        links=_records(body, "links", "link", m), nodes=_records(body, "nodes", "node", m), note=note
     )

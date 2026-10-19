@@ -86,6 +86,9 @@ def test_a_delta_is_a_number():
         {"query": QUERY},  # a query must record what it resolved to
         {"query": QUERY, "resolved": []},
         {"table": "node", "query": QUERY, "resolved": [1]},
+        {"ids": [1], "resolved": [1]},  # resolved is a query's provenance
+        {"query": {"nodes": {"name": ["x"]}}, "resolved": [1]},  # a query selects links
+        {"query": {"links": ["Benton Street"]}, "resolved": [1]},
     ],
 )
 def test_a_selection_is_ids_or_a_resolved_query(kwargs):
