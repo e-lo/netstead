@@ -491,3 +491,52 @@ def test_layers_panel_has_width_by_and_a_filter_row():
     main = (JS_DIR / "main.js").read_text()
     assert "ev.record" in main and 'netPath(server.active, "filter")' in main
     assert "combinedFilter(" in (JS_DIR / "table.js").read_text()
+
+
+def test_the_assistant_panel_and_the_ask_button_exist():
+    html = (STATIC_DIR / "index.html").read_text()
+    pane = html.split('id="dock-assistant"', 1)[1].split("</section>", 1)[0]
+    for el in (
+        'id="as-log"',
+        'id="as-draft"',
+        'id="as-input"',
+        'id="as-send"',
+        'id="as-clear"',
+        'id="as-note"',
+        'id="as-usage"',
+    ):
+        assert el in pane
+    assert 'id="ask"' in html.split('id="nl-row"', 1)[1].split("</div>", 1)[0]
+    js = (JS_DIR / "assistant.js").read_text()
+    assert 'addPanel(CORE, { id: "assistant"' in js and "workspace: ALL_WORKSPACES" in js
+    assert 'id: "ask_assistant", title: "Ask the assistant…"' in js
+    header = (JS_DIR / "header.js").read_text()
+    assert "barRoute(e)" in header and '$("ask").onclick' in header  # Enter selects; Ctrl/⌘+Enter asks
+    main = (JS_DIR / "main.js").read_text()
+    assert "assistant: e => store.set({ assistant: e.assistant })" in main
+    assert main.index("registerSelectionPanel()") < main.index("registerAssistantPanel()")
+
+
+def test_model_text_is_never_written_as_markup():
+    js = (JS_DIR / "assistant.js").read_text()
+    assert "text.textContent = turn.error" in js  # the model's sentence and errors go in as text
+    assert "${turn.text" not in js and "${t.text" not in js  # never interpolated into markup
+    for raw in ("${r.summary}", "${r.result}", "${r.python}", "${r.label}", "${st.error}"):
+        assert raw not in js, raw
+
+
+def test_the_history_strip_marks_the_assistants_entries_but_scripts_do_not():
+    js = (JS_DIR / "history.js").read_text()
+    assert 'entry.via === "assistant"' in js
+    script = js[js.index("export function sessionScript") : js.index("export function wireHistory")]
+    assert "via ===" not in script  # "Session as Python" ignores how an Action arrived
+
+
+def test_the_assistant_settings_section_is_registered():
+    js = (JS_DIR / "assistant.js").read_text()
+    assert 'registerSection("assistant-tools"' in js and '"assistant.plugins"' in js and '"assistant.actions"' in js
+    # Not "assistant": that id is the generated form's own section (assistant.* settings), which must stay reachable.
+    assert 'registerSection("assistant",' not in js
+    assert "status.warnings" in js  # unknown names in the allowlists are listed
+    assert 'id="assistant-panel"' in (STATIC_DIR / "index.html").read_text()
+    assert "registerAssistantSettings()" in (JS_DIR / "main.js").read_text()

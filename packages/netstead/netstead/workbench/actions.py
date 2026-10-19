@@ -73,7 +73,8 @@ class BaseAction(BaseModel):
     and its fields. ``mutates`` marks actions the assistant must draft before applying;
     ``runs_as_job`` (core only) runs the slow work on a background job thread; ``replay_overrides``
     are fields forced in the ``to_python`` replay snippet, and ``replay_omits`` are fields it leaves out
-    (a guard that only means something in the live session, such as a planned version).
+    (a guard that only means something in the live session, such as a planned version). ``assistant = False``
+    keeps an Action out of the natural-language assistant's tools, even when its plugin is opted in (Host API 1.4).
 
     Field values must round-trip through ``repr`` (str, numbers, bools, None, lists/dicts/tuples of
     those, nested pydantic models): "copy session as Python" writes each field as ``name=<repr(value)>``,
@@ -85,6 +86,7 @@ class BaseAction(BaseModel):
     runs_as_job: ClassVar[bool] = False
     replay_overrides: ClassVar[dict[str, Any]] = {}
     replay_omits: ClassVar[frozenset[str]] = frozenset()
+    assistant: ClassVar[bool] = True  # False keeps this Action out of the NL assistant's tools, even when opted in
     if TYPE_CHECKING:  # every concrete Action declares its own ``type`` field; not a field of the base
         type: str
 
@@ -130,6 +132,7 @@ class CloseNetwork(BaseAction):
     """Close an open network."""
 
     type: Literal["close_network"] = "close_network"
+    mutates: ClassVar[bool] = True  # it throws away unsaved edits
     net_id: str
 
 
@@ -141,16 +144,23 @@ class SetActiveNetwork(BaseAction):
 
 
 class Select(BaseAction):
-    """Select features by natural-language utterance or explicit ids (``net_id`` defaults to active)."""
+    """Select features by natural-language utterance or explicit ids (``net_id`` defaults to active).
+
+    ``query`` is the parsed intent (the selection tool's arguments) for ``utterance``: with it no parser runs, so a
+    replay is exact. The assistant records its selections this way.
+    """
 
     type: Literal["select"] = "select"
     net_id: str | None = None
     component: Component = "roadway"
     utterance: str | None = None
     link_ids: list[int | str] | None = None
+    query: dict[str, Any] | None = None
 
     @model_validator(mode="after")
     def _one_target(self) -> Select:
+        if self.query is not None and self.utterance is None:
+            raise ValueError("query needs the utterance it was parsed from")
         if (self.utterance is None) == (self.link_ids is None):
             raise ValueError("give exactly one of utterance or link_ids")
         return self
@@ -352,17 +362,21 @@ class EditCells(BaseAction):
 
     Each value is coerced to its column's storage type; one that does not fit is refused, as are key columns
     and unknown columns. What the spec says about the new values (required, type, enum, foreign keys,
-    duplicate keys) comes back as ``warnings``: they warn, they never block.
+    duplicate keys) comes back as ``warnings``: they warn, they never block. With ``expected_version`` the edit is
+    refused if the network changed since that version (an approved assistant draft pins it); the copied script
+    leaves it out.
     """
 
     type: Literal["edit_cells"] = "edit_cells"
     mutates: ClassVar[bool] = True
+    replay_omits: ClassVar[frozenset[str]] = frozenset({"expected_version"})
     net_id: str | None = None
     component: Component = "roadway"
     table: str = "link"
     ids: list[int | str] = Field(min_length=1, max_length=MAX_EDIT_IDS)
     values: dict[str, CellValue] = Field(min_length=1)
     note: str | None = Field(default=None, max_length=500)
+    expected_version: int | None = Field(default=None, ge=0)
 
 
 class DeleteRows(BaseAction):

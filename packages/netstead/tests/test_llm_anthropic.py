@@ -136,3 +136,11 @@ def test_context_is_a_cached_system_block_and_temperature_is_sent(fake_api):
         {"type": "text", "text": "sys"},
     ]
     assert body["temperature"] == 0.0
+
+
+def test_unforced_tools_send_no_tool_choice(fake_api):
+    fake_api.add("POST", "/v1/messages", body=REPLY)
+    done = _provider(fake_api).complete(replace(REQUEST, force_tool=None))
+    body = fake_api.body()
+    assert "tool_choice" not in body and [t["name"] for t in body["tools"]] == ["emit"]
+    assert done.tool_calls[0].name == "emit" and done.text == "Sure."

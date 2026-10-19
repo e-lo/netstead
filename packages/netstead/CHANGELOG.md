@@ -29,6 +29,57 @@ This file is for the **netstead** package only. The underlying generic engine `c
   and drives the table's new **Filtered** scope (**Layers → Filter links**);
   `Navigate(record={table, id})` flies to one link or node.
 - **Plugin Host API 1.3:** `host.saved_selections()`, `host.saved_selection(name)`.
+- **Workbench: the natural-language assistant** (P3b). An **Assistant** dock
+  panel in every workspace, plus **Ask** (Ctrl+Enter / ⌘Enter) in the header box
+  and **Ask the assistant…** in the palette; Enter still selects. One
+  conversation per session, never written to disk.
+  - **Tools:** the allowed Actions (`assistant.actions`; plugins opt in with
+    `assistant.plugins`) as JSON-schema tools, one model call per question.
+    Read-only steps run at once; the first step that changes a network and every
+    step after it form one **draft** (Approve / Reject / Edit…), re-checked
+    against each network's version when approved, with each edit pinned to the
+    version the step before left. A read-only Action the assistant runs can't
+    change a network through `host.dispatch`, `host.mutate` or `host.undo`, nor
+    open one with `host.derive`.
+  - **Small local models:** a read-only call's invented or (on `style`)
+    malformed keys are left out instead of failing the answer, and listed under
+    it; a key another offered read-only tool owns (`color_by` on `select`)
+    becomes a call of its own to that tool, listed as split (two owners, or a
+    mutating owner, go back for repair); mutating calls are never changed. The grounding carries the GMNS meaning
+    of each link column (`free_speed` = the speed limit). With
+    `assistant.compact_tools` (`auto`: on for a local endpoint) a model is
+    offered only the read-only tools that apply now plus edit, delete and undo.
+    qwen2.5:7b on the eval: 27/45 (60%) -> 39/45 (87%).
+  - **Privacy tiers** follow the existing gates: structure always; street names,
+    selected ids, issue counts by rule and column values only where grounding is
+    on (by default a local model); never table rows or Action results. The panel
+    lists exactly what is sent.
+  - **Budget:** `assistant.remote_token_budget` (200,000 tokens a session across
+    every remote provider and model); local models are counted, never refused.
+  - An offline **stub planner** (`select.provider = "stub"`) for tests and demos.
+  - Every Action it runs is recorded with `via: "assistant"`; "copy as Python"
+    replays it with no model.
+- **`netstead.llm.structured.request_tool_calls`:** several tools, none forced,
+  every call validated, a bounded repair loop, and a JSON-mode envelope for
+  models without tool calling.
+- **`Select(query=…)`:** a selection intent given directly, replayed exactly with
+  no model.
+- **`assistant.*` settings:** `actions`, `plugins`, `max_steps`, `history_turns`,
+  `max_turns`, `output_token_limit`, `context_max_chars`, `remote_token_budget`,
+  `compact_tools`;
+  **Settings → Assistant: actions & plugins** switches each Action and plugin.
+- **`EditCells.expected_version`** (left out of copied scripts, like
+  `DeleteRows`'s).
+- **`Session.consistent()`:** hold the session lock for a block of related reads.
+- **Plugin Host API 1.4:** `BaseAction.assistant = False` keeps an Action out of
+  the assistant.
+- **`scripts/eval_nl_assistant.py`:** a hand-run eval of multi-step planning
+  accuracy on Leavenworth (nothing dispatched).
+
+### Changed
+
+- **`CloseNetwork.mutates` is `True`** (it throws away unsaved edits). It is never
+  offered to the assistant either.
 
 ### Fixed
 

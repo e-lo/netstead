@@ -54,7 +54,7 @@ architecture.md and this index in the same PR.
 |---|---|---|---|---|---|
 | [NL selection](2026-09-23-nl-selection-design.md) | design | 09-23 | implemented | #194 | extended by NL providers |
 | [Network viewer (`netstead.viz`)](2026-09-30-network-viewer-prd.md) | PRD | 09-30 | accepted; P1–P2 implemented | #194 | P3 (diff) and P4 (multimodal / GTFS) roll up under the Workbench design |
-| [Workbench (`netstead app`)](2026-10-02-netstead-workbench-design.md) | design | 10-02 | accepted; P0, P1a, P1b, P2 implemented | #211, #212, #225 | P2 is validate + edit, core only (the P2 plan's "Deviations" section lists what changed in review); next: P3 selection verification + NL assistant. Its change-log part is superseded by the plugins design: ProjectCards move to the cards plugin |
+| [Workbench (`netstead app`)](2026-10-02-netstead-workbench-design.md) | design | 10-02 | accepted; P0, P1a, P1b, P2, P3a implemented; P3b PR pending | #211, #212, #225, #226 | P2 is validate + edit, core only (the P2 plan's "Deviations" section lists what changed in review); P3 is selection verification (P3a) and the NL assistant (P3b); next: P4 Python live session. Its change-log part is superseded by the plugins design: ProjectCards move to the cards plugin |
 | [Workbench plugins](2026-10-05-workbench-plugins-design.md) | design | 10-05 | accepted; Parts 1 and 2 implemented | #222, #223 (recorded in #217) | entry-point plugin API (`netstead.workbench.plugins`); core owns the network nouns; the in-core `changes/` package is superseded |
 | [NL providers (Anthropic / OpenAI / Gemini / Ollama)](2026-10-02-nl-providers-design.md) | design | 10-02 | implemented | #211 | `qwen3:4b` default not yet tested live |
 
@@ -88,7 +88,7 @@ Records on a branch go here, then move to the tables above when they merge.
 
 | Record | Kind | Branch | Status | Notes |
 |---|---|---|---|---|
-| [Workbench P3: selection verification + NL assistant](2026-10-16-workbench-p3-plan.md) | plan | `feat/workbench-p3a` | accepted; P3a implemented (PR pending) | 28 tasks in two PRs: P3a (Tasks 0–14: pinning, saved selections, export, Style/Filter/Navigate, the Selection panel; review fixes as Part R) and P3b (Tasks 15–27: the assistant, not started). All 11 open questions decided 2026-10-16 |
+| [Workbench P3: selection verification + NL assistant](2026-10-16-workbench-p3-plan.md) | plan | `feat/workbench-p3b` | accepted; P3a implemented (#226); P3b implemented (PR pending) | 28 tasks in two PRs: P3a (Tasks 0–14: pinning, saved selections, export, Style/Filter/Navigate, the Selection panel) and P3b (Tasks 15–27: the assistant, its panel and command bar, Settings → Assistant, the eval; review fixes as Part R). All 11 open questions decided 2026-10-16 |
 
 ## Gaps to close
 
