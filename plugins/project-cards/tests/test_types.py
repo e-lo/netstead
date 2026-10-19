@@ -69,6 +69,16 @@ def test_booleans_become_one_and_zero():
     assert PropertyChange(existing=False, set=1).existing == 0
 
 
+def test_an_integer_delta_stays_an_integer():
+    assert type(PropertyChange(change=1).change) is int and type(PropertyChange(change="2").change) is int
+    assert PropertyChange(change=0.5).change == 0.5 and PropertyChange(change="-1.5").change == -1.5
+
+
+def test_a_transit_note_is_bounded_like_a_roadway_note():
+    with pytest.raises(ValidationError, match="500"):
+        TransitPropertyChange(note="x" * 501)
+
+
 def test_a_delta_is_a_number():
     assert PropertyChange(change="2").change == 2.0
     with pytest.raises(ValidationError, match="delta"):

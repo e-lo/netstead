@@ -413,3 +413,77 @@ def test_not_a_card():
     with pytest.raises(CardError, match="project"):
         DraftCard.from_card({"changes": []})
     assert yaml.safe_load(draft(PICK).to_yaml())["project"] == "speed fixes"
+
+
+def test_an_integer_delta_round_trips_as_an_integer():
+    card = draft(QUERY).to_card()
+    assert card["changes"][0]["roadway_property_change"]["property_changes"]["lanes"] == {"change": 1}
+    delta = DraftCard.from_card(card).changes[0].property_changes["lanes"].change
+    assert delta == 1 and type(delta) is int
+
+
+@pytest.mark.parametrize("scope", [{"scoped": [{"timespan": ["7:00", "9:00"], "set": 2}]}, {"overwrite_scoped": "all"}])
+def test_a_scoped_property_change_is_not_supported(scope):
+    card = _one("roadway_property_change", {"facility": _FACILITY, "property_changes": {"lanes": {"set": 1, **scope}}})
+    with pytest.raises(CardNotSupported, match=r"^change 1: property lanes: scoped changes are not supported yet$"):
+        DraftCard.from_card(card)
+
+
+def test_an_unknown_property_key_is_not_dropped():
+    card = _one(
+        "roadway_property_change", {"facility": _FACILITY, "property_changes": {"lanes": {"set": 1, "sett": 2}}}
+    )
+    with pytest.raises(CardNotSupported, match=r"^change 1: property lanes: .*'sett'"):
+        DraftCard.from_card(card)
+
+
+WRANGLER_ADDITION = """\
+project: wrangler addition
+tags: [example]
+roadway_addition:
+  links:
+  - A: 1
+    B: 2
+    model_link_id: 404982
+    name: new neighborhood st
+    roadway: residential
+    lanes: 1
+    walk_access: 1
+    bike_access: 1
+    drive_access: 0
+    bus_only: 0
+    rail_only: 0
+"""
+
+
+def test_a_wrangler_style_addition_keeps_its_access_flags(tmp_path):
+    path = tmp_path / "add.yml"
+    path.write_text(WRANGLER_ADDITION, encoding="utf-8")
+    (change,) = read_card_file(path).changes
+    link = change.links[0]
+    assert (link["walk_access"], link["bike_access"], link["drive_access"]) == (1, 1, 0)
+
+
+def test_a_wrangler_style_addition_re_exports_valid(tmp_path):
+    path = tmp_path / "add.yml"
+    path.write_text(WRANGLER_ADDITION, encoding="utf-8")
+    card = read_card_file(path).to_card()
+    assert card_problems(card) == []
+    assert (
+        card["changes"][0]["roadway_addition"]["links"][0]
+        == yaml.safe_load(WRANGLER_ADDITION)["roadway_addition"]["links"][0]
+    )
+
+
+def test_derived_fields_are_dropped_when_their_source_column_is_present():
+    (change,) = DraftCard.from_card(draft(ADD).to_card()).changes
+    assert change.links == ADD.links
+
+
+def test_provenance_uses_the_mapping_s_link_selector(tmp_path):
+    from netstead_project_cards.mapping import load_mapping
+
+    path = tmp_path / "m.yaml"
+    path.write_text("version: 1\nselectors: {link: {link_id: my_id}, node: {node_id: my_node}}\n")
+    card = draft(QUERY).to_card(load_mapping(path))
+    assert "netstead.resolved[0]: my_id=[1, 5, 6, 8]" in card["notes"]

@@ -79,7 +79,7 @@ class PropertyChange(_Model):
 
     existing: Scalar | None = None
     set: Scalar | None = None
-    change: float | None = None
+    change: int | float | None = None  # an int delta stays an int (``change: 1`` round-trips as ``1``)
     existing_value_conflict: Literal["error", "warn", "skip"] = "error"
 
     @field_validator("existing", "set", mode="before")
@@ -94,6 +94,12 @@ class PropertyChange(_Model):
             return None
         if isinstance(value, bool):
             raise ValueError("change is a number: the delta to add")
+        if isinstance(value, int | float):
+            return value
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            pass
         try:
             return float(value)
         except (TypeError, ValueError):
@@ -198,7 +204,7 @@ class _Transit(_Model):
     """A transit change: declared so the union is stable; its fields arrive with the transit component (P6)."""
 
     body: dict[str, Any] = Field(default_factory=dict)
-    note: str | None = None
+    note: str | None = Field(default=None, max_length=500)
 
 
 class TransitPropertyChange(_Transit):

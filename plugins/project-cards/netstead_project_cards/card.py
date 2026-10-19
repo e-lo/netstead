@@ -87,7 +87,7 @@ class DraftCard(BaseModel):
             card["tags"] = list(self.tags)
         if deps := self.dependencies.to_card():
             card["dependencies"] = deps
-        notes = ([self.notes] if self.notes else []) + _provenance(self.changes)
+        notes = ([self.notes] if self.notes else []) + _provenance(self.changes, m)
         if notes:
             card["notes"] = "\n".join(notes)
         card["changes"] = [{c.type: _body(i, c, m)} for i, c in enumerate(self.changes)]
@@ -166,11 +166,11 @@ def read_card_file(path: str | Path, mapping: FieldMap | None = None) -> DraftCa
 # ---------------------------------------------------------------- writing
 
 
-def _provenance(changes: list[Any]) -> list[str]:
+def _provenance(changes: list[Any], m: FieldMap) -> list[str]:
     lines = []
     for i, c in enumerate(changes):
         if isinstance(c, RoadwayPropertyChange) and c.facility is not None and c.facility.query is not None:
-            lines.append(f"netstead.resolved[{i}]: model_link_id={json.dumps(c.facility.resolved)}")
+            lines.append(f"netstead.resolved[{i}]: {m.selector('link')[1]}={json.dumps(c.facility.resolved)}")
         if c.note:
             lines.append(f"netstead.note[{i}]: {' '.join(c.note.split())}")
     return lines
@@ -345,7 +345,14 @@ def _selection(facility: Mapping[str, Any], m: FieldMap, resolved: list[Any] | N
 
 
 def _from_record(record: Mapping[str, Any], table: str, m: FieldMap) -> dict[str, Any]:
-    return {m.from_card(table, k): m.gmns_value(k, v) for k, v in record.items() if k not in m.derived}
+    """A card record in GMNS names.
+
+    A derived field (``walk_access``) is dropped only when the record also carries its source column
+    (``allowed_uses``), from which writing rebuilds it; otherwise it is kept as an ordinary field, so a foreign
+    card's flags survive a round trip.
+    """
+    rebuilt = {k for k, rule in m.derived.items() if m.to_card(table, rule["column"]) in record}
+    return {m.from_card(table, k): m.gmns_value(k, v) for k, v in record.items() if k not in rebuilt}
 
 
 def _records(body: Mapping[str, Any], kind: str, table: str, m: FieldMap) -> list[dict[str, Any]]:
@@ -357,9 +364,11 @@ def _properties(body: Mapping[str, Any], sel: Selection, m: FieldMap) -> dict[st
     props = {}
     for name, spec in _mapping(body.get("property_changes") or {}, "property_changes").items():
         spec = _mapping(spec, f"property {name}")
-        values = {
-            k: (m.gmns_value(name, v) if k in ("existing", "set") else v) for k, v in spec.items() if k in _PROP_KEYS
-        }
+        if extra := sorted(set(spec) - set(_PROP_KEYS)):
+            if {"scoped", "overwrite_scoped"} & set(extra):
+                raise CardNotSupported(f"property {name}: scoped changes are not supported yet")
+            raise CardNotSupported(f"property {name}: {', '.join(map(repr, extra))} cannot be read in this version")
+        values = {k: (m.gmns_value(name, v) if k in ("existing", "set") else v) for k, v in spec.items()}
         props[m.from_card(sel.table, name)] = PropertyChange(**values)
     return props
 
