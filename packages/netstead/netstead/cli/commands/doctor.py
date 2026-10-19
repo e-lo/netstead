@@ -77,12 +77,23 @@ def _check_python_version() -> dict[str, object]:
 
 # Optional-extra → import probe. Each entry is (extra-name, module-to-import).
 # The extra is informational; the import is what actually decides ok/!ok.
+# Keep in lockstep with ``[project.optional-dependencies]`` in pyproject.toml:
+# each probe is the package that *defines* the extra (the one whose absence
+# means the extra is not installed), not a transitive dependency.
 _EXTRA_PROBES: tuple[tuple[str, str], ...] = (
     ("clean", "shapely"),
-    ("clean", "igraph"),
+    ("clean", "geopandas"),
+    ("clean", "pyproj"),
+    ("graph", "scipy"),
     ("server", "fastapi"),
     ("mcp", "mcp"),
     ("notebook", "ipywidgets"),
+    ("osm", "requests"),
+    ("reports", "openpyxl"),
+    ("reports", "jinja2"),
+    ("nl", "jsonschema"),
+    ("nl", "keyring"),
+    ("bench", "psutil"),
 )
 
 

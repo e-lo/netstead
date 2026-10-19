@@ -18,7 +18,7 @@ Behaviour by band:
 User-facing prompts are *not* this layer's responsibility — the CLI
 (Phase 4 task 4.7) catches :class:`ApprovalRequired`, asks the user,
 and re-calls with ``approve=True`` (or callers set ``approve=True``
-unconditionally via ``--yes`` / ``NETSTEAD_AUTO_APPROVE=1``).
+unconditionally via ``--yes`` / ``CORRAL_AUTO_APPROVE=1``).
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ class ApprovalRequired(Exception):
     """Raised when an op exceeds the approval threshold and ``approve=False``.
 
     The CLI / MCP / notebook surface catches this, prompts the user
-    (or honours ``--yes`` / ``NETSTEAD_AUTO_APPROVE=1``), and re-calls
+    (or honours ``--yes`` / ``CORRAL_AUTO_APPROVE=1``), and re-calls
     the gated function with ``approve=True``.
     """
 
@@ -61,7 +61,7 @@ def gate(
     Args:
         op_cost: The cost record to inspect.
         approve: If ``True``, bypass the approval block. The CLI sets this
-            from ``--yes`` or ``NETSTEAD_AUTO_APPROVE=1``; programmatic
+            from ``--yes`` or ``CORRAL_AUTO_APPROVE=1``; programmatic
             callers pass it explicitly.
         estimate_threshold_s: Estimates at or above this value are logged.
         approval_threshold_s: Estimates at or above this value require
