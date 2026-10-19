@@ -208,6 +208,77 @@ def _property_change(host: Host, net_id: str, change: RoadwayPropertyChange, not
     return out
 
 
+def _add_rows(into: dict[str, int], rows: dict[str, int]) -> None:
+    for table, n in rows.items():
+        into[table] = into.get(table, 0) + n
+
+
+def _used(links: Any, nodes: set[Any]) -> set[Any]:
+    """The nodes among ``nodes`` that some link (in the ``links`` frame) still starts or ends at."""
+    wanted = {str(n) for n in nodes}
+    hit = links["from_node_id"].astype(str).isin(wanted) | links["to_node_id"].astype(str).isin(wanted)
+    sub = links.loc[hit, ["from_node_id", "to_node_id"]]
+    found = {str(_py(v)) for v in [*sub["from_node_id"], *sub["to_node_id"]]}
+    return {n for n in nodes if str(n) in found}
+
+
+def _deletion(host: Host, net_id: str, change: RoadwayDeletion, note: str) -> Applied:
+    out = Applied(change)
+    two_steps = bool(change.links) and (bool(change.nodes) or change.clean_nodes)
+    ends: set[Any] = set()
+    if change.links:
+        if change.clean_nodes:
+            rows = rows_by_key(_frame(host, net_id, "link"), "link_id", change.links, ["from_node_id", "to_node_id"])
+            ends = {v for r in rows.values() for v in (r["from_node_id"], r["to_node_id"]) if v is not None}
+        plan = _plan(host.plan_delete, net_id, "link", change.links)
+        host.mutate(net_id, plan.edits, note=f"{note} (links)" if two_steps else note, expected_version=plan.version)
+        out.steps += 1
+        _add_rows(out.rows, plan.rows)
+    nodes = list(change.nodes)
+    if ends:  # read the links again: the deleted ones are gone now
+        unused = ends - _used(_frame(host, net_id, "link"), ends)
+        nodes += [n for n in sorted(unused, key=str) if n not in nodes]
+    if nodes:
+        plan = _plan(host.plan_delete, net_id, "node", nodes)  # refuses a node a link still uses, naming the links
+        host.mutate(net_id, plan.edits, note=f"{note} (nodes)" if two_steps else note, expected_version=plan.version)
+        out.steps += 1
+        _add_rows(out.rows, plan.rows)
+    return out
+
+
+def _addition(host: Host, net_id: str, change: RoadwayAddition, note: str) -> Applied:
+    nodes_frame = _frame(host, net_id, "node")
+    frames = {"node": nodes_frame, "link": _frame(host, net_id, "link")}
+    for name, records in (("node", change.nodes), ("link", change.links)):
+        pk = KEYS[name]
+        ids = [r[pk] for r in records]
+        if len({str(i) for i in ids}) != len(ids):
+            raise CardError(f"{name} ids repeat within the change")
+        taken = rows_by_key(frames[name], pk, ids, [])
+        if taken:
+            raise CardError(f"{name} {few(sorted(taken))} already exist")
+    if change.links:
+        ends = list(dict.fromkeys(r[c] for r in change.links for c in ("from_node_id", "to_node_id")))
+        present = set(rows_by_key(nodes_frame, "node_id", ends, [])) | {str(r["node_id"]) for r in change.nodes}
+        missing = [e for e in ends if str(e) not in present]
+        if missing:  # core would only warn; Wrangler fails such a card, so refuse before anything is applied
+            raise CardError(
+                f"added links use node(s) {few(missing)}, which are not in the network; add them in the same change"
+            )
+    plans = []
+    if change.nodes:  # nodes first: the links need their ends
+        plans.append(_plan(host.plan_add, net_id, "node", change.nodes))
+    if change.links:
+        plans.append(_plan(host.plan_add, net_id, "link", change.links))
+    _mutate(host, net_id, plans, note)
+    out = Applied(change, steps=1)
+    for plan in plans:
+        _add_rows(out.rows, plan.rows)
+    return out
+
+
 _APPLIERS: dict[str, Callable[[Host, str, Any, str], Applied]] = {
     "roadway_property_change": _property_change,
+    "roadway_deletion": _deletion,
+    "roadway_addition": _addition,
 }
