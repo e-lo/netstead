@@ -11,8 +11,8 @@ from netstead.fixtures import leavenworth
 from netstead.workbench.actions import CloseNetwork, EditCells, OpenNetwork
 from netstead.workbench.errors import ActionError
 from netstead.workbench.plugins import HOST_API, ActionSpec, BaseAction, WorkbenchPlugin
-from netstead_project_cards.actions import AddChange, CommitCard, UndoChange
-from netstead_project_cards.card import read_card_file
+from netstead_project_cards.actions import AddChange, CommitCard, ImportCard, UndoChange
+from netstead_project_cards.card import DraftCard, read_card_file
 from netstead_project_cards.types import (
     PropertyChange,
     RoadwayAddition,
@@ -48,13 +48,30 @@ class ThenFail(BaseAction):
     inner: dict
 
 
+class AllThenFail(BaseAction):
+    """Dispatch each of ``inners`` in turn, then fail: core rolls all of them back together."""
+
+    type: Literal["nester.all_then_fail"] = "nester.all_then_fail"
+    mutates: ClassVar[bool] = True
+    inners: list[dict]
+
+
 def _nester():
     def run(host, action):
         host.dispatch(action.inner)
         raise ActionError("the parent failed")
 
+    def run_all(host, action):
+        for inner in action.inners:
+            host.dispatch(inner)
+        raise ActionError("the parent failed")
+
     return WorkbenchPlugin(
-        id="nester", name="Nester", version="0", requires_api=HOST_API, actions=(ActionSpec(ThenFail, run),)
+        id="nester",
+        name="Nester",
+        version="0",
+        requires_api=HOST_API,
+        actions=(ActionSpec(ThenFail, run), ActionSpec(AllThenFail, run_all)),
     )
 
 
@@ -110,6 +127,38 @@ def test_a_nested_undo_whose_parent_fails_shows_in_state(nested):
     with pytest.raises(ActionError):
         nested.dispatch(ThenFail(inner=UndoChange().model_dump(mode="json")))
     assert count(nested) == 1
+
+
+def test_an_undo_and_a_change_rolled_back_together_put_the_undone_change_back(nested, no_state_reads):
+    no_state_reads(nested)
+    before = cell(nested, 3)
+    nested.dispatch(AddChange(change=lanes(1, 2)))
+    nested.dispatch(AddChange(change=lanes(2, 3)))
+    with pytest.raises(ActionError, match="the parent failed"):
+        nested.dispatch(AllThenFail(inners=[UndoChange().model_dump(mode="json"), add(3, 4)]))
+    assert cell(nested, 2) == [3] and cell(nested, 3) == before
+    assert nested.dispatch(UndoChange())["count"] == 1 and cell(nested, 2) == [1]
+
+
+def test_a_change_that_applies_nothing_is_refused(session):
+    nothing = RoadwayPropertyChange(
+        facility=Selection(ids=[999999], ignore_missing=True), property_changes={"lanes": PropertyChange(set=2)}
+    )
+    with pytest.raises(ActionError, match=f"nothing on {NET} matches this change; nothing was added"):
+        session.dispatch(AddChange(change=nothing))
+    assert count(session) == 0 and session.network(NET).version == 0
+
+
+def test_an_imported_change_that_applied_nothing_outlives_a_parents_rollback(nested, tmp_path):
+    """The documented limit (state.py): such a change has no marks, so reconciling cannot tell it was rolled back."""
+    nothing = RoadwayPropertyChange(
+        facility=Selection(ids=[999999], ignore_missing=True), property_changes={"lanes": PropertyChange(set=2)}
+    )
+    path = tmp_path / "card.yml"
+    path.write_text(DraftCard(project="Mixed", changes=[lanes(1, 3), nothing]).to_yaml(), encoding="utf-8")
+    with pytest.raises(ActionError, match="the parent failed"):
+        nested.dispatch(ThenFail(inner=ImportCard(path=str(path)).model_dump(mode="json")))
+    assert cell(nested, 1) == [1] and count(nested) == 1
 
 
 def test_undo_refuses_a_stray_edit_it_did_not_draft(session, host):

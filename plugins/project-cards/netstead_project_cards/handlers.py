@@ -53,7 +53,11 @@ class Handlers:
         )
 
     def add_change(self, host: Host, action: AddChange) -> dict[str, Any]:
-        """Apply the change to the base network (never a preview) and append it to that network's draft."""
+        """Apply the change to the base network (never a preview) and append it to that network's draft.
+
+        A change that applies nothing (a selection whose ids are all missing and ignored, or every property skipped)
+        is refused: the draft holds only changes the network has.
+        """
         refuse_transit(action.change)
         with as_action_errors():
             net = target_network(host, self.state, action.net_id)
@@ -61,6 +65,8 @@ class Handlers:
             change, warnings = complete_change(host, nets, action.change, action.use_selection, action.saved_selection)
             check_card_shape(change, self.mapping)
             applied = apply_change(host, net, change)
+        if not applied.marks:  # a draft entry with no marks could not be reconciled after a parent's rollback
+            raise ActionError(f"nothing on {net} matches this change; nothing was added")
         applied.warnings[:0] = warnings
         count = self.state.extend(net, host.network(net), [applied])
         host.publish("changed", {"net_id": net, "count": count})
@@ -154,7 +160,8 @@ class Handlers:
         """Read a card (or an offline edit log) and apply its changes to the draft, all or nothing.
 
         A failing change fails the Action, whose rollback undoes the changes already applied; the draft is touched
-        only after every change has applied.
+        only after every change has applied. A change that applies nothing (every id missing, all ignored) is kept:
+        it is part of the card (see :mod:`~netstead_project_cards.state` for what that costs).
         """
         with as_action_errors():
             net = target_network(host, self.state, action.net_id)

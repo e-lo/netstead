@@ -5,12 +5,21 @@ handlers, after every Host call they make has succeeded: a failing handler's net
 Workbench, and this state must not have moved. A handler nested in another Action can succeed and still be rolled
 back when its parent fails, which core does not tell the plugin; so each draft change records the marks its
 mutations left (:class:`~netstead_project_cards.lower.Mark`), and every handler and ``state()`` first reconciles the
-draft with its network (:meth:`CardsState.sync`). The routes read it outside the session lock, so it has its own.
+draft with its network (:meth:`CardsState.sync`). It has its own lock, so that ``state()`` (and the routes the next
+release adds) can read it outside the session lock.
 
 The open preview (:class:`Preview`) is checked the same way, by handle: it stands for its base only while both
-networks are the ones it was made on. One limit: a preview that closes an older one (a second preview) cannot reopen
-it, so when an enclosing Action fails after a nested ``project_cards.preview`` succeeded, the new copy is rolled back
-and the older preview stays closed.
+networks are the ones it was made on.
+
+Known limits, each after an enclosing Action fails once a nested ``project_cards`` Action has succeeded:
+
+- a preview that closes an older one (a second preview) cannot reopen it, so the new copy is rolled back and the
+  older preview stays closed;
+- a ``project_cards.commit`` is not reconciled: the file stays written and the draft stays reset (the network still
+  holds the edits). Core would need a rollback hook for plugins;
+- an imported change that applied nothing cannot be reconciled after a parent Action's rollback: it has no marks, so
+  it stays in the draft. (``project_cards.add_change`` refuses such a change; ``project_cards.import`` keeps it, as
+  part of the card.)
 """
 
 from __future__ import annotations
@@ -64,7 +73,9 @@ class Draft:
 
     ``handle`` is a weak reference to the network handle the draft was made on: core reuses a closed network's id,
     and a reopened network is a new handle. ``undone`` keeps undone changes so that a rolled-back undo (an
-    ``undo_change`` nested in an Action that failed) puts its change back.
+    ``undo_change`` nested in an Action that failed) puts its change back. A later change does not clear it: an
+    enclosing Action that undid a change and then added one rolls both back together, and the undone change must
+    come back.
     """
 
     handle: weakref.ref[Any]
