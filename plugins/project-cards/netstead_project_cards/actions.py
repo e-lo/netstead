@@ -6,14 +6,14 @@ natural-language assistant drafts them for the user to approve.
 
 from __future__ import annotations
 
-from typing import ClassVar, Literal
+from typing import Any, ClassVar, Literal
 
 from netstead.workbench.plugins import BaseAction
 from pydantic import Field, model_validator
 
 from .types import NetworkChange
 
-__all__ = ["AddChange", "UndoChange"]
+__all__ = ["AddChange", "CommitCard", "ImportCard", "UndoChange"]
 
 
 class _ChangeAction(BaseAction):
@@ -52,3 +52,40 @@ class UndoChange(BaseAction):
     type: Literal["project_cards.undo_change"] = "project_cards.undo_change"
     mutates: ClassVar[bool] = True
     net_id: str | None = None
+
+
+class CommitCard(BaseAction):
+    """Write a network's draft card as a ProjectCard YAML file and start a new, empty draft.
+
+    Live edit warnings must be confirmed (``confirm_warnings``), the same rule core applies before saving a copy.
+    ``path`` must be inside ``io.allowed_roots``; an existing file is replaced only with ``overwrite``. When the
+    ``catalog`` plugin is installed, the card is also added to it (``catalog.add_card``).
+    """
+
+    type: Literal["project_cards.commit"] = "project_cards.commit"
+    mutates: ClassVar[bool] = True
+    # The user confirmed in the live session; a replayed script writes the same card again without stopping.
+    replay_overrides: ClassVar[dict[str, Any]] = {"confirm_warnings": True, "overwrite": True}
+    net_id: str | None = None
+    path: str = Field(min_length=1, max_length=1000)
+    project: str = Field(min_length=1, max_length=200)
+    tags: list[str] = Field(default_factory=list)
+    dependencies: dict[Literal["prerequisites", "corequisites", "conflicts"], list[str]] = Field(default_factory=dict)
+    notes: str | None = Field(default=None, max_length=5000)
+    confirm_warnings: bool = False
+    overwrite: bool = False
+
+
+class ImportCard(BaseAction):
+    """Apply every change of a ProjectCard YAML or JSON file to a network's draft card, all or nothing.
+
+    Also reads the offline validation report's edit log. A query selection is applied to the link ids recorded in
+    the card's notes when the plugin wrote it; a query without them is refused (re-resolving arrives with
+    ``apply_card``). ``path`` must be inside ``io.allowed_roots``. An empty draft takes the card's project, tags,
+    dependencies and notes.
+    """
+
+    type: Literal["project_cards.import"] = "project_cards.import"
+    mutates: ClassVar[bool] = True
+    net_id: str | None = None
+    path: str = Field(min_length=1, max_length=1000)

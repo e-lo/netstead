@@ -119,8 +119,9 @@ class Selection(_Model):
 
     ``ids`` picks records by GMNS key (a click-pick), written with ``ignore_missing`` (``False`` for a pick: a fix
     aimed at a specific link should fail loudly when that link is gone). ``query`` keeps a re-resolvable ProjectCard
-    facility in card form (``host.selection["projectcard"]["query"]``, which carries its own ``ignore_missing``),
-    and ``resolved`` the link ids it resolved to when the change was made (provenance). A query applies to its
+    facility in card form (``host.selection["projectcard"]["query"]``, which carries its own ``ignore_missing``:
+    the selection's ``ignore_missing`` follows it, true when absent), and ``resolved`` the link ids it resolved to
+    when the change was made (provenance). A query applies to its
     ``resolved`` ids; re-resolving it on another network version is ``apply_card`` (later).
     """
 
@@ -129,6 +130,19 @@ class Selection(_Model):
     query: dict[str, Any] | None = None
     resolved: list[Id] | None = None
     ignore_missing: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def _query_flag(cls, data: Any) -> Any:
+        """A query's ``ignore_missing`` is its ``links.ignore_missing`` (true, Wrangler's default, when absent)."""
+        query = data.get("query") if isinstance(data, dict) else None
+        if not isinstance(query, dict) or not isinstance(query.get("links"), dict):
+            return data
+        flag = bool(query["links"].get("ignore_missing", True))
+        given = data.get("ignore_missing")
+        if given is not None and bool(given) != flag:
+            raise ValueError(f"ignore_missing={given!r} contradicts the query's ignore_missing ({flag})")
+        return {**data, "ignore_missing": flag}
 
     @model_validator(mode="after")
     def _ids_or_query(self) -> Selection:

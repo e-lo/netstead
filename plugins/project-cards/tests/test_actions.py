@@ -1,7 +1,15 @@
 """project_cards.add_change / undo_change: applied through core, recorded, drafted per network, replayable."""
 
 import pytest
-from netstead.workbench.actions import ClearSelection, EditCells, SaveSelection, Select
+from netstead.fixtures import leavenworth
+from netstead.workbench.actions import (
+    ClearSelection,
+    CloseNetwork,
+    EditCells,
+    OpenNetwork,
+    SaveSelection,
+    Select,
+)
 from netstead.workbench.errors import ActionError, NotSupportedYet
 from netstead_project_cards.actions import AddChange, UndoChange
 from netstead_project_cards.types import (
@@ -135,6 +143,31 @@ def test_a_selection_on_another_network_is_refused(session):
     session.dispatch(Select(link_ids=[1]))
     with pytest.raises(ActionError, match="no open network 'elsewhere'"):
         session.dispatch(AddChange(net_id="elsewhere", use_selection=True, change=props(lanes={"set": 2})))
+
+
+def test_a_selection_on_another_network_is_refused_for_this_one(session):
+    session.dispatch(OpenNetwork(source=str(leavenworth.parquet_dir()), net_id="other"))
+    session.dispatch(Select(link_ids=[1]))  # on "other", now the active network
+    with pytest.raises(ActionError, match="the selection is on network 'other', not 'leavenworth'"):
+        session.dispatch(AddChange(net_id=NET, use_selection=True, change=props(lanes={"set": 2})))
+
+
+def test_an_unresolved_selection_is_refused(session):
+    session.dispatch(Select(utterance="Nowhere Boulevard"))
+    with pytest.raises(ActionError, match="not resolved"):
+        session.dispatch(AddChange(use_selection=True, change=props(lanes={"set": 2})))
+
+
+def test_with_no_network_open_there_is_nothing_to_change(make_session):
+    session = make_session(open_network=False)
+    with pytest.raises(ActionError, match="no network is open"):
+        session.dispatch(AddChange(change=on([1], lanes={"set": 2})))
+
+
+def test_a_closed_networks_draft_is_dropped(session):
+    session.dispatch(AddChange(change=on([1], lanes={"set": 2})))
+    session.dispatch(CloseNetwork(net_id=NET))
+    assert session.state()["plugins"]["project_cards"]["drafts"] == {}
 
 
 def test_both_selection_sources_are_refused_by_the_model():

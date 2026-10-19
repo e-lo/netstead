@@ -7,16 +7,26 @@ Workbench, and this state must not have moved. The routes read it outside the se
 
 from __future__ import annotations
 
+import re
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from .card import DraftCard
+from .card import Dependencies, DraftCard
 from .lower import Applied, describe
 from .types import CHANGE_TYPES, ROADWAY_TYPES, NetworkChange
 
-__all__ = ["CardsState", "Draft"]
+__all__ = ["CardsState", "Draft", "slug"]
+
+
+def slug(text: str) -> str:
+    """A card id from a project name: lower case, words joined by ``-``.
+
+    >>> slug("I-90 HOV lanes, 2035")
+    'i-90-hov-lanes-2035'
+    """
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-") or "card"
 
 
 @dataclass
@@ -58,6 +68,36 @@ class CardsState:
             d.card = d.card.model_copy(update={"changes": d.card.changes[:-1]})
             d.steps.pop()
             return change
+
+    def name(
+        self, net_id: str, *, project: str, tags: list[str], dependencies: Dependencies, notes: str | None = None
+    ) -> None:
+        """Set the draft's project, tags, dependencies and notes (an import names an empty draft after its card)."""
+        with self._lock:
+            d = self.draft(net_id)
+            d.card = d.card.model_copy(
+                update={"project": project, "tags": list(tags), "dependencies": dependencies, "notes": notes}
+            )
+
+    def commit(self, net_id: str, card: DraftCard, path: str) -> str:
+        """Record ``card`` as committed to ``path``, start a new empty draft, and return the card's id."""
+        with self._lock:
+            taken = {c["card_id"] for c in self.committed}
+            base = card_id = slug(card.project)
+            n = 2
+            while card_id in taken:
+                card_id, n = f"{base}-{n}", n + 1
+            self.committed.append(
+                {
+                    "card_id": card_id,
+                    "net_id": net_id,
+                    "path": path,
+                    "project": card.project,
+                    "changes": len(card.changes),
+                }
+            )
+            self.drafts[net_id] = Draft()
+            return card_id
 
     def snapshot(self, is_open: Callable[[str], bool]) -> dict[str, Any]:
         """JSON-safe state for ``/api/state`` (``plugins.project_cards``); drops drafts and previews of closed networks.

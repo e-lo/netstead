@@ -101,8 +101,8 @@ def selection_facility(host: Host, net: str, *, use_selection: bool, saved: str 
         selection = Selection(ids=ids, ignore_missing=False)
     else:
         query = copy.deepcopy(forms["query"])
-        ignore = bool(query.setdefault("links", {}).setdefault("ignore_missing", True))
-        selection = Selection(query=query, resolved=ids, ignore_missing=ignore)
+        query.setdefault("links", {}).setdefault("ignore_missing", True)  # written explicitly, as the schema requires
+        selection = Selection(query=query, resolved=ids)  # its ignore_missing follows the query's
     return selection, list(payload.get("warnings") or [])
 
 
