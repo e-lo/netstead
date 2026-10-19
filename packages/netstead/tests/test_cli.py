@@ -223,3 +223,35 @@ def test_gmns_validate_respects_spec_override():
     # spec_version isn't always in the payload header, but the
     # important thing is the run succeeds against 0.96 (a different
     # spec from the 0.97 default).
+
+
+# ---------------------------------------------------------------------------
+# quality / scope — clean exit when the [graph] extra is missing
+# ---------------------------------------------------------------------------
+
+
+def _hide_graph_extra(monkeypatch) -> None:
+    """Make ``import netstead.graph`` raise ImportError, as on a slim install."""
+    import sys
+
+    monkeypatch.setitem(sys.modules, "netstead.graph", None)
+
+
+def test_quality_exits_cleanly_when_graph_extra_missing(monkeypatch):
+    """``netstead quality`` should print the install hint, not a traceback."""
+    _hide_graph_extra(monkeypatch)
+    result = runner.invoke(app, ["quality", str(leavenworth.csv_dir())])
+    assert result.exit_code == 1
+    assert result.exception is None or isinstance(result.exception, SystemExit)
+    assert "netstead[graph]" in result.stderr
+    assert "Traceback" not in result.stderr
+
+
+def test_scope_exits_cleanly_when_graph_extra_missing(monkeypatch):
+    """``netstead scope from-nodes`` should print the install hint, not a traceback."""
+    _hide_graph_extra(monkeypatch)
+    result = runner.invoke(app, ["scope", "from-nodes", str(leavenworth.csv_dir()), "1"])
+    assert result.exit_code == 1
+    assert result.exception is None or isinstance(result.exception, SystemExit)
+    assert "netstead[graph]" in result.stderr
+    assert "Traceback" not in result.stderr

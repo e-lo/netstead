@@ -109,12 +109,14 @@ def register(app: typer.Typer) -> None:
 
 
 def _import_scope():
-    """Resolve :mod:`netstead.scope` — core module but its index ops need igraph at call time.
+    """Resolve :mod:`netstead.scope`, first checking the ``[graph]`` extra is installed.
 
     ``netstead.scope`` itself is part of the core install (no extra needed),
-    so the import never fails; the helper exists so future error handling
-    (e.g. wrapping the igraph optional-dep hint on .from_node) lands in
-    one place. Routed through :func:`require_extra` for consistency with
-    the clean / mcp / server commands.
+    but every scope builder reaches :class:`~netstead.graph.GMNSGraph` at
+    call time, and that import fails without scipy — deep inside the op,
+    as a raw traceback. Probing :mod:`netstead.graph` up front through
+    :func:`require_extra` turns that into the same one-line "install the
+    extra" exit the clean / mcp / server commands use.
     """
-    return require_extra("netstead.scope", "clean")
+    require_extra("netstead.graph", "graph")
+    return require_extra("netstead.scope", "graph")
