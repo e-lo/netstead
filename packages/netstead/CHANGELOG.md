@@ -8,6 +8,14 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Fixed
 
+- **The Leavenworth fixture's `datapackage.json` is self-contained.** Each
+  resource now carries its resolved GMNS 0.97 schema inline instead of a
+  `../../spec/0.97/...` path, so the descriptor loads wherever it is copied,
+  including the copy inside `leavenworth.csv.zip`, which could not resolve
+  any schema before (and still described the package as gmnspy's). A test
+  fails if an inlined schema drifts from `spec/0.97/`;
+  `build_leavenworth.py --descriptor-only` regenerates the descriptor and
+  zip without an OpenStreetMap fetch. (#127)
 - **The `netstead` CLI starts without the `[nl]` extra.** `netstead.select.emit`
   imported `jsonschema` at module level and the CLI imports the `select` command
   group eagerly, so on a `netstead[clean,graph]` install every command, including

@@ -34,6 +34,9 @@ Usage::
 
     uv sync --extra dev-fixtures
     uv run python packages/netstead/netstead/fixtures/leavenworth/scripts/build_leavenworth.py
+
+    # After a change to the vendored spec only (no OSM fetch):
+    uv run python packages/netstead/netstead/fixtures/leavenworth/scripts/build_leavenworth.py --descriptor-only
 """
 
 from __future__ import annotations
@@ -51,6 +54,8 @@ import osmnx as ox
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
+from corral.spec import load_schema
+from netstead.spec import get_spec_path
 from shapely.geometry import LineString
 
 # ---------------------------------------------------------------------------
@@ -63,6 +68,7 @@ PARQUET_DIR = FIXTURE_DIR / "parquet"
 DUCKDB_PATH = FIXTURE_DIR / "leavenworth.duckdb"
 ZIP_PATH = FIXTURE_DIR / "leavenworth.csv.zip"
 DATAPACKAGE_PATH = FIXTURE_DIR / "datapackage.json"
+SPEC_VERSION = "0.97"
 
 # ---------------------------------------------------------------------------
 # OSM source signature - documented for reproducibility
@@ -562,12 +568,21 @@ def write_zip() -> None:
 
 
 def write_datapackage(table_names: list[str]) -> None:
-    """Write a Frictionless datapackage.json that references the csv/ tree."""
+    """Write a self-contained Frictionless datapackage.json for the csv/ tree.
+
+    Each resource carries its GMNS 0.97 schema inline, resolved from the
+    vendored spec (``$ref``s and shared categories expanded), rather than a
+    relative path into ``netstead/spec``. The descriptor therefore loads
+    wherever it is copied, including from inside the zip, and matches the
+    self-describing descriptors corral writes for directory packages.
+    ``tests/fixtures/test_leavenworth.py`` checks each inlined schema
+    against the vendored one, so a spec change shows up as a test failure
+    (fix: rerun this script with ``--descriptor-only``).
+    """
+    spec_dir = get_spec_path(SPEC_VERSION)
     resources = []
     for name in table_names:
-        # Use JSON Pointer-style schema reference into the vendored 0.97 spec.
-        # Loaders that don't resolve $ref can still fall back to the inline
-        # datapackage description.
+        schema = load_schema(spec_dir / f"{name}.schema.json")
         resources.append(
             {
                 "name": name,
@@ -575,7 +590,7 @@ def write_datapackage(table_names: list[str]) -> None:
                 "format": "csv",
                 "mediatype": "text/csv",
                 "encoding": "utf-8",
-                "schema": f"../../spec/0.97/{name}.schema.json",
+                "schema": schema.model_dump(mode="json", by_alias=True, exclude_none=True),
             }
         )
     package = {
@@ -583,7 +598,7 @@ def write_datapackage(table_names: list[str]) -> None:
         "name": "leavenworth-wa",
         "title": "Leavenworth, WA - example GMNS network",
         "version": "0.1.0",
-        "spec": {"name": "gmns", "version": "0.97"},
+        "spec": {"name": "gmns", "version": SPEC_VERSION},
         "description": (
             "Tiny example General Modeling Network Specification (GMNS) network "
             "synthesized from OpenStreetMap for the historic downtown core of "
@@ -656,8 +671,33 @@ def _dir_size(p: Path) -> int:
     return sum(f.stat().st_size for f in p.rglob("*") if f.is_file())
 
 
+def refresh_descriptor() -> int:
+    """Rewrite datapackage.json (and the zip that embeds it) from the csv/ tree.
+
+    No OSM fetch: use this when only the vendored spec changed.
+    """
+    resource_order = [
+        "node",
+        "link",
+        "geometry",
+        "lane",
+        "use_definition",
+        "use_group",
+        "time_set_definitions",
+        "link_tod",
+        "signal_controller",
+    ]
+    names = [n for n in resource_order if (CSV_DIR / f"{n}.csv").is_file()]
+    write_datapackage(names)
+    write_zip()
+    print(f"[leavenworth] rewrote {DATAPACKAGE_PATH.name} and {ZIP_PATH.name} for {len(names)} tables")
+    return 0
+
+
 def main() -> int:
     """Build all four format variants. Print a summary; return non-zero on failure."""
+    if "--descriptor-only" in sys.argv[1:]:
+        return refresh_descriptor()
     print(f"[leavenworth] fetching OSM: place={OSM_PLACE!r} type={OSM_NETWORK_TYPE}")
     g, fetched_at = fetch_graph()
     print(f"[leavenworth] OSM graph: {len(g.nodes)} nodes, {len(g.edges)} edges (fetched at {fetched_at})")

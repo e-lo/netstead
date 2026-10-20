@@ -17,7 +17,111 @@
       "mediatype": "text/csv",
       "name": "node",
       "path": "csv/node.csv",
-      "schema": "../../spec/0.97/node.schema.json"
+      "schema": {
+        "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
+        "description": "A list of vertices that locate points on a map. Typically, they will represent intersections, but may also represent other points, such as a transition between divided and undivided highway. Nodes are the endpoints of a link (as opposed to the other type of vertex, location, which is used to represent points along a link)",
+        "fields": [
+          {
+            "constraints": {
+              "required": true
+            },
+            "description": "Primary key",
+            "name": "node_id",
+            "type": "any"
+          },
+          {
+            "description": "",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "constraints": {
+              "required": true
+            },
+            "description": "Coordinate system specified in config file (longitude, UTM-easting etc.)",
+            "name": "x_coord",
+            "type": "number"
+          },
+          {
+            "constraints": {
+              "required": true
+            },
+            "description": "Coordinate system specified in config file (latitude, UTM-northing etc.)",
+            "name": "y_coord",
+            "type": "number"
+          },
+          {
+            "description": "Optional. Altitude in short_length units.",
+            "name": "z_coord",
+            "type": "number"
+          },
+          {
+            "description": "Optional. What it represents (intersection, transit station, park & ride).",
+            "name": "node_type",
+            "type": "string"
+          },
+          {
+            "categories": [
+              "no_control",
+              "yield",
+              "stop",
+              "stop_2_way",
+              "stop_4_way",
+              "signal_with_RTOR",
+              "signal"
+            ],
+            "constraints": {
+              "enum": [
+                "no_control",
+                "yield",
+                "stop",
+                "stop_2_way",
+                "stop_4_way",
+                "signal_with_RTOR",
+                "signal"
+              ]
+            },
+            "description": "Optional. Intersection control type.",
+            "name": "ctrl_type",
+            "type": "string"
+          },
+          {
+            "description": "Optional. Could be a Transportation Analysis Zone (TAZ) or city, or census tract, or census block.",
+            "name": "zone_id",
+            "type": "any"
+          },
+          {
+            "description": "Optional. Associated node. For example, if this node is a sidewalk, a parent_nodek_id could represent the intersection  it is associated with.",
+            "name": "parent_node_id",
+            "type": "any"
+          }
+        ],
+        "fieldsMatch": [
+          "subset"
+        ],
+        "foreignKeys": [
+          {
+            "fields": "zone_id",
+            "reference": {
+              "fields": "zone_id",
+              "resource": "zone"
+            }
+          },
+          {
+            "fields": "parent_node_id",
+            "reference": {
+              "fields": "node_id",
+              "resource": ""
+            }
+          }
+        ],
+        "missingValues": [
+          "NaN",
+          ""
+        ],
+        "name": "node.schema.json",
+        "primaryKey": "node_id"
+      }
     },
     {
       "encoding": "utf-8",
@@ -25,7 +129,289 @@
       "mediatype": "text/csv",
       "name": "link",
       "path": "csv/link.csv",
-      "schema": "../../spec/0.97/link.schema.json"
+      "schema": {
+        "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
+        "description": "A link is an edge in a network, defined by the nodes it travels from and to. It may have associated geometry information. Links have three types of attributes:<br>  - Those that define the physical location of the link (e.g., `shape` `information`, `length`, `width`)<br>  - Those that define the directionality of the link: `from_node`, `to_node`<br>  - Those that define properties in the direction of travel: capacity,free flow speed, number of lanes, permitted uses, grade, facility type",
+        "fields": [
+          {
+            "constraints": {
+              "required": true
+            },
+            "description": "Primary key - could be SharedStreets Reference ID",
+            "name": "link_id",
+            "type": "any"
+          },
+          {
+            "description": "Optional. Street or Path Name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "constraints": {
+              "required": true
+            },
+            "description": "Required. Origin Node",
+            "name": "from_node_id",
+            "type": "any"
+          },
+          {
+            "constraints": {
+              "required": true
+            },
+            "description": "Required. Destination Node",
+            "name": "to_node_id",
+            "type": "any"
+          },
+          {
+            "constraints": {
+              "required": true
+            },
+            "description": "Required. Whether the link is directed (travel only occurs from the from_node to the to_node) or undirected.",
+            "name": "directed",
+            "type": "boolean"
+          },
+          {
+            "description": "Optional. Foreign key (Link_Geometry table).",
+            "name": "geometry_id",
+            "type": "any"
+          },
+          {
+            "description": "Optional. Link geometry, in well-known text (WKT) format. Optionally, other formats supported by geopandas (GeoJSON, PostGIS) may be used if specified in geometry_field_format in gmns.spec.json",
+            "name": "geometry",
+            "type": "any"
+          },
+          {
+            "description": "Optional. The parent of this link. For example,for a sidewalk, this is the adjacent road.",
+            "name": "parent_link_id",
+            "type": "any"
+          },
+          {
+            "categories": [
+              {
+                "label": "forwards",
+                "value": 1
+              },
+              {
+                "label": "reverse",
+                "value": -1
+              },
+              {
+                "label": "no-information",
+                "value": 0
+              }
+            ],
+            "constraints": {
+              "enum": [
+                1,
+                -1,
+                0
+              ]
+            },
+            "description": "Optional. <br>1  shapepoints go from from_node to to_node;<br>-1 shapepoints go in the reverse direction;<br>0  link is undirected or no geometry information is provided.",
+            "name": "dir_flag",
+            "type": "integer"
+          },
+          {
+            "constraints": {
+              "minimum": 0
+            },
+            "description": "Optional. Length of the link in long_length units",
+            "name": "length",
+            "type": "number"
+          },
+          {
+            "constraints": {
+              "maximum": 100,
+              "minimum": -100
+            },
+            "description": "% grade, negative is downhill",
+            "name": "grade",
+            "type": "number",
+            "warnings": {
+              "maximum": 25,
+              "minimum": -25
+            }
+          },
+          {
+            "description": "Facility type (e.g., freeway, arterial, etc.)",
+            "name": "facility_type",
+            "type": "string"
+          },
+          {
+            "constraints": {
+              "minimum": 0
+            },
+            "description": "Optional. Saturation capacity (passenger car equivalents / hr / lane)",
+            "name": "capacity",
+            "type": "number"
+          },
+          {
+            "constraints": {
+              "maximum": 200,
+              "minimum": 0
+            },
+            "description": "Optional. Free flow speed, units defined by config file",
+            "name": "free_speed",
+            "type": "number",
+            "warnings": {
+              "maximum": 120,
+              "minimum": 1
+            }
+          },
+          {
+            "constraints": {
+              "minimum": 0
+            },
+            "description": "Optional. Number of permanent lanes (not including turn pockets) in the direction of travel open to motor vehicles. It does not include bike lanes, shoulders or parking lanes.",
+            "name": "lanes",
+            "type": "integer"
+          },
+          {
+            "categories": [
+              "unseparated bike lane",
+              "buffered bike lane",
+              "separated bike lane",
+              "counter-flow bike lane",
+              "paved shoulder",
+              "shared lane",
+              "shared use path",
+              "off-road unpaved trail",
+              "other",
+              "none"
+            ],
+            "constraints": {
+              "enum": [
+                "unseparated bike lane",
+                "buffered bike lane",
+                "separated bike lane",
+                "counter-flow bike lane",
+                "paved shoulder",
+                "shared lane",
+                "shared use path",
+                "off-road unpaved trail",
+                "other",
+                "none"
+              ]
+            },
+            "description": "Optional. Type of bike facility along the link.",
+            "name": "bike_facility",
+            "type": "string"
+          },
+          {
+            "categories": [
+              "unknown",
+              "none",
+              "shoulder",
+              "sidewalk",
+              "offstreet_path",
+              "crosswalk"
+            ],
+            "constraints": {
+              "enum": [
+                "unknown",
+                "none",
+                "shoulder",
+                "sidewalk",
+                "offstreet_path",
+                "crosswalk"
+              ]
+            },
+            "description": "Optional. Type of pedestrian accommodation along the link",
+            "name": "ped_facility",
+            "type": "string"
+          },
+          {
+            "categories": [
+              "unknown",
+              "none",
+              "parallel",
+              "angle",
+              "other"
+            ],
+            "constraints": {
+              "enum": [
+                "unknown",
+                "none",
+                "parallel",
+                "angle",
+                "other"
+              ]
+            },
+            "description": "Optional. Type of parking along the link.",
+            "name": "parking",
+            "type": "string"
+          },
+          {
+            "description": "Optional. Set of allowed uses that should appear in either the use_definition or use_group tables; comma-separated.",
+            "name": "allowed_uses",
+            "type": "string"
+          },
+          {
+            "description": "Optional.  Toll on the link, in currency units.",
+            "name": "toll",
+            "type": "number",
+            "warnings": {
+              "maximum": 10000,
+              "minimum": 0
+            }
+          },
+          {
+            "description": "Optional.  Owner/operator of the link.",
+            "name": "jurisdiction",
+            "type": "string"
+          },
+          {
+            "constraints": {
+              "minimum": 0
+            },
+            "description": "Optional. Width (short_length units) of the entire right-of-way (both directions).",
+            "name": "row_width",
+            "type": "number",
+            "warnings": {
+              "minimum": 10
+            }
+          }
+        ],
+        "fieldsMatch": [
+          "subset"
+        ],
+        "foreignKeys": [
+          {
+            "fields": "from_node_id",
+            "reference": {
+              "fields": "node_id",
+              "resource": "node"
+            }
+          },
+          {
+            "fields": "to_node_id",
+            "reference": {
+              "fields": "node_id",
+              "resource": "node"
+            }
+          },
+          {
+            "fields": "geometry_id",
+            "reference": {
+              "fields": "geometry_id",
+              "resource": "geometry"
+            }
+          },
+          {
+            "fields": "parent_link_id",
+            "reference": {
+              "fields": "link_id",
+              "resource": ""
+            }
+          }
+        ],
+        "missingValues": [
+          "NaN",
+          ""
+        ],
+        "name": "link.schema.json",
+        "primaryKey": "link_id"
+      }
     },
     {
       "encoding": "utf-8",
@@ -33,7 +419,35 @@
       "mediatype": "text/csv",
       "name": "geometry",
       "path": "csv/geometry.csv",
-      "schema": "../../spec/0.97/geometry.schema.json"
+      "schema": {
+        "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
+        "description": "The geometry is an optional file that contains geometry information (shapepoints) for a line object. It is similar to Geometries in the SharedStreets reference system. The specification also allows for geometry information to be stored directly on the link table.",
+        "fields": [
+          {
+            "constraints": {
+              "required": true
+            },
+            "description": "Primary key - could be SharedStreets Geometry ID",
+            "name": "geometry_id",
+            "type": "any"
+          },
+          {
+            "description": "Link geometry, in well-known text (WKT) format.  Optionally, other formats supported by geopandas (GeoJSON, PostGIS) may be used if specified in geometry_field_format in gmns.spec.json.",
+            "name": "geometry",
+            "type": "any"
+          }
+        ],
+        "fieldsMatch": [
+          "subset"
+        ],
+        "foreignKeys": [],
+        "missingValues": [
+          "NaN",
+          ""
+        ],
+        "name": "geometry.schema.json",
+        "primaryKey": "geometry_id"
+      }
     },
     {
       "encoding": "utf-8",
@@ -41,7 +455,121 @@
       "mediatype": "text/csv",
       "name": "lane",
       "path": "csv/lane.csv",
-      "schema": "../../spec/0.97/lane.schema.json"
+      "schema": {
+        "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
+        "description": "The lane file allocates portions of the physical right-of-way that might be used for travel. It might be a travel lane, bike lane, or a parking lane. Lanes only are included in directed links; undirected links are assumed to have no lane controls or directionality. If a lane is added, dropped, or changes properties along the link, those changes are recorded on the `segment_link` table. Lanes are numbered sequentially, starting at either the centerline (two-way street) or the left shoulder (one-way street or divided highway with two centerlines).",
+        "fields": [
+          {
+            "constraints": {
+              "required": true
+            },
+            "description": "Primary key",
+            "name": "lane_id",
+            "type": "any"
+          },
+          {
+            "constraints": {
+              "required": true
+            },
+            "description": "Required. Foreign key to link table.",
+            "name": "link_id",
+            "type": "any"
+          },
+          {
+            "constraints": {
+              "maximum": 10,
+              "minimum": -10,
+              "required": true
+            },
+            "description": "Required. e.g., -1, 1, 2 (use left-to-right numbering). By convention, the left-most through lane is 1. Left-turn lanes have negative numbers",
+            "name": "lane_num",
+            "type": "integer"
+          },
+          {
+            "description": "Optional. Set of allowed uses that should appear in either the use_definition or use_group tables; comma-separated.",
+            "name": "allowed_uses",
+            "type": "string"
+          },
+          {
+            "categories": [
+              {
+                "label": "a vehicle can change lanes, provided that the vehicle-type is permitted in the destination lane",
+                "value": "none"
+              },
+              {
+                "label": "a regulatory prohibition (e.g., a double-white solid line) against changing lanes, but no physical barrier",
+                "value": "regulatory"
+              },
+              {
+                "label": "a physical barrier (e.g., a bollard, curb, Jersey barrier) is in place",
+                "value": "physical"
+              }
+            ],
+            "constraints": {
+              "enum": [
+                "none",
+                "regulatory",
+                "physical"
+              ]
+            },
+            "description": "Optional. Whether a barrier exists to prevent vehicles from changing lanes to the right.",
+            "name": "r_barrier",
+            "type": "string"
+          },
+          {
+            "categories": [
+              {
+                "label": "a vehicle can change lanes, provided that the vehicle-type is permitted in the destination lane",
+                "value": "none"
+              },
+              {
+                "label": "a regulatory prohibition (e.g., a double-white solid line) against changing lanes, but no physical barrier",
+                "value": "regulatory"
+              },
+              {
+                "label": "a physical barrier (e.g., a bollard, curb, Jersey barrier) is in place",
+                "value": "physical"
+              }
+            ],
+            "constraints": {
+              "enum": [
+                "none",
+                "regulatory",
+                "physical"
+              ]
+            },
+            "description": "Optional. Whether a barrier exists to prevent vehicles from changing lanes to the left",
+            "name": "l_barrier",
+            "type": "string"
+          },
+          {
+            "constraints": {
+              "minimum": 0
+            },
+            "description": "Optional. Width of the lane, short_length units.",
+            "name": "width",
+            "type": "number"
+          }
+        ],
+        "fieldsMatch": [
+          "subset"
+        ],
+        "foreignKeys": [
+          {
+            "fields": "link_id",
+            "reference": {
+              "fields": "link_id",
+              "resource": "link"
+            }
+          }
+        ],
+        "missingValues": [
+          "NaN",
+          ""
+        ],
+        "name": "lane.schema.json",
+        "primaryKey": "lane_id"
+      }
     },
     {
       "encoding": "utf-8",
@@ -49,7 +577,58 @@
       "mediatype": "text/csv",
       "name": "use_definition",
       "path": "csv/use_definition.csv",
-      "schema": "../../spec/0.97/use_definition.schema.json"
+      "schema": {
+        "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
+        "description": "The Use_Definition file defines the characteristics of each vehicle type or non-travel purpose (e.g., a shoulder or parking lane). A two-way left turn lane (TWLTL) is also a use.",
+        "fields": [
+          {
+            "constraints": {
+              "required": true
+            },
+            "description": "Primary key",
+            "name": "use",
+            "type": "string"
+          },
+          {
+            "constraints": {
+              "minimum": 0,
+              "required": true
+            },
+            "description": "Required.",
+            "name": "persons_per_vehicle",
+            "type": "number"
+          },
+          {
+            "constraints": {
+              "minimum": 0,
+              "required": true
+            },
+            "description": "Required. Passenger car equivalent.",
+            "name": "pce",
+            "type": "number"
+          },
+          {
+            "description": "Optional.",
+            "name": "special_conditions",
+            "type": "string"
+          },
+          {
+            "description": "Optional",
+            "name": "description",
+            "type": "string"
+          }
+        ],
+        "fieldsMatch": [
+          "subset"
+        ],
+        "foreignKeys": [],
+        "missingValues": [
+          "NaN",
+          ""
+        ],
+        "name": "use_definition.schema.json",
+        "primaryKey": "use"
+      }
     },
     {
       "encoding": "utf-8",
@@ -57,7 +636,43 @@
       "mediatype": "text/csv",
       "name": "use_group",
       "path": "csv/use_group.csv",
-      "schema": "../../spec/0.97/use_group.schema.json"
+      "schema": {
+        "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
+        "description": "Defines groupings of uses, to reduce the size of the allowed_uses lists in the other tables.",
+        "fields": [
+          {
+            "constraints": {
+              "required": true
+            },
+            "description": "Primary key.",
+            "name": "use_group",
+            "type": "string"
+          },
+          {
+            "constraints": {
+              "required": true
+            },
+            "description": "Comma-separated list of uses.",
+            "name": "uses",
+            "type": "string"
+          },
+          {
+            "description": "Optional.",
+            "name": "description",
+            "type": "string"
+          }
+        ],
+        "fieldsMatch": [
+          "subset"
+        ],
+        "foreignKeys": [],
+        "missingValues": [
+          "NaN",
+          ""
+        ],
+        "name": "use_group.schema.json",
+        "primaryKey": "use_group"
+      }
     },
     {
       "encoding": "utf-8",
@@ -65,7 +680,110 @@
       "mediatype": "text/csv",
       "name": "time_set_definitions",
       "path": "csv/time_set_definitions.csv",
-      "schema": "../../spec/0.97/time_set_definitions.schema.json"
+      "schema": {
+        "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
+        "description": "The time_set_definitions file is an optional representation of time-of-day and day-of-week sets to enable time restrictions through `_tod` files.",
+        "fields": [
+          {
+            "constraints": {
+              "required": true
+            },
+            "description": "Primary key.Primary key, similar to `service_id` in GTFS. Unique name of the time of day. Preferable legible rather than a number.",
+            "name": "timeday_id",
+            "type": "any"
+          },
+          {
+            "constraints": {
+              "required": true
+            },
+            "description": "Required. Whether Mondays are included.",
+            "name": "monday",
+            "type": "boolean"
+          },
+          {
+            "constraints": {
+              "required": true
+            },
+            "description": "Required. Whether Tuesdays are included.",
+            "name": "tuesday",
+            "type": "boolean"
+          },
+          {
+            "constraints": {
+              "required": true
+            },
+            "description": "Required. Whether Wednesdays are included.",
+            "name": "wednesday",
+            "type": "boolean"
+          },
+          {
+            "constraints": {
+              "required": true
+            },
+            "description": "Required. Whether Thursdays are included.",
+            "name": "thursday",
+            "type": "boolean"
+          },
+          {
+            "constraints": {
+              "required": true
+            },
+            "description": "Required. Whether Fridays are included.",
+            "name": "Friday",
+            "type": "boolean"
+          },
+          {
+            "constraints": {
+              "required": true
+            },
+            "description": "Required. Whether Saturdays are included.",
+            "name": "saturday",
+            "type": "boolean"
+          },
+          {
+            "constraints": {
+              "required": true
+            },
+            "description": "Required. Whether Sundays are included.",
+            "name": "sunday",
+            "type": "boolean"
+          },
+          {
+            "constraints": {
+              "required": true
+            },
+            "description": "Required. Whether holidays are included.",
+            "name": "holiday",
+            "type": "boolean"
+          },
+          {
+            "constraints": {
+              "required": true
+            },
+            "description": "Required. Start time in HH:MM format.",
+            "name": "start_time",
+            "type": "time"
+          },
+          {
+            "constraints": {
+              "required": true
+            },
+            "description": "Required. End  time in HH:MM format.",
+            "name": "end_time",
+            "type": "time"
+          }
+        ],
+        "fieldsMatch": [
+          "subset"
+        ],
+        "foreignKeys": [],
+        "missingValues": [
+          "NaN",
+          ""
+        ],
+        "name": "time_set_definitions.schema.json",
+        "primaryKey": "timeday_id"
+      }
     },
     {
       "encoding": "utf-8",
@@ -73,7 +791,181 @@
       "mediatype": "text/csv",
       "name": "link_tod",
       "path": "csv/link_tod.csv",
-      "schema": "../../spec/0.97/link_tod.schema.json"
+      "schema": {
+        "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
+        "description": "Handles day-of-week and time-of-day restrictions on links",
+        "fields": [
+          {
+            "constraints": {
+              "required": true
+            },
+            "description": "Primary key",
+            "name": "link_tod_id",
+            "type": "any"
+          },
+          {
+            "constraints": {
+              "required": true
+            },
+            "description": "Required. Foreign key, link table",
+            "name": "link_id",
+            "type": "any"
+          },
+          {
+            "description": "Conditionally required (either timeday_id or time_day). Foreign key to time_set_definitions.",
+            "name": "timeday_id",
+            "type": "any"
+          },
+          {
+            "description": "Conditionally required (either timeday_id or time_day). XXXXXXXX_HHMM_HHMM, where XXXXXXXX is a bitmap of days of the week, Sunday-Saturday, Holiday. The HHMM are the start and end times.",
+            "name": "time_day",
+            "type": "string"
+          },
+          {
+            "constraints": {
+              "minimum": 0
+            },
+            "description": "Optional.Saturation capacity (pce / hr / lane)",
+            "name": "capacity",
+            "type": "number"
+          },
+          {
+            "constraints": {
+              "maximum": 200,
+              "minimum": 0
+            },
+            "description": "Optional. Free flow speed in long_distance units per hour",
+            "name": "free_speed",
+            "type": "number",
+            "warnings": {
+              "maximum": 120,
+              "minimum": 1
+            }
+          },
+          {
+            "constraints": {
+              "minimum": 0
+            },
+            "description": "Optional. Number of permanent lanes (not including turn pockets) in the direction of travel open to motor vehicles. It does not include bike lanes, shoulders or parking lanes.",
+            "name": "lanes",
+            "type": "integer"
+          },
+          {
+            "categories": [
+              "unseparated bike lane",
+              "buffered bike lane",
+              "separated bike lane",
+              "counter-flow bike lane",
+              "paved shoulder",
+              "shared lane",
+              "shared use path",
+              "off-road unpaved trail",
+              "other",
+              "none"
+            ],
+            "constraints": {
+              "enum": [
+                "unseparated bike lane",
+                "buffered bike lane",
+                "separated bike lane",
+                "counter-flow bike lane",
+                "paved shoulder",
+                "shared lane",
+                "shared use path",
+                "off-road unpaved trail",
+                "other",
+                "none"
+              ]
+            },
+            "description": "Optional. Type of bike facility along the link.",
+            "name": "bike_facility",
+            "type": "string"
+          },
+          {
+            "categories": [
+              "unknown",
+              "none",
+              "shoulder",
+              "sidewalk",
+              "offstreet_path",
+              "crosswalk"
+            ],
+            "constraints": {
+              "enum": [
+                "unknown",
+                "none",
+                "shoulder",
+                "sidewalk",
+                "offstreet_path",
+                "crosswalk"
+              ]
+            },
+            "description": "Optional. Type of pedestrian accommodation along the link",
+            "name": "ped_facility",
+            "type": "string"
+          },
+          {
+            "categories": [
+              "unknown",
+              "none",
+              "parallel",
+              "angle",
+              "other"
+            ],
+            "constraints": {
+              "enum": [
+                "unknown",
+                "none",
+                "parallel",
+                "angle",
+                "other"
+              ]
+            },
+            "description": "Optional. Type of parking along the link.",
+            "name": "parking",
+            "type": "string"
+          },
+          {
+            "description": "Optional. Set of allowed uses that should appear in either the use_definition or use_group tables; comma-separated.",
+            "name": "allowed_uses",
+            "type": "string"
+          },
+          {
+            "description": "toll in currency units.",
+            "name": "toll",
+            "type": "number",
+            "warnings": {
+              "maximum": 10000,
+              "minimum": 0
+            }
+          }
+        ],
+        "fieldsMatch": [
+          "subset"
+        ],
+        "foreignKeys": [
+          {
+            "fields": "link_id",
+            "reference": {
+              "fields": "link_id",
+              "resource": "link"
+            }
+          },
+          {
+            "fields": "timeday_id",
+            "reference": {
+              "fields": "timeday_id",
+              "resource": "time_set_definitions"
+            }
+          }
+        ],
+        "missingValues": [
+          "NaN",
+          ""
+        ],
+        "name": "link_tod.schema.json",
+        "primaryKey": "link_tod_id"
+      }
     },
     {
       "encoding": "utf-8",
@@ -81,7 +973,30 @@
       "mediatype": "text/csv",
       "name": "signal_controller",
       "path": "csv/signal_controller.csv",
-      "schema": "../../spec/0.97/signal_controller.schema.json"
+      "schema": {
+        "$schema": "https://datapackage.org/profiles/2.0/tableschema.json",
+        "description": "The signal controller is associated with an intersection or a cluster of intersections.",
+        "fields": [
+          {
+            "constraints": {
+              "required": true
+            },
+            "description": "Primary key.",
+            "name": "controller_id",
+            "type": "any"
+          }
+        ],
+        "fieldsMatch": [
+          "subset"
+        ],
+        "foreignKeys": [],
+        "missingValues": [
+          "NaN",
+          ""
+        ],
+        "name": "signal_controller.schema.json",
+        "primaryKey": "controller_id"
+      }
     }
   ],
   "sources": [
