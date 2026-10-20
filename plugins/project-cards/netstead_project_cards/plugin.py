@@ -16,7 +16,7 @@ from pathlib import Path
 from netstead.workbench.plugins import WorkbenchPlugin
 
 from ._version import __version__
-from .flow import open_handle
+from .flow import open_handle, pending_seqs
 from .handlers import Handlers
 from .mapping import load_mapping
 from .routes import build_router
@@ -24,8 +24,8 @@ from .state import CardsState
 
 __all__ = ["REQUIRES_API", "STATIC", "plugin"]
 
-#: The plugin API this plugin is written against (1.5: ActionError and NotSupportedYet).
-REQUIRES_API = "1.5"
+#: The plugin API this plugin is written against (1.6: edit seqs, host.pending_edits, host.on_rollback, compact).
+REQUIRES_API = "1.6"
 #: The front end: main.js (the entry module), controller.js, cardmodel.js.
 STATIC = Path(__file__).parent / "static"
 
@@ -43,5 +43,7 @@ def plugin() -> WorkbenchPlugin:
         actions=handlers.specs(),
         router=lambda host: build_router(host, state, mapping),
         static_dir=STATIC,
-        state=lambda host: state.snapshot(lambda net_id: open_handle(host, net_id)),
+        state=lambda host: state.snapshot(
+            lambda net_id: open_handle(host, net_id), lambda net_id: pending_seqs(host, net_id)
+        ),
     )

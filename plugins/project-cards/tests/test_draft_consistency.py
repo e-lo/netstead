@@ -1,7 +1,8 @@
 """The draft always describes the network: a parent Action's rollback, a closed network and a stray edit.
 
 Core rolls back a failed Action's network changes but not a plugin's own state, so the plugin checks its drafts
-against the network (its lineage and version) before every handler and every ``state()``.
+against the network's pending edits (``host.pending_edits``) before every handler and every ``state()``, and a
+commit registers ``host.on_rollback`` to take its file back.
 """
 
 from typing import ClassVar, Literal
@@ -140,6 +141,57 @@ def test_an_undo_and_a_change_rolled_back_together_put_the_undone_change_back(ne
     assert nested.dispatch(UndoChange())["count"] == 1 and cell(nested, 2) == [1]
 
 
+def test_an_undo_rolled_back_under_a_change_added_and_undone_in_the_same_parent_comes_back(nested, no_state_reads):
+    no_state_reads(nested)
+    before = cell(nested, 3)
+    nested.dispatch(AddChange(change=lanes(1, 2)))
+    nested.dispatch(AddChange(change=lanes(2, 3)))
+    undo = UndoChange().model_dump(mode="json")
+    with pytest.raises(ActionError, match="the parent failed"):
+        nested.dispatch(AllThenFail(inners=[undo, add(3, 4), undo]))
+    assert cell(nested, 2) == [3] and cell(nested, 3) == before
+    assert nested.dispatch(UndoChange())["undone"].endswith("link 2: lanes → 3") and cell(nested, 2) == [1]
+
+
+def test_a_nested_commit_whose_parent_fails_removes_the_file_and_restores_the_draft(nested, tmp_path):
+    nested.dispatch(AddChange(change=lanes(1, 2)))
+    path = tmp_path / "cards" / "card.yml"
+    commit = CommitCard(path=str(path), project="One").model_dump(mode="json")
+    with pytest.raises(ActionError, match="the parent failed"):
+        nested.dispatch(ThenFail(inner=commit))
+    assert not path.exists() and not path.parent.exists()  # the folder the commit made goes too
+    state = nested.state()["plugins"]["project_cards"]
+    assert state["committed"] == [] and count(nested) == 1 and cell(nested, 1) == [2]
+    nested.dispatch(CommitCard(path=str(path), project="One"))  # the draft commits as if nothing happened
+    assert [c.facility.ids for c in read_card_file(path).changes] == [[1]]
+    assert [c["card_id"] for c in nested.state()["plugins"]["project_cards"]["committed"]] == ["one"]
+
+
+def test_a_nested_overwriting_commit_whose_parent_fails_restores_the_old_file(nested, tmp_path, no_state_reads):
+    no_state_reads(nested)
+    path = tmp_path / "card.yml"
+    path.write_text("old: card\n", encoding="utf-8")
+    nested.dispatch(AddChange(change=lanes(1, 2)))
+    commit = CommitCard(path=str(path), project="One", overwrite=True).model_dump(mode="json")
+    with pytest.raises(ActionError, match="the parent failed"):
+        nested.dispatch(ThenFail(inner=commit))
+    assert path.read_text(encoding="utf-8") == "old: card\n"
+    assert nested.dispatch(UndoChange())["count"] == 0 and cell(nested, 1) == [1]  # the draft came back
+
+
+def test_a_nested_commit_whose_file_cannot_be_restored_is_logged(nested, tmp_path, monkeypatch, caplog):
+    import logging
+
+    from netstead_project_cards import handlers
+
+    monkeypatch.setattr(handlers, "undo_write", lambda written: "removed")
+    nested.dispatch(AddChange(change=lanes(1, 2)))
+    path = tmp_path / "card.yml"
+    with caplog.at_level(logging.WARNING), pytest.raises(ActionError, match="the parent failed"):
+        nested.dispatch(ThenFail(inner=CommitCard(path=str(path), project="One").model_dump(mode="json")))
+    assert f"{path} could not be removed" in caplog.text and count(nested) == 1
+
+
 def test_a_change_that_applies_nothing_is_refused(session):
     nothing = RoadwayPropertyChange(
         facility=Selection(ids=[999999], ignore_missing=True), property_changes={"lanes": PropertyChange(set=2)}
@@ -219,5 +271,5 @@ def test_state_reads_the_networks_before_it_takes_its_own_lock(session):
         held.append(state._lock._is_owned())
         return handle if net_id == NET else None
 
-    snapshot = state.snapshot(network)
+    snapshot = state.snapshot(network, lambda net_id: frozenset())
     assert held and not any(held) and snapshot["preview"] is None

@@ -37,7 +37,7 @@ const server = { networks: [], active: "base", selection: null,
                  plugins: { project_cards: { drafts, preview: null } } };
 const store = createStore({ server });
 const deps = {
-  hostApi: "1.5", store, activeSelection, events: hub, actionTypes: new Set(), actionSchema: () => null,
+  hostApi: "1.6", store, activeSelection, events: hub, actionTypes: new Set(), actionSchema: () => null,
   frozenCopy: x => JSON.parse(JSON.stringify(x)),
   getJSON: async p => { calls.push(["get", p]);
     return p.includes("transit") ? { supported: false, message: "transit_routing_change is not yet supported" }

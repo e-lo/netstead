@@ -285,19 +285,19 @@ From the implementation (2026-10; #228, #229, #237). Not filed as issues yet; ea
 
 **Host API (core)**
 
-- **`Host.mutate` should wrap corral's `EditingError` in `ActionError`.** Today a plugin catches the corral error
-  itself to give the user a clean refusal.
-- **A rollback hook for plugins.** A `commit` nested in a parent Action that later fails can't be undone: core rolls
-  back its own state, but not the file a plugin wrote or its in-memory draft. Candidate: an `on_rollback` callback a
-  handler registers on the Host.
-- **A stable edit id.** `host.mutate` (its result) and/or `host.pending_edits` should name each edit, so a plugin
-  that undoes its own edits needn't read `NetworkHandle.lineage`.
+- ~~**`Host.mutate` should wrap corral's `EditingError` in `ActionError`.**~~ **Done (Host API 1.6):** it raises
+  `ActionError` for corral's `EditingError` and Arrow, ibis and DuckDB errors; `host.undo` likewise.
+- ~~**A rollback hook for plugins.**~~ **Done (Host API 1.6):** `host.on_rollback(fn)`, run in its place on core's
+  undo stack. The plugin's `commit` uses it to take back its file and restore the draft.
+- ~~**A stable edit id.**~~ **Done (Host API 1.6):** `host.mutate` returns a `Mutation` carrying the pending edit's
+  `seq` (never reused on an open network), `host.pending_edits(net_id)` lists them, and `host.undo()`'s `seq`
+  names the edit reversed. The plugin reconciles drafts against them instead of `NetworkHandle.lineage`.
 - **A lineage entry on commit.** The scope wants a committed card's id in the network's lineage; `Host` has no
   method for it (only `host.mutate` appends). Candidate: `host.note_lineage(net_id, text)`.
 - **A read-path check.** `project_cards.import` vets the file it reads with `host.writable`. Candidate:
   `host.readable(path)`.
-- **Compact-mode assistant tools from plugins.** A plugin can't declare compact tools, so with a local model the
-  card Actions are offered only when `assistant.compact_tools = "off"`.
+- ~~**Compact-mode assistant tools from plugins.**~~ **Done (Host API 1.6):** `compact: ClassVar[bool] = True` on
+  a `mutates` Action. The plugin marks `add_change`, `undo_change`, `preview` and `close_preview`.
 
 **Other core and the plugin's reads**
 

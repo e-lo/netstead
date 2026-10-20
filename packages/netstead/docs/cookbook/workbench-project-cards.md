@@ -246,11 +246,11 @@ The assistant offers a plugin's Actions only when you opt in. In **Settings → 
 ```toml
 [assistant]
 plugins = ["project_cards"]
-compact_tools = "off"
 ```
 
-`plugins` is the opt-in. `compact_tools = "off"` matters only with a model on this machine (Ollama): its default,
-`auto`, gives a local model a smaller set of tools that leaves out the cards tools.
+`plugins` is the opt-in. With a model on this machine (Ollama), the default `compact_tools = "auto"` gives it a smaller
+set of tools. That set includes adding, undoing and previewing a change and closing the preview, but not committing
+or importing, which need a file path. To draft those with a local model as well, set `compact_tools = "off"`.
 
 Every `project_cards` Action changes a network, opens or closes a preview, or writes a file, so the assistant
 drafts each one for you to approve. Nothing runs until you do. A drafted change made while a preview was open is
