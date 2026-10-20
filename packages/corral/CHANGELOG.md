@@ -16,13 +16,16 @@ This file is for the **corral** package only. `netstead` (which depends on corra
 ### Fixed
 
 - **DuckDB writes no longer pull the whole table into memory (#128).**
-  `IbisEngine.write_duckdb_table` materialised the expression as an Arrow
-  table and re-created it on a second connection. It now ATTACHes the
-  destination file to the expression's own connection and creates the
-  table there, so duckdb streams the rows and the write stays lazy at
-  regional scale; the file is detached afterwards. Writing into the file
-  the engine itself was opened on also works, as does a path containing a
-  quote.
+  `IbisEngine.write_duckdb_table` materialised the expression as one Arrow
+  table. It now streams record batches (100k rows at a time) from the
+  expression's own backend into the destination, which it opens with
+  `ibis.duckdb.connect`, the same per-process instance `read_duckdb_table`
+  uses. The interim ATTACH-based version from #245 made a second database
+  instance on a file a reader already held: stale reads and a corrupted
+  file on duckdb 1.1, "Unique file handle conflict" on duckdb 1.5. Writing
+  into the engine's own file, and expressions bound to another backend (or
+  none), also work. A non-file destination (URL, `:memory:`, `md:`) is
+  refused.
 - **`IbisEngine.close()` no longer hides a failed disconnect (#132).** It
   wrapped `disconnect()` in `suppress(Exception)`, hiding real failures
   (an in-flight query, a file-backed database that cannot be released).

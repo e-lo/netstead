@@ -91,6 +91,7 @@ import ibis
 from fsspec.core import url_to_fs
 from fsspec.implementations.dirfs import DirFileSystem
 from ibis.backends import BaseBackend
+from ibis.common.exceptions import IbisError
 from ibis.expr import types as ir
 
 from corral.types import SourceRef
@@ -408,6 +409,18 @@ class IbisEngine:
         self.con.create_table(name, obj=arrow_table, temp=True)  # raw Arrow: ibis drops its staging view after
         return self.con.table(name)
 
+    def _duckdb_source(self, expr: ir.Table) -> Any:
+        """The duckdb backend that should run ``expr``: its own, ours for an unbound memtable, else ``None``.
+
+        ``None`` means ``expr`` is bound to another kind of backend, which streams through ibis's
+        generic ``to_pyarrow_batches``.
+        """
+        try:
+            backend = expr._find_backend()
+        except IbisError:  # nothing binds it (a bare ibis.memtable): run it on our connection
+            return self.con
+        return backend if backend.name == "duckdb" else None
+
     # ------------------------------------------------------------------
     # Write primitives — adapters call these directly
     # ------------------------------------------------------------------
@@ -468,13 +481,19 @@ class IbisEngine:
     ) -> None:
         """Write ``expr`` into a duckdb file as a named table.
 
-        The destination file is ATTACHed to the connection ``expr`` runs
-        on and the table is created there from the expression, so duckdb
-        streams the rows from source to destination and nothing is
-        materialised in Python (a regional-scale table never has to fit
-        in memory). The file is DETACHed afterwards. When ``dest`` is
-        already attached (an engine opened on that very file), the table
-        is created in that catalog instead.
+        The rows stream: ``expr.to_pyarrow_batches()`` (run under the
+        source backend's lock, on whatever backend ``expr`` is bound to)
+        feeds a duckdb connection on ``dest`` opened with
+        ``ibis.duckdb.connect``, which creates the table from it. Only
+        one batch is in Python at a time, so a regional-scale table never
+        has to fit in memory.
+
+        ``dest`` is opened through duckdb's per-process instance cache,
+        the same way :meth:`read_duckdb_table` (and an engine opened on
+        that file) opens it, so a reader holding the file sees the write.
+        ATTACHing the file into another connection would make a second
+        database instance on it instead: stale reads and a corrupted file
+        on duckdb 1.1, a "Unique file handle conflict" on duckdb 1.5.
 
         Overwrite semantics: an existing destination table is replaced,
         so ``write_duckdb_table`` is idempotent (same as ``to_parquet``'s
@@ -485,23 +504,34 @@ class IbisEngine:
             dest: Target duckdb file path.
             table: Destination table name.
             **kwargs: Reserved for future options (currently ignored).
+
+        Raises:
+            InvalidEngineCallError: ``table`` is empty, or ``dest`` is not a
+                local file (a URL, ``:memory:``, ``md:``).
         """
         del kwargs  # reserved for future use
         if not table:
             raise InvalidEngineCallError("ibis engine: write_duckdb_table requires a non-empty table= argument")
-        backend: Any = expr._find_backend() if _is_duckdb(expr) else self.con  # a duckdb Backend
-        path = Path(_as_path_str(dest)).resolve()
-        with backend_lock(backend):
-            catalog = _attached_catalog(backend, path)
-            if catalog is not None:
-                backend.create_table(table, obj=expr, database=(catalog, "main"), overwrite=True)
-                return
-            alias = _temp_table_name("dest")
-            backend.attach(str(path).replace("'", "''"), name=alias)  # ibis interpolates it into ATTACH '...'
-            try:
-                backend.create_table(table, obj=expr, database=(alias, "main"), overwrite=True)
-            finally:
-                backend.detach(alias)
+        path = _as_path_str(dest)
+        if _url_scheme(path) is not None or path == ":memory:" or path.lower().startswith("md:"):
+            raise InvalidEngineCallError(f"ibis engine: write_duckdb_table writes to a local file; got {path!r}")
+        source = self._duckdb_source(expr)
+        view = _temp_table_name("stream")
+        dst: Any = ibis.duckdb.connect(path)  # the shared instance: never a second one on the file
+        try:
+            # The reader pulls from the source connection while it is consumed, so hold its lock throughout.
+            with backend_lock(source):
+                reader = _batch_reader(expr, source)
+                try:
+                    dst.con.register(view, reader)
+                    try:
+                        dst.create_table(table, obj=dst.table(view), overwrite=True)
+                    finally:
+                        dst.con.unregister(view)
+                finally:
+                    reader.close()
+        finally:
+            dst.disconnect()
 
     # ------------------------------------------------------------------
     # Schema cast — promoted from internal helper to public primitive
@@ -907,13 +937,23 @@ def _coerce_all_null_columns_to_string(arrow_table: Any) -> Any:
     return arrow_table.cast(new_schema)
 
 
-def _attached_catalog(backend: BaseBackend, path: Path) -> str | None:
-    """The catalog name under which ``backend`` already has the duckdb file ``path`` attached, if any.
+#: Rows per record batch when a duckdb write streams a table (one batch is in Python at a time).
+_STREAM_BATCH_ROWS = 100_000
 
-    Caller holds :func:`backend_lock`; ``raw_sql`` hands back a cursor used outside the method wrapper.
+
+def _batch_reader(expr: ir.Table, source: Any) -> pa.RecordBatchReader:
+    """A streaming Arrow reader over ``expr``; ``source`` is its duckdb backend, or ``None`` for another backend.
+
+    On duckdb the reader comes straight off the relation (``to_arrow_reader``, called
+    ``fetch_arrow_reader`` before duckdb 1.4): ibis's ``to_pyarrow_batches`` uses duckdb's
+    ``fetch_record_batch``, deprecated in duckdb 1.5. The caller holds ``source``'s lock while the
+    reader is consumed.
     """
-    rows = backend.raw_sql("SELECT database_name, path FROM duckdb_databases()").fetchall()  # type: ignore[attr-defined]
-    return next((name for name, p in rows if p and Path(p).resolve() == path), None)
+    if source is None:
+        return expr.to_pyarrow_batches(chunk_size=_STREAM_BATCH_ROWS)
+    relation = source._to_duckdb_relation(expr)
+    to_reader = getattr(relation, "to_arrow_reader", None) or relation.fetch_arrow_reader
+    return to_reader(_STREAM_BATCH_ROWS)
 
 
 def _is_duckdb(expr: Any) -> bool:
