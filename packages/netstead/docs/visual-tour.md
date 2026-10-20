@@ -64,17 +64,17 @@ In a notebook, evaluating `net` on its own renders an HTML summary card with the
 
 ### 2. Render the network as a map
 
-The `link` table is keyed to `geometry` by `geometry_id`; the `geometry.geometry` column carries the WKT LineString per link. Materialise both with `.to_pandas()` and join them before plotting.
+The `link` table is keyed to `geometry` by `geometry_id`; the `geometry.geometry` column carries one LineString per link (WKT on disk, WKB bytes once loaded). Materialise both with `.to_pandas()` and join them before plotting.
 <!-- doctest: skip -->
 
 ```python
 import pandas as pd
-from shapely import wkt
+from shapely import from_wkb
 
 links = net.links.to_pandas()
 geoms = net.tables["geometry"].to_pandas().set_index("geometry_id")
 links = links.join(geoms[["geometry"]], on="geometry_id")
-links["shape"] = links["geometry"].map(wkt.loads)
+links["shape"] = links["geometry"].map(from_wkb)
 ```
 
 For an interactive Leaflet map, use folium. Compute the centroid from the node table, then add one PolyLine per link.
@@ -167,7 +167,7 @@ for issue in qreport.issues[:3]:
 
 ### 5. Simplify geometry and render before/after
 
-The `simplify_geometry` op in `netstead.clean` removes redundant vertices from link geometries. Wrap it in a `Session` so the edit can be rolled back atomically.
+The `simplify_geometry` op in `netstead.clean` removes redundant vertices from link geometries. Leavenworth keeps its shapes in the `geometry` table (keyed by `link.geometry_id`), so the op edits that table directly — no inline `link.geometry` column is needed. Wrap it in a `Session` so the edit can be rolled back atomically.
 <!-- doctest: skip -->
 
 ```python
@@ -175,11 +175,11 @@ from corral.editing import Session
 from netstead.clean import simplify_geometry
 
 with Session(net) as s:
-    edit = simplify_geometry(net, s, mode="redundant_only", tolerance=1.0)
-    edit  # in a notebook, _repr_html_ shows the diff (vertices removed per link)
+    edit = simplify_geometry(net, s, mode="redundant_only", tolerance=0.000001)
+    edit  # in a notebook, _repr_html_ shows the diff (the edit targets the geometry table)
 ```
 
-You should see an `EditResult` diff card listing the number of vertices removed per affected link. `mode="redundant_only"` removes only colinear vertices and is loss-free; `mode="douglas_peucker"` is the lossy alternative with an explicit tolerance.
+You should see an `EditResult` diff card for the `geometry` table. `mode="redundant_only"` drops vertices that sit on the chord through their neighbours; with `tolerance=0.0` it is loss-free, and the 0.000001-degree (≈ 10 cm) tolerance here also catches the near-collinear vertices OSM traces leave behind, removing about a third of Leavenworth's 2,132 vertices. `mode="douglas_peucker"` is the lossy alternative with an explicit tolerance.
 
 ![EditResult diff card for the simplify-geometry edit](assets/screenshots/leavenworth-simplify-edit-result.png){ .screenshot }
 *EditResult diff card. Per-link vertex counts before / after, with a summary of links touched and vertices removed.*
@@ -193,7 +193,7 @@ links_before = links[["link_id", "shape"]].copy()
 links_after_geoms = net.tables["geometry"].to_pandas().set_index("geometry_id")
 links_after = links.copy()
 links_after["shape"] = links_after["geometry_id"].map(
-    lambda gid: wkt.loads(links_after_geoms.loc[gid, "geometry"])
+    lambda gid: from_wkb(links_after_geoms.loc[gid, "geometry"])
 )
 
 m = folium.Map(location=center, zoom_start=15, tiles="cartodbpositron")
@@ -206,7 +206,7 @@ for shape in links_after["shape"]:
 m
 ```
 
-Grey underneath = before; red on top = after. On Leavenworth most links don't change (the OSM source is already minimal), but a handful of curved tertiary links visibly simplify.
+Grey underneath = before; red on top = after. The two overlays sit almost exactly on top of each other — the dropped vertices were within 10 cm of a straight line — so look for the red line cutting the tiny kinks on the curved tertiary links.
 
 To restore the original state, roll the session back:
 <!-- doctest: skip -->
@@ -236,7 +236,7 @@ Render the scope side-by-side with the original to see the contrast — full net
 
 ```python
 scoped_links = scoped.links.to_pandas().join(geoms[["geometry"]], on="geometry_id")
-scoped_links["shape"] = scoped_links["geometry"].map(wkt.loads)
+scoped_links["shape"] = scoped_links["geometry"].map(from_wkb)
 
 m = folium.Map(location=center, zoom_start=15, tiles="cartodbpositron")
 # Full network, faint

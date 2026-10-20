@@ -644,6 +644,36 @@ def test_a_draft_on_a_network_closed_since_is_stale_not_a_crash(tmp_path, isolat
     assert s.assistant.draft.status == "stale" and s.assistant.turns[-1].steps[0]["status"] == "stale"
 
 
+def _drafted_on_a_copy(tmp_path, isolated_env):
+    """A draft that edits a derived copy of the network (the active one), made while the base is open."""
+    from netstead.workbench.actions import SetActiveNetwork
+
+    p = Scripted(_reply(("edit_cells", {"ids": [1], "values": {"lanes": 3}})))
+    s = _session(tmp_path, isolated_env, p)
+    copy = s.derive("leavenworth", label="copy", note="fork")
+    s.dispatch(SetActiveNetwork(net_id=copy))
+    return s, copy, s.assistant.ask("set link 1 to 3 lanes")
+
+
+def test_a_draft_on_a_derived_copy_is_stale_once_the_copys_base_moved(tmp_path, isolated_env):
+    s, copy, turn = _drafted_on_a_copy(tmp_path, isolated_env)
+    s.dispatch(EditCells(net_id="leavenworth", ids=[2], values={"lanes": 1}))  # the base moves; the copy does not
+    with pytest.raises(ValueError, match="changed since"):
+        s.assistant.approve(turn["draft_id"])
+    assert s.assistant.draft.status == "stale"
+    assert s.network(copy).version == 0
+
+
+def test_a_draft_on_a_derived_copy_whose_base_was_closed_still_runs(tmp_path, isolated_env):
+    from netstead.workbench.actions import CloseNetwork
+
+    s, copy, turn = _drafted_on_a_copy(tmp_path, isolated_env)
+    s.dispatch(CloseNetwork(net_id="leavenworth"))  # nothing left to go stale against
+    out = s.assistant.approve(turn["draft_id"])
+    assert out["steps"][0]["status"] == "done"
+    assert s.network(copy).version == 1
+
+
 # ---------------------------------------------------------------------- a read-only plugin Action can't skip approval
 
 

@@ -6,11 +6,28 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ## [Unreleased]
 
+### Fixed
+
+- **`netstead.clean` geometry ops on networks that keep shapes in the `geometry`
+  table.** `simplify_geometry` now edits whichever table holds the link shapes
+  (`link.geometry` inline, else `geometry` via `link.geometry_id`; inline wins),
+  so `netstead clean simplify-geometry` works on the Leavenworth fixture instead
+  of failing with "requires an inline 'geometry' column". The edit and its
+  rollback target that table; check `result.edit.table`. `recompute_lengths`
+  resolves each link's shape through `assemble_link_geometry` (inline → geometry
+  table → node endpoints) and still writes `link.length`. A network with shapes in
+  neither place raises a `CleanError` naming both locations.
+
 ### Added
 
 - **`Network.from_source(url, credentials=...)`** forwards explicit cloud
   credentials (fsspec storage options) to `Package.from_source`, as the
   [Read from S3](../corral/docs/cookbook/read-from-s3.md) cookbook describes.
+
+- **Plugin Host API 1.5:** `ActionError` and `NotSupportedYet` are exported from
+  `netstead.workbench.plugins`, so a plugin handler can refuse with a message the
+  user sees (anything else it raises is still an internal error).
+
 - **Workbench: verify a selection** (P3a). A **Selection** dock panel in every
   workspace (the selection's status, anchors, diagnostics, export and saved
   selections moved out of Details).
@@ -86,8 +103,26 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Fixed
 
+- **`netstead select` on an ambiguous selection** no longer crashes with
+  `SelectError: cannot emit a fragment from status 'ambiguous'`. It now prints
+  the status, the provisional link ids, each anchor with the other nodes it
+  could be (`candidates`), and diagnostics, and exits `3` (`1` stays
+  not-found, `2` invalid settings). Without `--json`, every status now renders
+  as a table instead of failing on a missing `json_out` argument.
 - **Selection anchors on a network without a `ref` (or `name`) column** no
   longer fail with `KeyError: 'ref'` (Leavenworth, for example).
+- **Assistant approval on a derived copy:** a draft that touches a derived
+  network (`derived_from`, such as a plugin's preview) also checks the copy's
+  base, while the base is open. Approving is refused as stale once the base
+  moved, so a plugin that applies the change to the base no longer overwrites an
+  edit made there since the draft.
+- **`netstead clean <op> <src>` without `--dest` no longer destroys the
+  source.** Writing the edited network back over its own directory removed
+  the old files before the unedited tables (still read lazily from them) were
+  written, leaving only the edited table behind and a DuckDB "No files found"
+  error. The write now stages beside the target and swaps in once complete
+  (fixed in corral's `Package.write`), and an in-place write keeps the
+  directory's format: a CSV directory stays CSV instead of becoming parquet.
 
 ## [1.0.0-beta.2] — TBD
 

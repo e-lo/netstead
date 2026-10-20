@@ -109,3 +109,13 @@ def test_doctor_extras_ok_stays_true_when_extra_absent():
     extras = [c for c in payload if c["name"].startswith("extra:")]
     # All optional extras report ok=True regardless of installed state.
     assert all(c["ok"] is True for c in extras)
+
+
+def test_doctor_extras_probe_the_packages_each_extra_actually_installs():
+    """The probe table must match pyproject: scipy is [graph], not [clean]; no igraph."""
+    result = runner.invoke(app, ["doctor", "--json"])
+    payload = json.loads(result.stdout)
+    names = {c["name"] for c in payload if c["name"].startswith("extra:")}
+    assert "extra:graph[scipy]" in names
+    assert {"extra:clean[shapely]", "extra:clean[geopandas]", "extra:clean[pyproj]"} <= names
+    assert not any("igraph" in n for n in names)

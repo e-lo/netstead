@@ -12,8 +12,10 @@ with rollback, indexed scope ops) need per-session state and will
 land via the :data:`state` kwarg seam (see :func:`build_server`).
 
 Use via :func:`build_server` which returns a configured
-:class:`mcp.server.fastmcp.FastMCP`. The companion CLI command
-``corral mcp serve`` hooks this into the stdio transport.
+:class:`mcp.server.fastmcp.FastMCP`. corral ships no CLI entry point
+of its own for this; the runnable server is ``netstead mcp serve``,
+which wraps this one (:func:`netstead.mcp.build_server`) and hooks it
+into the stdio transport.
 """
 
 from __future__ import annotations

@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 import typer
 from netstead.cli.commands import select as select_cmd
+from netstead.fixtures import leavenworth
 from typer.testing import CliRunner
 
 
@@ -65,7 +66,41 @@ def test_cli_not_found_exits_nonzero(patched_net):
     res = _run(
         ["select", "I-40 EB between Nowhere Street and Airport Boulevard", "dummy", "--provider", "stub", "--json"]
     )
-    assert res.exit_code != 0
+    assert res.exit_code == 1
+
+
+def test_cli_not_found_plain_text_prints_diagnostics(patched_net):
+    res = _run(["select", "I-40 EB between Nowhere Street and Airport Boulevard", "dummy", "--provider", "stub"])
+    assert res.exit_code == 1, res.output
+    assert "not_found" in res.output
+
+
+# "West Center Street" crosses Cherry Street at two nodes (60 and 61) in the Leavenworth fixture, so the
+# resolver returns an ambiguous result: its nearest pick plus the other candidate.
+_AMBIGUOUS = "Cherry Street between Prospect Street and West Center Street"
+
+
+def test_cli_ambiguous_lists_candidates_and_exits_3():
+    res = _run(["select", _AMBIGUOUS, str(leavenworth.csv_dir()), "--provider", "stub", "--json"])
+    assert res.exit_code == 3, res.output
+    out = json.loads(res.stdout)
+    assert out["status"] == "ambiguous"
+    assert out["link_ids"] == [170, 182, 187]
+    anchors = {a["role"]: a for a in out["anchors"]}
+    assert anchors["from"]["anchor"] == "Prospect Street"
+    assert anchors["from"]["node_id"] == 53 and anchors["from"]["candidates"] == []
+    assert anchors["to"]["anchor"] == "West Center Street"
+    assert anchors["to"]["node_id"] == 60 and anchors["to"]["candidates"] == [61]
+    assert anchors["to"]["kind"] == "intersection" and anchors["to"]["confidence"] == 1.0
+    assert "fragment" not in out and "links" not in out
+    assert any("candidates" in d for d in out["diagnostics"])
+
+
+def test_cli_ambiguous_plain_text_names_candidates():
+    res = _run(["select", _AMBIGUOUS, str(leavenworth.csv_dir()), "--provider", "stub"])
+    assert res.exit_code == 3, res.output
+    assert "ambiguous" in res.output
+    assert "61" in res.output
 
 
 def test_cli_unknown_provider_exits_2(tmp_path, monkeypatch):

@@ -388,3 +388,125 @@ def test_sequential_ops_chain_inside_one_session():
         assert float(net.links.to_pandas()["length"].iloc[0]) == pytest.approx(1.0)
         s.rollback()
     assert _snapshot(net) == before
+
+
+# ---------------------------------------------------------------------------
+# Geometry carried in the ``geometry`` table (GMNS ``link.geometry_id``)
+# ---------------------------------------------------------------------------
+
+
+def _vertex_counts(net: Network) -> dict:
+    """``{geometry_id: n_vertices}`` for every row of ``net.geometry``."""
+    from netstead._wkt import linestring_points
+
+    df = net.geometry.to_pandas()
+    return {gid: len(linestring_points(g)) for gid, g in zip(df["geometry_id"], df["geometry"], strict=True)}
+
+
+def test_simplify_geometry_edits_geometry_table_when_link_has_no_inline_column():
+    """Leavenworth keeps shapes in ``geometry`` via ``link.geometry_id``; the op edits that table."""
+    from netstead.clean import simplify_geometry
+    from netstead.fixtures import leavenworth
+
+    net = leavenworth.load()
+    assert "geometry" not in net.links.columns()
+    before = _vertex_counts(net)
+
+    with Session(net) as s:
+        result = simplify_geometry(net, s, mode="douglas_peucker", tolerance=0.00001)
+
+    assert result.edit.table == "geometry"
+    after = _vertex_counts(net)
+    assert after.keys() == before.keys()
+    assert all(after[g] <= before[g] for g in before)
+    assert sum(after.values()) < sum(before.values())
+    # The link table is left alone — no inline column is bolted on.
+    assert "geometry" not in net.links.columns()
+
+
+def test_simplify_geometry_geometry_table_rollback_restores_shapes():
+    from netstead.clean import simplify_geometry
+    from netstead.fixtures import leavenworth
+
+    net = leavenworth.load()
+    before = _snapshot(net)
+    vertices_before = _vertex_counts(net)
+
+    s = Session(net)
+    with s:
+        simplify_geometry(net, s, mode="douglas_peucker", tolerance=0.00001)
+        assert _vertex_counts(net) != vertices_before  # changed inside the block
+        s.rollback()
+    assert _snapshot(net) == before
+
+
+def test_simplify_geometry_inline_column_wins_over_geometry_table():
+    """When ``link.geometry`` exists it is the edit target, matching assemble_link_geometry's priority."""
+    from netstead.clean import simplify_geometry
+
+    engine = _engine()
+    nodes = _node(engine, [{"node_id": 1, "x_coord": 0.0, "y_coord": 0.0}])
+    links = _link(
+        engine,
+        [
+            {
+                "link_id": 1,
+                "from_node_id": 1,
+                "to_node_id": 1,
+                "geometry_id": 7,
+                "geometry": "LINESTRING (0 0, 1 0, 2 0)",
+            }
+        ],
+    )
+    geometry = Table(
+        name="geometry",
+        expr=engine.from_records([{"geometry_id": 7, "geometry": "LINESTRING (0 0, 5 0, 9 0)"}]),
+        engine=engine,
+    )
+    net = _network({"link": links, "node": nodes, "geometry": geometry})
+    with Session(net) as s:
+        result = simplify_geometry(net, s)
+    assert result.edit.table == "link"
+
+
+def test_simplify_geometry_without_any_shapes_raises_actionable_error():
+    """No inline column, no ``geometry`` table: say what is missing and what to do."""
+    from netstead.clean import CleanError, simplify_geometry
+
+    engine = _engine()
+    nodes = _node(engine, [{"node_id": 1, "x_coord": 0.0, "y_coord": 0.0}])
+    links = _link(engine, [{"link_id": 1, "from_node_id": 1, "to_node_id": 1, "geometry_id": 1}])
+    net = _network({"link": links, "node": nodes})
+    with Session(net) as s:  # noqa: SIM117
+        with pytest.raises(CleanError, match=r"link\.geometry.*geometry.*table"):
+            simplify_geometry(net, s)
+
+
+def test_recompute_lengths_reads_geometry_table_and_writes_link_length():
+    """Lengths come from the assembled shapes; the edit lands on ``link`` (where ``length`` lives)."""
+    from netstead.clean import recompute_lengths
+    from netstead.fixtures import leavenworth
+
+    net = leavenworth.load()
+    fixture_lengths = dict(zip(*(net.links.to_pandas()[c] for c in ("link_id", "length")), strict=True))
+
+    with Session(net) as s:
+        result = recompute_lengths(net, s, geodesic=True)
+
+    assert result.edit.table == "link"
+    recomputed = dict(zip(*(net.links.to_pandas()[c] for c in ("link_id", "length")), strict=True))
+    # osmnx stamped the fixture's lengths in metres from the same shapes.
+    for link_id, fixture_len in fixture_lengths.items():
+        assert recomputed[link_id] == pytest.approx(fixture_len, rel=0.02), link_id
+
+
+def test_recompute_lengths_without_any_shapes_raises_actionable_error():
+    from netstead.clean import CleanError, recompute_lengths
+
+    engine = _engine()
+    nodes = _node(engine, [{"node_id": 1}])  # no coords either
+    links = _link(engine, [{"link_id": 1, "from_node_id": 1, "to_node_id": 1, "length": 0.0}])
+    net = _network({"link": links, "node": nodes})
+    with Session(net) as s:  # noqa: SIM117
+        with pytest.raises(CleanError, match=r"link\.geometry.*geometry.*table"):
+            recompute_lengths(net, s)

@@ -713,16 +713,22 @@ class Package:
         round-trip via :meth:`from_source` returns the same logical
         package. A zip (``.zip`` / ``.csv.zip``, or ``format="zip"``)
         holds one flat ``<table>.csv`` member per table plus a
-        ``datapackage.json`` with inlined schemas, and is written
-        atomically (staged beside ``dest``, then renamed over it).
+        ``datapackage.json`` with inlined schemas.
+
+        Every format is staged beside ``dest`` and swapped into place
+        once the write is complete. The tables are lazy expressions
+        that may still read from ``dest`` itself (writing a package
+        back over its own source), so nothing at ``dest`` is removed
+        before the new files exist, and a failed write leaves an
+        existing ``dest`` intact.
 
         Args:
             dest: Target directory or file.
             format: Optional explicit format name (an adapter name;
                 ``"zip"`` is accepted as an alias for ``"zipcsv"``).
             overwrite: When ``False`` (the default), refuses to clobber
-                an existing ``dest``. When ``True``, removes the existing
-                target first.
+                an existing ``dest``. When ``True``, replaces the existing
+                target once the new files are complete.
             strict_sync: When ``True``, stale tables raise
                 :class:`OutOfSyncError` instead of warning.
 
@@ -788,44 +794,24 @@ class Package:
         dest_path = Path(dest)
         target_format = _resolve_write_format(dest_path, format)
 
-        # 3. Overwrite guard. The zip writer stages beside ``dest`` and
-        #    renames over it, so an existing archive survives a failed write.
+        # 3. Overwrite guard. The existing ``dest`` stays in place until
+        #    the staged write is complete (see step 4): the tables may
+        #    still read from it.
         if dest_path.exists() and not overwrite:
             raise FileExistsError(f"Destination {dest_path!r} already exists. Pass overwrite=True to replace it.")
         if target_format == "zipcsv":
             _write_zipcsv_package(self, dest_path)
             return
-        if dest_path.exists():
-            if dest_path.is_dir():
-                shutil.rmtree(dest_path)
-            else:
-                dest_path.unlink()
 
-        # 4. Per-table write. The layout depends on the format:
-        #    * parquet / csv directories: one file per table under dest
-        #    * duckdb: a single file with one table per Package.table
-        if target_format in {"parquet", "csv"}:
-            dest_path.mkdir(parents=True, exist_ok=True)
-            ext = "parquet" if target_format == "parquet" else "csv"
-            adapter = get_adapter(target_format)
-            for name, table in self.tables.items():
-                file_path = dest_path / f"{name}.{ext}"
-                adapter.write(table.expr, file_path, engine=self.engine)
-        elif target_format == "duckdb":
-            # DuckDB is a single multi-table file; per-table writes
-            # share the dest path and pass table= for the destination
-            # name inside the file.
-            adapter = get_adapter("duckdb")
-            for name, table in self.tables.items():
-                adapter.write(table.expr, dest_path, engine=self.engine, table=name)
-        else:
-            # Unknown / single-table format: route everything through
-            # the resolved adapter and let it raise if the layout
-            # doesn't fit. This is the seam new formats slot into
-            # without editing the central if/elif ladder.
-            adapter = get_adapter(target_format)
-            for name, table in self.tables.items():
-                adapter.write(table.expr, dest_path / name, engine=self.engine)
+        # 4. Per-table write into a staging directory beside ``dest``
+        #    (same filesystem, so the final swap is a rename), then the
+        #    swap. The staging directory, and the displaced old ``dest``
+        #    moved into it, go away with the context.
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix=f".{dest_path.name}.", dir=dest_path.parent) as staging_dir:
+            staged = Path(staging_dir) / dest_path.name
+            _write_package_tables(self, staged, target_format)
+            _swap_into_place(staged, dest_path, aside=Path(staging_dir) / f"{dest_path.name}.previous")
 
     # ------------------------------------------------------------------
     # Mutation
@@ -1298,6 +1284,51 @@ def _resolve_write_format(dest: Path, format: str | None) -> str:
     if format is None:
         return _infer_write_format(dest)
     return "zipcsv" if format == "zip" else format
+
+
+def _write_package_tables(pkg: Package, dest: Path, target_format: str) -> None:
+    """Write every table of ``pkg`` to ``dest`` in ``target_format``.
+
+    The layout depends on the format:
+
+    * parquet / csv: a directory with one ``<table>.<ext>`` file per table;
+    * duckdb: a single multi-table file, one table per :attr:`Package.tables` entry;
+    * anything else: one ``dest / <table>`` location per table through the
+      resolved adapter, which raises if the layout doesn't fit. This is the
+      seam new formats slot into without editing the central if/elif ladder.
+    """
+    if target_format in {"parquet", "csv"}:
+        dest.mkdir(parents=True, exist_ok=True)
+        adapter = get_adapter(target_format)
+        for name, table in pkg.tables.items():
+            adapter.write(table.expr, dest / f"{name}.{target_format}", engine=pkg.engine)
+    elif target_format == "duckdb":
+        adapter = get_adapter("duckdb")
+        for name, table in pkg.tables.items():
+            adapter.write(table.expr, dest, engine=pkg.engine, table=name)
+    else:
+        adapter = get_adapter(target_format)
+        for name, table in pkg.tables.items():
+            adapter.write(table.expr, dest / name, engine=pkg.engine)
+
+
+def _swap_into_place(staged: Path, dest: Path, *, aside: Path) -> None:
+    """Rename ``staged`` to ``dest``, first moving anything at ``dest`` to ``aside``.
+
+    A directory cannot be renamed over a non-empty directory, so an
+    existing ``dest`` (file or directory) is moved out of the way first.
+    If the final rename then fails, the displaced ``dest`` is put back
+    before the error propagates.
+    """
+    if not os.path.lexists(dest):
+        os.replace(staged, dest)
+        return
+    os.replace(dest, aside)
+    try:
+        os.replace(staged, dest)
+    except OSError:
+        os.replace(aside, dest)
+        raise
 
 
 def _write_zipcsv_package(pkg: Package, dest: Path) -> None:

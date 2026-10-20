@@ -102,6 +102,19 @@ def test_clean_simplify_writes_to_dest(tmp_path: Path):
     assert net.nodes.count() > 0
 
 
+def test_clean_in_place_keeps_every_table_and_the_source_format(tmp_path: Path):
+    """Without ``--dest`` the op writes back over its source: every table survives, still as CSV."""
+    src = _copy_fixture(tmp_path)
+    files_before = sorted(path.name for path in src.iterdir())
+    result = runner.invoke(app, ["clean", "remove-orphans", "--json", str(src)])
+    assert result.exit_code == 0, result.stdout
+    assert sorted(path.name for path in src.iterdir()) == files_before
+    from netstead import Network
+
+    net = Network.from_source(src, engine=IbisEngine())
+    assert net.links.count() == 339
+
+
 def test_clean_remove_orphans_json_emits_summary(tmp_path: Path):
     """``--json`` payload carries the standard {op, dry_run, edits[]} summary."""
     src = _copy_fixture(tmp_path)
@@ -143,6 +156,23 @@ def test_scope_from_nodes_json_emits_sets():
     assert payload["node_count"] == len(payload["node_ids"])
     assert payload["link_count"] == len(payload["link_ids"])
     assert "from_nodes" in payload["provenance"]
+
+
+def test_scope_from_nodes_json_path_between_ids_are_ints():
+    """``--json`` ids are all JSON ints, including path-expanded nodes (regression).
+
+    ``render_dict`` falls back to ``default=str``, so any ``numpy.int64``
+    leaking out of the scope surfaced as ``"27"`` next to ``1``.
+    """
+    result = runner.invoke(
+        app,
+        ["scope", "from-nodes", "--json", "--path-between", str(leavenworth.csv_dir()), "1", "121"],
+    )
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["node_count"] > 2
+    assert all(isinstance(n, int) for n in payload["node_ids"]), payload["node_ids"]
+    assert all(isinstance(lid, int) for lid in payload["link_ids"]), payload["link_ids"]
 
 
 def test_scope_connected_component_json():
