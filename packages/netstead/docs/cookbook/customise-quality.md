@@ -120,10 +120,10 @@ has_errors = any(i.severity is Severity.ERROR for i in report.issues)
 
 A rule is a plain class (no base class needed — `corral.quality.Rule` is a `Protocol`) with three attributes, `code`, `description` and `severity`, and two methods: `applies_to(package) -> bool`, a cheap predicate the runner calls first, and `run(package, report, config)`, which appends findings to `report` with `report.add_issue(...)`. Accept the third `config` argument to read `RuleConfig.thresholds`; a rule with no thresholds may define `run(self, package, report)` and the runner passes two arguments. Don't apply `severity_override` yourself — `run_quality` rewrites the severity of every issue your rule emitted after it returns.
 
-This rule flags links longer than a configurable maximum (Leavenworth's `length` column is in metres):
+Write the predicate against the table's ibis expression (`package.tables["link"].expr`) so DuckDB filters the rows and only the offending ones reach Python; on a 200k-link network that is the difference between materialising every row and fetching a handful. Number the rows with `ibis.row_number()` *before* filtering so `Issue.row` is the row's position in the whole table. This rule flags links longer than a configurable maximum (Leavenworth's `length` column is in metres):
 
 ```python
-import pandas as pd
+import ibis
 from corral.quality import RuleConfig, register_rule, run_quality
 from corral.reports import Category, Issue, Severity
 
@@ -140,9 +140,14 @@ class LongLinkRule:
     def run(self, package, report, config: RuleConfig | None = None) -> None:
         thresholds = config.thresholds if config else {}
         max_length = float(thresholds.get("max_length", 1000.0))
-        for i, row in package.tables["link"].to_pandas().iterrows():
-            if pd.isna(row["length"]) or row["length"] <= max_length:
-                continue
+        link = package.tables["link"].expr
+        link = link.mutate(row=ibis.row_number())
+        offending = (
+            link.filter(link.length.notnull(), link.length > max_length)
+            .select("row", "link_id", "length")
+            .order_by("row")
+        )
+        for row in offending.to_pyarrow().to_pylist():
             report.add_issue(
                 Issue(
                     severity=self.severity,
@@ -151,7 +156,7 @@ class LongLinkRule:
                     message=f"link {row['link_id']} is {row['length']:.0f} long (> {max_length:.0f})",
                     table="link",
                     column="length",
-                    row=int(i),
+                    row=row["row"],
                     fix_hint="Split the link, or check its length.",
                 )
             )

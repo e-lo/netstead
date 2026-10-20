@@ -198,6 +198,24 @@ def test_duplicate_near_nodes_threshold_zero_suppresses():
     assert _issues_with_code(report, "quality.duplicate_near_nodes") == []
 
 
+def test_duplicate_near_nodes_handles_tiny_epsilon_on_large_coordinates():
+    """A tiny epsilon over projected coordinates must not overflow the grid-cell key (issue #181)."""
+    engine = _engine()
+    nodes = _node(
+        engine,
+        [
+            {"node_id": 1, "x_coord": 6_000_000.0, "y_coord": 2_000_000.0},
+            {"node_id": 2, "x_coord": 6_000_000.0, "y_coord": 2_000_000.0},  # exact duplicate
+            {"node_id": 3, "x_coord": 6_000_001.0, "y_coord": 2_000_000.0},
+        ],
+    )
+    links = _link(engine, [{"link_id": 1, "from_node_id": 1, "to_node_id": 3, "length": 1.0, "directed": False}])
+    net = _network({"link": links, "node": nodes})
+    report = run_quality(net, config={"quality.duplicate_near_nodes": RuleConfig(thresholds={"epsilon_units": 1e-15})})
+    flagged = _issues_with_code(report, "quality.duplicate_near_nodes")
+    assert [i.extra["node_ids"] for i in flagged] == [[1, 2]]
+
+
 def test_sharp_angle_bends_flags_acute_turn():
     """A 3-vertex link with a near-90° bend at the middle gets flagged at default 30°."""
     engine = _engine()

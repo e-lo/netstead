@@ -132,6 +132,18 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Changed
 
+- **The quality rule pack filters in DuckDB instead of materialising tables**
+  ([#181](https://github.com/e-lo/netstead/issues/181)). Each rule now writes its
+  predicate as an ibis expression and fetches only the offending rows, so findings
+  are unchanged (a golden test pins every field on Leavenworth, RDU I-40 and a
+  synthetic edge-case network) but a 100k-link network checks much faster:
+  `duplicate_near_nodes` drops from 75 s to 0.04 s (an O(n²) Python scan became a
+  grid self-join), and the other table rules are 7–25× faster.
+  `sharp_angle_bends` still parses geometries with shapely, now vectorised and
+  reading only `link_id` and `geometry`. One visible difference: a message quotes
+  a value as stored, so a float column of whole numbers shows `1000.0` where it
+  used to show `1000`. The "write your own rule" cookbook example now shows the
+  pushdown pattern.
 - **`CloseNetwork.mutates` is `True`** (it throws away unsaved edits). It is never
   offered to the assistant either.
 
