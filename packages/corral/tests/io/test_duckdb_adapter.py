@@ -178,6 +178,22 @@ def test_scan_strips_duckdb_url_scheme() -> None:
     assert {ref.name for ref in listing} == EXPECTED_TABLES
 
 
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("duckdb:///abs/path.duckdb", "/abs/path.duckdb"),
+        ("duckdb://rel/path.duckdb", "rel/path.duckdb"),
+        ("duckdb://net.duckdb", "net.duckdb"),
+        ("DUCKDB:///abs/path.duckdb", "/abs/path.duckdb"),  # dispatch and probe treat the scheme case-insensitively
+        ("plain/path.duckdb", "plain/path.duckdb"),
+    ],
+)
+def test_coerce_path_strips_the_duckdb_scheme(source: str, expected: str) -> None:
+    from corral.io.duckdb_adapter import _coerce_path
+
+    assert _coerce_path(source) == expected
+
+
 # ---------------------------------------------------------------------------
 # read() — table= kwarg required, delegates to engine
 # ---------------------------------------------------------------------------

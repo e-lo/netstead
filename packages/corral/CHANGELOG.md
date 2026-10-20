@@ -28,6 +28,10 @@ This file is for the **corral** package only. `netstead` (which depends on corra
 
 ### Fixed
 
+- **`DUCKDB://` URLs open the right file.** Dispatch and `probe` treat the
+  `duckdb://` scheme case-insensitively, but the adapter stripped only the
+  lowercase spelling, so `DUCKDB:///abs/x.duckdb` was handed to duckdb as a
+  literal path. The scheme is now stripped with `urlparse`.
 - **`package_to_md` resource links hit their schema headings.** The overview
   table hyphenated the resource name in its in-page link (`#link-tod`) while
   `schemas_to_md` renders `## link_tod`, whose slug keeps the underscore, so
