@@ -85,8 +85,11 @@ from collections.abc import Callable
 from itertools import count
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urlsplit
 
 import ibis
+from fsspec.core import url_to_fs
+from fsspec.implementations.dirfs import DirFileSystem
 from ibis.backends import BaseBackend
 from ibis.expr import types as ir
 
@@ -188,6 +191,50 @@ class IbisEngine:
             self.con = con
             self._owns_con = False
         serialize_backend(self.con)
+        # (scheme://host, frozen storage_options) -> private protocol name registered on ``con``.
+        self._scoped_filesystems: dict[tuple[str, tuple[tuple[str, str], ...]], str] = {}
+
+    def _resolve_source(self, source: SourceRef, storage_options: dict[str, Any] | None) -> str:
+        """Coerce ``source`` to the path duckdb reads or writes.
+
+        A URL with ``storage_options`` — the fsspec options the credentials
+        cascade produces (see :mod:`corral.io.credentials`) — is served
+        through an fsspec filesystem built from exactly those options and
+        registered on this engine's duckdb connection under a private
+        protocol name. duckdb's own ``read_csv`` / ``read_parquet`` reject
+        ``storage_options`` as a named parameter, so the options never
+        reach them. One filesystem is registered per (scheme, host,
+        options) and reused; different options for the same host get
+        separate filesystems, so two reads with different credentials
+        never share one — including lazy expressions executed later.
+
+        Without ``storage_options`` the path goes to duckdb as-is (its
+        native httpfs reader handles ``http(s)://`` and ``s3://``).
+
+        Raises:
+            InvalidEngineCallError: ``storage_options`` given for a local path.
+        """
+        path = _as_path_str(source)
+        if not storage_options:
+            return path
+        if _url_scheme(path) is None:
+            raise InvalidEngineCallError(
+                f"ibis engine: storage_options apply to URL sources only, not to the local path {path!r}"
+            )
+        parts = urlsplit(path)
+        root = f"{parts.scheme}://{parts.netloc}"
+        key = (root, tuple(sorted((k, repr(v)) for k, v in storage_options.items())))
+        with backend_lock(self.con):
+            name = self._scoped_filesystems.get(key)
+            if name is None:
+                fs, root_path = url_to_fs(root, **storage_options)
+                name = f"corral-fs-{next(_SCOPED_FS_IDS)}"
+                self.con.register_filesystem(_scoped_filesystem(name, fs, root_path))
+                self._scoped_filesystems[key] = name
+        tail = parts.path.lstrip("/")
+        if parts.query:
+            tail = f"{tail}?{parts.query}"
+        return f"{name}://{tail}"
 
     # ------------------------------------------------------------------
     # Read primitives — adapters call these directly
@@ -206,7 +253,9 @@ class IbisEngine:
                 are passed through to duckdb's httpfs/s3 extensions.
             schema: Optional Frictionless schema; columns are cast after
                 read via :meth:`cast_schema`.
-            **kwargs: Forwarded verbatim to
+            **kwargs: ``storage_options`` (fsspec options for a URL
+                source) is consumed here — see :meth:`_resolve_source`.
+                Everything else is forwarded verbatim to
                 :meth:`ibis.backends.duckdb.Backend.read_csv` (``delim``,
                 ``header``, ``columns``, ...).
 
@@ -223,7 +272,7 @@ class IbisEngine:
             2
             >>> e.close()
         """
-        path = _as_path_str(source)
+        path = self._resolve_source(source, kwargs.pop("storage_options", None))
         table = self.con.read_csv(path, **kwargs)
         return self.cast_schema(table, schema) if schema is not None else table
 
@@ -248,12 +297,14 @@ class IbisEngine:
             schema: Optional Frictionless schema.
             hive_partitioning: Enable Hive-style partition discovery.
                 Auto-enabled for directory sources unless explicitly set.
-            **kwargs: Forwarded to duckdb's ``read_parquet``.
+            **kwargs: ``storage_options`` (fsspec options for a URL
+                source) is consumed here — see :meth:`_resolve_source`.
+                Everything else is forwarded to duckdb's ``read_parquet``.
 
         Returns:
             A lazy ``ibis.expr.types.Table``.
         """
-        path = _as_path_str(source)
+        path = self._resolve_source(source, kwargs.pop("storage_options", None))
         # Directory sources: auto-enable hive partitioning and hand duckdb an
         # explicit recursive glob. A bare directory path raises "No files found"
         # on some duckdb versions (<1.5); ``dir/**/*.parquet`` reliably matches the
@@ -366,10 +417,13 @@ class IbisEngine:
 
         Args:
             expr: An ibis expression.
-            dest: Target path.
-            **kwargs: Forwarded to duckdb's ``to_csv``.
+            dest: Target path or URL.
+            **kwargs: ``storage_options`` (fsspec options for a URL
+                destination) is consumed here — see :meth:`_resolve_source`.
+                Everything else is forwarded to duckdb's ``to_csv``.
         """
-        self.con.to_csv(expr, _as_path_str(dest), **kwargs)
+        dest_path = self._resolve_source(dest, kwargs.pop("storage_options", None))
+        self.con.to_csv(expr, dest_path, **kwargs)
 
     def write_parquet(
         self,
@@ -391,7 +445,9 @@ class IbisEngine:
             expr: An ibis expression.
             dest: Target file path.
             partition_by: Must be ``None`` — see note above.
-            **kwargs: Forwarded to duckdb's ``to_parquet``.
+            **kwargs: ``storage_options`` (fsspec options for a URL
+                destination) is consumed here — see :meth:`_resolve_source`.
+                Everything else is forwarded to duckdb's ``to_parquet``.
         """
         if partition_by:
             raise InvalidEngineCallError(
@@ -399,7 +455,8 @@ class IbisEngine:
                 "ParquetAdapter.write(partition_by=...), which routes "
                 "through pyarrow rather than this primitive"
             )
-        self.con.to_parquet(expr, _as_path_str(dest), **kwargs)
+        dest_path = self._resolve_source(dest, kwargs.pop("storage_options", None))
+        self.con.to_parquet(expr, dest_path, **kwargs)
 
     def write_duckdb_table(
         self,
@@ -707,6 +764,30 @@ class IbisEngine:
 # ---------------------------------------------------------------------------
 # Helpers (module-level — no state, no polymorphism, easier to read inline)
 # ---------------------------------------------------------------------------
+
+
+#: Private protocol names handed to duckdb for credentialed URL sources (``corral-fs-<n>``).
+_SCOPED_FS_IDS = count(1)
+
+
+def _url_scheme(path: str) -> str | None:
+    """The scheme of a ``scheme://...`` string, else ``None`` (same rule as ``corral.io._scheme_of``)."""
+    scheme = urlsplit(path).scheme.lower()
+    if len(scheme) < 2 or not path.lower().startswith(f"{scheme}://"):
+        return None
+    return scheme
+
+
+def _scoped_filesystem(name: str, fs: Any, root: str) -> DirFileSystem:
+    """A view of ``fs`` rooted at ``root`` that duckdb reaches as ``<name>://...``.
+
+    ``DirFileSystem`` already forwards every operation to ``fs`` under
+    ``root``; the subclass only renames the protocol, so duckdb routes the
+    private scheme here (never to its own httpfs reader) and ibis never
+    autoloads httpfs for it.
+    """
+    cls = type(f"_ScopedFileSystem_{name}", (DirFileSystem,), {"protocol": (name,), "cachable": False})
+    return cls(path=root, fs=fs)
 
 
 def _as_path_str(source: SourceRef) -> str:

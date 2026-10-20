@@ -307,10 +307,7 @@ def test_scan_directory_via_fsspec_ls(remote_registry, monkeypatch) -> None:
         "bucket/prefix/node.csv",
     ]
 
-    def fake_filesystem(scheme, **storage_options):
-        return fake_fs
-
-    monkeypatch.setattr(remote_mod.fsspec, "filesystem", fake_filesystem)
+    monkeypatch.setattr(remote_mod, "url_to_fs", lambda url, **storage_options: (fake_fs, "bucket/prefix"))
 
     remote = remote_registry["remote"]
     engine = MagicMock(name="engine")
@@ -320,6 +317,8 @@ def test_scan_directory_via_fsspec_ls(remote_registry, monkeypatch) -> None:
     assert names == {"link", "node"}
     formats = {r.format for r in listing}
     assert formats == {"csv"}
+    # Children are full URLs, so each one routes back through the remote adapter.
+    assert {r.path for r in listing} == {"s3://bucket/prefix/link.csv", "s3://bucket/prefix/node.csv"}
 
 
 # ---------------------------------------------------------------------------
@@ -407,10 +406,7 @@ def test_scan_directory_listing_filters_unknown_extensions(remote_registry, monk
         "bucket/prefix/manifest.json",  # extension not registered → drop
     ]
 
-    def fake_filesystem(scheme, **storage_options):
-        return fake_fs
-
-    monkeypatch.setattr(remote_mod.fsspec, "filesystem", fake_filesystem)
+    monkeypatch.setattr(remote_mod, "url_to_fs", lambda url, **storage_options: (fake_fs, "bucket/prefix"))
 
     remote = remote_registry["remote"]
     engine = MagicMock(name="engine")
@@ -436,7 +432,7 @@ def test_scan_directory_listing_propagates_unexpected_errors(remote_registry, mo
 
     fake_fs.isdir.side_effect = boom
 
-    monkeypatch.setattr(remote_mod.fsspec, "filesystem", lambda scheme, **kw: fake_fs)
+    monkeypatch.setattr(remote_mod, "url_to_fs", lambda url, **kw: (fake_fs, "bucket/prefix"))
 
     remote = remote_registry["remote"]
     engine = MagicMock(name="engine")
