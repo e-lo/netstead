@@ -12,6 +12,7 @@ import re
 import shutil
 import threading
 from pathlib import Path
+from typing import Any
 
 import ibis
 import pytest
@@ -343,6 +344,62 @@ def test_write_duckdb_roundtrip(engine: IbisEngine, link_csv: Path, tmp_path: Pa
     assert out.exists()
     again = engine.scan(out, table="link")
     assert again.count().to_pyarrow().as_py() == 339
+
+
+def test_write_duckdb_stays_inside_duckdb(engine: IbisEngine, link_parquet: Path, tmp_path: Path, monkeypatch):
+    """#128: the duckdb write never materialises the table in Python (no Arrow hop, no memtable)."""
+    import ibis.expr.types as ir
+
+    expected = engine.to_arrow(engine.scan(link_parquet))
+
+    def _refuse(*_a, **_kw):
+        raise AssertionError("write_duckdb_table materialised the table through Arrow")
+
+    out = tmp_path / "out.duckdb"
+    with monkeypatch.context() as m:
+        m.setattr(ir.Table, "to_pyarrow", _refuse)
+        m.setattr(ir.Table, "to_pyarrow_batches", _refuse)
+        m.setattr(ibis, "memtable", _refuse)
+        engine.write_duckdb_table(engine.scan(link_parquet), out, table="link")
+    assert engine.to_arrow(engine.read_duckdb_table(out, table="link")).equals(expected)
+
+
+def test_write_duckdb_replaces_an_existing_table_and_keeps_the_others(engine: IbisEngine, tmp_path: Path):
+    out = tmp_path / "out.duckdb"
+    engine.write_duckdb_table(engine.from_records([{"a": 1}]), out, table="t")
+    engine.write_duckdb_table(engine.from_records([{"b": "x"}]), out, table="keep")
+    engine.write_duckdb_table(engine.from_records([{"a": 2}, {"a": 3}]), out, table="t")
+    assert engine.to_arrow(engine.read_duckdb_table(out, table="t")).to_pylist() == [{"a": 2}, {"a": 3}]
+    assert engine.to_arrow(engine.read_duckdb_table(out, table="keep")).to_pylist() == [{"b": "x"}]
+
+
+def test_write_duckdb_releases_the_destination(engine: IbisEngine, tmp_path: Path):
+    """The destination is detached afterwards: the engine's catalogs are unchanged and the file can be moved."""
+    con: Any = engine.con
+    catalogs = set(con.list_catalogs())
+    out = tmp_path / "out.duckdb"
+    engine.write_duckdb_table(engine.from_records([{"a": 1}]), out, table="t")
+    assert set(con.list_catalogs()) == catalogs
+    moved = out.rename(tmp_path / "moved.duckdb")
+    assert engine.to_arrow(engine.read_duckdb_table(moved, table="t")).to_pylist() == [{"a": 1}]
+
+
+def test_write_duckdb_to_a_path_with_a_quote(engine: IbisEngine, tmp_path: Path):
+    out = tmp_path / "o'brien" / "out.duckdb"
+    out.parent.mkdir()
+    engine.write_duckdb_table(engine.from_records([{"a": 1}]), out, table="t")
+    assert engine.to_arrow(engine.read_duckdb_table(out, table="t")).to_pylist() == [{"a": 1}]
+
+
+def test_write_duckdb_into_the_engines_own_database_file(tmp_path: Path):
+    """An engine opened on a duckdb file can write a table back into that same file."""
+    db = tmp_path / "own.duckdb"
+    e = IbisEngine(con=ibis.duckdb.connect(str(db)))
+    try:
+        e.write_duckdb_table(e.from_records([{"a": 1}, {"a": 2}]), db, table="t")
+        assert e.to_arrow(e.con.table("t")).to_pylist() == [{"a": 1}, {"a": 2}]
+    finally:
+        e.con.disconnect()
 
 
 def test_write_unsupported_format_raises(engine: IbisEngine, link_csv: Path, tmp_path: Path):

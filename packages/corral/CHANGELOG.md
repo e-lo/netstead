@@ -15,6 +15,14 @@ This file is for the **corral** package only. `netstead` (which depends on corra
 
 ### Fixed
 
+- **DuckDB writes no longer pull the whole table into memory (#128).**
+  `IbisEngine.write_duckdb_table` materialised the expression as an Arrow
+  table and re-created it on a second connection. It now ATTACHes the
+  destination file to the expression's own connection and creates the
+  table there, so duckdb streams the rows and the write stays lazy at
+  regional scale; the file is detached afterwards. Writing into the file
+  the engine itself was opened on also works, as does a path containing a
+  quote.
 - **`replace_table` on a table with an all-null column (#163).** Already
   fixed by the engine coercing `null`-typed Arrow columns to `string` before
   duckdb sees them; now locked in by a regression test that runs the
