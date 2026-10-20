@@ -390,6 +390,51 @@ def test_inner_adapter_loop_guard_hard_error(remote_registry, monkeypatch) -> No
         _BY_EXT.pop("csv", None)
 
 
+@pytest.mark.parametrize(
+    ("url", "fmt", "expected"),
+    [
+        ("s3://bucket/data.csv", None, "csv"),
+        ("https://example.com/a/b.parquet?x=1", None, "parquet"),
+        ("s3://bucket/data.csv", "parquet", "parquet"),
+    ],
+)
+def test_inner_adapter_dispatches_once_on_the_scheme_stripped_path(
+    remote_registry, monkeypatch, url, fmt, expected
+) -> None:
+    """#138: one dispatch, on a path with no scheme left for RemoteAdapter to claim."""
+    from corral.io import remote as remote_mod
+
+    seen: list[str] = []
+    real_dispatch = remote_mod.dispatch
+
+    def counting_dispatch(source, *, format=None):
+        seen.append(str(source))
+        return real_dispatch(source, format=format)
+
+    monkeypatch.setattr(remote_mod, "dispatch", counting_dispatch)
+
+    assert remote_registry["remote"]._inner_adapter(url, format=fmt).name == expected
+    assert len(seen) == 1
+    assert "://" not in seen[0]
+
+
+def test_inner_adapter_rejects_a_url_with_no_path(remote_registry) -> None:
+    """``s3://bucket`` has nothing to dispatch on; it must raise, not resolve to RemoteAdapter."""
+    from corral.io import FormatNotDetected
+
+    with pytest.raises(FormatNotDetected):
+        remote_registry["remote"]._inner_adapter("s3://bucket")
+
+
+def test_inner_adapter_error_does_not_echo_url_userinfo(remote_registry) -> None:
+    from corral.io import FormatNotDetected
+
+    with pytest.raises(FormatNotDetected) as exc:
+        remote_registry["remote"]._inner_adapter("s3://key:hunter2@bucket")
+    assert "hunter2" not in str(exc.value)
+    assert "s3://bucket" in str(exc.value)
+
+
 def test_scan_directory_listing_filters_unknown_extensions(remote_registry, monkeypatch) -> None:
     """S1: ls output is filtered against the registered-extension map.
 
