@@ -30,6 +30,12 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   staged beside `dest` and swapped into place once the write is complete
   (as zip targets already were), so a failed write also leaves an existing
   `dest` intact.
+- **Parquet and CSV directory writes now emit a `datapackage.json`.** A
+  directory source that carried its own descriptor lost it on an in-place
+  write, because only the zip writer produced one. Directory targets now get
+  the same self-describing descriptor (package metadata carried over,
+  resource paths rewritten, schemas inlined), so `Package.from_source` on
+  the written directory auto-discovers the spec again.
 
 ## [1.0.0-beta.2] — TBD
 
