@@ -316,6 +316,26 @@ def test_write_partitioned_roundtrip(adapter: ParquetAdapter, tmp_path: Path) ->
     assert "link_id" in rt_df.columns
 
 
+def test_write_partitioned_streams_without_pandas(adapter: ParquetAdapter, tmp_path: Path, monkeypatch) -> None:
+    """#135: a partitioned write streams Arrow record batches; it never collects the table through pandas."""
+    engine = get_engine("ibis")
+    expr = adapter.read(LEAVENWORTH_LINK_PARQUET, engine)
+    expected_rows = int(expr.count().to_pyarrow().as_py())
+
+    def no_pandas(*_args, **_kwargs):
+        raise AssertionError("partitioned write materialized through pandas")
+
+    monkeypatch.setattr(engine, "to_pandas", no_pandas)
+    monkeypatch.setattr(type(expr), "to_pandas", no_pandas)
+    monkeypatch.setattr(type(expr), "to_pyarrow", no_pandas)  # the whole table at once is just as bad
+
+    dest_dir = tmp_path / "partitioned"
+    adapter.write(expr, dest_dir, engine, partition_by=["facility_type"])
+
+    reread = adapter.read(dest_dir, engine)
+    assert int(reread.count().to_pyarrow_batches().read_all().column(0)[0].as_py()) == expected_rows
+
+
 # ---------------------------------------------------------------------------
 # kwarg pass-through
 # ---------------------------------------------------------------------------

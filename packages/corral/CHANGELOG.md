@@ -28,6 +28,10 @@ This file is for the **corral** package only. `netstead` (which depends on corra
 
 ### Fixed
 
+- **Partitioned parquet writes stream.** `ParquetAdapter.write(...,
+  partition_by=[...])` collected the whole table through pandas before
+  writing, which runs out of memory on a regional network. It now streams
+  the expression's Arrow record batches into pyarrow's dataset writer.
 - **`DUCKDB://` URLs open the right file.** Dispatch and `probe` treat the
   `duckdb://` scheme case-insensitively, but the adapter stripped only the
   lowercase spelling, so `DUCKDB:///abs/x.duckdb` was handed to duckdb as a
