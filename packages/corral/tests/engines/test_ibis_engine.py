@@ -240,6 +240,28 @@ def test_inline_tables_reach_create_table_as_ibis_expressions_and_leave_nothing_
     assert set(con.list_tables()) - before == {a.get_name(), b.get_name()}
 
 
+def test_sqlglot_is_capped_below_the_release_that_breaks_overwrite_writes():
+    """sqlglot 30.18+ renders ibis 12's ``create_table(..., overwrite=True)`` as invalid duckdb SQL."""
+    from importlib.metadata import requires
+
+    from packaging.requirements import Requirement
+
+    [sqlglot] = [r for r in map(Requirement, requires("dbcorral") or []) if r.name == "sqlglot"]
+    assert "30.18.0" not in sqlglot.specifier
+    assert "30.17.0" in sqlglot.specifier
+    assert "25.20.2" in sqlglot.specifier  # the locked version
+
+
+def test_inline_tables_on_a_backend_that_is_not_duckdb():
+    """``from_records`` / ``from_arrow`` must not reach for duckdb-only calls on another ibis backend."""
+    import pyarrow as pa
+
+    pytest.importorskip("polars")
+    e = IbisEngine(con=ibis.polars.connect())
+    assert e.to_arrow(e.from_records([{"a": 1}])).to_pylist() == [{"a": 1}]
+    assert e.to_arrow(e.from_arrow(pa.table({"b": ["x"]}))).to_pylist() == [{"b": "x"}]
+
+
 def test_from_arrow_with_all_null_column_does_not_raise(engine: IbisEngine):
     """``from_arrow`` shares the same coercion — verify in parity with from_records."""
     import pyarrow as pa
@@ -444,6 +466,20 @@ def test_write_duckdb_of_an_expression_not_bound_to_duckdb(engine: IbisEngine, t
     out = tmp_path / "out.duckdb"
     engine.write_duckdb_table(unbound, out, table="t")
     assert engine.to_arrow(engine.read_duckdb_table(out, table="t")).to_pylist() == [{"a": 1}, {"a": 2}]
+
+
+def test_write_duckdb_of_a_bare_memtable_leaves_nothing_registered(engine: IbisEngine, tmp_path: Path):
+    """The memtable a bare expression is staged through on the engine goes once written, and can be written again."""
+    import pyarrow as pa
+
+    con: Any = engine.con
+    before = set(con.list_tables())
+    unbound = ibis.memtable(pa.table({"a": [1, 2]}))
+    engine.write_duckdb_table(unbound, tmp_path / "one.duckdb", table="t")
+    assert set(con.list_tables()) == before
+    engine.write_duckdb_table(unbound, tmp_path / "two.duckdb", table="t")  # reuse: ibis must re-register it
+    assert engine.count(engine.read_duckdb_table(tmp_path / "two.duckdb", table="t")) == 2
+    assert set(con.list_tables()) == before
 
 
 def test_write_duckdb_replaces_an_existing_table_and_keeps_the_others(engine: IbisEngine, tmp_path: Path):

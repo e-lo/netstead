@@ -89,6 +89,17 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   into the engine's own file, and expressions bound to another backend (or
   none), also work. A non-file destination (URL, `:memory:`, `md:`) is
   refused.
+- **`sqlglot` is capped below 30.18.** From sqlglot 30.18 on, ibis 12's
+  duckdb `create_table(..., overwrite=True)` renders invalid SQL, so every
+  overwriting write (`write_duckdb_table`, `Package.write` to duckdb) failed
+  with a `ParserException` on a fresh install that resolved the newest
+  sqlglot; ibis 12 does not cap it. `dbcorral` now requires
+  `sqlglot>=23.4,!=26.32.0,<30.18`.
+- **No staging memtables left behind on non-duckdb or bare inputs.** A bare
+  `ibis.memtable` written with `write_duckdb_table` is unregistered from the
+  engine afterwards (and can be written again), and `from_records` /
+  `from_arrow` on an `IbisEngine` over a non-duckdb ibis backend no longer
+  call duckdb-only cleanup.
 - **`delete_rows` no longer drops rows whose predicate is NULL.** A
   predicate such as `name == "x"` is NULL where `name` is NULL; those rows
   matched neither the delete nor the keep filter, so they vanished and

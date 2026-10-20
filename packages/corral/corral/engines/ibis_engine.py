@@ -413,10 +413,9 @@ class IbisEngine:
         ``None`` means ``expr`` is bound to another kind of backend, which streams through ibis's
         generic ``to_pyarrow_batches``.
         """
-        try:
-            backend = expr._find_backend()
-        except IbisError:  # nothing binds it (a bare ibis.memtable): run it on our connection
+        if not _is_bound(expr):  # nothing binds it (a bare ibis.memtable): run it on our connection
             return self.con
+        backend = expr._find_backend()
         return backend if backend.name == "duckdb" else None
 
     def _create_temp_table(self, name: str, arrow_table: pa.Table) -> None:
@@ -426,12 +425,11 @@ class IbisEngine:
         emits a statement newer sqlglot releases render unparseably (a duckdb ``ParserException``
         with sqlglot 30). ibis drops a memtable's registration only at
         interpreter exit, so one stayed behind per call (#145); the copy is in the temp table, so
-        the registration is dropped here.
+        the registration is dropped here (see :func:`_drop_memtables`).
         """
         staged = ibis.memtable(arrow_table)
         self.con.create_table(name, obj=staged, temp=True)
-        with backend_lock(self.con):
-            self.con.con.unregister(staged.get_name())  # type: ignore[attr-defined]
+        _drop_memtables(self.con, staged)
 
     # ------------------------------------------------------------------
     # Write primitives — adapters call these directly
@@ -528,6 +526,7 @@ class IbisEngine:
         if _url_scheme(path) is not None or path == ":memory:" or path.lower().startswith("md:"):
             raise InvalidEngineCallError(f"ibis engine: write_duckdb_table writes to a local file; got {path!r}")
         source = self._duckdb_source(expr)
+        staged_on_us = source is self.con and not _is_bound(expr)  # a bare memtable ibis registers on our con
         view = _temp_table_name("stream")
         dst: Any = ibis.duckdb.connect(path)  # the shared instance: never a second one on the file
         try:
@@ -544,6 +543,8 @@ class IbisEngine:
                     reader.close()
         finally:
             dst.disconnect()
+            if staged_on_us:
+                _drop_memtables(self.con, expr)
 
     # ------------------------------------------------------------------
     # Schema cast — promoted from internal helper to public primitive
@@ -966,6 +967,31 @@ def _batch_reader(expr: ir.Table, source: Any) -> pa.RecordBatchReader:
     relation = source._to_duckdb_relation(expr)
     to_reader = getattr(relation, "to_arrow_reader", None) or relation.fetch_arrow_reader
     return to_reader(_STREAM_BATCH_ROWS)
+
+
+def _is_bound(expr: Any) -> bool:
+    """Whether some backend owns ``expr`` (a bare ``ibis.memtable`` has none until it is run)."""
+    try:
+        expr._find_backend()
+    except IbisError:
+        return False
+    return True
+
+
+def _drop_memtables(backend: Any, expr: Any) -> None:
+    """Unregister from ``backend`` the memtables ``expr`` registered there (ibis drops them only at exit).
+
+    Also forgets them in ibis's own bookkeeping, so a memtable used again is registered again. A
+    no-op on backends other than duckdb, whose memtable registration this mirrors.
+    """
+    if backend.name != "duckdb":
+        return
+    import ibis.expr.operations as ops
+
+    with backend_lock(backend):
+        for memtable in expr.op().find(ops.InMemoryTable):
+            backend.con.unregister(memtable.name)
+            backend._memtables.discard(memtable)
 
 
 def _is_duckdb(expr: Any) -> bool:
