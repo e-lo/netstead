@@ -17,6 +17,10 @@ export const TYPE_TITLES = {
 // Property changes and deletions act on the selection; an addition does not.
 export const needsSelection = type => type === "roadway_property_change" || type === "roadway_deletion";
 
+// What a change takes from the shared selection (server state's `selection`): its status, link ids and query. Not
+// its network: the same links picked on the preview target the same links of the base. Not its anchors either.
+export const selectionKey = sel => JSON.stringify(sel ? [sel.status, sel.link_ids, sel.projectcard] : null);
+
 const filled = v => v !== undefined && v !== null && v !== "";
 const withNote = (change, options) => (filled(options && options.note) ? { ...change, note: options.note } : change);
 
@@ -51,10 +55,13 @@ export function deletion(options = {}) {
   return withNote({ type: "roadway_deletion", clean_nodes: Boolean(options.clean_nodes) }, options);
 }
 
+// Whether an addition's (optional) node form describes a node: it has an id. Without one the form is ignored.
+export const hasNode = node => Boolean(node && filled(node.node_id));
+
 // A new link, and a new end node when the node form has an id. Blank fields are left out.
 export function addition(link, node, options = {}) {
   const keep = record => Object.fromEntries(Object.entries(record || {}).filter(([, v]) => filled(v)));
-  const nodes = node && filled(node.node_id) ? [keep(node)] : [];
+  const nodes = hasNode(node) ? [keep(node)] : [];
   return withNote({ type: "roadway_addition", links: [keep(link)], nodes }, options);
 }
 

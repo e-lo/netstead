@@ -3,8 +3,8 @@
 // Workbench plugin"); the flow lives in controller.js and the rules in cardmodel.js, both tested under node.
 // Card and user text is only ever set as text (`h`'s `text`, or a string child), never parsed as markup.
 import {
-  ROADWAY_TYPES, TRANSIT_TYPES, TYPE_TITLES, commitFields, commitView, draftBadge, draftNet, draftOf, importPath,
-  needsSelection, openPreview, previewLine,
+  ROADWAY_TYPES, TRANSIT_TYPES, TYPE_TITLES, commitFields, commitView, draftBadge, draftNet, draftOf, hasNode,
+  importPath, needsSelection, openPreview, previewLine,
 } from "./cardmodel.js";
 import { createController } from "./controller.js";
 
@@ -107,6 +107,11 @@ export function activate(wb) {
     view.draw();
     if (stale) view.checkWentStale();
   });
+  // A form read from the shared selection is outdated once it changes. Watched as the server's `selection`, not
+  // wb.selection: that follows the active network, which opening (or closing) a preview changes.
+  wb.store.subscribe(["selection"], () => {
+    if (ctl.selectionChanged() && view) view.composeWentStale();
+  });
 }
 
 function createView(wb, ctl, el) {
@@ -136,6 +141,8 @@ function createView(wb, ctl, el) {
 
   // The form is redrawn only for a new compose: redrawing on every state change would wipe what the user typed.
   let drawn = null;
+  // Set while a compose form is drawn: shows that the selection it was read from changed.
+  let markComposeOutdated = () => {};
   function drawCompose() {
     const c = ctl.state.compose;
     if (c === drawn) return;
@@ -160,19 +167,40 @@ function createView(wb, ctl, el) {
       forms[key] = wb.schemaForm(slot, c.form[key], start);
     }
     const values = () => Object.fromEntries(Object.entries(forms).map(([k, f]) => [k, f.value()]));
+    // The node form is optional: left without an id, it adds no node (cardmodel's addition), so its required
+    // fields are not asked for.
+    const checked = () => Object.entries(forms).filter(([k, f]) => k !== "node" || hasNode(f.value()));
     const row = [h("button", { class: "mini" }, "Preview"), h("button", { class: "mini" }, "Add to card"),
       h("button", { class: "mini ghost" }, "Cancel")];
-    const run = step => guard(() => busy(row, async () => {
-      const errors = Object.values(forms).flatMap(f => f.errors());
-      if (errors.length) { say(errors.join("; ")); return; }
-      say(await step(values()));
-      draw();
-    }));
     const [previewButton, addButton, cancelButton] = row;
+    const reload = h("button", { class: "mini" }, "Reload form");
+    reload.hidden = true;
+    const outdatedNote = h("p", { class: "muted", role: "status" });
+    // An outdated form can't be previewed or added (busy() re-enables the buttons after a step: this runs after it).
+    const sync = () => { if (c.outdated) previewButton.disabled = addButton.disabled = true; };
+    const run = step => guard(async () => {
+      try {
+        await busy(row, async () => {
+          const errors = checked().flatMap(([, f]) => f.errors());
+          if (errors.length) { say(errors.join("; ")); return; }
+          say(await step(values()));
+          draw();
+        });
+      } finally { sync(); }
+    });
     previewButton.onclick = run(async v => `Previewing on ${(await ctl.preview(v)).preview}`);
     addButton.onclick = run(async v => `Added: ${(await ctl.add(v)).describe}`);
     cancelButton.onclick = guard(() => busy(row, async () => { await ctl.cancel(); say(""); draw(); }));
-    composeBox.append(previewButton, " ", addButton, " ", cancelButton);
+    reload.onclick = guard(() => busy([reload], async () => { await ctl.reload(); say(""); draw(); }));
+    composeBox.append(outdatedNote, previewButton, " ", addButton, " ", cancelButton, " ", reload);
+    markComposeOutdated = () => {
+      const had = composeBox.contains(document.activeElement);
+      sync();
+      outdatedNote.textContent = "The selection changed since this form opened: reload the form to change it.";
+      reload.hidden = false;
+      if (had) reload.focus(); // Preview or Add (perhaps focused) is now disabled
+    };
+    if (c.outdated) markComposeOutdated();
     const first = Object.values(forms)[0];
     if (first) first.focus();
   }
@@ -246,8 +274,7 @@ function createView(wb, ctl, el) {
         : []),
       h("p", { text: v.problems }),
       h("div", { class: "label", text: `Card YAML (${check.net_id})` }),
-      h("pre", { text: check.yaml, style: "max-height:45vh;overflow:auto;background:#0c0e12;padding:8px;"
-        + "border:1px solid var(--edge);border-radius:6px;font-size:12px" }),
+      h("pre", { text: check.yaml, style: "max-height:45vh;overflow:auto;background:var(--bg)" }), // core's <pre> look
       note,
       h("div", { style: "display:flex;gap:8px;justify-content:flex-end" }, cancel, recheck, commit),
     );
@@ -292,7 +319,9 @@ function createView(wb, ctl, el) {
 
   // The controller dropped the dialog's check: Commit stays disabled until the user checks again.
   const checkWentStale = () => { if (dialog.open) markOutdated(); };
+  // The controller marked the open form outdated: Preview and Add stay disabled until the user reloads it.
+  const composeWentStale = () => markComposeOutdated();
 
   drawCommit();
-  return { draw, checkWentStale };
+  return { draw, checkWentStale, composeWentStale };
 }

@@ -33,7 +33,9 @@ still runs (see [Write a Workbench plugin](workbench-plugins.md#startup-outcomes
 
 ## Step-by-step
 
-1. **Select links.** Click them, box-select them, or type a request such as "Benton Street" in the command bar.
+1. **Select links.** Type a request such as "Benton Street" in the command bar. Or turn on **Highlight links** (▯ on
+   the map), click links or shift-drag a box over them, then press **Set as selection** under **Highlighted links**
+   in the **Details** panel. A click alone only focuses a link: it never changes the selection.
 2. **Pick a change.** Right-click the selection (or open **Selection actions ▾** in the **Selection** panel) and
    choose **New change ▸ Property change** or **New change ▸ Deletion**. **New change ▸ Addition** adds a link, and
    optionally a new end node, without a selection, so it is only in the command palette (**Ctrl+K**, **⌘K** on a
@@ -50,6 +52,8 @@ still runs (see [Write a Workbench plugin](workbench-plugins.md#startup-outcomes
     - **Addition:** the new link's fields, with `link_id` filled in with the next free id. `link_id`,
       `from_node_id`, `to_node_id`, `name`, `facility_type`, `lanes` and `allowed_uses` are required, since a
       ProjectCard needs them. Fill in the optional node form (it shows the next free `node_id`) to add an end node too.
+      Core's live checks flag GMNS-required link fields the addition leaves empty (such as `directed`), and
+      **Commit…** then asks you to confirm those warnings.
     - Every form has **Why (written in the card's notes)**.
 4. **Preview** applies the change to a copy of the network, makes the copy active and shows it on the map. The
    network itself is untouched. The panel reads "Previewing … on …", and **Back to the network** closes the copy.
@@ -58,9 +62,12 @@ still runs (see [Write a Workbench plugin](workbench-plugins.md#startup-outcomes
 5. **Add to card** applies the change to the network (never to the preview, which then closes) and lists it in the
    draft card. Core's **Edits** panel lists it too, with `project_cards` as its source, and the live checks run as
    they do for any edit. Each change is one step: all of it applies, or none of it. **Cancel** closes the form and
-   any preview.
-6. **Watch the badge.** The **Card** panel's tab, and its workspace tab, show the number of uncommitted changes with
-   a dirty dot. The draft belongs to the network: switch networks and the panel shows that network's draft.
+   any preview. If the selection changes while a Property change or Deletion form is open, the form says it is out
+   of date and **Preview** and **Add to card** wait until you press **Reload form**, which reads it again for the
+   new selection.
+6. **Watch the badge.** The **Card** panel's tab shows the number of uncommitted changes with a dirty dot; its
+   workspace tab shows the dot. The draft belongs to the network: switch networks and the panel shows that network's
+   draft.
 7. **Commit.** Under **Commit**, give the card a **Project name**, optional **Tags** (comma separated) and a
    **Card file** inside `io.allowed_roots`, then press **Commit…**. The dialog shows the network's live edit
    warnings and the card's YAML:

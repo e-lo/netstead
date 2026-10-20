@@ -5,12 +5,16 @@ first time it shows. PANEL_HARNESS then draws the panel into a small fake DOM (o
 through it; the real look and the native <dialog> are checked in a browser.
 """
 
+import json
 from pathlib import Path
 
 import netstead_project_cards
+from fastapi.testclient import TestClient
+from netstead.workbench import build_app
 from netstead.workbench.server import STATIC_DIR
 
 STATIC = Path(netstead_project_cards.__file__).parent / "static"
+FORM = "/api/plugins/project_cards/form"
 CORE = ("wbhost.js", "slots.js", "layers.js", "store.js", "hub.js", "commands.js")
 FILES = {
     **{name: STATIC_DIR / "js" / name for name in CORE},
@@ -234,6 +238,19 @@ got.committed = [dialog.open, dispatched().filter(t => t === "project_cards.comm
 // 6. An empty import path is caught here.
 await button(commitBox, "Import").onclick();
 got.emptyImport = [status.textContent, dispatched().includes("project_cards.import")];
+
+// 7. A selection change outdates a form read from the selection: Preview and Add wait for "Reload form".
+await byId["project_cards.new_roadway_property_change"].run(two);
+button(compose, "Add to card").focus();
+setServer({ selection: { net_id: "base", status: "resolved", link_ids: [9], projectcard: { picked: true } } });
+const shown = () => [button(compose, "Preview").disabled, button(compose, "Add to card").disabled,
+  compose.textContent.includes("The selection changed"), Boolean(button(compose, "Reload form")) &&
+  !button(compose, "Reload form").hidden];
+got.outdated = [...shown(), document.activeElement.textContent];
+const read = deps.getJSON, reads = [];
+deps.getJSON = p => { reads.push(p); return read(p); };
+await button(compose, "Reload form").onclick();
+got.reloaded = [reads, ...shown()];
 got.errors = calls.filter(c => c[0] === "error");
 console.log(JSON.stringify(got));
 """
@@ -255,3 +272,79 @@ def test_the_panel_under_a_fake_dom(run_js):
     assert got["disabledWhileCommitting"] is True
     assert got["committed"] == [False, 1]
     assert got["emptyImport"] == ["Give a card or edit log path", False]
+    assert got["outdated"] == [True, True, True, True, "Reload form"]  # focus left the now disabled Add
+    reread = ["/api/plugins/project_cards/form?type=roadway_property_change&use_selection=true"]
+    assert got["reloaded"] == [reread, False, False, False, False]
+
+
+# The real addition form (from GET /form) through core's real schemaform.js: field parsing and formErrors as the
+# Workbench runs them, where the stubs above report no errors at all.
+ADDITION_HARNESS = (
+    HARNESS.split("const { wb } = createWb")[0]
+    .replace(
+        'import { activate } from "./main.js";',
+        'import { activate } from "./main.js";\nimport { fieldsFrom, fillShown, formErrors } from "./schemaform.js";',
+    )
+    .replace("getJSON: async p => {", 'getJSON: async p => { if (p.includes("roadway_addition")) return ADDITION;')
+    .replace("dispatch: async a => {", "dispatch: async a => { actions.push(a);")
+    .replace(
+        'showPanel: id => calls.push(["show", id])',
+        'showPanel: id => { calls.push(["show", id]); if (!root.children.length) panels[0].render(root); }',
+    )
+    .replace(
+        "schemaForm: () => ({ value: () => ({}), errors: () => [], set() {}, focus() {} }),",
+        """schemaForm: (el, schema, start = {}) => {
+    const shown = fillShown(fieldsFrom(schema, start), start);
+    const form = { current: shown.value, value: () => form.current, set(v) { form.current = v; }, focus() {},
+                   errors: () => formErrors(shown.fields, form.current) };
+    made.push(form);
+    return form;
+  },""",
+    )
+    + FAKE_DOM
+    + """
+const made = [], actions = [];
+const root = document.createElement("div");
+const { wb } = createWb("project_cards", deps);
+activate(wb);
+const byId = Object.fromEntries(slots.commands.list().map(c => [c.id, c]));
+await byId["project_cards.new_roadway_addition"].run({ selectionCount: 0, state: server, network: { id: "base" } });
+const [compose, , , , status] = root.children;
+const [link, node] = made;  // the link, node and options forms, in that order
+link.set({ ...link.value(), from_node_id: 1, to_node_id: 2, name: "New St", facility_type: "local", lanes: 1,
+           allowed_uses: "all" });
+const add = () => button(compose, "Add to card").onclick();
+node.set({ node_id: 122 });  // half a node: its coordinates are still required
+await add();
+const halfNode = [status.textContent, actions.length];
+node.set({});  // no node: a link between existing nodes
+await add();
+console.log(JSON.stringify({ halfNode, linkStart: made[0] === link && link.value().link_id, status: status.textContent,
+  actions, errors: calls.filter(c => c[0] === "error") }));
+"""
+)
+
+
+def test_an_addition_needs_no_node_but_a_half_filled_node_is_reported(run_js, session):
+    response = TestClient(build_app(session)).get(FORM, params={"type": "roadway_addition"})
+    assert response.status_code == 200, response.text
+    harness = f"const ADDITION = {json.dumps(response.json())};\n" + ADDITION_HARNESS
+    got = run_js({**FILES, "schemaform.js": STATIC_DIR / "js" / "schemaform.js"}, harness)
+    assert got["errors"] == []
+    assert got["halfNode"] == ["x_coord is required; y_coord is required", 0]
+    assert got["linkStart"] == 340
+    (action,) = got["actions"]
+    assert action["type"] == "project_cards.add_change"
+    assert action["change"]["nodes"] == []
+    assert action["change"]["links"] == [
+        {
+            "link_id": 340,
+            "from_node_id": 1,
+            "to_node_id": 2,
+            "name": "New St",
+            "facility_type": "local",
+            "lanes": 1,
+            "allowed_uses": "all",
+        }
+    ]
+    assert got["status"].startswith("Added")

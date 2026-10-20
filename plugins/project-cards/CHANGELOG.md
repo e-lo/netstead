@@ -14,7 +14,9 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
   - A **Card** dock panel: a form prefilled from the selection (each column titled with its current value when the
     selected links agree, which the card records as `existing`), **Preview**, **Add to card**, **Cancel**, the
     draft's changes with **Undo last change**, and **Import**. Its tab carries the count of uncommitted changes as a
-    dirty badge.
+    dirty badge. A form read from the selection says when the selection has changed since, and waits for
+    **Reload form** before it previews or adds anything; an addition's node form is checked only when it has a
+    `node_id`.
   - A commit dialog that lists the live edit warnings (committing with any needs **Commit anyway**), says why a card
     `projectcard` rejects can't be committed, and shows the card's YAML.
   - **Undo the draft card's last change** in the command palette.

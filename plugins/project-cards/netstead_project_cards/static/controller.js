@@ -4,7 +4,9 @@
 // read from the server's state (`openPreview(wb.store.get())`), never remembered here: the palette, the assistant or
 // another tab can close one. One step runs at a time: a second click while an Action is in flight is refused, so a
 // change is never added (or a card committed) twice.
-import { addition, changeAction, deletion, draftOf, needsSelection, openPreview, propertyChange } from "./cardmodel.js";
+import {
+  addition, changeAction, deletion, draftOf, needsSelection, openPreview, propertyChange, selectionKey,
+} from "./cardmodel.js";
 
 const query = params => Object.entries(params)
   .filter(([, v]) => v !== undefined && v !== null && v !== "")
@@ -22,22 +24,41 @@ export function createController(wb) {
   };
 
   // Open the form for a change type: the plugin's /form route says what the selection holds now. An unsupported type
-  // only says so: a form already open stays open (and working).
+  // only says so: a form already open stays open (and working). A form read from the shared selection remembers
+  // which selection (read before the form, so a change while it loads still outdates it): see selectionChanged.
   async function start(type, { saved = null } = {}) {
     const params = { type, saved };
-    if (needsSelection(type) && !saved) params.use_selection = "true";
+    const onSelection = needsSelection(type) && !saved;
+    if (onSelection) params.use_selection = "true";
+    const key = onSelection ? selectionKey(wb.store.get().selection) : null;
     const form = await wb.api.get(`/form?${query(params)}`);
     if (!form.supported) {
       wb.toast(form.message);
       return null;
     }
-    state.compose = { type, form, saved };
+    state.compose = { type, form, saved, selection: key, outdated: false };
     return form;
   }
 
   const openForm = () => {
     if (!state.compose) throw new Error("no change form is open");
     return state.compose;
+  };
+
+  // Call on every server change: true when the shared selection a form was read from changed (once per form). Its
+  // targets and current values describe the old selection, while Preview and Add would act on the new one, so the
+  // form is outdated: they are refused until it is read again (reload).
+  function selectionChanged() {
+    const c = state.compose;
+    if (!c || c.selection === null || c.outdated || selectionKey(wb.store.get().selection) === c.selection) return false;
+    c.outdated = true;
+    return true;
+  }
+
+  // The open form read again, for the selection as it is now.
+  const reload = () => {
+    const { type, saved } = openForm();
+    return start(type, { saved });
   };
 
   // The change the open form describes. `values` is {columns, options, link, node}: each form's value().
@@ -49,7 +70,8 @@ export function createController(wb) {
   }
 
   const dispatchChange = (kind, values) => {
-    const { saved, form } = openForm();
+    const { saved, form, outdated } = openForm();
+    if (outdated) throw new Error("The selection changed since this form opened: reload the form");
     return wb.api.dispatch(changeAction(kind, changeFrom(values), { saved, netId: form.net_id }));
   };
 
@@ -117,8 +139,8 @@ export function createController(wb) {
   }
 
   return {
-    state, start, changeFrom, check, serverChanged,
-    ...Object.fromEntries(Object.entries({ preview, closePreview, add, cancel, undo, commit, importCard })
+    state, start, changeFrom, check, serverChanged, selectionChanged,
+    ...Object.fromEntries(Object.entries({ preview, closePreview, add, cancel, undo, commit, importCard, reload })
       .map(([name, step]) => [name, oneAtATime(step)])),
   };
 }

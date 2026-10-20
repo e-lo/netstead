@@ -447,3 +447,47 @@ console.log(JSON.stringify([importPath("  cards/a.yml "), importPath("  "), impo
     )
     missing = {"error": "Give a card or edit log path"}
     assert got == [{"path": "cards/a.yml"}, missing, missing]
+
+
+def test_a_selection_change_outdates_a_form_read_from_the_selection(run_js):
+    got = run_js(
+        BOTH,
+        STUB_WB
+        + """
+const pick = ids => ({ net_id: "base", status: "resolved", link_ids: ids, projectcard: { picked: true },
+                       anchors: [] });
+server.selection = pick([1, 2]);
+await ctl.start("roadway_property_change");
+server.selection = { ...pick([1, 2]), net_id: "net-2", anchors: [{ node_id: 5 }] };  // same links, on the preview
+const sameLinks = ctl.selectionChanged();
+server.selection = pick([1, 2, 3]);
+const changed = ctl.selectionChanged();
+const again = ctl.selectionChanged();  // already outdated: nothing more to report
+const refused = [];
+for (const step of [() => ctl.preview({ columns: { lanes: 3 } }), () => ctl.add({ columns: { lanes: 3 } })]) {
+  try { await step(); } catch (e) { refused.push(e.message); }
+}
+const outdated = ctl.state.compose.outdated;
+await ctl.reload();  // reads the form again, for the selection as it is now
+const reloaded = [ctl.state.compose.outdated, ctl.state.compose.type, calls.at(-1)];
+// A saved selection, an addition: the shared selection does not feed them.
+await ctl.start("roadway_deletion", { saved: "ski" });
+server.selection = pick([4]);
+const saved = ctl.selectionChanged();
+await ctl.start("roadway_addition");
+server.selection = null;
+const addition = ctl.selectionChanged();
+console.log(JSON.stringify({ sameLinks, changed, again, refused, outdated, reloaded, saved, addition,
+  dispatched: calls.filter(c => c[0] === "dispatch").length }));
+""",
+    )
+    assert got["sameLinks"] is False
+    assert got["changed"] is True and got["again"] is False and got["outdated"] is True
+    reload_first = "The selection changed since this form opened: reload the form"
+    assert got["refused"] == [reload_first, reload_first] and got["dispatched"] == 0
+    assert got["reloaded"] == [
+        False,
+        "roadway_property_change",
+        ["get", "/form?type=roadway_property_change&use_selection=true"],
+    ]
+    assert got["saved"] is False and got["addition"] is False
