@@ -6,6 +6,14 @@ This file is for the **corral** package only. `netstead` (which depends on corra
 
 ## [Unreleased]
 
+### Added
+
+- **`ResourceRef.table_schema`** (JSON key `schema`): the resource's schema
+  when a scan already knows it, so consumers need not reopen the source.
+  `ZipCsvAdapter.scan` fills it from inline schemas in the zip's own
+  `datapackage.json` (what `Package.write` produces); a schema given by
+  reference is not fetched. Other adapters leave it `None`.
+
 ### Changed
 
 - **`register_adapter` refuses collisions.** Registering a different adapter

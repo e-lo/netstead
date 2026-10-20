@@ -24,15 +24,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
+from corral.spec.model import Schema
 from corral.types import SourceRef
 
 if TYPE_CHECKING:
-    # These live in sibling modules that may import from io/. Type-only
-    # imports break the circular dependency.
+    # engines imports from io/. A type-only import breaks the cycle.
     from corral.engines.base import Engine, TableExpr  # pragma: no cover
-    from corral.spec.model import Schema  # pragma: no cover
 
 
 # ---------------------------------------------------------------------------
@@ -71,6 +70,13 @@ class ResourceRef(BaseModel):
         member: The selector to pass as ``table=`` to
             ``container_adapter``. When set, ``path`` is exactly
             ``f"{container}::{member}"``.
+        table_schema: The resource's schema, when the adapter already
+            knows it from the source itself (a zip's own
+            ``datapackage.json`` with inline schemas), so a consumer need
+            not reopen the source to find it. ``None`` means "not known
+            from the scan", not "no schema". Spelled ``schema`` in JSON
+            and accepted under either name, like
+            :attr:`corral.spec.model.Resource.table_schema`.
     """
 
     name: str = Field(..., description="Logical resource name (table name).")
@@ -78,6 +84,9 @@ class ResourceRef(BaseModel):
     format: str = Field(..., description="Short adapter identifier.")
     container_adapter: str | None = Field(default=None, description="Adapter owning the container, if any.")
     member: str | None = Field(default=None, description="Member selector within the container, if any.")
+    table_schema: Schema | None = Field(
+        default=None, alias="schema", description="Schema known from the source itself, if any."
+    )
 
     @property
     def container(self) -> str | None:
@@ -86,7 +95,7 @@ class ResourceRef(BaseModel):
             return None
         return self.path.removesuffix(f"::{self.member}")
 
-    model_config = {"frozen": True}
+    model_config = ConfigDict(frozen=True, populate_by_name=True)
 
 
 ResourceListing = list[ResourceRef]

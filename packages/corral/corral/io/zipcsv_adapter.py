@@ -57,10 +57,11 @@ after extracting the chosen member.
 from __future__ import annotations
 
 import contextlib
+import logging
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Final
 from urllib.parse import urlparse
 
 import fsspec
@@ -71,6 +72,11 @@ from corral.io._paths import normalize_to_str
 from corral.io.base import ResourceListing, ResourceRef, SourceRef
 from corral.io.credentials import resolve_credentials
 from corral.io.errors import WriteUnsupportedForSchemeError
+
+_logger: Final = logging.getLogger(__name__)
+
+#: The data-package descriptor member a csv zip may carry (Package.write writes one).
+_DESCRIPTOR_MEMBER: Final = "datapackage.json"
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from collections.abc import Iterator
@@ -221,6 +227,7 @@ class ZipCsvAdapter:
         path_str = normalize_to_str(source, adapter="zipcsv adapter")
         with _open_zip(path_str) as z:
             members = [n for n in z.namelist() if _is_csv_member(n)]
+            schemas = _inline_schemas(z)
         return [
             ResourceRef(
                 name=Path(m).stem,
@@ -228,6 +235,7 @@ class ZipCsvAdapter:
                 format="csv",
                 container_adapter=self.name,
                 member=m,
+                schema=schemas.get(m),
             )
             for m in members
         ]
@@ -436,6 +444,30 @@ def _open_zip(path_str: str, storage_options: dict | None = None) -> Iterator[zi
         storage_options = resolve_credentials(urlparse(path_str).hostname or "")
     with fsspec.open(path_str, "rb", **storage_options) as f, zipfile.ZipFile(f) as z:
         yield z
+
+
+def _inline_schemas(z: zipfile.ZipFile) -> dict[str, Schema]:
+    """Map member name to schema, from the zip's own ``datapackage.json``.
+
+    Only schemas written inline count: a schema given by reference (a URL
+    or a path outside the zip) is not fetched during a scan. A missing or
+    unreadable descriptor yields no schemas rather than failing the scan,
+    which only needs the member list.
+    """
+    from corral.spec.model import DataPackage, Schema
+
+    try:
+        package = DataPackage.model_validate_json(z.read(_DESCRIPTOR_MEMBER))
+    except KeyError:
+        return {}
+    except ValueError as exc:  # malformed JSON or a descriptor the model rejects
+        _logger.debug("ignoring unreadable %s in zip: %s", _DESCRIPTOR_MEMBER, exc)
+        return {}
+    return {
+        resource.path: resource.table_schema
+        for resource in package.resources
+        if isinstance(resource.path, str) and isinstance(resource.table_schema, Schema)
+    }
 
 
 def _is_csv_member(name: str) -> bool:
