@@ -21,6 +21,12 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Fixed
 
+- **The Workbench map draws link shapes kept in the `geometry` table.** A
+  network whose links carry a `geometry_id` into a separate `geometry` table
+  (the bundled Leavenworth network, for one) drew every link as a straight
+  node-to-node line. `viz.buffers.pack_network` now takes the optional
+  `geometry` frame and resolves shapes in GMNS order: an inline `link.geometry`,
+  else the `geometry_id` row, else the straight from/to segment.
 - **A Workbench build's engine failing to close no longer hides the result.**
   Since corral's `IbisEngine.close()` stopped swallowing errors, a failed
   disconnect in the build job's `finally` (or the estimate's) replaced the

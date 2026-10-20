@@ -4,6 +4,8 @@ from importlib import resources
 
 import pandas as pd
 import pytest
+from netstead import Network
+from netstead.fixtures import leavenworth
 from netstead.viz.buffers import network_attrs, pack_network, unpack_network
 
 
@@ -46,6 +48,47 @@ def test_straight_fallback_when_no_geometry(rdu):
     # first link now has exactly 2 vertices (straight from->to)
     si = net["links"]["startIndices"]
     assert si[1] - si[0] == 2
+
+
+@pytest.fixture(scope="module")
+def leavenworth_frames():
+    net = Network.from_source(leavenworth.csv_dir())
+    return net.links.to_pandas(), net.nodes.to_pandas(), net.geometry.to_pandas()
+
+
+def _vertex_counts(blob) -> list[int]:
+    si = unpack_network(blob)["links"]["startIndices"]
+    return [si[i + 1] - si[i] for i in range(len(si) - 1)]
+
+
+def test_geometry_table_shapes_links(leavenworth_frames):
+    """Leavenworth keeps shapes in the ``geometry`` table; without it every link is a straight segment."""
+    links, nodes, geometry = leavenworth_frames
+    assert "geometry" not in links.columns
+    first = links.index[links["link_id"] == 1][0]
+    assert links.loc[first, "geometry_id"] == 1
+
+    without = _vertex_counts(pack_network(links, nodes))
+    with_table = _vertex_counts(pack_network(links, nodes, geometry=geometry))
+    assert without[first] == 2
+    assert with_table[first] == 8  # geometry_id 1 has 8 vertices in geometry.csv
+    assert sum(with_table) > sum(without)
+
+
+def test_inline_geometry_wins_over_geometry_table():
+    nodes = pd.DataFrame({"node_id": [1, 2], "x_coord": [0.0, 1.0], "y_coord": [0.0, 1.0]})
+    geometry = pd.DataFrame({"geometry_id": [10], "geometry": ["LINESTRING (0 0, 0.5 0.2, 0.7 0.4, 1 1)"]})
+    links = pd.DataFrame(
+        {
+            "link_id": [1, 2, 3],
+            "from_node_id": [1, 1, 1],
+            "to_node_id": [2, 2, 2],
+            "geometry_id": [10, 10, 99],  # 99 is not in the geometry table
+            "geometry": ["LINESTRING (0 0, 0.1 0.9, 1 1)", None, None],
+        }
+    )
+    counts = _vertex_counts(pack_network(links, nodes, geometry=geometry))
+    assert counts == [3, 4, 2]  # inline, geometry table, straight from/to
 
 
 def test_lanes_present_and_freeway_thicker(rdu):
