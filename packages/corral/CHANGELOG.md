@@ -6,6 +6,13 @@ This file is for the **corral** package only. `netstead` (which depends on corra
 
 ## [Unreleased]
 
+### Changed
+
+- **Tests run against the stock adapter registry.** A new private
+  `corral.io._reset_registry()` restores the five stock adapters and their
+  bindings; one autouse fixture in `tests/conftest.py` calls it around every
+  test, replacing the per-file re-registration workarounds.
+
 ### Fixed
 
 - **`package_to_md` resource links hit their schema headings.** The overview

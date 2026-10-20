@@ -24,23 +24,9 @@ import pandas as pd
 import pytest
 from corral.engines import get_engine
 from corral.engines.errors import InvalidEngineCallError
-from corral.io import FormatAdapter, dispatch, list_adapters, register_adapter
+from corral.io import FormatAdapter, dispatch, list_adapters
 from corral.io.base import ResourceRef
 from corral.io.zipcsv_adapter import ZipCsvAdapter
-
-
-@pytest.fixture(autouse=True)
-def _ensure_zipcsv_registered():
-    """Re-register ZipCsvAdapter before each test in this file.
-
-    Other tests (notably test_dispatch.py) call ``_clear_registry()`` in
-    their teardown, which would wipe the import-time registration done
-    by ``zipcsv_adapter.py``. Re-registering per-test keeps these tests
-    independent of suite execution order.
-    """
-    register_adapter(ZipCsvAdapter())
-    yield
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

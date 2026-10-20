@@ -25,14 +25,8 @@ import shutil
 import pytest
 from corral.engines.ibis_engine import IbisEngine
 
-# Importing the adapter module has the side effect of self-registering it.
-# We import the module (not just the class) so the registration runs even
-# in test collection order paths where other test files cleared the
-# registry. The reference is also used by test_no_raw_sql_in_module.
-from corral.io import (
-    _clear_registry,
-    dispatch,
-)
+# The module reference is used by test_no_raw_sql_in_module and the reload test.
+from corral.io import dispatch
 from corral.io import (
     duckdb_adapter as _duckdb_adapter_module,
 )
@@ -389,29 +383,6 @@ def test_no_raw_sql_in_module() -> None:
         )
 
 
-# ---------------------------------------------------------------------------
-# Registry isolation safety
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture(autouse=True)
-def _ensure_registered():
-    """Ensure the duckdb adapter is registered before every test in this file.
-
-    Sibling test files (``test_dispatch.py``, ``test_registry.py``) clear
-    the registry as part of their fixtures. When pytest interleaves our
-    tests with theirs, the import-time side effect of registering may have
-    already been undone by the time we run. Re-registering on setup is
-    cheap (idempotent — ``register_adapter`` scrubs prior bindings first)
-    and makes the test file robust to collection order.
-    """
-    from corral.io import _REGISTRY, register_adapter
-
-    if "duckdb" not in _REGISTRY:
-        register_adapter(DuckdbAdapter())
-    yield
-
-
 def test_module_registers_idempotently() -> None:
     """Re-importing the adapter module must not double-register or crash."""
     # Force a re-import to make sure the side-effect handles the
@@ -422,8 +393,3 @@ def test_module_registers_idempotently() -> None:
 
     importlib.reload(_duckdb_adapter_module)
     assert _REGISTRY["duckdb"].name == "duckdb"
-
-
-# Silence unused-import warnings (these are imported for their side-effect or
-# for use in xfail/skip messages).
-_ = (_clear_registry,)

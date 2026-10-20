@@ -23,7 +23,8 @@ Importing this package triggers self-registration of the five stock
 adapters (csv, parquet, duckdb, zipcsv, remote). Each adapter module
 calls ``register_adapter`` at import time; importing ``corral.io``
 imports all five. Tests that need an empty registry can call
-``_clear_registry()`` in a fixture.
+``_clear_registry()``; ``_reset_registry()`` puts the stock adapters back
+(``packages/corral/tests/conftest.py`` does so around every test).
 """
 
 from __future__ import annotations
@@ -234,6 +235,19 @@ def _clear_registry() -> None:
     _BY_SCHEME.clear()
 
 
+def _reset_registry() -> None:
+    """Restore the registry to the stock adapters registered at import (test helper).
+
+    The one canonical teardown for tests that clear or re-populate the
+    registry: the same adapter instances and the same extension/scheme
+    bindings ``import corral.io`` produced. Not exported from ``__all__``.
+    """
+    _clear_registry()
+    _REGISTRY.update(_STOCK_REGISTRY)
+    _BY_EXT.update(_STOCK_BY_EXT)
+    _BY_SCHEME.update(_STOCK_BY_SCHEME)
+
+
 # ---------------------------------------------------------------------------
 # Dispatch
 # ---------------------------------------------------------------------------
@@ -420,3 +434,8 @@ from . import duckdb_adapter as _duckdb_adapter  # noqa: E402,F401  -- self-regi
 from . import parquet_adapter as _parquet_adapter  # noqa: E402,F401  -- self-registers
 from . import remote as _remote  # noqa: E402,F401  -- self-registers; claims URL schemes per remote.REMOTE_SCHEMES
 from . import zipcsv_adapter as _zipcsv_adapter  # noqa: E402,F401  -- self-registers
+
+# Snapshot of the stock registry, for :func:`_reset_registry`.
+_STOCK_REGISTRY: dict[str, FormatAdapter] = dict(_REGISTRY)
+_STOCK_BY_EXT: dict[str, str] = dict(_BY_EXT)
+_STOCK_BY_SCHEME: dict[str, str] = dict(_BY_SCHEME)

@@ -88,3 +88,17 @@ def test_invalid_adapter_error_is_format_error_subclass() -> None:
     """Callers catching FormatError see InvalidAdapterError too."""
     with pytest.raises(FormatError):
         register_adapter(object())  # type: ignore[arg-type]
+
+
+def test_reset_registry_restores_the_stock_adapters() -> None:
+    """``_reset_registry`` undoes any clear/register a test did: same adapters, same bindings."""
+    from corral.io import _reset_registry, dispatch
+
+    register_adapter(FakeCsvAdapter())
+    _reset_registry()
+
+    assert list_adapters() == ["csv", "duckdb", "parquet", "remote", "zipcsv"]
+    assert type(dispatch("foo.csv")).__name__ == "CsvAdapter"
+    assert dispatch("foo.csv.zip").name == "zipcsv"
+    assert dispatch("s3://bucket/foo.parquet").name == "remote"
+    assert dispatch("duckdb://foo.duckdb").name == "duckdb"

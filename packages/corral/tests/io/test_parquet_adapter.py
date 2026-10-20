@@ -118,28 +118,12 @@ def test_probe_never_raises(adapter: ParquetAdapter) -> None:
 
 def test_self_registers_on_import() -> None:
     """Importing the adapter module registers a parquet adapter globally."""
-    # The module is imported at the top of this file; if the test_registry.py
-    # autouse cleared the registry earlier, force re-registration here. The
-    # canonical pattern is to import the module — re-importing is a no-op.
-    import corral.io.parquet_adapter  # noqa: F401  (reimport for self-register)
-
-    # If registry was cleared by another test, re-register explicitly so
-    # this test asserts the registration behaviour, not test ordering.
-    from corral.io import register_adapter
-
-    if "parquet" not in list_adapters():
-        register_adapter(ParquetAdapter())
-
     assert "parquet" in list_adapters()
     assert get_adapter("parquet").name == "parquet"
 
 
 def test_dispatch_routes_parquet() -> None:
     """``dispatch("foo.parquet")`` resolves to the parquet adapter."""
-    from corral.io import register_adapter
-
-    if "parquet" not in list_adapters():
-        register_adapter(ParquetAdapter())
     assert dispatch("foo.parquet").name == "parquet"
 
 
