@@ -2,23 +2,23 @@
 
 Generic, Frictionless-aligned tabular-data-package engine. Powers [Netstead](https://github.com/e-lo/netstead) and is designed to support other tabular data specifications (GTFS, custom formats) via the same primitives.
 
-**Status:** pre-alpha (`0.1.0.dev0`). API is unstable.
+**Status:** beta (`1.0.0b2`). The public API is settling; breaking changes are still possible before 1.0.0.
 
 ## What it provides
 
 - Pydantic models for Frictionless Data Package, Resource, Schema, Field, ForeignKey
-- Engine abstraction (Ibis/DuckDB default; Polars; Pandas)
+- One compute engine — DuckDB driven through ibis, behind the `Engine` protocol. pandas / polars / Arrow are I/O formats (`Table.to_pandas()` / `.to_polars()` out, `from_arrow()` in), not compute backends
 - Format adapters: CSV, Parquet (partitioned), DuckDB, zipped CSV, remote URLs (fsspec)
 - Validation framework: schema, structural, foreign-key, sync-state (dirty-tracker)
 - Lazy dataset surface: `Package`, `Table`, `View` with geographic scoping (bbox, polygon, geometry-buffer)
 - Operation cost model + gating, batched/pooled writes
 - Report renderers: rich console, JSON, interactive single-file HTML
 - Generic edit/diff/session/rollback framework
-- **Generic CLI** (`corral …`): `validate`, `convert`, `info`, `scope`, `describe` — extendable by domain packages via plugin pattern
+- **Generic CLI** (`corral …`): `validate`, `convert`, `info` — extendable by domain packages via plugin pattern
 - **Generic data-quality framework** (rule base class, threshold config, entry-point plugin discovery — no domain rules)
 - **Generic notebook helpers** (`_repr_html_` for Package/Table/ValidationReport/EditResult)
-- FastAPI primitives for building self-hostable data APIs
-- MCP server primitives for AI-agent consumption
+- FastAPI primitives for building self-hostable data APIs (`corral.api`; `dbcorral` declares no FastAPI dependency — `pip install fastapi pydantic-settings`, or install `netstead[server]`)
+- MCP server primitives for AI-agent consumption (`corral.mcp.build_server()`; the runnable server is `netstead mcp serve`)
 - Docgen: markdown + `llms.txt` + machine-readable API index
 
 ## Composition with domain packages
@@ -56,16 +56,16 @@ pipx install dbcorral
 ### Optional extras
 
 ```bash
-# Engines (pick the one your downstream code already uses)
-uv add 'dbcorral[polars]'      # lazy polars frames
-uv add 'dbcorral[pandas]'      # eager pandas DataFrames
+# Output formats (DuckDB does the compute either way)
+uv add 'dbcorral[polars]'      # Table.to_polars() -> polars.DataFrame
+uv add 'dbcorral[pandas]'      # Table.to_pandas() -> pandas.DataFrame
 
-# Cloud storage backends (read from s3://, gs://, azure://)
+# Cloud storage backends (read from s3://, gs://, az:// / abfs:// / abfss://)
 uv add 'dbcorral[s3]'          # add 'gcs' or 'azure' as needed
 
 # Credential helpers + AI surface
 uv add 'dbcorral[keyring]'     # resolve creds from system keychain
-uv add 'dbcorral[mcp]'         # `corral mcp serve` for Claude Desktop / Code
+uv add 'dbcorral[mcp]'         # corral.mcp.build_server() primitives (run via `netstead mcp serve`)
 ```
 
 Combine extras with commas: `uv add 'dbcorral[polars,s3,keyring]'`.

@@ -27,7 +27,26 @@ This file is for the **netstead** package only. The underlying generic engine `c
 - **Plugin Host API 1.5:** `ActionError` and `NotSupportedYet` are exported from
   `netstead.workbench.plugins`, so a plugin handler can refuse with a message the
   user sees (anything else it raises is still an internal error).
-
+- **Workbench plugins** (#222, #223). Plugins are pip packages discovered through
+  the `netstead.workbench.plugins` entry-point group: a `WorkbenchPlugin` with
+  namespaced Actions (`ActionSpec`), a router at `/api/plugins/<id>`, a static
+  front end, settings under `[plugins.<id>]` and state under `plugins.<id>`,
+  programmed against a versioned `Host` (API 1.0 Python core; 1.1 browser slots:
+  `activate(wb)`, workspace tabs, dock panels, commands in the palette and
+  context menus, a map-layer registry and `schemaForm`). Core Actions moved onto
+  the same registry (one dispatch path; "copy as Python" output unchanged).
+  **Settings → Plugins** lists each plugin with its state and an on/off switch;
+  a plugin that fails to load is isolated, never fatal. Ships the `hello`
+  example plugin and the `netstead.workbench.testing` fixture.
+  - Cookbook: `workbench-plugins.md`.
+- **Workbench: validate and edit** (P2, #225). **Run validation** as a job with
+  the rule config from Settings; an **Issues** panel linked to map markers and
+  table rows, **Fix** on an issue, and **Export report**. Direct table edits:
+  `EditCells` (live warnings re-checked against the spec), `DeleteRows` (with a
+  cascade dry run), `AddRows` (Python only), `UndoEdit`, and **Save a copy**
+  (`SaveNetwork`, never overwriting the source). Derived networks carry lineage.
+  Plugin Host API 1.2: `host.undo`, `host.edit_warnings`, `plan_update` /
+  `plan_delete` / `plan_add` and version-checked `host.mutate`.
 - **Workbench: verify a selection** (P3a). A **Selection** dock panel in every
   workspace (the selection's status, anchors, diagnostics, export and saved
   selections moved out of Details).
@@ -103,6 +122,8 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Fixed
 
+- **Map:** the inline JSON payload is escaped so network data cannot close the
+  script block (XSS) (#224).
 - **`netstead select` on an ambiguous selection** no longer crashes with
   `SelectError: cannot emit a fragment from status 'ambiguous'`. It now prints
   the status, the provisional link ids, each anchor with the other nodes it

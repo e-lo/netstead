@@ -54,7 +54,7 @@ architecture.md and this index in the same PR.
 |---|---|---|---|---|---|
 | [NL selection](2026-09-23-nl-selection-design.md) | design | 09-23 | implemented | #194 | extended by NL providers |
 | [Network viewer (`netstead.viz`)](2026-09-30-network-viewer-prd.md) | PRD | 09-30 | accepted; P1–P2 implemented | #194 | P3 (diff) and P4 (multimodal / GTFS) roll up under the Workbench design |
-| [Workbench (`netstead app`)](2026-10-02-netstead-workbench-design.md) | design | 10-02 | accepted; P0, P1a, P1b, P2, P3a implemented; P3b PR pending | #211, #212, #225, #226 | P2 is validate + edit, core only (the P2 plan's "Deviations" section lists what changed in review); P3 is selection verification (P3a) and the NL assistant (P3b); next: P4 Python live session. Its change-log part is superseded by the plugins design: ProjectCards move to the cards plugin |
+| [Workbench (`netstead app`)](2026-10-02-netstead-workbench-design.md) | design | 10-02 | accepted; P0, P1a, P1b, P2, P3a, P3b implemented | #211, #212, #225, #226, #227 | P2 is validate + edit, core only (the P2 plan's "Deviations" section lists what changed in review); P3 is selection verification (P3a) and the NL assistant (P3b); next: P4 Python live session. Its change-log part is superseded by the plugins design: ProjectCards move to the cards plugin |
 | [Workbench plugins](2026-10-05-workbench-plugins-design.md) | design | 10-05 | accepted; Parts 1 and 2 implemented | #222, #223 (recorded in #217) | entry-point plugin API (`netstead.workbench.plugins`); core owns the network nouns; the in-core `changes/` package is superseded |
 | [NL providers (Anthropic / OpenAI / Gemini / Ollama)](2026-10-02-nl-providers-design.md) | design | 10-02 | implemented | #211 | `qwen3:4b` default not yet tested live |
 
@@ -72,6 +72,7 @@ architecture.md and this index in the same PR.
 | [Workbench plugins Part 1: Python plugin core](2026-10-05-workbench-plugins-p1-plan.md) | plugins design | implemented | #222 |
 | [Workbench plugins Part 2: front-end slots](2026-10-08-workbench-plugins-p2-plan.md) | plugins design | implemented | #223 |
 | [Workbench P2: validate + edit (core only)](2026-10-07-workbench-p2-plan.md) | Workbench design | implemented | #225 |
+| [Workbench P3: selection verification (P3a) + NL assistant (P3b)](2026-10-16-workbench-p3-plan.md) | Workbench design | implemented | #226, #227 |
 
 ### Scopes
 
@@ -80,7 +81,8 @@ architecture.md and this index in the same PR.
 | [Data-table exploration view](data-table-exploration-scope.md) | 09-30 | Phases 0–1 implemented | #194 | Phase 2+ (cross-linking, export) not scheduled |
 | [Overture → GMNS pipeline](overture-to-gmns-pipeline-scope.md) | 09-30 | implemented | #196 | "Phase 2" attribute refinements listed in the scope |
 | [Benchmarking suite](benchmarking-suite-scope.md) | 09-30 | implemented (DuckDB-only) | #197 | nightly perf regression job: [#100](https://github.com/e-lo/netstead/issues/100) |
-| [Cards plugin (external ProjectCard editing)](2026-10-07-cards-plugin-scope.md) | 10-07 | proposed | — | `ignore_missing` defaults and importing the offline report's edit log are pending with the user |
+| [Cards plugin (ProjectCard editing)](2026-10-07-cards-plugin-scope.md) | 10-07 | implemented: PR A (#228), PR B (#229); UI panels pending | #228, #229 | `ignore_missing` defaults and importing the offline report's edit log are pending with the user |
+| [Documentation assessment and refresh](2026-10-19-docs-assessment-scope.md) | 10-19 | implemented (refresh); recommendations open | — | screenshots, a Workbench quickstart, CLI and HTTP API reference pages, harness coverage of accordion blocks |
 
 ## In flight (not on `main` yet)
 
@@ -88,7 +90,6 @@ Records on a branch go here, then move to the tables above when they merge.
 
 | Record | Kind | Branch | Status | Notes |
 |---|---|---|---|---|
-| [Workbench P3: selection verification + NL assistant](2026-10-16-workbench-p3-plan.md) | plan | `feat/workbench-p3b` | accepted; P3a implemented (#226); P3b implemented (PR pending) | 28 tasks in two PRs: P3a (Tasks 0–14: pinning, saved selections, export, Style/Filter/Navigate, the Selection panel) and P3b (Tasks 15–27: the assistant, its panel and command bar, Settings → Assistant, the eval; review fixes as Part R). All 11 open questions decided 2026-10-16 |
 
 ## Gaps to close
 

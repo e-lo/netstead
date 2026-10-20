@@ -22,10 +22,23 @@ and reports failures with line numbers.
 
 - We only execute blocks tagged ``python`` (not pseudocode or ``py``
   for inline snippets).
+- Indented fences count too: a ```python fence inside a ``???`` /
+  ``!!!`` admonition or a ``=== "tab"`` is collected, and its body is
+  dedented by exactly the fence's indentation (internal indentation
+  is preserved). Blockquote-wrapped fences (``> ```python``) are still
+  ignored — they're illustrative.
 - We **skip** blocks marked with the HTML comment
   ``<!-- doctest: skip -->`` immediately before the fence (escape
   hatch for examples that need network access, real S3 creds, or a
-  GUI).
+  GUI). The marker may itself be indented, and a blank line between
+  marker and fence is fine.
+- When a block is immediately followed (ignoring blank lines) by a
+  line reading ``Expected:`` and a ```text / ```json fence, the
+  block's captured stdout must match that fence: trailing whitespace
+  is ignored per line, a documented line ending in ``...`` (or ``…``)
+  is a prefix match, and the documented block may stop early (it may
+  show only the first lines of the output). Nondeterministic values
+  (timings, temp paths) must be elided with ``...`` by the author.
 - We **skip** the migration guide (it deliberately shows OLD v0.3
   API that must NOT exist in v1.0).
 - We **skip** generated artifacts (``llms*.txt``, ``api-index.json``).
@@ -68,15 +81,28 @@ _DOC_GLOBS = [
     "BETA.md",
 ]
 
-# Fenced ```python blocks. Capture the leading line for line-number
-# reporting, and the body. The directive form `.. code-block:: python`
-# (RST inside markdown) is rare in our docs but we handle it too.
+# Fenced ```python blocks, at column 0 or indented (inside a `???` /
+# `!!!` admonition or a `=== "tab"`). The opening fence's leading
+# whitespace is captured as `indent`; the closing fence must carry the
+# same indentation. The body is dedented by exactly that indent in
+# `_collect_blocks`. The directive form `.. code-block:: python` (RST
+# inside markdown) is rare in our docs but we handle it too.
 #
-# Anchor the opening fence to start-of-line so blockquote-wrapped
+# Only whitespace may precede the fence, so blockquote-wrapped
 # examples (`> `​``python ... `​``) — the page-style-guide pattern —
 # are ignored entirely. Their inner content isn't meant to exec.
 _FENCE_RE = re.compile(
-    r"^```python\n(?P<body>.*?)\n```",
+    r"^(?P<indent>[ \t]*)```python[ \t]*\n(?P<body>.*?)\n(?P=indent)```[ \t]*$",
+    flags=re.DOTALL | re.MULTILINE,
+)
+
+# An `Expected:` output block directly after a python fence (blank
+# lines allowed in between). Matched against the text that FOLLOWS a
+# `_FENCE_RE` match, so it must start right after the closing fence.
+_EXPECTED_RE = re.compile(
+    r"[ \t]*\n(?:[ \t]*\n)*"
+    r"(?P<indent>[ \t]*)Expected:[ \t]*\n(?:[ \t]*\n)*"
+    r"(?P=indent)```(?:text|json)[ \t]*\n(?P<body>.*?)\n(?P=indent)```[ \t]*$",
     flags=re.DOTALL | re.MULTILINE,
 )
 _RST_BLOCK_RE = re.compile(
@@ -89,22 +115,62 @@ _RST_BLOCK_RE = re.compile(
 #     ```python
 #     ...code that needs S3 creds...
 #     ```
-_SKIP_MARKER = re.compile(r"<!--\s*doctest:\s*skip\s*-->\s*$", re.MULTILINE)
+# The marker may carry a reason after `skip`, e.g.
+# `<!-- doctest: skip — needs S3 credentials -->`.
+_SKIP_MARKER = re.compile(r"^\s*<!--\s*doctest:\s*skip\b.*?-->\s*$")
 
 
 def _block_is_skipped(text: str, fence_start: int) -> bool:
-    """Was the immediately-preceding non-blank line a skip marker?"""
-    # Walk backwards from fence_start looking for the marker; stop at
-    # the previous fence or 5 lines back (whichever first).
-    preamble = text[max(0, fence_start - 500) : fence_start]
-    # Take the last few lines of preamble.
-    tail = "\n".join(preamble.splitlines()[-5:])
-    return bool(_SKIP_MARKER.search(tail))
+    """Is there a skip marker among the few non-blank lines before the fence?
+
+    Walks backwards from the fence, ignoring blank lines, and looks at
+    up to three non-blank lines (enough for ``marker`` / ``marker +
+    admonition title`` / ``marker + blank + fence``). Stops at any
+    fence line so a marker on an earlier block can't leak onto this
+    one. The marker may be indented.
+    """
+    preceding = text[:fence_start].splitlines()
+    seen = 0
+    for line in reversed(preceding):
+        if not line.strip():
+            continue
+        if line.strip().startswith("```"):
+            return False
+        if _SKIP_MARKER.match(line):
+            return True
+        seen += 1
+        if seen >= 3:
+            return False
+    return False
 
 
-def _collect_blocks() -> list[tuple[Path, int, str]]:
-    """Walk every doc, return [(path, line_no, body), ...]."""
-    blocks: list[tuple[Path, int, str]] = []
+def _dedent_by(body: str, indent: str) -> str:
+    """Strip exactly ``indent`` from every line that carries it.
+
+    Blank lines become empty; a line that does not start with the
+    indent is left as-is so a malformed block fails loudly at exec.
+    """
+    if not indent:
+        return body
+    out: list[str] = []
+    for line in body.split("\n"):
+        if line.startswith(indent):
+            out.append(line[len(indent) :])
+        elif not line.strip():
+            out.append("")
+        else:
+            out.append(line)
+    return "\n".join(out)
+
+
+def _collect_blocks() -> list[tuple[Path, int, str, str | None]]:
+    """Walk every doc, return [(path, line_no, body, expected), ...].
+
+    ``expected`` is the dedented body of the ```text / ```json fence
+    that follows an ``Expected:`` line right after the block, or
+    ``None`` when the block documents no output.
+    """
+    blocks: list[tuple[Path, int, str, str | None]] = []
     for glob in _DOC_GLOBS:
         for path in REPO_ROOT.glob(glob):
             if path.name.startswith("llms") or path.name == "api-index.json":
@@ -120,12 +186,49 @@ def _collect_blocks() -> list[tuple[Path, int, str]]:
                 # Block is "real". Compute line number of the fence's
                 # first line (the ```python line, 1-indexed).
                 line_no = text[: match.start()].count("\n") + 1
-                body = match.group("body")
+                indent = match.group("indent")
+                body = _dedent_by(match.group("body"), indent)
                 # Skip blocks that need user input.
                 if "input(" in body:
                     continue
-                blocks.append((path.relative_to(REPO_ROOT), line_no, body))
+                expected: str | None = None
+                after = _EXPECTED_RE.match(text, match.end())
+                if after is not None:
+                    expected = _dedent_by(after.group("body"), after.group("indent"))
+                blocks.append((path.relative_to(REPO_ROOT), line_no, body, expected))
     return blocks
+
+
+def _compare_expected(expected: str, actual: str) -> str | None:
+    """Return a mismatch description, or ``None`` when ``actual`` matches.
+
+    Rules: trailing whitespace is ignored per line (and trailing blank
+    lines are dropped); a documented line ending in ``...`` or ``…`` is
+    a prefix match on the text before the ellipsis; the documented
+    block may be a prefix of the output (fewer lines is fine, more is
+    not). No numeric tolerance — exact text otherwise.
+    """
+
+    def _lines(s: str) -> list[str]:
+        lines = [ln.rstrip() for ln in s.splitlines()]
+        while lines and not lines[-1]:
+            lines.pop()
+        return lines
+
+    exp, act = _lines(expected), _lines(actual)
+    if len(exp) > len(act):
+        return f"documented output has {len(exp)} lines but the block printed {len(act)}"
+    for i, (e, a) in enumerate(zip(exp, act, strict=False), start=1):
+        for ellipsis in ("...", "…"):
+            if e.endswith(ellipsis):
+                prefix = e[: -len(ellipsis)].rstrip()
+                if not a.startswith(prefix):
+                    return f"line {i}: documented prefix {prefix!r} but block printed {a!r}"
+                break
+        else:
+            if e != a:
+                return f"line {i}: documented {e!r} but block printed {a!r}"
+    return None
 
 
 def _is_obviously_pseudocode(body: str) -> bool:
@@ -162,28 +265,33 @@ def _is_obviously_pseudocode(body: str) -> bool:
 _NAMESPACES: dict[Path, dict] = {}
 
 
-def _blocks_for_parametrize() -> list[tuple[Path, int, str]]:
+def _blocks_for_parametrize() -> list[tuple[Path, int, str, str | None]]:
     out = []
-    for path, line, body in _collect_blocks():
+    for path, line, body, expected in _collect_blocks():
         if _is_obviously_pseudocode(body):
             continue
-        out.append((path, line, body))
+        out.append((path, line, body, expected))
     return out
 
 
 _BLOCKS = _blocks_for_parametrize()
 
-# Known doc-vs-code gaps that the pre-beta review surfaced and are
-# tracked for a follow-up cookbook-sweep PR. Each entry is (path,
-# line_no) so the test xfails specifically rather than skipping. Remove
-# the entry once the underlying doc is fixed and the block runs.
+# Known doc-vs-code gaps, tracked for a follow-up PR. Each entry is
+# keyed by (path, first code line of the block) — not the fence line
+# number, which moves whenever the page is edited above the block — so
+# the test xfails that specific block rather than skipping. Remove the
+# entry once the underlying doc is fixed and the block runs.
 #
-# This list is the punch-list for the v1.0-beta cookbook sweep. As
-# each block is fixed, remove its entry — the strict assertion takes
-# over and prevents regression. Net-zero entries by GA.
+# This list is the punch-list for the cookbook sweep. As each block is
+# fixed, remove its entry — the strict assertion takes over and
+# prevents regression. Net-zero entries by GA.
 #
-# Format: {(relative_path_str, fence_line_no): "reason"}
-_KNOWN_BROKEN: dict[tuple[str, int], str] = {}
+# Format: {(relative_path_str, first_code_line): "reason"}
+_KNOWN_BROKEN: dict[tuple[str, str], str] = {
+    # (path, first code line) -> why the block is known not to run yet. Empty
+    # is the goal: an entry here hides a doc-vs-code gap from CI, so add one
+    # only with the doc edit that closes it, and remove it in that edit.
+}
 
 
 @pytest.fixture
@@ -223,11 +331,13 @@ def _isolate_global_state():
 
 
 @pytest.mark.parametrize(
-    "path,line_no,body",
+    "path,line_no,body,expected",
     _BLOCKS,
-    ids=[f"{p}:{ln}" for p, ln, _ in _BLOCKS],
+    ids=[f"{p}:{ln}" for p, ln, _, _ in _BLOCKS],
 )
-def test_documented_python_block_runs(path: Path, line_no: int, body: str, _isolate_global_state: None) -> None:
+def test_documented_python_block_runs(
+    path: Path, line_no: int, body: str, expected: str | None, _isolate_global_state: None
+) -> None:
     """Every ```python fenced block in our docs must exec without raising.
 
     Closes the doc-vs-code drift class the symbol + flag contract
@@ -239,17 +349,23 @@ def test_documented_python_block_runs(path: Path, line_no: int, body: str, _isol
     pytest harness). Fix the doc block, the test goes green, the
     next reader gets a working example.
 
+    When the block is followed by ``Expected:`` and a ```text / ```json
+    fence, the block's stdout must match it (see ``_compare_expected``
+    for the rules) — the page must say what the code really prints.
+
     Skip an unreliable block with ``<!-- doctest: skip -->`` on the
     line immediately before the fence. Reserve for blocks that need
     network access, real cloud creds, a GUI, or other genuine
     non-determinism — not "this is broken and I'd rather not fix it".
     """
-    key = (str(path), line_no)
+    # The fence indent is already stripped; dedent again in case the
+    # whole body sits deeper than its fence (a list item, say).
+    code = textwrap.dedent(body)
+
+    first_code_line = next((ln.strip() for ln in code.splitlines() if ln.strip()), "")
+    key = (str(path), first_code_line)
     if key in _KNOWN_BROKEN:
         pytest.xfail(f"known doc-vs-code gap: {_KNOWN_BROKEN[key]}")
-
-    # Dedent in case the block was inside a list or admonition.
-    code = textwrap.dedent(body)
 
     # Shared namespace per file so an earlier `import netstead` carries.
     ns = _NAMESPACES.setdefault(path, {"__name__": f"__doctest__.{path.name}"})
@@ -272,6 +388,24 @@ def test_documented_python_block_runs(path: Path, line_no: int, body: str, _isol
             f"  - Update the doc block to call the real API\n"
             f"  - Mark with `<!-- doctest: skip -->` if it genuinely needs\n"
             f"    network/cloud creds/GUI/non-determinism\n"
-            f"  - Add ({path!s}, {line_no}) to _KNOWN_BROKEN in\n"
+            f"  - Add ({path!s}, {first_code_line!r}) to _KNOWN_BROKEN in\n"
             f"    {Path(__file__).name} with a tracking reason"
+        )
+
+    if expected is None:
+        return
+    mismatch = _compare_expected(expected, buf.getvalue())
+    if mismatch is not None:
+        pytest.fail(
+            f"Documented `Expected:` output does not match what the block prints:\n"
+            f"  file:  {path}\n"
+            f"  fence: line {line_no}\n"
+            f"  {mismatch}\n\n"
+            f"--- documented ---\n{expected}\n"
+            f"--- actual stdout ---\n{buf.getvalue() or '(empty)'}\n"
+            f"Fix options:\n"
+            f"  - Update the Expected block to what the code really prints\n"
+            f"  - End a line with `...` where the value varies (prefix match)\n"
+            f"  - Mark the block with `<!-- doctest: skip -->` if its output\n"
+            f"    is genuinely nondeterministic"
         )

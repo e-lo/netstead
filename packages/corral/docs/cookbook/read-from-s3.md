@@ -2,7 +2,7 @@
 title: Read from S3 with credentials
 audience: users
 kind: howto
-summary: Load a data package from S3, GCS, Azure or HTTPS with the credential cascade — explicit dict, env var, keyring — and know exactly which reader your credentials reach.
+summary: Load a Frictionless data package from S3, GCS, Azure or HTTPS with the credential cascade — explicit dict, env var, keyring — and know exactly which reader your credentials reach.
 ---
 
 # Read from S3 with credentials
@@ -23,13 +23,13 @@ pkg = read(
     "s3://my-bucket/networks/leavenworth/",
     credentials={"key": "AKIA…", "secret": "…"},
 )
-print(sorted(pkg.keys()), pkg["link"].count())
+print(f"{len(pkg.tables)} tables, {pkg['link'].count()} links")
 ```
 
 Expected (will vary by package):
 
 ```text
-['geometry', 'link', 'node'] 214
+9 tables, 339 links
 ```
 
 The same keyword exists on `Package.from_source` and on netstead's `Network.from_source`:
@@ -45,7 +45,7 @@ net = Network.from_source(
 print(f"{net.spec_version}: {net.links.count()} links")
 ```
 
-Either way the load is lazy — `net.links` is backed by an ibis expression, not a materialised frame.
+Either way the load is lazy — `pkg['link']` / `net.links` is a `Table` wrapping an ibis expression, not a materialised frame.
 
 ## How a URL is read
 
@@ -65,7 +65,7 @@ Two readers are in play, and which one you get depends only on whether credentia
 ```bash
 pip install 'dbcorral[s3]'      # s3fs  → s3://
 pip install 'dbcorral[gcs]'     # gcsfs → gs://
-pip install 'dbcorral[azure]'   # adlfs → az:// abfs://
+pip install 'dbcorral[azure]'   # adlfs → az:// abfs://   (combine extras with commas)
 ```
 
 `ImportError: Install s3fs to access S3` on a credentialed read means the extra is missing.
@@ -118,18 +118,18 @@ pkg = read(
 )
 ```
 
-A URL ending in `/` is listed: every child with a known extension (`.csv`, `.parquet`, `.csv.zip`, …) becomes a table; sidecars such as `_SUCCESS` are ignored. A URL to a single file loads that one table.
+A URL ending in `/` is listed: every child with a known extension (`.csv`, `.parquet`, `.csv.zip`, …) becomes a table; sidecars such as `_SUCCESS` are ignored. A URL to a single file loads that one table. The result is the same `Package` you'd get from a local path.
 
 ### 4. Verify the load is lazy
 
-Each table wraps an ibis `Table`. A filter pushes down into the parquet reader, so only matching rows transit:
+Each table wraps an ibis `Table`. `Table.filter` takes a callable over that expression and returns a new lazy table; the filter pushes down into the parquet reader, so only the survivors transit when you materialise (`to_polars()` needs the `polars` extra, `to_pandas()` the `pandas` one):
 <!-- doctest: skip -->
 
 ```python
-expr = net.links.expr  # underlying ibis Table
+expr = pkg["link"].expr   # underlying ibis Table
 print(type(expr).__name__)  # 'Table'
 
-fast_links = net.links.filter(lambda t: t.free_speed > 45.0).to_polars()
+fast_links = pkg["link"].filter(lambda t: t.filter(t.free_speed > 45.0)).to_polars()
 ```
 
 ### 5. Cache for repeat reads
@@ -139,13 +139,13 @@ If the same script will hit the package many times — a notebook, a debugging l
 
 ```python
 import pathlib
-from netstead import Network
+from corral import Package
 
-remote = Network.from_source("s3://my-bucket/networks/leavenworth/")
-remote.write(pathlib.Path("cache") / "leavenworth.parquet")  # one-shot download
+remote = Package.from_source("s3://my-bucket/networks/leavenworth/")
+remote.write(pathlib.Path("cache") / "leavenworth.parquet")  # one-shot download; FileExistsError if it already exists
 
-# Subsequent runs:
-net = Network.from_source(pathlib.Path("cache") / "leavenworth.parquet")
+# Subsequent runs (no manifest is written — pass the spec again if you had one):
+pkg = Package.from_source(pathlib.Path("cache") / "leavenworth.parquet")
 ```
 
 `Package.write` / `Network.write` accept local destinations only; see [Convert formats](convert-formats.md) for the format trade-offs.
@@ -173,7 +173,7 @@ net = Network.from_source(pathlib.Path("cache") / "leavenworth.parquet")
     ```
 
 ??? note "Azure Blob Storage (`az://`)"
-    `adlfs` options: `account_name` plus one of `account_key`, `sas_token`, `connection_string` or `credential`; `anon=True` for a public container. The env and keyring layers only produce a single `token`, which adlfs does not accept — use the explicit dict.
+    `adlfs` options: `account_name` plus one of `account_key`, `sas_token`, `connection_string` or `credential`; `anon=True` for a public container. The `az://`, `abfs://` and `abfss://` schemes all route to it. The env and keyring layers only produce a single `token`, which adlfs does not accept — use the explicit dict.
 <!-- doctest: skip -->
 
     ```python
@@ -203,6 +203,7 @@ net = Network.from_source(pathlib.Path("cache") / "leavenworth.parquet")
 * **The dict is not translated.** Keys must be the ones the scheme's fsspec driver accepts (`s3fs`, `gcsfs`, `adlfs`, aiohttp request options for HTTP). A wrong key surfaces as the driver's own error when the first byte is read, not at `read(...)`.
 * **`.netrc` entries don't reach any driver as-is.** That layer yields `username`/`password`, which `s3fs` ignores and the HTTP filesystem rejects. Prefer the env variables or an explicit dict.
 * **Credentials for a local path are an error.** The engine refuses `storage_options` for a non-URL source rather than silently ignoring them; `Package.from_source` never forwards `credentials=` to local reads.
+* **A remote `.duckdb` file is not supported.** DuckDB databases are read from local paths only — download it first, or convert the source to parquet / CSV, which do read over URLs.
 * **Keyring needs a real OS backend.** corral only trusts the macOS, Windows, SecretService, libsecret and KWallet backends; a headless box with `keyrings.alt` resolves to `none`. Use the env variables there.
 * **Listing a bucket root isn't free.** `read("s3://bucket/")` with no prefix lists the whole bucket. Always include the package directory.
 * **Non-AWS endpoints need the credentialed path.** For MinIO, R2, Wasabi and friends put `endpoint_url` in the credentials dict so the read goes through `s3fs`; DuckDB's credential-less reader does not pick up `AWS_ENDPOINT_URL`, and the cascade doesn't discover endpoints.

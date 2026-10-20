@@ -16,10 +16,11 @@ fastest way to learn the corresponding feature.
 ## Install
 
 Skills are loaded directly from this repository — no separate hosting.
-Install one at a time:
+Copy the skill directory into your project's `.claude/skills/` (or into
+`~/.claude/skills/` to make it available in every project):
 
 ```bash
-claude code skill add https://github.com/e-lo/netstead.git#path=skills/gmns-validate
+cp -r skills/gmns-validate /path/to/your-project/.claude/skills/
 ```
 
 Replace `gmns-validate` with any subdirectory listed below.

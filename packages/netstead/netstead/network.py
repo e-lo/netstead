@@ -454,7 +454,7 @@ class Network(Package):
         and saved JSON / HTML reports surface this in the header).
 
         Args:
-            **kwargs: Forwarded verbatim to :meth:`Package.validate`.
+            **kwargs (Any): Forwarded verbatim to :meth:`Package.validate`.
 
         Returns:
             A :class:`~corral.reports.ValidationReport` with

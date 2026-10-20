@@ -22,6 +22,7 @@ long-form reference; abbreviations here are the discovery surface.
 *[ER]: Entity-Relationship (as in diagram)
 *[FK]: Foreign Key
 *[GA]: General Availability
+*[GIS]: Geographic Information System
 *[GMNS]: General Modeling Network Specification
 *[GTFS]: General Transit Feed Specification
 *[HTML]: HyperText Markup Language

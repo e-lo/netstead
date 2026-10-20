@@ -13,21 +13,21 @@ Two sections: **GMNS domain** terms come from the spec itself and apply to any G
 
 ## GMNS domain
 
-**Allowed uses** — the set of `use_definition` ids permitted to traverse a link or lane (e.g., `{auto, truck, transit}`). Encoded as a comma-separated list referencing `use_definition.use_id` or as a `use_group.group_id`. Distinct from `prohibited_uses`, which is the inverse expression. See [`use_definition`](table-of-tables.md#dimension-tables).
+**Allowed uses** — the set of uses permitted to traverse a link or lane (e.g., `auto, truck, transit`). Encoded as a comma-separated string on `link.allowed_uses` / `lane.allowed_uses` whose members name a `use_definition.use` or a `use_group.use_group` (a `use_group` row lists its members in its own comma-separated `uses` field). GMNS 0.97 has no `prohibited_uses` field. See [`use_definition`](table-of-tables.md#dimension-tables).
 
 **Capacity** — the maximum hourly throughput of a link or lane under prevailing conditions, in vehicles per hour. Carried on `link.capacity` (and overridable per period via `link_tod.capacity`). Units are vehicles per hour per lane unless the producer notes otherwise; GMNS is silent on the LOS model used to compute it.
 
 **Curb segment** — a managed length of curb (parking, loading zone, no-stopping). One row per curb segment in `curb_seg`, keyed to a `link_id`. New in recent GMNS versions; supports curb-management modeling.
 
-**Facility type** — categorical descriptor of a link's roadway class (e.g., `motorway`, `primary`, `tertiary`, `residential`, `service`). Drives default values for capacity, free speed, and lane count when those fields are absent. The exact vocabulary is in `shared_categories.json` under `facility_type_categories`.
+**Facility type** — descriptor of a link's roadway class (e.g., `motorway`, `primary`, `tertiary`, `residential`, `service`). In GMNS 0.97 `link.facility_type` is free text — the spec does not enumerate it (`shared_categories.json` only defines `barrier`, `bike_facility`, `ped_facility`, `parking` categories, `movement_type` and `ctrl_type`). The quality rule pack reads it by name (e.g. `residential` for the high-speed-residential rule).
 
-**Free speed** — the posted or signed speed limit, or the speed at which vehicles travel under uncongested conditions. Carried on `link.free_speed` in `link.free_speed_units` (typically `mph` or `kph`). Distinct from any modeled travel speed.
+**Free speed** — the posted or signed speed limit, or the speed at which vehicles travel under uncongested conditions. Carried on `link.free_speed`; the unit is network-wide, declared in `config.speed` (usually `long_length` units per hour), not per link. Distinct from any modeled travel speed.
 
 **Geometry** — a row in the optional `geometry` table holding a WKT LineString, referenced by `link.geometry_id`. When absent, the link is implicit straight-line from `from_node` to `to_node`. The geometry table exists so multiple links can share one shape (e.g., a divided highway represented as two opposing links sharing a centerline).
 
 **GMNS** — General Modeling Network Specification. The Zephyr Foundation's open standard for routable transportation networks in tabular Frictionless Data Package form. See [What is GMNS?](../what-is-gmns.md).
 
-**Lane** — a sub-element of a link with its own lane number, optional turn restrictions, and allowed uses. One row per travel lane per link in the `lane` table; `lane.lane_id` is keyed to `link.link_id`. A link with `lanes=3` typically has three corresponding `lane` rows.
+**Lane** — a sub-element of a link with its own lane number, optional turn restrictions, and allowed uses. One row per travel lane per link in the `lane` table; `lane.lane_id` is the primary key and `lane.link_id` is the foreign key to `link.link_id`. A link with `lanes=3` typically has three corresponding `lane` rows.
 
 **Link** — a directed edge in the routable network, from `from_node_id` to `to_node_id`. The required spine table; carries facility type, lanes, free speed, length, allowed uses. Undirected networks are represented by paired links (one per direction).
 
@@ -47,7 +47,7 @@ Two sections: **GMNS domain** terms come from the spec itself and apply to any G
 
 **ApprovalRequired** — exception raised when a gated operation's cost estimate exceeds the approval threshold (default 180 seconds) and the caller has not set `approve=True`. See the cost-model section of [Architecture](https://e-lo.github.io/netstead/corral/architecture/#65-pooled-operations-cost-model).
 
-**Auto-build threshold** — the network size (in nodes) above which `netstead.scope` ops silently build the spatial + graph indexes on first call. Default 50,000 nodes. Configurable via the `NETSTEAD_AUTO_INDEX_THRESHOLD` environment variable. Pre-build explicitly with `net.build_indexes(graph=True, spatial=True)` to control timing.
+**Auto-build threshold** — the network size (in nodes) above which a `netstead.scope` op logs an INFO message when it has to build the scipy graph index on first call (the build happens either way; the threshold only controls the log). Default 50,000 nodes. Configurable via the `NETSTEAD_AUTO_INDEX_THRESHOLD` environment variable. Pre-build explicitly with `net.build_indexes(graph=True)` to control timing.
 
 **CORRAL_AUTO_APPROVE** — environment variable (`CORRAL_AUTO_APPROVE=1`) that bypasses the cost-model approval prompt for gated operations. Equivalent to CLI `--yes` or programmatic `approve=True`. Intended for batch / CI use.
 
@@ -59,7 +59,7 @@ Two sections: **GMNS domain** terms come from the spec itself and apply to any G
 
 **Lazy expression** — a `Table.expr` that has not been materialised. Operations on a lazy expression return a new lazy expression. Materialisation happens explicitly via `.to_pandas()`, `.to_polars()`, `.collect()`, `.head()`, or `.count()`.
 
-**MCP (Model Context Protocol)** — the open protocol Claude and other AI agents use to discover and call tools. Netstead ships an MCP server via `pip install 'netstead[mcp]'`; start it with `netstead mcp serve`. Tools exposed: `read_network`, `describe_network`, `query_table`, `scope`, `validate`, `quality_check`, `convert`, `edit_session`. See [Architecture §6.9](https://e-lo.github.io/netstead/corral/architecture/#69-ai-accessibility).
+**MCP (Model Context Protocol)** — the open protocol Claude and other AI agents use to discover and call tools. Netstead ships an MCP server via `pip install 'netstead[mcp,graph]'`; start it with `netstead mcp serve`. Tools exposed: `describe_package`, `validate_package`, `list_tables`, `describe_network`, `quality_check`, `connected_components`, `scope_from_nodes` — all stateless, each taking a `source`. See the [MCP tools reference](../ai/mcp-tools.md) and [Architecture §6.9](https://e-lo.github.io/netstead/corral/architecture/#69-ai-accessibility).
 
 **Network buffer** — a Dijkstra-bounded expansion in **graph distance** (using `link.length`). Used by `netstead.scope.from_node(id, network_buffer="200m")`. Distinct from spatial buffer.
 
@@ -67,11 +67,11 @@ Two sections: **GMNS domain** terms come from the spec itself and apply to any G
 
 **Scope** — a `NetworkScope` is a (node_ids, link_ids) pair that, when applied via `.apply()`, returns a filtered `Network` with every other table pre-filtered by FK chain. Scopes are composable and chainable: `net.scope.from_nodes([1,2,3]).buffer_network("0.5mi").buffer_spatial(30)`. See [Architecture §6.2](https://e-lo.github.io/netstead/corral/architecture/#62-memory-efficient-scoping).
 
-**Session** — context manager around one or more `EditResult`s with atomic rollback. Open with `with Session(net) as s: ...`; rollback with `s.rollback()` or `s.rollback(to=session_id_or_timestamp)`. Audit log persists with the network as a sidecar `_history.parquet`.
+**Session** — `corral.editing.Session`, a context manager around one or more `EditResult`s with atomic rollback. Open with `with Session(net, log_path=...) as s: ...`; `s.rollback()` (no arguments) reverses every edit of the open session in LIFO order. The parquet log is written on clean exit only when `log_path=` is given; `corral.editing.rollback(pkg, log_path, to=session_id_or_datetime)` replays that log later to reverse edits selectively. (The Workbench's `netstead.workbench.Session` is a different class — the action bus of the local web app.)
 
-**Severity / Category / Issue** — see [API reference](api.md#corral.reports.Severity). `Severity` is one of `Error`, `Warning`, `Info`, `DataQuality`. `Category` discriminates rule families. `Issue` is the per-finding record carried in a `ValidationReport`.
+**Severity / Category / Issue** — see the [corral API reference](https://e-lo.github.io/netstead/corral/reference/api/). `Severity` is one of `ERROR`, `WARNING`, `INFO` (serialised lower-case). `Category` discriminates rule families: `SCHEMA`, `STRUCTURAL`, `FOREIGN_KEY`, `SYNC_STATE`, `DATA_QUALITY` — a quality finding carries `DATA_QUALITY` plus one of the three severities. `Issue` is the per-finding record carried in a `ValidationReport`.
 
-**Skill (Claude Code Skill)** — a packaged set of instructions and prompts a Claude Code agent can load on demand. Netstead ships several (`gmns-author`, `gmns-validate`, `gmns-convert`, `gmns-clean`, `corral-validate`) under `skills/` in the repo. Install with `claude code skill add <git-url>#path=skills/<name>`. See [Architecture §6.9](https://e-lo.github.io/netstead/corral/architecture/#69-ai-accessibility).
+**Skill (Claude Code Skill)** — a packaged set of instructions and prompts a Claude Code agent can load on demand. Netstead ships six (`gmns-author`, `gmns-build`, `gmns-validate`, `gmns-convert`, `gmns-clean`, `corral-validate`) under `skills/` in the repo. Install with `claude code skill add <git-url>#path=skills/<name>`. See [Architecture §6.9](https://e-lo.github.io/netstead/corral/architecture/#69-ai-accessibility).
 
 **Spatial buffer** — a shapely-bounded expansion in **CRS units** (degrees for WGS84, meters for projected CRSs). Used by `netstead.scope.from_link(id, spatial_buffer_m=...)` and the `buffer_spatial()` chain method. Distinct from network buffer.
 

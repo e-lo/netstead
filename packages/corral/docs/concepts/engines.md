@@ -7,7 +7,11 @@ summary: DuckDB (via ibis) is corral's single compute engine. pandas, polars and
 
 # The compute engine and dataframe formats
 
+## What it is
+
 corral has **one compute engine: DuckDB, driven through [ibis](https://ibis-project.org/)**. Everything — reads, filters, joins, validation, foreign-key checks, spatial scopes, edits — is expressed as lazy ibis expressions and executed inside DuckDB, pushing predicates down to SQL so only matching rows ever materialise.
+
+## Why we have it
 
 **pandas, polars and pyarrow are *formats*, not engines.** You hand data in as any of them and get results back as any of them, but the computation always happens in DuckDB. This mirrors the [ibis project's own decision](https://ibis-project.org/posts/farewell-pandas/) to drop its non-SQL execution backends in 10.0: there is no feature gap versus DuckDB, DuckDB is faster, and DuckDB queries pandas/polars/Arrow objects directly (zero-copy via Arrow). We stopped maintaining separate pandas/polars *compute* engines for the same reasons.
 
@@ -39,7 +43,7 @@ pkg.tables["link"].collect()          # -> engine-native (ibis) for further lazy
 
 ## Mental model
 
-* **Default to pushing down.** If your operation is a predicate (`link.toll > 0`, `node.zone_id.isin([1, 2, 3])`, `link.geometry.intersects(bbox)`) or an aggregation (`link.length.sum()`), write it as an ibis expression and DuckDB answers in milliseconds against a 200k-link network — the data never leaves the engine.
+* **Default to pushing down.** If your operation is a predicate (`t.toll > 0`, `t.zone_id.isin([1, 2, 3])`), a spatial scope (`from_bbox(table, minx, miny, maxx, maxy)`), or an aggregation (`t.length.sum()`), write it as an ibis expression — `table.filter(lambda t: t.filter(t.toll > 0))` — and DuckDB answers in milliseconds against a 200k-link network. The data never leaves the engine.
 * **Materialise to a dataframe only for Python-side work.** Pure-Python parsing (shapely geometries, regex, fuzzy strings, ML models) needs values in memory. Push down what you *can* first (e.g. a coarse `facility_type == 'residential'` filter), then `.to_pandas()` / `.to_polars()` the surviving rows and do the Python work there.
 * **Never materialise a whole table just to filter it in Python.** If the predicate is SQL-expressible, push it down.
 
@@ -49,7 +53,7 @@ pkg.tables["link"].collect()          # -> engine-native (ibis) for further lazy
 
 ## See also
 
-* [Architecture §6.1 — engine + I/O](../architecture.md#61-engine--io) — design rationale for the DuckDB-first choice.
+* [Architecture §6.1 — engine + I/O](../architecture.md#61-engine-io) — design rationale for the DuckDB-first choice.
 * [Frictionless data packages](frictionless.md) — the schema/data model the engine sees.
 * [DuckDB spatial extension](https://duckdb.org/docs/extensions/spatial/overview.html) — the ST_* functions available from ibis.
 * [Ibis: Farewell pandas](https://ibis-project.org/posts/farewell-pandas/) — the upstream decision this mirrors.

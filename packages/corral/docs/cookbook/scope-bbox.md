@@ -2,47 +2,54 @@
 title: Bounding-box and polygon scope
 audience: users
 kind: howto
-summary: Spatial scope by bbox, polygon, or geometry-buffer — works on any Frictionless package with a WKT geometry column.
+summary: Spatial scope by bbox, polygon, or geometry-buffer — works on any Frictionless package with a WKT or WKB geometry column.
 ---
 
 # Bounding-box and polygon scope
 
 ## When to use this
 
-You have a spatial filter — a bounding box from a map UI, a polygon from a planning area, or a buffered route — and want only the rows whose geometry falls inside it. Works on any geometry-bearing table; not GMNS-specific.
+You have a spatial filter — a bounding box from a map UI, a polygon from a planning area, or a buffered route — and want only the rows whose geometry falls inside it. Works on any table with a geometry column; not GMNS-specific.
 
 ## Quick example
 
-Load the bundled Leavenworth fixture, build a bbox view over the links table, and count the rows that fall inside:
+Load the bundled Leavenworth fixture through corral, build a bbox-scoped `Table` over the `geometry` table (the one GMNS table that carries inline WKT), and count the rows that intersect the box:
 
 ```python
-from netstead import Network
-from netstead.fixtures import leavenworth
+from corral import Package
 from corral.dataset.view import from_bbox
+from netstead.fixtures import leavenworth
 
-net = Network.from_source(leavenworth.csv_dir())
-view = from_bbox(net.links, minx=-120.67, miny=47.58, maxx=-120.65, maxy=47.60)
-print(f"{view.count()} links in bbox")
+pkg = Package.from_source(leavenworth.csv_dir(), spec=leavenworth.spec_path())
+geometry = pkg["geometry"]
+scoped = from_bbox(geometry, minx=-120.67, miny=47.58, maxx=-120.65, maxy=47.60)
+print(f"{scoped.count()} of {geometry.count()} geometries in bbox")
 ```
 
-The view is lazy — no rows materialise until you call `.to_pandas()` or iterate.
+Expected:
+
+```text
+230 of 339 geometries in bbox
+```
+
+The result is a lazy `Table` — no rows materialise until you call `.to_pandas()`, `.count()` or similar. Note the table choice: Leavenworth's `link` table has no geometry column (links point at `geometry` rows via `geometry_id`), and a table without the geometry column is passed through **unfiltered** — `from_bbox(pkg["link"], ...)` silently returns all 339 links.
 
 ## Step-by-step
 
 ### 1. Bounding box (any table)
 
-`from_bbox` is generic — it works on any `Table` whose schema declares a WKT geometry column. No shapely required for bbox; the predicate is pure coordinate math:
+`from_bbox` is generic — it works on any `Table` with a WKT or WKB geometry column (default name `geometry`; pass `geometry_column=` for another). The predicate compiles to `ST_Intersects(geom, ST_MakeEnvelope(...))` and runs inside DuckDB's spatial extension; no shapely required:
 
 ```python
 from corral.dataset.view import from_bbox
 
-view = from_bbox(net.links, minx=-120.67, miny=47.58, maxx=-120.65, maxy=47.60)
-df = view.to_pandas()
+scoped = from_bbox(pkg["geometry"], minx=-120.67, miny=47.58, maxx=-120.65, maxy=47.60)
+rows = scoped.head(5).collect()
 ```
 
 ### 2. Polygon (shapely or WKT)
 
-For non-rectangular regions, pass a shapely `Polygon`. Shapely is in the `[clean]` extra:
+For non-rectangular regions, pass a shapely `Polygon`. Shapely is optional for corral — `pip install shapely` (it also rides along with `netstead[clean]`):
 
 ```python
 from corral.dataset.view import from_polygon
@@ -55,96 +62,102 @@ poly = Polygon([
     (-120.67, 47.60),
     (-120.67, 47.58),
 ])
-view = from_polygon(net.links, poly)
+scoped = from_polygon(pkg["geometry"], poly)
 ```
 
-If shapely isn't installed, pass a WKT string instead — the function parses it directly:
+If shapely isn't installed, pass a WKT string instead — it goes straight to DuckDB's `ST_GeomFromText`:
 
 ```python
-view = from_polygon(net.links, "POLYGON((-120.67 47.58, -120.65 47.58, ...))")
+ring = "POLYGON((-120.67 47.58, -120.65 47.58, -120.65 47.60, -120.67 47.60, -120.67 47.58))"
+scoped = from_polygon(pkg["geometry"], ring)
+print(scoped.count())
 ```
 
 ### 3. Buffered geometry
 
-Buffer a geometry (in metres, regardless of CRS — the helper reprojects) and filter to anything inside. Useful for "everything within 100 m of this corridor":
+Buffer a geometry and keep anything that intersects the buffer. `distance_m` is in the **CRS units of the geometry column** — degrees for EPSG:4326 data like Leavenworth — and nothing is reprojected, so for "everything within 100 m of this corridor" on a lat/lon source you either convert metres to degrees yourself or pre-buffer in a projected CRS and pass the result to `from_polygon`:
 
 ```python
 from corral.dataset.view import from_geometry_buffer
 from shapely.geometry import LineString
 
 corridor = LineString([(-120.67, 47.58), (-120.65, 47.60)])
-view = from_geometry_buffer(net.links, corridor, distance_m=100)
+scoped = from_geometry_buffer(pkg["geometry"], corridor, distance_m=0.001)  # ~100 m at this latitude
 ```
 
 ### 4. Predicate pushdown
 
-When the underlying source is partitioned Parquet, the spatial predicate compiles to a single DuckDB `WHERE` clause. Partitions whose statistics fall entirely outside the bbox are pruned before reading. Typical speed-up on a regional network is 10–50× vs full scan:
+The spatial predicate is a single DuckDB `WHERE` clause. When the underlying source is a Hive-partitioned Parquet dataset, that clause stays inside the `read_parquet` plan so DuckDB prunes partitions whose statistics fall entirely outside the box before reading them:
 
 <!-- doctest: skip -->
 ```python
-net = Network.from_source("s3://my-bucket/regional/links.parquet")
+pkg = Package.from_source("s3://my-bucket/regional/", spec=spec)
 # Only the parquet partitions overlapping the bbox are read off S3.
-view = from_bbox(net.links, minx=-120.67, miny=47.58, maxx=-120.65, maxy=47.60)
+scoped = from_bbox(pkg["geometry"], minx=-120.67, miny=47.58, maxx=-120.65, maxy=47.60)
 ```
 
-Inspect the compiled predicate via `view.explain()` — useful when debugging "why is this slow?" against an S3 source. The explain output names every partition that was kept or pruned.
+To see the compiled plan, take the underlying ibis expression and ask DuckDB directly: `ibis.to_sql(scoped.expr)` prints the SQL, and `scoped.expr.compile()` gives the same string for `EXPLAIN`.
 
 ### 5. Compose with other filters
 
-Spatial views compose with the rest of the `View` API. The bbox + facility-type predicate fuse into a single SQL pass — no intermediate materialisation:
+Spatial scopes return ordinary `Table`s, so they compose with `Table.filter`, which takes a callable over the ibis expression. The bbox + attribute predicate fuse into a single SQL pass — no intermediate materialisation:
 
-<!-- doctest: skip -->
 ```python
-inside = from_bbox(net.links, -120.67, 47.58, -120.65, 47.60)
-arterials = inside.filter(net.links.facility_type == "arterial")
-arterials.to_pandas()
+inside = from_bbox(pkg["geometry"], -120.67, 47.58, -120.65, 47.60)
+low_ids = inside.filter(lambda t: t.filter(t.geometry_id < 100))
+print(low_ids.count())
 ```
 
 ## Common variations
 
 ???+ note "Default — bbox filter on a single table"
-    Returns a lazy `View` over the matched rows.
+    Returns a lazy `Table` over the matched rows.
+<!-- doctest: skip -->
 
     ```python
-    view = from_bbox(net.links, minx, miny, maxx, maxy)
+    scoped = from_bbox(pkg["geometry"], minx, miny, maxx, maxy)
+    ```
+
+??? note "Scope every geometry-bearing table in the package"
+    `Package.scope(bbox=...)` applies the same filter to every loaded table that has the geometry column; tables without it pass through untouched. On Leavenworth that trims `geometry` to 230 rows and leaves `link` / `node` (no geometry column) at full size.
+
+    ```python
+    sub = pkg.scope(bbox=(-120.67, 47.58, -120.65, 47.60))
+    print(sub["geometry"].count(), sub["link"].count())
     ```
 
 ??? note "Filter the whole network with FK pushdown"
-    For GMNS networks, use the netstead scope ops instead — they walk the FK graph and produce a fully consistent sub-network.
-
-    ```python
-    from netstead.scope import from_polygon
-    scope = from_polygon(net, poly)
-    sub = scope.apply()
-    ```
+    For GMNS networks, use the network-aware scope ops in `netstead.scope` instead — `from_nodes`, `from_node`, `from_link`, `from_point`, `connected_component`, `from_zone`. They walk the FK graph and produce a fully consistent sub-network. There is no polygon entry point there today; feed a polygon through `from_polygon` on the `geometry` table and seed `from_nodes` from the result.
 
 ??? note "WGS84 bbox against a projected source"
-    `from_bbox` compares numbers; it does not reproject. Reproject the bbox to the source CRS first.
+    `from_bbox` compares coordinates as given; it does not reproject. Reproject the bbox to the source CRS first (`pyproj` ships with `netstead[clean]`).
+<!-- doctest: skip -->
 
     ```python
     from pyproj import Transformer
-    t = Transformer.from_crs("EPSG:4326", net.spec.crs, always_xy=True)
+    t = Transformer.from_crs("EPSG:4326", "EPSG:26910", always_xy=True)  # source CRS here
     minx, miny = t.transform(-120.67, 47.58)
     maxx, maxy = t.transform(-120.65, 47.60)
-    view = from_bbox(net.links, minx, miny, maxx, maxy)
+    scoped = from_bbox(pkg["geometry"], minx, miny, maxx, maxy)
     ```
 
-??? note "Buffered point (everything within 500 m of a location)"
-    `from_geometry_buffer` accepts any shapely geometry — `Point`, `LineString`, `Polygon`.
+??? note "Buffered point (everything near a location)"
+    `from_geometry_buffer` accepts any shapely geometry — `Point`, `LineString`, `Polygon` — or a WKT string. The distance is in the column's CRS units.
 
     ```python
     from shapely.geometry import Point
-    view = from_geometry_buffer(net.links, Point(-120.66, 47.59), distance_m=500)
+    scoped = from_geometry_buffer(pkg["geometry"], Point(-120.66, 47.59), distance_m=0.005)
     ```
 
 ## Pitfalls
 
-* **CRS mismatch is silent.** `from_bbox` compares numbers — degrees-vs-metres mismatches produce empty results, not errors. Check `net.spec.crs` first.
-* **`distance_m` only works if CRS is known.** If the source declares no CRS, `from_geometry_buffer` raises. Set `crs=` on the source, or pre-buffer in the geometry's native units and pass via `from_polygon`.
-* **Shapely needed for polygon input** (not bbox). `pip install netstead[clean]` brings it in.
-* **Single-table scope is *not* FK-aware.** If you bbox-filter `link` and want only the dependent `lane` rows too, use the network-aware scope helpers in `netstead.scope` (`from_nodes`, `from_link`, `connected_component`) instead — those walk the FK graph.
+* **No geometry column means no filter.** `from_bbox` / `from_polygon` / `from_geometry_buffer` are a silent no-op on a table that lacks the geometry column — check `table.columns()` if a scope returns everything.
+* **CRS mismatch is silent.** Degrees-vs-metres mismatches produce empty results, not errors. corral does not track a package CRS; know the CRS of your geometry column.
+* **`distance_m` is not metres unless your CRS is.** The buffer runs in the geometry column's units with no reprojection — on EPSG:4326 that's degrees.
+* **Shapely needed for polygon / geometry objects** (not for bbox or WKT strings). `pip install shapely`, or `pip install 'netstead[clean]'`, brings it in.
+* **Single-table scope is *not* FK-aware.** If you bbox-filter `geometry` and want only the dependent `link` rows too, use the network-aware scope helpers in `netstead.scope` (`from_nodes`, `from_link`, `connected_component`) instead — those walk the FK graph.
 
 ## See also
 
 * [Build a scope from seed nodes](https://e-lo.github.io/netstead/netstead/cookbook/scope-from-nodes/) — network-graph scope (vs spatial).
-* [API reference](../reference/api.md) — `corral.dataset.view.from_bbox`, `from_polygon`, `from_geometry_buffer`.
+* [API reference](../reference/api.md) — `corral.dataset.view.from_bbox`, `from_polygon`, `from_geometry_buffer`, `Package.scope`.

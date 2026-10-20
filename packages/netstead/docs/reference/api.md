@@ -2,7 +2,7 @@
 title: netstead API reference
 audience: both
 kind: reference
-summary: Every public netstead symbol, auto-generated from docstrings. Stable anchors match the codes in ai/api-index.json. For the generic corral API see the corral reference.
+summary: Core public netstead symbols, auto-generated from docstrings. Stable anchors match the codes in ai/api-index.json. For the generic corral API see the corral reference.
 stability: stable
 ---
 
@@ -10,7 +10,7 @@ stability: stable
 
 GMNS-specific surface. For the generic Frictionless data-package primitives (`Package`, `Table`, validation, editing framework, HTTP + MCP factories) see the [corral API reference](https://e-lo.github.io/netstead/corral/reference/api/).
 
-Auto-generated from package docstrings via [mkdocstrings](https://mkdocstrings.github.io/). Stable anchors match the codes in [`ai/api-index.json`](https://e-lo.github.io/netstead/corral/ai/).
+Auto-generated from package docstrings via [mkdocstrings](https://mkdocstrings.github.io/). Stable anchors match the codes in [`ai/api-index.json`](../ai/api-index.json). This page covers the core surface — `Network`, spec, semantics, scope, quality, indexes, graph, clean — plus the builders, selection, map, settings and Workbench entry points; smaller helpers are documented in their modules' docstrings.
 
 ## Network — the GMNS-aware Package
 
@@ -105,6 +105,102 @@ The 7 rule classes:
 ::: netstead.clean.remove_orphans
 
 ::: netstead.clean.recompute_lengths
+
+## Build from OpenStreetMap (optional `[osm]` extra)
+
+::: netstead.osm.build_network_from_osm
+
+::: netstead.osm.build_network_from_osm_file
+
+::: netstead.osm.network_from_records
+
+::: netstead.osm.osm_edit_url
+
+::: netstead.osm.issue_osm_edit_url
+
+## Build from Overture Maps (optional `[overture]` extra)
+
+::: netstead.overture.build_network_from_overture
+
+## Natural-language selection (optional `[nl]` extra)
+
+::: netstead.select.make_parser
+
+::: netstead.select.resolve
+
+::: netstead.select.resolve_frames
+
+::: netstead.select.to_fragment
+
+::: netstead.select.to_projectcard
+
+::: netstead.select.validate_fragment
+
+::: netstead.select.SelectionIntent
+
+::: netstead.select.SelectionResult
+
+::: netstead.select.StubParser
+
+## Map
+
+::: netstead.map.NetworkMap
+
+::: netstead.map.render_network_html
+
+::: netstead.map.render_validation_html
+
+## Settings
+
+See [Settings reference](settings.md) for every key, default and precedence rule.
+
+::: netstead.config.Settings
+
+::: netstead.config.load_settings
+
+::: netstead.config.save_setting
+
+::: netstead.config.get_value
+
+::: netstead.config.user_config_path
+
+::: netstead.config.project_config_path
+
+::: netstead.config.SettingsError
+
+## Workbench
+
+See [Workbench Actions reference](workbench-actions.md) for every Action's fields and replay form.
+
+::: netstead.workbench.Session
+    options:
+      members:
+        - dispatch
+        - dispatch_recorded
+        - submit
+        - add_network
+        - network
+        - state
+        - settings
+        - history
+
+::: netstead.workbench.actions.BaseAction
+
+::: netstead.workbench.actions.CORE_ACTIONS
+
+::: netstead.workbench.actions.to_python
+
+::: netstead.workbench.actions.parse_action
+
+::: netstead.workbench.ActionError
+
+::: netstead.workbench.ApprovalRequired
+
+::: netstead.workbench.PathNotAllowed
+
+::: netstead.workbench.NotSupportedYet
+
+::: netstead.workbench.JobCancelled
 
 ## See also
 

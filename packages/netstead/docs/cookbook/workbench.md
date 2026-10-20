@@ -15,6 +15,9 @@ For a single self-contained HTML file to send someone, see [View a network on a 
 
 ## Quick start
 
+New to the Workbench? [Quickstart: the Workbench](../quickstart-workbench.md) walks through open, select,
+validate, fix, replay and save on the bundled Leavenworth network in ten minutes.
+
 ```bash
 uv run netstead app ./my-network
 ```
@@ -138,6 +141,8 @@ Three things to know before replaying a session's script:
 
 ## Settings
 
+Every section, key, type and default is listed in the [Settings reference](../reference/settings.md).
+
 The workbench reads layered settings. From lowest to highest precedence:
 
 1. built-in defaults
@@ -163,7 +168,7 @@ provider = "anthropic"
 **Settings…** in the header opens a form built from the same settings model. Each field has a badge showing where
 its current value comes from: `default`, `user`, `project`, `env` or `session`.
 
-- **Save to** chooses the layer a change is written to: **User** (your user file, the default), **This project**
+- **Save to** chooses the layer a change is written to: **User (all projects)** (your user file, the default), **This project**
   (`./netstead.toml`), or **This session only** (nothing is written to disk). Every change is a `SetSetting`
   action, so it appears in the history and replays from Python.
 - **Reset** removes the value from the layer it comes from. Emptying a field does the same in the **Save to** layer.
@@ -221,7 +226,7 @@ Focus is a view. Clicking never changes the selection.
   rotate and the row the browser's own menu.
 - **Workspaces and the dock.** When a plugin adds a workspace, tabs for each appear in the header; each keeps the
   map / split / table view you left it in. The right drawer is a dock, with a tab per panel at its top: core's
-  **Details**, **Selection**, **Issues** and **Edits**, then any a plugin adds.
+  **Details**, **Selection**, **Issues**, **Edits** and **Assistant**, then any a plugin adds.
 - **Settings → Plugins** lists the installed [Workbench plugins](workbench-plugins.md): version, the plugin API
   each needs and whether it fits, and any error loading it. Its switch turns a plugin on or off; that applies the
   next time `netstead app` starts.
@@ -240,7 +245,7 @@ Focus is a view. Clicking never changes the selection.
   record's issues. Rows with issues carry a mark in the table.
 - Filter by severity, table and code. **This record** lists only the focused record's issues. Issues with
   no place on the map (a table-level check, a row whose node has no coordinates) are listed under **Unlocated**.
-- **Fix…** on an issue opens the record editor on that issue's record, on the column the issue names (or the
+- **Fix** on an issue opens the record editor on that issue's record, on the column the issue names (or the
   whole record when it names none), prefilled with the current value and with the issue as the note. Apply sends
   one edit with only the values you changed.
 - **Stale results.** An edit makes the stored validation stale: the panel says
@@ -301,7 +306,7 @@ edits:
 An edit the spec disagrees with is still applied, and warned about at once: a foreign key that is not in the
 referenced table, a required field left empty, a value of the wrong type or outside the allowed list, or a
 duplicate key. The cell is underlined (hover for why), the row is marked, and the warning is listed under
-**Edit warnings** at the top of the Issues panel, with **Fix…**. A later edit that puts it right clears the
+**Edit warnings** at the top of the Issues panel, with **Fix**. A later edit that puts it right clears the
 warning. The live check covers the rows an edit touched; after a very large edit it stops early and says so,
 and **Run validation** checks everything.
 
@@ -357,7 +362,7 @@ you opened, local or remote, is never written to, and a copy inside the source f
 - **Save selection…** keeps the selection under a name; **Use** brings it back, resolved on the network as it is
   now. `app.do(SaveSelection(name="ski hill"))`, `app.do(UseSelection(name="ski hill"))`. **Export** on a saved
   selection resolves it the same way without making it current, and warns when its network is not open (it then
-  exports it as saved). Saved selections last for the session (a replayed history saves them again).
+  exports it as saved). Saved selections last for the session, up to 50 (a replayed history saves them again).
 - A save belongs to the network it was made on: its id and its source's location (scheme, host and path, never a
   URL's query string, so a re-signed link to the same file still matches). Networks added from Python all have the
   source `<python>`, so two of those under the same id are not told apart.
@@ -368,7 +373,7 @@ you opened, local or remote, is never written to, and a copy inside the source f
 - **Layers → Filter links** dims every link that doesn't match (`app.do(Filter(where=[{"col": "lanes", "op": "gte",
   "val": 2}]))`); the table's **Filtered** scope lists the matching links (the filter applies to links: on the node
   table it lists every node). `Filter(where=None)` clears it. Filters are fields and operators only, never free
-  text or SQL: `contains` matches a plain substring, and each value is read as its column's type (`"2"` on `lanes` is 2; a value the column can't hold is refused).
+  text or SQL: `contains` matches a plain substring, and each value is read as its column's type (`"2"` on `lanes` is 2; a value the column can't hold is refused). The `in` operator (a list of values) is available from Python and the API only.
 - `app.do(Navigate(record={"table": "link", "id": 170}))` flies the map to one link or node.
 
 ## Ask the assistant
@@ -389,8 +394,10 @@ you opened, local or remote, is never written to, and a copy inside the source f
   replays it with no model.
 - **What it sends** is listed at the top of the panel. To a remote provider: your question, the recent conversation
   (your words, and its steps as action names and counts), the tool schemas, the networks' names and sizes, column
-  names, the selection's status and size, and validation counts, plus the shipped guide. Street names, selected ids,
-  issue counts by rule, column values and project notes go only to a local model unless you opt in
+  names and what the GMNS spec says they mean, the selection's status and size, how many selections are saved, the
+  filter's size, the map style's columns, the number of pending edits, whether validation is out of date, and
+  validation counts, plus the shipped guide. Street names, the selection's utterance, selected ids, saved selection
+  names, issue counts by rule, column values and project notes go only to a local model unless you opt in
   (`llm.quality.grounding`, `project_context`). Network tables and what actions return are never sent, and a local
   model's answer that used them is not passed on to a remote one.
 - **Small local models** get help, and the panel says so. A read-only step with a field its tool doesn't have (or,
@@ -406,7 +413,8 @@ you opened, local or remote, is never written to, and a copy inside the source f
   `qwen2.5:7b` (15 requests, 3 runs): 39/45 correct (87%), every answer valid. It still drops the second half of
   "select …, then save it as …": ask in two steps.
 - **Limits:** `assistant.remote_token_budget` (200,000 tokens a session, shared by every remote provider and model;
-  a local model is counted, never stopped), `output_token_limit`, `context_max_chars`, `max_steps`.
+  a local model is counted, never stopped), `output_token_limit`, `context_max_chars`, `max_steps`, `history_turns`
+  (6 turns sent back to the model) and `max_turns` (50 kept).
   **Settings → Assistant: actions & plugins** shows the use so far, chooses which actions it may call and which
   plugins it may use (none by default), and lists names in those settings that this Workbench doesn't know; the
   numbers are under **Settings → Assistant**.
@@ -487,14 +495,17 @@ for a remote provider.
 | Setting | Default | What it does |
 |---|---|---|
 | `assistant_context` | `true` | Sends the GMNS assistant guide that ships with netstead (data model, examples) |
+| `assistant_context_max_chars` | `16000` | Cap on that guide, in characters |
 | `project_context` | `"auto"` | Sends your project notes — see below — when allowed for the provider in use |
+| `project_context_max_chars` | `4000` | Cap on those notes, in characters |
 | `grounding` | `"auto"` | Sends the network's most common street names and route numbers, so the model spells them as the network does |
 | `grounding_max_names` | `200` | Cap on those names |
 | `few_shot` | `false` | Shows the model this session's earlier selections that resolved. Remembered only for this session, on this network — never persisted |
+| `few_shot_max` | `3` | How many of those earlier selections are shown |
 | `match_retry` | `"auto"` | If nothing matches, asks the model once more with the closest real names. `"auto"` is on for a local endpoint and off for a remote one |
 | `match_candidates` | `5` | How many close names that retry offers |
 | `max_repairs` | `1` | Re-prompts after an invalid reply |
-| `temperature` | `0.0` | Sampling temperature; leave it blank for models that only accept their default (the field blank means the `0.0` default, not "unset") |
+| `temperature` | `0.0` | Sampling temperature. A blank field restores the default; it cannot be unset from the dialog |
 
 ```toml
 # ~/.config/netstead/config.toml: endpoints, choices and quality only, never keys
@@ -575,3 +586,11 @@ The strip at the bottom shows the last action as Python. **Session as Python** s
 a script you can copy. Networks added from Python via `Session.add_network` aren't recorded as actions
 and so aren't replayed in that script. A replayed delete has no dry run: it deletes the ids and whatever depends on
 them in the network it runs against, which may be more (or fewer) rows than you confirmed in the browser.
+
+## Other tools
+
+The Workbench is a network session, not a GIS: it owns the tables, the selection, validation and the edit
+history, and leaves cartography, context layers, printing and model runs to tools built for them. Save a copy
+as Parquet and the result opens directly in GeoLibre, QGIS or ArcGIS Pro, and feeds AequilibraE, DTALite and
+Path4GMNS. [The Workbench and other tools](../workbench-and-other-tools.md) says what each does best and how to
+move between them.

@@ -28,25 +28,35 @@ print(f"before: {net.nodes.count()} nodes, {net.links.count()} links")
 
 # Leavenworth's coords are WGS84 degrees, so threshold_m is in degrees:
 # 0.0005 deg ≈ 56 m at this latitude. Closest nodes are ~27 m apart, so
-# this deliberately-large threshold collapses 11 of them.
+# this deliberately-large threshold collapses 22 of them (121 → 99 nodes).
 with Session(net) as s:
     node_edit, link_edit = merge_close_nodes(net, s, threshold_m=0.0005)
     print(f"merged away {node_edit.diff.rows_removed} nodes; "
-          f"rewrote FKs on {link_edit.diff.rows_changed} links")
+          f"link table replaced ({link_edit.diff.rows_changed} rows)")
 
 print(f"after:  {net.nodes.count()} nodes")
 ```
 
+Expected:
+
+```text
+before: 121 nodes, 339 links
+merged away 22 nodes; link table replaced (339 rows)
+after:  99 nodes
+```
+
+Both ops are bulk `replace_table` edits, so `rows_changed` counts every row of the replaced table (339 links, 99 surviving nodes) — not just the 84 links whose end nodes were actually rewired. `rows_removed` on the node result is the number to read.
+
 If the `with` block raises instead, the session reverses every op and `net` is back to its pre-edit state.
 
 ![Diff card showing a clean-op EditResult on Leavenworth](../assets/screenshots/leavenworth-simplify-edit-result.png){ .screenshot }
-*EditResult diff card: per-table row counts (added / removed / changed) plus a before/after geometry preview.*
+*EditResult diff card: per-table row counts (added / removed / changed) and capped before/after row samples.*
 
 ## Step-by-step
 
 ### 1. Install
 
-The `[clean]` extra brings in the geometry stack the ops depend on — `shapely`, `geopandas`, `igraph`, `pyproj`:
+The `[clean]` extra brings in the geometry stack the ops depend on — `shapely`, `geopandas`, `pyproj`:
 
 ```bash
 pip install 'netstead[clean]'

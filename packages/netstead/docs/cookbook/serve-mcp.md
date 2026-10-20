@@ -13,7 +13,7 @@ You want an AI agent (Claude Desktop, Claude Code, any MCP-aware host) to call `
 
 ## Quick example
 
-Add this entry to your MCP host config, restart the host, and ask the agent "describe the package at /tmp/leavenworth/csv". The agent picks `describe_package`, calls it with `{"source": "/tmp/leavenworth/csv"}`, and surfaces the spec version, table counts, and FK summary back in chat:
+Add this entry to your MCP host config, restart the host, and ask the agent "describe the package at /tmp/leavenworth/csv". The agent picks `describe_package`, calls it with `{"source": "/tmp/leavenworth/csv"}`, and surfaces the package name, engine, table count and each table's row count and columns back in chat:
 
 ```json
 {
@@ -26,17 +26,17 @@ Add this entry to your MCP host config, restart the host, and ask the agent "des
 }
 ```
 
-![Claude Desktop calling the netstead describe_package tool](../assets/screenshots/serve-mcp-claude.png){ .screenshot }
-*Claude Desktop invoking the netstead MCP server — tool name, arguments, and the JSON response inline in the chat.*
+Once connected, Claude lists the seven netstead tools and calls them with the `source` path you name; the tool name, its
+arguments and the JSON reply appear inline in the chat.
 
 ## Step-by-step
 
 ### 1. Install
 
-The `[mcp]` extra brings in `mcp` (the official Python SDK). If you've already installed `[clean]` or `[server]`, only the MCP SDK is added:
+The `[mcp]` extra brings in `mcp` (the official Python SDK, v1 API). Add `[graph]` too: `connected_components` and `quality_check` need scipy, and without it those two tools fail at call time:
 
 ```bash
-pip install 'netstead[mcp]'
+pip install 'netstead[mcp,graph]'
 ```
 
 ### 2. Test the server runs
@@ -52,8 +52,12 @@ Expected:
 ```text
 Usage: netstead mcp serve [OPTIONS]
 
-  Start the netstead MCP server (stdio transport).
-  ...
+ Start the netstead MCP server on stdio (for Claude Desktop / Claude Code).
+ ...
+╭─ Options ─────────────────────────────────────────────────────────╮
+│ --name          TEXT  MCP server display name. [default: netstead] │
+│ --help  -h            Show this message and exit.                  │
+╰───────────────────────────────────────────────────────────────────╯
 ```
 
 ### 3. Configure the MCP host
@@ -71,40 +75,35 @@ Usage: netstead mcp serve [OPTIONS]
 }
 ```
 
-**Claude Code:** add `.mcp.json` to the root of your project. Claude Code picks it up on session start. To use the version installed in a project venv, replace `command` with the absolute path to that venv's `netstead`:
+**Claude Code:** register the server from the terminal — everything after `--` is the command Claude Code launches:
 
-```json
-{
-  "mcpServers": {
-    "netstead": {
-      "command": "netstead",
-      "args": ["mcp", "serve"]
-    }
-  }
-}
+```bash
+claude mcp add netstead -- netstead mcp serve
 ```
+
+`--scope project` writes it to a `.mcp.json` at the project root that teammates pick up on session start (the default scope is local to you); see `claude mcp add --help`. The equivalent hand-written `.mcp.json` is the same JSON as above. To use the version installed in a project venv, replace `netstead` with the absolute path to that venv's `netstead`.
 
 ### 4. The tools shipped today
 
-The server exposes 7 stateless tools. Each takes a JSON object and returns a JSON document. Sources are paths or URLs that `Network.from_source` accepts:
+The server exposes seven stateless tools. Every tool takes a `source` — any path or URL that `Network.from_source` accepts — and returns JSON; only `scope_from_nodes` takes anything more. Full input and output shapes are in the [MCP tools reference](../ai/mcp-tools.md).
 
 | Name | Summary | Inputs | Output |
 |---|---|---|---|
-| `describe_package` | Spec version, table list, row counts, FK summary. | `source: str` | `{spec_version, tables: [{name, rows, columns}], fk_summary}` |
-| `validate_package` | Run all four validation passes; return the report. | `source: str`, optional `passes: [str]` | `{passed: bool, issues: [Issue]}` |
-| `list_tables` | Names + row counts only (cheaper than `describe_package`). | `source: str` | `{tables: [{name, rows}]}` |
-| `describe_network` | GMNS-aware variant of `describe_package` — adds graph stats. | `source: str` | `{spec_version, tables, components, nodes_in_largest_cc}` |
-| `quality_check` | Run the data-quality rule pack. | `source: str`, optional `rules: [str]` | `{issues: [Issue]}` |
-| `connected_components` | Count + size distribution of weakly-connected components. | `source: str` | `{count, sizes: [int]}` |
-| `scope_from_nodes` | Build a node-seeded scope and return the scoped network's summary. | `source: str`, `node_ids: [int]`, optional `network_buffer: str` | `{tables: [{name, rows}], seed_nodes: [int]}` |
+| `describe_package` | Generic package overview: name, engine, table count, per-table rows + columns. | `source` | `{source, name, engine, table_count, tables: [{name, rows, columns}]}` |
+| `validate_package` | Generic Frictionless validation (no GMNS spec). For GMNS use `netstead validate --json`. | `source` | `ValidationReport.to_dict()` |
+| `list_tables` | Sorted table names, no row counts. | `source` | `["lane", "link", ...]` |
+| `describe_network` | GMNS-aware overview: spec version, link + node counts, table names. | `source` | `{source, name, spec_version, engine, links, nodes, table_count, tables}` |
+| `quality_check` | The GMNS data-quality rule pack. Needs `[graph]`. | `source` | `ValidationReport.to_dict()` |
+| `connected_components` | Count + sizes of weakly-connected components. Needs `[graph]`. | `source` | `{source, component_count, sizes}` |
+| `scope_from_nodes` | Node-seeded scope; returns the resulting node + link id sets. | `source`, `node_ids: [int]`, `path_between: bool = true` | `{source, seed_node_ids, path_between, result_node_count, result_link_count, node_ids, link_ids}` |
 
 ### 5. Sample agent prompts
 
 Each of these exercises a different tool — paste them into a chat with the server configured to see the agent pick the right call:
 
-* **"What's in the package at `packages/netstead/netstead/fixtures/leavenworth/csv`?"** — agent calls `describe_package`, returns spec version + per-table rowcounts.
-* **"Validate that package and tell me about any ERROR-severity issues."** — agent calls `validate_package`, filters the response, and surfaces just the failures.
-* **"Build a 500m scope around nodes 1, 5, and 12 in that package and tell me how many links it has."** — agent calls `scope_from_nodes` with `node_ids=[1,5,12]` and `network_buffer="500m"`.
+* **"What's in the GMNS network at `packages/netstead/netstead/fixtures/leavenworth/csv`?"** — agent calls `describe_network`, returns spec version `0.97`, 339 links, 121 nodes and the nine table names.
+* **"Run the quality rules on that network and summarise the warnings by code."** — agent calls `quality_check`, groups the `issues` list by `code`, and reports the counts.
+* **"Scope the network to the shortest paths between nodes 1, 25 and 50 and tell me how many links that is."** — agent calls `scope_from_nodes` with `node_ids=[1, 25, 50]` and `path_between=true` (the default). See the known issue on this tool in the [MCP tools reference](../ai/mcp-tools.md#scope_from_nodessource-node_ids-path_between).
 
 ## Common variations
 
@@ -174,7 +173,7 @@ Each of these exercises a different tool — paste them into a chat with the ser
 
 * **Stdio transport only today.** The HTTP MCP transport is a follow-up — track the [open issues](https://github.com/e-lo/netstead/issues?q=mcp) for progress. For now, every agent that wants to call netstead needs to launch its own subprocess.
 * **Tools are stateless.** There's no persistent `edit_session` tool yet — every call is a one-shot load + read. The agent can't mutate a network and inspect intermediate state across calls. See the [issue tracker](https://github.com/e-lo/netstead/issues?q=mcp) for the design discussion.
-* **JSON-only return values.** Tool outputs are valid JSON, not pickles or DataFrames. Large tables come back paginated / summarised — for full data, the agent should call the CLI directly via a shell tool.
+* **JSON-only return values.** Tool outputs are summaries (counts, names, id lists, reports), never table rows. For the data itself, the agent should call the CLI or the Python API through a shell tool.
 * **Config file path is case-sensitive on macOS.** `Claude` vs `claude` matters. If the server doesn't show up after a restart, check `~/Library/Logs/Claude/mcp*.log`.
 
 ## See also
