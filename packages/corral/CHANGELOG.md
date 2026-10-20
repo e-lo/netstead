@@ -38,6 +38,11 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   sample fetches only its rows), and the engine hands Arrow straight to
   `create_table`, which drops its staging view. A 20-edit session went
   from 20 stray default-backend memtables plus 40 engine tables to 0 and 20.
+- **One encoding for "no session" in the rollback log (#147).** The log
+  wrote a missing `session_id` as `""` and read it back as `None`. It now
+  writes null; older logs with `""` still read as `None`.
+  `rollback(to="")`, which named no session, now raises `RollbackError`
+  instead of silently reversing nothing.
 - **`Engine.scan` contract suite (#141).** One test class per invariant on
   the `scan` docstring (inline `{"data": ...}` through `from_records`,
   duckdb handles through `read_duckdb_table`, unknown dict shapes raise

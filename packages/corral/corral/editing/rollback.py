@@ -44,7 +44,9 @@ def rollback(
         to: Selector.
 
             * ``None`` (default) — reverse every edit.
-            * ``str`` — treat as ``session_id``; reverse only that session.
+            * ``str`` — treat as ``session_id``; reverse only that session. Edits
+              applied outside a session (logged with a null ``session_id``) are
+              never selected this way; an empty string is refused.
             * :class:`datetime` — reverse edits applied strictly after this time.
 
     Returns:
@@ -69,6 +71,8 @@ def rollback(
         ...     pkg["x"].count()
         1
     """
+    if to == "":
+        raise RollbackError("`to` must be a non-empty session_id (or None for every edit, or a datetime)")
     path = Path(log_path)
     if not path.exists():
         raise RollbackError(f"Rollback log not found at {path!r}")
@@ -125,7 +129,7 @@ def _inflate_result(row: dict) -> EditResult:
         diff=diff,
         rollback_data=_decode(row.get("rollback_json")) or {},
         applied_at=_parse_dt(row.get("applied_at")),
-        session_id=row.get("session_id") or None,
+        session_id=row.get("session_id") or None,  # logs written before #147 stored no session as ""
     )
 
 

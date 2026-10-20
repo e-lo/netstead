@@ -271,6 +271,55 @@ def test_rollback_selector_by_session(tmp_path: Path) -> None:
     assert 200 not in _ids(pkg)
 
 
+def _log_of(results: list[EditResult], path: Path) -> Path:
+    """Persist ``results`` exactly as :class:`Session` does."""
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    from corral.editing.session import _serialize_result
+
+    pq.write_table(pa.Table.from_pylist([_serialize_result(i, r) for i, r in enumerate(results)]), path)
+    return path
+
+
+def test_log_writes_no_session_as_null(tmp_path: Path) -> None:
+    """#147: an edit applied outside a session is logged with a null session_id, not an empty string."""
+    import pyarrow.parquet as pq
+
+    pkg = _make_pkg("ibis")
+    outside = apply_edit(pkg, Edit(op="add_rows", table="t", payload={"rows": [{"id": 9}]}))
+    inside = apply_edit(pkg, Edit(op="add_rows", table="t", payload={"rows": [{"id": 10}]}), session_id="sess-A")
+    log = _log_of([outside, inside], tmp_path / "history.parquet")
+    assert pq.read_table(log).column("session_id").to_pylist() == [None, "sess-A"]
+
+
+def test_rollback_to_an_empty_session_id_is_refused(tmp_path: Path) -> None:
+    """#147: ``to=""`` names no session; it must not quietly match (or skip) the session-less edits."""
+    from corral.editing import RollbackError
+
+    pkg = _make_pkg("ibis")
+    r = apply_edit(pkg, Edit(op="add_rows", table="t", payload={"rows": [{"id": 9}]}))
+    log = _log_of([r], tmp_path / "history.parquet")
+    with pytest.raises(RollbackError, match="session_id"):
+        rollback(pkg, log, to="")
+    assert 9 in _ids(pkg)
+
+
+def test_rollback_reads_a_legacy_empty_session_id_as_none(tmp_path: Path) -> None:
+    """Logs written before #147 stored no session as ``""``; they still inflate to ``session_id=None``."""
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    pkg = _make_pkg("ibis")
+    r = apply_edit(pkg, Edit(op="add_rows", table="t", payload={"rows": [{"id": 9}]}))
+    log = _log_of([r], tmp_path / "history.parquet")
+    legacy = pq.read_table(log).to_pylist()
+    legacy[0]["session_id"] = ""
+    pq.write_table(pa.Table.from_pylist(legacy), log)
+    [reversed_result] = rollback(pkg, log)
+    assert reversed_result.session_id is None
+    assert 9 not in _ids(pkg)
+
+
 # ---------------------------------------------------------------------------
 # DirtyTracker integration
 # ---------------------------------------------------------------------------
