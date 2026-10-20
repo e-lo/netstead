@@ -21,6 +21,32 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Fixed
 
+- **Quality rules: review follow-ups for #246.**
+  - `quality.high_speed_residential` again ignores every character Python's
+    `str.strip()` removes around `facility_type`, including `\v`, NBSP and other
+    Unicode spaces. The pushdown regex had narrowed this to ASCII whitespace.
+  - Whole-number float ids print as ints again: `link_id=1`, not `1.0`. A NaN
+    `node_id` no longer counts as a node in `quality.duplicate_near_nodes`.
+  - `quality.overlapping_links` reports each pair once when the `geometry`
+    table repeats a `geometry_id` (it uses the first row). Its docs now say it
+    matches shared segments exactly, with no tolerance, and can get slow when
+    many bounding boxes overlap.
+  - `quality.non_unique_combination`:
+    - The defaults now include `signal_timing_phase (timing_plan_id,
+      signal_phase_num)`.
+    - `DEFAULT_UNIQUE_COMBINATIONS` is read-only (a `MappingProxyType` of
+      tuples).
+    - A user-configured combination naming a missing table or column gets an
+      INFO issue instead of being skipped silently. Missing tables in the
+      defaults stay silent.
+    - A `combinations` value of the wrong shape raises a `ValueError` that
+      shows the expected form.
+  - `quality.duplicate_near_nodes` raises `ValueError` for a negative
+    `epsilon_units`. It used to skip the check silently.
+  - A seeded property test checks the grid self-join against a pairwise scan
+    near large negative and positive origins.
+  - The docs index, quickstart and `gmns-validate` skill list the nine real
+    rules. The skill used to name three codes that don't exist.
 - **The Leavenworth fixture's `datapackage.json` is self-contained.** Each
   resource now carries its resolved GMNS 0.97 schema inline instead of a
   `../../spec/0.97/...` path, so the descriptor loads wherever it is copied,
@@ -216,8 +242,11 @@ This file is for the **netstead** package only. The underlying generic engine `c
   grid self-join), and the other table rules are 7–25× faster.
   `sharp_angle_bends` still parses geometries with shapely, now vectorised and
   reading only `link_id` and `geometry`. One visible difference: a message quotes
-  a value as stored, so a float column of whole numbers shows `1000.0` where it
-  used to show `1000`. The "write your own rule" cookbook example now shows the
+  a measured value as stored, so a capacity column of whole-number floats shows
+  `1000.0` where it used to show `1000`. Ids are the exception: a float
+  `link_id` / `node_id` column holding only whole numbers (a CSV id column with a
+  blank cell) still prints `link_id=1`, in messages and `extra`, and a NaN id
+  prints `None`. The "write your own rule" cookbook example now shows the
   pushdown pattern.
 - **`CloseNetwork.mutates` is `True`** (it throws away unsaved edits). It is never
   offered to the assistant either.

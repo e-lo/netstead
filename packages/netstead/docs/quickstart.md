@@ -99,7 +99,7 @@ In a notebook, `report` on its own renders an HTML card grouped by severity.
 
 ### 4. Run data-quality checks
 
-The data-quality rule pack covers things the spec is silent on but every real network gets wrong sooner or later — high-speed-residential, lane-count mismatch, sharp-angle bends, near-duplicate nodes, disconnected components, implausible v/c ratios, missing critical fields. Findings come back as WARNING or INFO by default and carry `category=DATA_QUALITY`. The rule pack needs the `[graph]` extra. On Leavenworth, `quality.high_speed_residential` fires on 271 residential links whose `free_speed` is 40 — above the default 35 mph threshold.
+The data-quality rule pack covers things the spec is silent on but every real network gets wrong sooner or later. Its nine rules cover high-speed-residential, lane-count mismatch, sharp-angle bends, near-duplicate nodes, disconnected components, implausible v/c ratios, missing critical fields, overlapping links and non-unique combinations (see [Customise the quality pack](cookbook/customise-quality.md)). Findings come back as WARNING or INFO by default and carry `category=DATA_QUALITY`. The rule pack needs the `[graph]` extra. On Leavenworth, `quality.high_speed_residential` fires on 271 residential links whose `free_speed` is 40 — above the default 35 mph threshold.
 
 ```python
 from corral.quality import run_quality
