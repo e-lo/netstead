@@ -35,6 +35,15 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Added
 
+- **Quality rule `quality.overlapping_links`** ([#5](https://github.com/e-lo/netstead/issues/5)).
+  Flags pairs of links whose shapes share a stretch longer than
+  `min_overlap_units` (default `0`, in CRS units), such as a link drawn on top of
+  part of another. Links that meet at a node, cross, or have the identical shape
+  (two-way twins) are not flagged. Reads inline `link.geometry` or the `geometry`
+  table via `geometry_id`; needs shapely (`[clean]`). One WARNING per pair with
+  `extra` `link_ids`, `rows` and `overlap_length`. Candidate pairs come from an
+  STRtree box query cut down in numpy before the exact test: 0.2 s on a 100k-link
+  network.
 - **Quality rule `quality.non_unique_combination`** ([#7](https://github.com/e-lo/netstead/issues/7)).
   Flags rows that repeat a column combination that should be unique, such as two
   `link_tod` rows for the same `link_id` and `time_day` (GMNS 0.97 gives the

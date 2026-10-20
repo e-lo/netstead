@@ -56,7 +56,7 @@ def test_unknown_rule_codes_are_reported(session):
 
 def test_new_quality_rules_are_known_to_validation_settings(session):
     # Settings key rules by code: a code with no installed rule comes back in unknown_rules.
-    rules = {"quality.non_unique_combination": {"enabled": False}}
+    rules = {"quality.non_unique_combination": {"enabled": False}, "quality.overlapping_links": {"enabled": False}}
     session.dispatch(SetSetting(key="validation.rules", value=rules))
     assert session.dispatch(RunValidation())["unknown_rules"] == []
 

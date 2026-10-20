@@ -86,6 +86,7 @@ The rule classes:
 ::: netstead.quality.ImplausibleVcRule
 ::: netstead.quality.MissingCriticalFieldsRule
 ::: netstead.quality.NonUniqueCombinationRule
+::: netstead.quality.OverlappingLinksRule
 
 ## Indexes (optional `[clean]` extra)
 

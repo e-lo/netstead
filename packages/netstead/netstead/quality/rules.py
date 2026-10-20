@@ -63,6 +63,7 @@ __all__ = [
     "LaneCountMismatchRule",
     "MissingCriticalFieldsRule",
     "NonUniqueCombinationRule",
+    "OverlappingLinksRule",
     "SharpAngleBendsRule",
     "register_all",
 ]
@@ -509,15 +510,9 @@ def _sharp_lines(rows: Any, min_angle: float) -> list[tuple[int, Any, float]]:
     import numpy as np
     import shapely
 
-    geoms_col = rows.column("geometry")
     if rows.num_rows == 0:
         return []
-    values = np.asarray(geoms_col.to_pylist(), dtype=object)
-    if geoms_col.type.equals(_pa_binary()) or geoms_col.type.equals(_pa_large_binary()):
-        geoms = shapely.from_wkb(values, on_invalid="ignore")
-    else:
-        text = np.array([v if isinstance(v, str) and v.strip() else None for v in values], dtype=object)
-        geoms = shapely.from_wkt(text, on_invalid="ignore")
+    geoms = _parse_geometries(rows.column("geometry").to_pylist())
     is_line = (shapely.get_type_id(geoms) == shapely.GeometryType.LINESTRING) & ~shapely.is_empty(geoms)
     is_line &= shapely.get_num_coordinates(geoms) >= 3
     lines = np.flatnonzero(is_line)
@@ -549,16 +544,23 @@ def _sharp_lines(rows: Any, min_angle: float) -> list[tuple[int, Any, float]]:
     return found
 
 
-def _pa_binary() -> Any:
-    import pyarrow as pa
+def _parse_geometries(values: list[Any]) -> Any:
+    """Vectorised :func:`netstead._geom.shapely_from_any`: an array of shapely geometries, ``None`` if unparseable.
 
-    return pa.binary()
+    WKB bytes and WKT text may be mixed; empty strings and malformed values
+    become ``None``, as they do one at a time.
+    """
+    import numpy as np
+    import shapely
 
-
-def _pa_large_binary() -> Any:
-    import pyarrow as pa
-
-    return pa.large_binary()
+    geoms = np.full(len(values), None, dtype=object)
+    wkb = [k for k, v in enumerate(values) if isinstance(v, (bytes, bytearray, memoryview))]
+    wkt = [k for k, v in enumerate(values) if isinstance(v, str) and v.strip()]
+    if wkb:
+        geoms[wkb] = shapely.from_wkb(np.array([bytes(values[k]) for k in wkb], dtype=object), on_invalid="ignore")
+    if wkt:
+        geoms[wkt] = shapely.from_wkt(np.array([values[k] for k in wkt], dtype=object), on_invalid="ignore")
+    return geoms
 
 
 def _min_interior_angle_deg(coords: list[tuple[float, float] | tuple[float, float, float]]) -> float | None:
@@ -844,6 +846,153 @@ def _duplicate_groups(table: Table, columns: list[str]) -> ir.Table:
 
 
 # ---------------------------------------------------------------------------
+# Rule 9 — partially overlapping links
+# ---------------------------------------------------------------------------
+
+
+class OverlappingLinksRule:
+    """Flag pairs of links whose shapes run along each other for part of their length.
+
+    Threshold keys:
+
+    * ``min_overlap_units`` (default ``0.0``) — a pair is flagged when
+      the length they share is greater than this, in the geometry's CRS
+      units (degrees for WGS84; raise it to ignore digitising noise).
+
+    A shared stretch is a 1-D intersection: links that only touch at a
+    node or cross each other are not flagged. Pairs with identical shapes
+    are skipped too, since that is how GMNS encodes the two directions
+    of a two-way street; a link lying along part of a longer one *is*
+    flagged. Emits one issue per pair, on the first link's row, with
+    ``extra`` ``link_ids``, ``rows`` and ``overlap_length``.
+
+    Shapes come from inline ``link.geometry`` when set, else from the
+    ``geometry`` table through ``link.geometry_id``; links with neither
+    are skipped. Requires shapely (clean extra). The engine selects just
+    the link ids and shapes; candidate pairs come from an STRtree
+    bounding-box query, are cut down in numpy, and only the survivors get
+    the exact DE-9IM test (about 0.2 s on a 100k-link network).
+    """
+
+    code = "quality.overlapping_links"
+    description = "Two links share part of their shape (partial overlap)."
+    severity = Severity.WARNING
+
+    def applies_to(self, package: Package) -> bool:
+        """Needs shapely and a link shape source: inline ``geometry`` or ``geometry_id`` + a geometry table."""
+        import importlib.util
+
+        if importlib.util.find_spec("shapely") is None:
+            return False
+        return _link_shape_sources(package) is not None
+
+    def run(self, package: Package, report: ValidationReport, rc: RuleConfig | None = None) -> None:
+        """Index link shapes in an STRtree; emit one issue per pair sharing more than ``min_overlap_units``."""
+        min_overlap = _threshold(rc, "min_overlap_units", 0.0)
+        sources = _link_shape_sources(package)
+        if sources is None:
+            return
+        shapes = _link_shapes(package, *sources)
+        for (row_a, id_a), (row_b, id_b), length in _overlapping_pairs(shapes, min_overlap):
+            report.add_issue(
+                Issue(
+                    severity=self.severity,
+                    category=Category.DATA_QUALITY,
+                    code=self.code,
+                    message=(
+                        f"link row {row_a} (link_id={id_a!r}) and link row {row_b} (link_id={id_b!r}) "
+                        f"share {length:.4g} units of their shape."
+                    ),
+                    table="link",
+                    column="geometry",
+                    row=row_a,
+                    fix_hint=(
+                        "If they are the same road, delete one; if one continues the other, split at the node "
+                        "where they meet so each stretch is drawn once."
+                    ),
+                    extra={"link_ids": [id_a, id_b], "rows": [row_a, row_b], "overlap_length": length},
+                )
+            )
+
+
+def _link_shape_sources(package: Package) -> tuple[bool, bool] | None:
+    """``(inline, via_table)`` shape sources the link table has, or ``None`` when it has neither."""
+    link = package.tables.get("link")
+    if link is None:
+        return None
+    cols = set(link.columns())
+    geometry = package.tables.get("geometry")
+    inline = "geometry" in cols
+    via_table = (
+        "geometry_id" in cols and geometry is not None and {"geometry_id", "geometry"} <= set(geometry.columns())
+    )
+    if not (inline or via_table):
+        return None
+    return inline, via_table
+
+
+def _link_shapes(package: Package, inline: bool, via_table: bool) -> Any:
+    """Pyarrow table of (:data:`_ROW`, ``link_id``, ``inline``, ``table_shape``) for links with any shape."""
+    link = _indexed(package.tables["link"])
+    cols: dict[str, Any] = {_ROW: link[_ROW], "link_id": link.link_id}
+    cols["inline"] = link.geometry if inline else ibis.null()
+    if via_table:
+        geometry = package.tables["geometry"].expr
+        shapes = geometry.select(__quality_gid__=geometry.geometry_id, __quality_shape__=geometry.geometry)
+        joined = link.left_join(shapes, link.geometry_id == shapes.__quality_gid__)
+        cols = {_ROW: joined[_ROW], "link_id": joined.link_id}
+        cols["inline"] = joined.geometry if inline else ibis.null()
+        cols["table_shape"] = joined.__quality_shape__
+        selected = joined.select(**cols)
+    else:
+        cols["table_shape"] = ibis.null()
+        selected = link.select(**cols)
+    return selected.filter(selected.inline.notnull() | selected.table_shape.notnull()).order_by(_ROW).to_pyarrow()
+
+
+def _overlapping_pairs(shapes: Any, min_overlap: float) -> list[tuple[tuple[int, Any], tuple[int, Any], float]]:
+    """``((row, id), (row, id), shared_length)`` for each link pair sharing more than ``min_overlap``, in row order."""
+    import numpy as np
+    import shapely
+
+    if shapes.num_rows < 2:
+        return []
+    inline = _parse_geometries(shapes.column("inline").to_pylist())
+    from_table = _parse_geometries(shapes.column("table_shape").to_pylist())
+    geoms = np.where(np.equal(inline, None), from_table, inline)
+    usable = np.flatnonzero(~np.equal(geoms, None))
+    usable = usable[~shapely.is_empty(geoms[usable])]
+    geoms = geoms[usable]
+    # Bounding boxes that meet (each pair once), then two cheap cuts before the exact test. A shared stretch
+    # has length, so the boxes' intersection must too: links that meet end to end at right angles (most
+    # neighbours) share only a corner and drop out in numpy, before any GEOS call.
+    a, b = shapely.STRtree(geoms).query(geoms)
+    keep = a < b
+    a, b = a[keep], b[keep]
+    box = shapely.bounds(geoms)
+    width = np.minimum(box[a, 2], box[b, 2]) - np.maximum(box[a, 0], box[b, 0])
+    height = np.minimum(box[a, 3], box[b, 3]) - np.maximum(box[a, 1], box[b, 1])
+    keep = np.maximum(width, height) > 0
+    a, b = a[keep], b[keep]
+    # DE-9IM "1********": the interiors share a 1-D part. Identical shapes are two-way twins, not overlaps.
+    keep = shapely.relate_pattern(geoms[a], geoms[b], "1********") & ~shapely.equals(geoms[a], geoms[b])
+    pairs = np.stack([a[keep], b[keep]], axis=1)
+    if pairs.size == 0:
+        return []
+    lengths = shapely.length(shapely.intersection(geoms[pairs[:, 0]], geoms[pairs[:, 1]]))
+    rows = shapes.column(_ROW).to_pylist()
+    ids = shapes.column("link_id").to_pylist()
+    out = []
+    for (i, j), length in zip(pairs.tolist(), lengths.tolist(), strict=True):
+        if length <= min_overlap:
+            continue
+        ri, rj = usable[i], usable[j]
+        out.append(((rows[ri], ids[ri]), (rows[rj], ids[rj]), float(length)))
+    out.sort(key=lambda p: (p[0][0], p[1][0]))
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Entry-point factory
 # ---------------------------------------------------------------------------
 
@@ -865,6 +1014,7 @@ def register_all() -> list[object]:
         ImplausibleVcRule(),
         MissingCriticalFieldsRule(),
         NonUniqueCombinationRule(),
+        OverlappingLinksRule(),
     ]
     for r in rules:
         register_rule(r)  # type: ignore[arg-type]

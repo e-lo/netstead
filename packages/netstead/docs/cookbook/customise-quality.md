@@ -46,7 +46,7 @@ Expected:
 
 ### 1. List the rules currently registered
 
-Inspect the registered rule pack to see codes, defaults, and severities. The GMNS pack ships eight rules out of the box:
+Inspect the registered rule pack to see codes, defaults, and severities. The GMNS pack ships nine rules out of the box:
 
 ```python
 from corral.quality import list_rules, get_rule
@@ -68,8 +68,9 @@ for code in list_rules():
 | `quality.implausible_vc` | `vc_max` | `1.5` | WARNING |
 | `quality.missing_critical_fields` | `coverage_min` | `0.90` | INFO |
 | `quality.non_unique_combination` | `combinations` | see below | WARNING |
+| `quality.overlapping_links` | `min_overlap_units` | `0` | WARNING |
 
-Two of these are conditional: `quality.disconnected_components` builds the scipy graph index, so `run_quality` needs the `[graph]` extra; `quality.sharp_angle_bends` only applies when the link table carries an inline `geometry` column (Leavenworth keeps geometry in a separate table, so the rule is skipped there).
+Three of these are conditional: `quality.disconnected_components` builds the scipy graph index, so `run_quality` needs the `[graph]` extra; `quality.overlapping_links` needs shapely (the `[clean]` extra) and link shapes, inline or in the `geometry` table; `quality.sharp_angle_bends` only applies when the link table carries an inline `geometry` column (Leavenworth keeps geometry in a separate table, so the rule is skipped there).
 
 `quality.non_unique_combination` catches rows that repeat a column combination GMNS expects to be unique even though the table's primary key is a surrogate id: two `link_tod` rows for the same `link_id` and `time_day` pass spec validation but contradict each other. It emits one issue per repeated combination, with the row positions in `extra["rows"]`. By default it checks `(<parent id>, time_day)` and `(<parent id>, timeday_id)` on every time-of-day table (`link_tod`, `lane_tod`, `segment_tod`, `segment_lane_tod`, `movement_tod`, `signal_timing_plan`), plus `(link_id, lane_num)` on `lane` and `(segment_id, lane_num)` on `segment_lane`. Setting `combinations` replaces that list, so name every combination you still want:
 
@@ -241,6 +242,7 @@ myproject = "myproject.rules:register_rules"
 ## Pitfalls
 
 * **`epsilon_units` is CRS-sensitive.** The default `1e-5` is tight for WGS84 degrees (~1 metre near the equator). A network in projected meters needs something like `epsilon_units=0.5` for the same intent. Always set this explicitly for non-WGS84 networks.
+* **`quality.overlapping_links` measures overlap in CRS units too.** It flags two links whose shapes share a stretch longer than `min_overlap_units` (default `0`, so any shared stretch). Links that only meet at a node, cross, or carry the identical shape (the usual way two directions of a two-way street are drawn) are not flagged; a short link running along part of a longer one is. Raise `min_overlap_units` to ignore digitising noise, e.g. `0.00002` (about 2 m) in WGS84 degrees or `2.0` in projected metres.
 * **`severity_override` doesn't mute — it replaces.** Setting `severity_override=Severity.INFO` on a WARNING rule still produces issues; if you want to drop them, use `enabled=False`.
 * **`applies_to` is a method, not a tuple.** The runner calls `rule.applies_to(package)` before `run` and skips the rule silently when it returns `False`. Check for the tables and columns you need there (a rule reading `signal` should return `False` when the table is absent) rather than raising inside `run`.
 

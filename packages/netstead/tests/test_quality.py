@@ -198,6 +198,86 @@ def test_duplicate_near_nodes_threshold_zero_suppresses():
     assert _issues_with_code(report, "quality.duplicate_near_nodes") == []
 
 
+def _shape_network(engine, shapes: list[str | None], extra_links: dict | None = None) -> Network:
+    """One link per WKT shape (link_id 1..n), all on a single node so only the geometry matters."""
+    nodes = _node(engine, [{"node_id": 1, "x_coord": 0.0, "y_coord": 0.0}])
+    rows = [
+        {"link_id": i, "from_node_id": 1, "to_node_id": 1, "length": 1.0, "directed": True, "geometry": wkt}
+        for i, wkt in enumerate(shapes, start=1)
+    ]
+    return _network({"link": _link(engine, rows), "node": nodes})
+
+
+def _overlaps(report) -> list[tuple[list, float]]:
+    return [
+        (i.extra["link_ids"], i.extra["overlap_length"]) for i in _issues_with_code(report, "quality.overlapping_links")
+    ]
+
+
+def test_overlapping_links_flags_a_shared_stretch():
+    """Two links sharing part of their length are flagged once; touching or crossing links are not (issue #5)."""
+    net = _shape_network(
+        _engine(),
+        [
+            "LINESTRING (0 0, 2 0)",
+            "LINESTRING (1 0, 3 0)",  # shares 1 -> 2 with link 1
+            "LINESTRING (2 0, 2 1)",  # touches links 1 and 2 at a point
+            "LINESTRING (0.5 -1, 0.5 1)",  # crosses link 1
+            "LINESTRING (5 5, 6 6)",
+            None,
+        ],
+    )
+    report = run_quality(net)
+    assert _overlaps(report) == [([1, 2], 1.0)]
+    issue = _issues_with_code(report, "quality.overlapping_links")[0]
+    assert issue.severity is Severity.WARNING
+    assert issue.category is Category.DATA_QUALITY
+    assert (issue.table, issue.column, issue.row) == ("link", "geometry", 0)
+    assert issue.extra["rows"] == [0, 1]
+
+
+def test_overlapping_links_flags_a_link_lying_along_another():
+    """A shorter link running along part of a longer one is an overlap too."""
+    net = _shape_network(_engine(), ["LINESTRING (0 0, 3 0)", "LINESTRING (1 0, 2 0)"])
+    assert _overlaps(run_quality(net)) == [([1, 2], 1.0)]
+
+
+def test_overlapping_links_ignores_identical_shapes():
+    """Reverse-direction twins with the same shape are the normal two-way encoding, not an overlap."""
+    net = _shape_network(_engine(), ["LINESTRING (0 0, 1 0)", "LINESTRING (1 0, 0.5 0, 0 0)"])
+    assert _overlaps(run_quality(net)) == []
+
+
+def test_overlapping_links_min_overlap_threshold():
+    """``min_overlap_units`` ignores shared stretches no longer than it."""
+    net = _shape_network(_engine(), ["LINESTRING (0 0, 2 0)", "LINESTRING (1 0, 3 0)"])
+    config = {"quality.overlapping_links": RuleConfig(thresholds={"min_overlap_units": 1.0})}
+    assert _overlaps(run_quality(net, config=config)) == []
+
+
+def test_overlapping_links_reads_shapes_from_the_geometry_table():
+    """Links without inline geometry take their shape from the geometry table via geometry_id."""
+    engine = _engine()
+    nodes = _node(engine, [{"node_id": 1, "x_coord": 0.0, "y_coord": 0.0}])
+    links = _link(
+        engine,
+        [
+            {"link_id": 10, "from_node_id": 1, "to_node_id": 1, "length": 1.0, "geometry_id": 100},
+            {"link_id": 20, "from_node_id": 1, "to_node_id": 1, "length": 1.0, "geometry_id": 200},
+        ],
+    )
+    geometry = _table(
+        engine,
+        "geometry",
+        [
+            {"geometry_id": 100, "geometry": "LINESTRING (0 0, 2 0)"},
+            {"geometry_id": 200, "geometry": "LINESTRING (0.5 0, 1.5 0, 1.5 1)"},
+        ],
+    )
+    net = _network({"link": links, "node": nodes, "geometry": geometry})
+    assert _overlaps(run_quality(net)) == [([10, 20], 1.0)]
+
+
 def test_duplicate_near_nodes_handles_tiny_epsilon_on_large_coordinates():
     """A tiny epsilon over projected coordinates must not overflow the grid-cell key (issue #181)."""
     engine = _engine()
@@ -417,6 +497,7 @@ def test_entry_point_discovers_all_gmns_rules():
         "quality.implausible_vc",
         "quality.missing_critical_fields",
         "quality.non_unique_combination",
+        "quality.overlapping_links",
     }
     assert expected <= codes
 
@@ -490,4 +571,5 @@ def test_full_pack_on_leavenworth():
     assert counts.get("quality.implausible_vc", 0) == 0
     assert counts.get("quality.missing_critical_fields", 0) == 0
     assert counts.get("quality.non_unique_combination", 0) == 0  # lane numbers and link_tod rows are unique
+    assert counts.get("quality.overlapping_links", 0) == 0  # no two links share a stretch of road
     assert counts.get("quality.high_speed_residential", 0) > 0

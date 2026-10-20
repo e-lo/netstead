@@ -14,7 +14,7 @@ tests + ad-hoc scripts:
 
     >>> from netstead.quality import register_all
     >>> rules = register_all()
-    >>> len(rules) >= 8
+    >>> len(rules) >= 9
     True
 """
 
@@ -27,6 +27,7 @@ from .rules import (
     LaneCountMismatchRule,
     MissingCriticalFieldsRule,
     NonUniqueCombinationRule,
+    OverlappingLinksRule,
     SharpAngleBendsRule,
     register_all,
 )
@@ -40,6 +41,7 @@ __all__ = [
     "LaneCountMismatchRule",
     "MissingCriticalFieldsRule",
     "NonUniqueCombinationRule",
+    "OverlappingLinksRule",
     "SharpAngleBendsRule",
     "register_all",
 ]
