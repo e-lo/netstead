@@ -779,3 +779,61 @@ def test_settings_switches_save_what_is_on_screen_and_list_only_offerable_action
     ]
     got = node_module("assistmodel.js", ["offerableCore"], f"offerableCore({json.dumps(actions)}).map(a => a.type)")
     assert got == ["style"]
+
+
+# --- netbuf.js: direction arrows (beta item 16) ---------------------------------------------------------------
+
+
+def test_midpoint_by_length_halves_the_path_length_not_the_vertex_count(node_module):
+    mid = "midpointByLength"
+    assert node_module("netbuf.js", [mid], f"{mid}([[0,0],[10,0],[10,10]])") == [10, 0]
+    assert node_module("netbuf.js", [mid], f"{mid}([[0,0],[4,0]])") == [2, 0]
+    assert node_module("netbuf.js", [mid], f"{mid}([[0,0],[10,0],[10,30]])") == [10, 10]  # inside a segment
+    # Many short vertices then one long segment: the middle vertex would sit near the start.
+    assert node_module("netbuf.js", [mid], f"{mid}([[0,0],[1,0],[2,0],[3,0],[100,0]])") == [50, 0]
+    assert node_module("netbuf.js", [mid], f"{mid}([[5,5]])") is None
+    assert node_module("netbuf.js", [mid], f"{mid}([[5,5],[5,5]])") == [5, 5]  # zero length: the first point
+
+
+def test_build_arrows_places_one_arrow_per_link_row_on_its_offset_side(node_module):
+    paths = "[[[0,0],[4,0]], [[7,7]], [[0,0],[0,2],[0,4]]]"
+    on = node_module("netbuf.js", ["buildArrows"], f"buildArrows({paths}, {{offset: true}})")
+    off = node_module("netbuf.js", ["buildArrows"], f"buildArrows({paths}, {{offset: false}})")
+    bare = node_module("netbuf.js", ["buildArrows"], f"buildArrows({paths})")
+    assert [a["side"] for a in on] == [1, 1]
+    assert [a["side"] for a in off] == [0, 0]
+    assert [a["side"] for a in bare] == [0, 0]
+    # A one-point path has no arrow, but the others keep their link index.
+    assert [a["link"] for a in on] == [0, 2]
+    # The position is the midpoint by length; the angle turns an up-pointing icon along the travel direction.
+    assert [a["position"] for a in on] == [[2, 0], [0, 2]]
+    assert [a["angle"] for a in on] == [-90, 0]
+    mids = node_module(
+        "netbuf.js", ["buildArrows", "midpointByLength"],
+        f"buildArrows({paths}).map(a => [a.position, midpointByLength({paths}[a.link])])",
+    )
+    assert all(pos == mid for pos, mid in mids)
+
+
+def test_link_paths_splits_the_flat_vertex_buffer_per_link(node_module):
+    expr = "linkPaths(3, [0, 2, 3, 5], new Float32Array([0,0, 1,1, 2,2, 3,3, 4,4]))"
+    assert node_module("netbuf.js", ["linkPaths"], expr) == [[[0, 0], [1, 1]], [[2, 2]], [[3, 3], [4, 4]]]
+
+
+def test_arrow_pixel_offset_follows_the_right_hand_offset_line(node_module):
+    # Screen pixels, +y down (deck's getPixelOffset). The offset is `amt` path widths to the right of travel,
+    # the side the PathStyleExtension draws a positive offset on.
+    def off(angle, side, width, amt=0.8):
+        got = node_module("netbuf.js", ["arrowPixelOffset"], f"arrowPixelOffset({angle}, {side}, {width}, {amt})")
+        return [round(v, 6) for v in got]
+
+    assert off(-90, 1, 10) == [0, 8]  # eastbound: right is south, i.e. down the screen
+    assert off(0, 1, 10) == [8, 0]  # northbound: right is east
+    assert off(90, 1, 10) == [0, -8]  # westbound: right is north
+    assert off(180, 1, 5) == [-4, 0]  # southbound: right is west
+    assert off(-90, 0, 10) == [0, 0]  # offsets off: on the centreline
+
+
+@pytest.mark.parametrize(("zoom", "size"), [(12, 8), (13, 8), (14, 10), (15, 12), (18, 18), (22, 18)])
+def test_arrow_size_grows_with_zoom_between_8_and_18_px(node_module, zoom, size):
+    assert node_module("netbuf.js", ["arrowSize"], f"arrowSize({zoom})") == size
