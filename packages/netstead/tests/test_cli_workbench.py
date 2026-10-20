@@ -90,6 +90,45 @@ def test_cli_sources_do_not_count_as_explicit_roots_for_a_public_bind(served, mo
     assert result.exit_code == 2 and "io.allowed_roots" in result.output and served == []
 
 
+@pytest.mark.parametrize("alias", ["viz", "select-serve"])
+def test_aliases_refuse_public_bind_without_explicit_allowed_roots(served, monkeypatch, alias, rdu_source):
+    monkeypatch.delenv("NETSTEAD_IO__ALLOWED_ROOTS", raising=False)
+    result = runner.invoke(app, [alias, rdu_source, "--host", "0.0.0.0"])
+    assert result.exit_code == 2 and "io.allowed_roots" in result.output and served == []
+    assert "netstead app" not in result.output.split("error:", 1)[1]  # the hint names no one command
+
+
+def test_app_refuses_public_bind_from_project_file_without_allowed_roots(served, monkeypatch, tmp_path):
+    monkeypatch.delenv("NETSTEAD_IO__ALLOWED_ROOTS", raising=False)
+    (tmp_path / "netstead.toml").write_text('[app]\nhost = "0.0.0.0"\n')
+    result = runner.invoke(app, ["app"])
+    assert result.exit_code == 2 and "io.allowed_roots" in result.output and served == []
+
+
+@pytest.mark.parametrize("host", ["127.0.0.1", "::1", "localhost"])
+def test_app_loopback_hosts_are_not_refused_with_empty_roots(served, monkeypatch, host):
+    monkeypatch.delenv("NETSTEAD_IO__ALLOWED_ROOTS", raising=False)
+    result = runner.invoke(app, ["app", "--host", host])
+    assert result.exit_code == 0, result.output
+    assert served[0].settings.app.host == host
+
+
+@pytest.mark.parametrize("host", ["127.0.0.2", "LOCALHOST", "[::1]"])
+def test_unguarded_loopback_spellings_are_refused_accurately(served, monkeypatch, host):
+    """Loopback, but not a spelling the Host-header guard protects: refused, without claiming LAN exposure."""
+    monkeypatch.delenv("NETSTEAD_IO__ALLOWED_ROOTS", raising=False)
+    result = runner.invoke(app, ["app", "--host", host])
+    assert result.exit_code == 2 and served == []
+    assert "anyone on the network" not in result.output
+    assert "loopback" in result.output and "127.0.0.1" in result.output and "io.allowed_roots" in result.output
+
+
+def test_app_blank_allowed_roots_entry_is_refused(served, monkeypatch):
+    monkeypatch.setenv("NETSTEAD_IO__ALLOWED_ROOTS", '[""]')
+    result = runner.invoke(app, ["app", "--host", "0.0.0.0"])
+    assert result.exit_code == 2 and "blank" in result.output and served == []
+
+
 def test_app_loopback_bind_has_no_warning(served):
     result = runner.invoke(app, ["app"])
     assert result.exit_code == 0, result.output

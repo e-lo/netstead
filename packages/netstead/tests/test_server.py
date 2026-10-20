@@ -173,3 +173,4 @@ def test_netstead_server_run_without_uvicorn_prints_the_server_extra_hint(monkey
     result = CliRunner().invoke(netstead_cli_app, ["server", "run"])
     assert result.exit_code == 1
     assert "pip install 'netstead[server]'" in result.output
+    assert "uvicorn requires the [server] extra" in result.output

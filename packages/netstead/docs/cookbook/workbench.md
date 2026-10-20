@@ -42,7 +42,10 @@ shared network.
 > exits with code 2 and says how to fix it. List the folders you want to share first, in `./netstead.toml`
 > or your user `config.toml` (see [Which folders the app can read and write](#which-folders-the-app-can-read-and-write)), or
 > for one run with `NETSTEAD_IO__ALLOWED_ROOTS='["/data/networks"]'`. Paths you name on the command line
-> are allowed for that session, but they don't count as explicit roots.
+> are allowed for that session, but they don't count as explicit roots. Blank entries such as `[""]` are
+> rejected (a blank path would mean the current folder). Other loopback spellings, such as `127.0.0.2` or
+> `LOCALHOST`, are refused too while the roots are empty: the Host-header check above only covers
+> `127.0.0.1`, `localhost` and `::1`, so use one of those.
 
 > **Plugins.** Installed [Workbench plugins](workbench-plugins.md) are full-trust Python running inside
 > this server, and an exposed bind exposes their routes and Actions too. Install only plugins you trust,

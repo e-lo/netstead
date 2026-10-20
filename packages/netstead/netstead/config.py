@@ -97,6 +97,16 @@ class IOSettings(_Section):
     default_format: Literal["csv", "parquet", "duckdb", "zip"] = "parquet"
     allowed_roots: list[str] = Field(default_factory=list)
 
+    @field_validator("allowed_roots")
+    @classmethod
+    def _no_blank_roots(cls, value: list[str]) -> list[str]:
+        # "" resolves to the current folder, which is never what an empty-looking entry meant.
+        if any(not root.strip() for root in value):
+            raise ValueError(
+                "allowed_roots has a blank entry; list folder paths, or use [] for the default (your home folder)"
+            )
+        return value
+
 
 class EngineSettings(_Section):
     """DuckDB engine tuning (``None`` = DuckDB's own default)."""

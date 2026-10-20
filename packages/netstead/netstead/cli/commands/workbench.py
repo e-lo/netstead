@@ -6,6 +6,7 @@ aliases that call :func:`run_workbench` (the old standalone apps were removed in
 
 from __future__ import annotations
 
+import ipaddress
 from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -90,28 +91,65 @@ def run_workbench(
     workbench.serve(session)
 
 
-def _refuse_public_bind_without_roots(settings: Settings) -> None:
-    """Exit 2 when the bind host is not loopback and ``io.allowed_roots`` was never set.
+_SET_ROOTS_HINT = (
+    "List the folders to share in ./netstead.toml or your user config.toml:\n"
+    "\n"
+    "    [io]\n"
+    '    allowed_roots = ["/data/networks"]\n'
+    "\n"
+    "or for one run, set NETSTEAD_IO__ALLOWED_ROOTS='[\"/data/networks\"]' in the environment."
+)
 
-    An empty ``io.allowed_roots`` means the home folder, and the Workbench has no authentication, so a
-    non-loopback bind with the default would let anyone on the network browse it. Sources named on the
-    command line don't count: ``settings`` is read before the CLI widens the roots for them.
+
+def _is_any_loopback(host: str) -> bool:
+    """Whether ``host`` names this machine in any spelling: ``localhost`` (any case) or a loopback IP.
+
+    Wider than :func:`~netstead.workbench.server.is_loopback_host`, which lists only the exact
+    spellings the server's Host-header guard protects; used here only to word the refusal.
+
+    >>> [_is_any_loopback(h) for h in ("LOCALHOST", "127.0.0.2", "[::1]", "0.0.0.0", "nas.lan")]
+    [True, True, True, False, False]
+    """
+    name = host.strip().lower()
+    if name == "localhost":
+        return True
+    if name.startswith("[") and name.endswith("]"):
+        name = name[1:-1]
+    try:
+        return ipaddress.ip_address(name).is_loopback
+    except ValueError:
+        return False
+
+
+def _refuse_public_bind_without_roots(settings: Settings) -> None:
+    """Exit 2 when the bind host is unguarded and ``io.allowed_roots`` was never set.
+
+    An empty ``io.allowed_roots`` means the home folder, and the Workbench has no authentication.
+    The server applies its Host-header (DNS-rebinding) guard only to the exact loopback spellings
+    in :func:`~netstead.workbench.server.is_loopback_host`, so any other host serves the home
+    folder unguarded: to the network for a LAN address, or to a rebinding web page for another
+    loopback spelling such as ``127.0.0.2``. Both are refused. Sources named on the command line
+    don't count: ``settings`` is read before the CLI widens the roots for them. Blank root entries
+    are rejected earlier, by the settings model.
     """
     from netstead.workbench.server import is_loopback_host
 
     host = settings.app.host
     if is_loopback_host(host) or settings.io.allowed_roots:
         return
+    if _is_any_loopback(host):
+        why = (
+            f"{host!r} is a loopback address, but the Workbench's DNS-rebinding protection only covers "
+            "127.0.0.1, localhost and ::1, so a web page could read your home folder through it. "
+            "Bind one of those instead, or set io.allowed_roots."
+        )
+    else:
+        why = (
+            "Unset means your home folder, and the Workbench has no authentication, so anyone on the "
+            "network could browse it."
+        )
     typer.echo(
-        f"error: refusing to bind to {host!r} while io.allowed_roots is unset. Unset means your home folder, "
-        "and the Workbench has no authentication, so anyone on the network could browse it. List the folders "
-        "to share first, in ./netstead.toml or your user config.toml:\n"
-        "\n"
-        "    [io]\n"
-        '    allowed_roots = ["/data/networks"]\n'
-        "\n"
-        "or for one run: NETSTEAD_IO__ALLOWED_ROOTS='[\"/data/networks\"]' netstead app --host ...",
-        err=True,
+        f"error: refusing to bind to {host!r} while io.allowed_roots is unset. {why} {_SET_ROOTS_HINT}", err=True
     )
     raise typer.Exit(2)
 
