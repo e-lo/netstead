@@ -331,6 +331,38 @@ def test_leavenworth_round_trip(tmp_path: Path) -> None:
     assert pkg["node"].count() == starting_node_count
 
 
+def test_leavenworth_replace_table_with_an_all_null_column(tmp_path: Path) -> None:
+    """#163: a ``replace_table`` built from row dicts survives Leavenworth's all-null ``node.name``.
+
+    ``netstead clean`` rebuilds a table with ``engine.from_records(rows)``; every ``node.name`` is
+    ``None``, so pyarrow infers a ``null``-typed column that duckdb refuses to ``CREATE TABLE``.
+    The edit, a duckdb write of the result, and rollback must all go through on the default engine.
+    """
+    leavenworth = pytest.importorskip("netstead.fixtures.leavenworth", reason="netstead fixture not installed")
+    import netstead
+
+    spec = Path(netstead.__file__).parent / "spec" / "0.97" / "datapackage.json"
+    engine = IbisEngine()
+    pkg = Package.from_source(leavenworth.csv_dir(), engine=engine, spec=spec, tables=["node"])
+    before = pkg["node"].expr.to_pyarrow()
+    assert before.column("name").null_count == before.num_rows  # the shape this test exists for
+
+    rows = before.to_pylist()
+    log = tmp_path / "history.parquet"
+    with Session(pkg, log_path=log) as s:
+        s.add_edit(Edit(op="replace_table", table="node", payload={"expr": engine.from_records(rows)}))
+    after = pkg["node"].expr.to_pyarrow()
+    assert after.num_rows == before.num_rows
+    assert after.schema.field("name").type == before.schema.field("name").type
+
+    engine.write_duckdb_table(pkg["node"].expr, tmp_path / "out.duckdb", table="node")
+
+    rollback(pkg, log)
+    restored = pkg["node"].expr.to_pyarrow()
+    assert restored.schema == before.schema
+    assert restored.to_pylist() == rows
+
+
 def test_session_no_log_path_skips_persist() -> None:
     """log_path=None — session works fine but writes no file."""
     pkg = _make_pkg("pandas")

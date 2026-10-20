@@ -8,6 +8,12 @@ This file is for the **corral** package only. `netstead` (which depends on corra
 
 ### Fixed
 
+- **`replace_table` on a table with an all-null column (#163).** Already
+  fixed by the engine coercing `null`-typed Arrow columns to `string` before
+  duckdb sees them; now locked in by a regression test that runs the
+  `netstead clean` shape (rebuild Leavenworth `node`, whose `name` is all
+  null, from row dicts) through a session, a duckdb write and rollback.
+
 - **`package_to_md` resource links hit their schema headings.** The overview
   table hyphenated the resource name in its in-page link (`#link-tod`) while
   `schemas_to_md` renders `## link_tod`, whose slug keeps the underscore, so
