@@ -30,7 +30,7 @@ classifiers = [
 ]
 dependencies = [
     "pydantic>=2.6",
-    # ibis 10+ wrapped-memtable create_table fix is in ibis_engine.py; see from_records.
+    # create_table from raw pyarrow breaks with newer sqlglot; see IbisEngine._create_temp_table.
     # Capped below 13: IbisEngine.to_pandas mirrors ibis 12's duckdb Backend.execute
     # (_to_duckdb_relation + DuckDBPandasData); re-check that equivalence test before raising it.
     "ibis-framework[duckdb]>=10,<13",

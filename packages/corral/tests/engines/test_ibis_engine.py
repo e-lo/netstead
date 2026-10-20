@@ -214,6 +214,32 @@ def test_from_records_with_all_null_column_does_not_raise(engine: IbisEngine):
     assert df["name"].isna().all()
 
 
+def test_inline_tables_reach_create_table_as_ibis_expressions_and_leave_nothing_registered(
+    engine: IbisEngine, monkeypatch
+):
+    """``create_table`` never gets raw pyarrow, and no staging memtable outlives the call.
+
+    Raw pyarrow sends ibis 12 down a path newer sqlglot renders unparseably (a duckdb
+    ``ParserException`` with sqlglot 30); the memtable wrapper is dropped once the copy exists.
+    """
+    import pyarrow as pa
+
+    con: Any = engine.con
+    real_create = con.create_table
+    seen: list[type] = []
+
+    def create_table(name, obj=None, **kwargs):
+        seen.append(type(obj))
+        return real_create(name, obj=obj, **kwargs)
+
+    monkeypatch.setattr(con, "create_table", create_table)
+    before = set(con.list_tables())
+    a = engine.from_records([{"a": 1}])
+    b = engine.from_arrow(pa.table({"b": ["x"]}))
+    assert all(issubclass(t, ibis.expr.types.Table) for t in seen), seen
+    assert set(con.list_tables()) - before == {a.get_name(), b.get_name()}
+
+
 def test_from_arrow_with_all_null_column_does_not_raise(engine: IbisEngine):
     """``from_arrow`` shares the same coercion — verify in parity with from_records."""
     import pyarrow as pa

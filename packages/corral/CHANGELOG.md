@@ -38,9 +38,11 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   default backend, outside the engine's lock; and `from_records` /
   `from_arrow` left a memtable view behind on the engine for every call.
   Forward edits now run on the table's own engine expression (the "before"
-  sample fetches only its rows), and the engine hands Arrow straight to
-  `create_table`, which drops its staging view. A 20-edit session went
-  from 20 stray default-backend memtables plus 40 engine tables to 0 and 20.
+  sample fetches only its rows), and the engine unregisters the staging
+  memtable once the temp table holds the copy. (The interim version in
+  #245 handed raw pyarrow to `create_table` instead, which fails with newer
+  sqlglot releases.) A 20-edit session went from 20 stray default-backend
+  memtables plus 40 engine tables to 0 and 20.
 - **One encoding for "no session" in the rollback log (#147).** The log
   wrote a missing `session_id` as `""` and read it back as `None`. It now
   writes null; older logs with `""` still read as `None`.

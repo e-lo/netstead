@@ -362,12 +362,10 @@ class IbisEngine:
         """Materialize in-memory records as a duckdb temp table.
 
         Accepts the two shapes :class:`pandas.DataFrame` accepts (list
-        of row dicts OR columnar dict). We convert to pyarrow, wrap it
-        in ``ibis.memtable``, and ``create_table`` it into our duckdb
-        connection so the table is materialized eagerly (the caller's
-        source dict may mutate in its own scope). The memtable wrap is
-        required on ibis 10+/duckdb 1.5+, where ``create_table`` with a
-        raw pyarrow ``obj`` raises a duckdb ``ParserException``.
+        of row dicts OR columnar dict). We convert to pyarrow and copy it
+        into a temp table on our duckdb connection (see
+        :meth:`_create_temp_table`), so the table is materialized eagerly
+        (the caller's source dict may mutate in its own scope).
 
         Args:
             records: Either ``[{"a": 1}, {"a": 2}]`` or ``{"a": [1, 2]}``.
@@ -390,7 +388,7 @@ class IbisEngine:
         # unknown all-null column — before handing the table to duckdb.
         arrow = _coerce_all_null_columns_to_string(arrow)
         name = _temp_table_name("inline")
-        self.con.create_table(name, obj=arrow, temp=True)  # raw Arrow: ibis drops its staging view after
+        self._create_temp_table(name, arrow)
         expr = self.con.table(name)
         return self.cast_schema(expr, schema) if schema is not None else expr
 
@@ -406,7 +404,7 @@ class IbisEngine:
         """
         arrow_table = _coerce_all_null_columns_to_string(arrow_table)
         name = _temp_table_name("inline_arrow")
-        self.con.create_table(name, obj=arrow_table, temp=True)  # raw Arrow: ibis drops its staging view after
+        self._create_temp_table(name, arrow_table)
         return self.con.table(name)
 
     def _duckdb_source(self, expr: ir.Table) -> Any:
@@ -420,6 +418,20 @@ class IbisEngine:
         except IbisError:  # nothing binds it (a bare ibis.memtable): run it on our connection
             return self.con
         return backend if backend.name == "duckdb" else None
+
+    def _create_temp_table(self, name: str, arrow_table: pa.Table) -> None:
+        """Copy ``arrow_table`` into a new duckdb temp table ``name``, leaving nothing else registered.
+
+        The Arrow goes in wrapped in ``ibis.memtable``: given raw pyarrow, ibis 12's ``create_table``
+        emits a statement newer sqlglot releases render unparseably (a duckdb ``ParserException``
+        with sqlglot 30). ibis drops a memtable's registration only at
+        interpreter exit, so one stayed behind per call (#145); the copy is in the temp table, so
+        the registration is dropped here.
+        """
+        staged = ibis.memtable(arrow_table)
+        self.con.create_table(name, obj=staged, temp=True)
+        with backend_lock(self.con):
+            self.con.con.unregister(staged.get_name())  # type: ignore[attr-defined]
 
     # ------------------------------------------------------------------
     # Write primitives — adapters call these directly
