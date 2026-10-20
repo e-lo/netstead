@@ -1,9 +1,11 @@
 """Parquet link/node frames -> packed binary typed-arrays for deck.gl.
 
-No GeoJSON. Link geometry (WKT) is parsed **once here** into a flat coordinate
-buffer in deck.gl `PathLayer` binary layout; a link with no parseable geometry
-falls back to a straight from->to segment. The browser feeds these typed arrays
-straight to the GPU.
+No GeoJSON. Link geometry (WKT or WKB) is parsed **once here** into a flat
+coordinate buffer in deck.gl `PathLayer` binary layout. A link's shape comes from
+its inline ``geometry`` cell, else from its ``geometry_id`` row in the optional
+``geometry`` table (the GMNS order ``netstead.semantics.geometry`` documents),
+else a straight from->to segment. The browser feeds these typed arrays straight
+to the GPU.
 
 Wire format (`pack_network`): ``[uint32 headerLen][header JSON][payload]`` where
 the header gives per-array byte lengths and the payload concatenates, in order:
@@ -52,13 +54,30 @@ def _node_coords(nodes):
     )
 
 
-def _link_paths(links, nx: dict, ny: dict):
+def _resolve_shapes(links, geometry) -> list:
+    """One geometry cell (WKT/WKB or ``None``) per link row, in ``links`` order.
+
+    An inline ``links.geometry`` cell wins when it parses; otherwise the link's
+    ``geometry_id`` is looked up in the ``geometry`` frame (``geometry_id``,
+    ``geometry``). ``None`` where neither resolves, so the caller falls back to
+    a straight from/to segment.
+    """
+    n = len(links)
+    inline = links["geometry"].tolist() if "geometry" in links.columns else [None] * n
+    if geometry is None or "geometry_id" not in links.columns:
+        return inline
+    by_id = dict(zip(geometry["geometry_id"].tolist(), geometry["geometry"].tolist(), strict=True))
+    ids = links["geometry_id"].tolist()
+    return [g if len(linestring_points(g)) >= 2 else by_id.get(gid) for g, gid in zip(inline, ids, strict=True)]
+
+
+def _link_paths(links, nx: dict, ny: dict, geometry=None):
     """Flat positions + startIndices + ids for every link (PathLayer binary).
 
     Column arrays + index loop (no per-row Series) so it scales; the WKT parse
     is the only inherent per-link cost, and straight from/to is the fallback.
     """
-    geoms = links["geometry"].to_numpy() if "geometry" in links.columns else [None] * len(links)
+    geoms = _resolve_shapes(links, geometry)
     fn = links["from_node_id"].to_numpy()
     tn = links["to_node_id"].to_numpy()
     positions: list[float] = []
@@ -90,10 +109,15 @@ def _node_points(nodes):
     return pos, ids
 
 
-def pack_network(links, nodes) -> bytes:
-    """Pack link paths + node points into the binary wire format."""
+def pack_network(links, nodes, geometry=None) -> bytes:
+    """Pack link paths + node points into the binary wire format.
+
+    ``geometry`` is the optional GMNS ``geometry`` table (``geometry_id``,
+    ``geometry``) that shapes links whose ``geometry_id`` points into it and
+    which carry no inline ``geometry`` of their own.
+    """
     nx, ny = _node_coords(nodes)
-    lpos, lstart, lids = _link_paths(links, nx, ny)
+    lpos, lstart, lids = _link_paths(links, nx, ny, geometry)
     llanes = _effective_lanes(links)
     npos, nids = _node_points(nodes)
 

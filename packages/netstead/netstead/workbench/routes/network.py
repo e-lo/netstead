@@ -206,7 +206,7 @@ def network_router(session: Session) -> APIRouter:
     @router.get("/network.bin")
     def network_bin(net_id: str, component: str) -> Response:
         h = handle(net_id, component)
-        data = h.cached("network.bin", lambda: pack_network(h.links_df(), h.nodes_df()))
+        data = h.cached("network.bin", lambda: pack_network(h.links_df(), h.nodes_df(), geometry=h.geometry_df()))
         return Response(data, media_type="application/octet-stream")
 
     @router.get("/network.attrs.json")

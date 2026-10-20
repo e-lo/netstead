@@ -4,6 +4,7 @@ import json
 
 import pytest
 from fastapi.testclient import TestClient
+from netstead.fixtures import leavenworth
 from netstead.select.parse import StubParser
 from netstead.viz.buffers import unpack_network
 from netstead.workbench import Session, build_app
@@ -25,6 +26,19 @@ def test_network_bin_unpacks(client):
     assert r.headers["content-type"] == "application/octet-stream"
     net = unpack_network(r.content)
     assert net["links"]["count"] == 178 and net["nodes"]["count"] == 143
+
+
+def test_network_bin_uses_geometry_table(tmp_path):
+    """Leavenworth carries link shapes in its ``geometry`` table, so links are not all straight segments."""
+    source = str(leavenworth.csv_dir())
+    env = {"NETSTEAD_CONFIG_DIR": str(tmp_path / "user"), "NETSTEAD_IO__ALLOWED_ROOTS": json.dumps([source])}
+    s = Session(project_dir=tmp_path, environ=env, parser=StubParser())
+    s.dispatch({"type": "open_network", "source": source})
+    c = TestClient(build_app(s))
+    net_id = s.state()["networks"][0]["id"]
+    net = unpack_network(c.get(f"/api/n/{net_id}/roadway/network.bin").content)
+    assert net["links"]["count"] == 339
+    assert len(net["links"]["positions"]) > 2 * 2 * 339  # more than two vertices (four floats) per link
 
 
 def test_attrs_index_aligned(client):
