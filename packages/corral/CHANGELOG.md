@@ -42,6 +42,12 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   the same self-describing descriptor (package metadata carried over,
   resource paths rewritten, schemas inlined), so `Package.from_source` on
   the written directory auto-discovers the spec again.
+- **Chained and circular `$ref`s in schemas.** A `$ref` whose target was
+  itself a `$ref` was left unresolved, so the field silently loaded with a
+  raw `$ref` and no `enum`. The loader now follows chained refs to the end
+  (refs inside an external file resolve against that file) and raises
+  `SpecLoadError("Circular $ref ...")`, naming the chain, when a ref leads
+  back to itself. (#122)
 
 ### Changed
 
