@@ -4,7 +4,7 @@ Thanks for trying the v1.0 beta. This page tells you what the beta is, what to e
 
 ## What's in the beta
 
-Two PyPI packages, released together:
+Two Python packages, released together:
 
 | Package (PyPI) | Import | Beta tag | What it is |
 |---|---|---|---|
@@ -19,25 +19,29 @@ packages version in lockstep.
 
 ## Install the beta
 
+The first PyPI release under the new names is pending, so the beta installs from GitHub. Name both
+packages in one command (`dbcorral` cannot be resolved from PyPI yet, so it has to be given explicitly):
+
 === "uv (recommended)"
 
     ```bash
-    uv add 'netstead[all]==1.0.0b2'
+    uv add \
+      "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral" \
+      "netstead[all] @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/netstead"
     ```
 
-=== "pip"
+=== "uv pip / pip"
 
     ```bash
-    pip install 'netstead[all]==1.0.0b2'
+    pip install \
+      "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral" \
+      "netstead[all] @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/netstead"
     ```
 
-=== "pipx (CLI-only)"
+Once `netstead` 1.0.0b2 is on PyPI these become `uv add 'netstead[all]==1.0.0b2'` /
+`pip install 'netstead[all]==1.0.0b2'` / `pipx install 'netstead[all]==1.0.0b2'`.
 
-    ```bash
-    pipx install 'netstead[all]==1.0.0b2'
-    ```
-
-See the [install guide](https://e-lo.github.io/netstead/netstead/#install) for extras + the `zsh` quoting note.
+See the [install guide](https://e-lo.github.io/netstead/netstead/install/) for extras + the `zsh` quoting note.
 
 After install, confirm everything works:
 

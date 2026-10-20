@@ -15,10 +15,12 @@ You're new to `netstead` and want to see what it does on a real GMNS network bef
 
 ## Quick example
 
-The fastest way to confirm `netstead` is wired up correctly is to install it, load the bundled Leavenworth, WA fixture, and print a one-line summary. The whole sequence runs in under thirty seconds on a cold cache.
+The fastest way to confirm `netstead` is wired up correctly is to install it, load the bundled Leavenworth, WA fixture, and print a one-line summary. `netstead` 1.0.0b2 is not on PyPI yet, so the beta installs from GitHub (both packages in one command; see [Install and troubleshoot](install.md)):
 
 ```bash
-pip install 'netstead[clean,graph]'
+pip install \
+  "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral" \
+  "netstead[clean,graph] @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/netstead"
 ```
 
 Then in Python:
@@ -46,10 +48,12 @@ You just loaded the bundled Leavenworth network through the default ibis + DuckD
 The bare `netstead` install is enough for read-only validation. Add `[clean,graph]` to unlock the ops the rest of this guide uses: `[clean]` brings in `shapely` + `geopandas` + `pyproj` for the geometry edits; `[graph]` brings in `scipy` (+ `numpy` + `pandas`) for the scope graph, connected components, and the data-quality rule pack.
 
 ```bash
-uv add 'netstead[clean,graph]'
+uv add \
+  "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral" \
+  "netstead[clean,graph] @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/netstead"
 ```
 
-`corral` comes along as a transitive dependency — you don't install both packages. For the other install tools (uv pip, pip, pipx), the full list of extras and what each pulls in, `netstead doctor`, and the zsh bracket-quoting rule, see [Install and troubleshoot](install.md).
+This is the GitHub form the beta uses until the PyPI release is out; it then becomes `uv add 'netstead[clean,graph]'`, with `corral` coming along as a transitive dependency. For the other install tools (uv pip, pip, pipx), the full list of extras and what each pulls in, `netstead doctor`, and the zsh bracket-quoting rule, see [Install and troubleshoot](install.md).
 
 ### 2. Load the bundled fixture
 

@@ -21,28 +21,24 @@ Python toolkit for the [General Modeling Network Specification (GMNS)](https://g
 
 ## Install
 
-Pick the tool you already use — these are equivalent:
+Requires Python 3.11+. `netstead` 1.0.0b2 is not on PyPI yet (the packages were renamed from
+`gmnspy` / `datagrove` in October 2026; the first release under the new names is pending), so install
+the beta from GitHub, naming both packages:
 
 ```bash
-# uv (recommended — fastest, handles workspace projects + lockfiles)
-uv add netstead
-
-# uv pip (drop-in pip replacement, no project file needed)
-uv pip install netstead
-
-# pip (classic)
-pip install netstead
-
-# pipx (CLI-only, isolated env; gives you the `netstead` command without
-#       polluting your project env)
-pipx install netstead
+# uv (recommended) — `uv pip install` and `pip install` take the same two arguments
+uv add \
+  "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral" \
+  "netstead[all] @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/netstead"
 ```
 
-`corral` comes along automatically — you don't install both.
+Once the PyPI release is out this becomes `uv add netstead` / `pip install netstead` / `pipx install netstead`,
+and `corral` comes along automatically.
 
 ### Optional extras
 
-Requires Python 3.11+.
+The names below go inside the brackets of the install line above (`netstead[clean,graph] @ git+…`). The
+short `uv add 'netstead[<extra>]'` forms work once the PyPI release is out.
 
 ```bash
 uv add 'netstead[osm]'          # build a GMNS network from OpenStreetMap (requests + pyyaml)

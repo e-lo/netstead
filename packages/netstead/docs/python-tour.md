@@ -23,8 +23,12 @@ Total runtime: under two minutes on a laptop. The fixture ships inside the `nets
 
 The `[clean]` extra brings in `shapely` + `geopandas` + `pyproj` for the geometry edit; `[graph]` brings in `scipy` for the scope step and the data-quality rule pack; `[notebook]` is reserved for future widgets — the `_repr_html_` cards used below render without it.
 
+`netstead` 1.0.0b2 is not on PyPI yet, so the beta installs from GitHub (both packages in one command; see [Install and troubleshoot](install.md)):
+
 ```bash
-pip install 'netstead[clean,graph,notebook]'
+pip install \
+  "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral" \
+  "netstead[clean,graph,notebook] @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/netstead"
 ```
 
 For the map steps, either `folium` (interactive Leaflet) or `matplotlib` (static fallback) works — pick one:

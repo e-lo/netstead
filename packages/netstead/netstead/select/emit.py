@@ -20,8 +20,6 @@ from functools import lru_cache
 from importlib import resources
 from typing import Any
 
-import jsonschema
-
 from .errors import SelectError
 from .result import SelectionResult
 
@@ -89,6 +87,12 @@ def to_fragment(result: SelectionResult, *, form: str = "resolved") -> dict[str,
 
 def validate_fragment(fragment: dict) -> None:
     """Validate a fragment against the GMNS selection schema. Raises on invalid."""
+    # Imported here, not at module level: the CLI imports this module eagerly
+    # and must start on an install without the [nl] extra.
+    try:
+        import jsonschema
+    except ImportError as e:
+        raise ImportError("netstead.select.emit requires the [nl] extra: pip install 'netstead[nl]'") from e
     jsonschema.validate(fragment, load_schema())
 
 

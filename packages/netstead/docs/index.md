@@ -12,7 +12,7 @@ A Python toolkit for the [General Modeling Network Specification (GMNS)](https:/
 ![Sixty-second walkthrough: open, select, validate, fix, replay](assets/screenshots/workbench-walkthrough.gif){ .screenshot }
 *The browser Workbench in a minute: open a network, select by name, validate, fix a finding, replay it all as Python. Start with [Quickstart: the Workbench](quickstart-workbench.md).*
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/e-lo/netstead/blob/main/packages/netstead/docs/notebooks/quickstart.ipynb) — five-cell quickstart in the browser. Load a real GMNS network from a URL, validate it, and view findings on an interactive map. No install needed.
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/e-lo/netstead/blob/main/packages/netstead/docs/notebooks/quickstart.ipynb) — five-cell quickstart in the browser. The first cell installs from GitHub; the rest load a real GMNS network from a URL, validate it, and view findings on an interactive map. Nothing to set up locally.
 
 ## What problems netstead solves
 
@@ -99,10 +99,12 @@ net = Network.from_source("./network.duckdb")              # single duckdb
 
 ## Install
 
-Requires Python 3.11+. One command installs `netstead` with every optional extra (`corral` comes along automatically):
+Requires Python 3.11+. `netstead` 1.0.0b2 is not on PyPI yet (the first release under the new names is pending), so one command installs both packages from GitHub, with every optional extra:
 
 ```bash
-uv add 'netstead[all]'
+uv add \
+  "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral" \
+  "netstead[all] @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/netstead"
 ```
 
 The four install tools (uv, uv pip, pip, pipx), the full table of extras and what each pulls in, `netstead doctor`, and the first-run errors are all on one page: [Install and troubleshoot](install.md). zsh users: [quote the brackets](install.md#zsh-quote-the-brackets).

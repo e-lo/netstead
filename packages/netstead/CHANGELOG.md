@@ -8,6 +8,21 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Fixed
 
+- **The `netstead` CLI starts without the `[nl]` extra.** `netstead.select.emit`
+  imported `jsonschema` at module level and the CLI imports the `select` command
+  group eagerly, so on a `netstead[clean,graph]` install every command, including
+  `netstead doctor` and `netstead info`, died with `ModuleNotFoundError: jsonschema`.
+  The import is now deferred to `validate_fragment`, which raises the standard
+  `requires the [nl] extra` message when called without it.
+- **Colab quickstart notebook runs again.** Its load cell pointed at a raw GitHub
+  *directory* URL, which `Network.from_source` cannot detect a format for; it now
+  fetches the fixture's zipped-CSV bundle. Its install cell installs the beta from
+  GitHub (nothing is published on PyPI under the new names yet). A contract test
+  now executes the notebook's code cells.
+- **`netstead.fixtures.leavenworth.summary()` reports the real row counts** (121
+  nodes, 339 links, 429 lanes; the module still said 75 / 214 / 280 from an older
+  600 m build). A test pins the metadata to the bundled files.
+
 - **`netstead.clean` geometry ops on networks that keep shapes in the `geometry`
   table.** `simplify_geometry` now edits whichever table holds the link shapes
   (`link.geometry` inline, else `geometry` via `link.geometry_id`; inline wins),

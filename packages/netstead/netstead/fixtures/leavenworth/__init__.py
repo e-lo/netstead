@@ -1,4 +1,4 @@
-"""Tiny example GMNS network for Leavenworth, WA (~600m of OSM-derived streets).
+"""Small example GMNS network for Leavenworth, WA (the whole town, OSM-derived).
 
 Bundled inside the netstead wheel — no download needed. Used by tests,
 the 5-minute quickstart, and every cookbook recipe so they share a
@@ -6,14 +6,14 @@ single canonical fixture.
 
 What's in it
 ------------
-- 75 nodes, 214 links, 214 geometries, 280 lanes
+- 121 nodes, 339 links, 339 geometries, 429 lanes
 - 9 distinct GMNS tables, including one TOD restriction and several
   uses of the v0.97 ``shared_categories`` enums.
-- ~5 MB total across all four storage variants below.
+- ~3 MB total across all four storage variants below.
 - Provenance: synthesized from OpenStreetMap via osmnx
-  (``osmnx.graph_from_address("Leavenworth, WA, USA", dist=600,
-  network_type="drive")``) — see :file:`README.md` for the full
-  attribute-derivation table.
+  (``osmnx.graph_from_place("Leavenworth, Washington, USA",
+  network_type="drive")``, which follows the city polygon) — see
+  :file:`README.md` for the full attribute-derivation table.
 
 Four storage variants
 ---------------------
@@ -38,7 +38,7 @@ Quick use
     print(leavenworth.summary())               # prints what's in the fixture
     net = leavenworth.load()                   # returns a Network — equivalent
                                                 # to netstead.read(leavenworth.csv_dir())
-    net.links.count()                          # -> 214
+    net.links.count()                          # -> 339
 
 For other formats: ``netstead.read(leavenworth.parquet_dir())`` or
 ``netstead.read(leavenworth.duckdb_path())``.
@@ -68,18 +68,19 @@ ROOT = Path(__file__).parent
 DATAPACKAGE = ROOT / "datapackage.json"
 
 # Static metadata about the bundled fixture. Updated whenever the
-# fixture is regenerated (see scripts/build_leavenworth_fixture.py).
+# fixture is regenerated (see scripts/build_leavenworth.py);
+# tests/test_fixtures_leavenworth_metadata.py pins it to the real files.
 _FIXTURE_INFO = {
     "name": "leavenworth",
-    "description": "Tiny example GMNS network — downtown Leavenworth, WA (~600m radius)",
+    "description": "Small example GMNS network — Leavenworth, WA (the whole town)",
     "spec_version": "0.97",
-    "provenance": "OpenStreetMap via osmnx (graph_from_address, dist=600, drive)",
-    "bbox_wgs84": "(-120.665, 47.594, -120.652, 47.602)",  # approximate
+    "provenance": "OpenStreetMap via osmnx (graph_from_place, drive)",
+    "bbox_wgs84": "(-120.68, 47.58, -120.64, 47.61)",  # approximate
     "tables": {
-        "node": 75,
-        "link": 214,
-        "geometry": 214,
-        "lane": 280,
+        "node": 121,
+        "link": 339,
+        "geometry": 339,
+        "lane": 429,
         "use_definition": 5,
         "use_group": 2,
         "time_set_definitions": 1,
