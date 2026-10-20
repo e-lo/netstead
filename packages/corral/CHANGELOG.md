@@ -13,6 +13,9 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   adapter owns, now raises `DuplicateAdapterError` (a `FormatError`) instead
   of silently overwriting. Pass `replace=True` to override on purpose.
   Re-registering the same class still just replaces the instance.
+- **`dispatch` logs a probe that raises.** The probe chain still skips an
+  adapter whose `probe()` raises, but now says so at DEBUG on the
+  `corral.io` logger (adapter name and error; URL userinfo is masked).
 - **Tests run against the stock adapter registry.** A new private
   `corral.io._reset_registry()` restores the five stock adapters and their
   bindings; one autouse fixture in `tests/conftest.py` calls it around every

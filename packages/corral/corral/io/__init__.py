@@ -29,7 +29,10 @@ imports all five. Tests that need an empty registry can call
 
 from __future__ import annotations
 
+import logging
+import re
 from pathlib import Path
+from typing import Final
 from urllib.parse import urlparse
 
 from ._paths import normalize_to_str
@@ -45,6 +48,12 @@ from .base import (
     SourceRef,
 )
 from .errors import WriteUnsupportedForSchemeError
+
+_logger: Final = logging.getLogger(__name__)
+
+# ``scheme://user:secret@host`` userinfo, so a probe error that echoes its
+# source never puts a password in the log.
+_URL_USERINFO: Final = re.compile(r"(?<=://)[^/@\s]+@")
 
 # ---------------------------------------------------------------------------
 # Registry state
@@ -402,10 +411,16 @@ def dispatch(source: SourceRef, *, format: str | None = None) -> FormatAdapter:
         try:
             if adapter.probe(source):
                 return adapter
-        except Exception:
+        except Exception as exc:
             # An adapter's probe must be cheap and total; if it raises,
             # treat it as a non-match rather than letting it crash the
-            # dispatch pipeline.
+            # dispatch pipeline, but leave a trace for whoever debugs it.
+            _logger.debug(
+                "probe of adapter %r raised %s: %s; skipping it",
+                adapter.name,
+                type(exc).__name__,
+                _URL_USERINFO.sub("***@", str(exc)),
+            )
             continue
 
     # 5. Give up with a useful error message.
