@@ -16,11 +16,20 @@ owns all of that; the quickstarts link here instead of repeating it.
 ## Quick example
 
 `netstead` needs Python 3.11 or newer. The bare package reads and validates networks; the extras add the
-Workbench, editing, the graph engine and the rest. The one-liner below installs everything, which is the
+Workbench, editing, the graph engine and the rest. The command below installs everything, which is the
 right choice when you don't yet know what you need.
 
+!!! warning "Beta: not on PyPI yet, install from GitHub"
+    The packages were renamed from `gmnspy` / `datagrove` to `netstead` / `dbcorral` in October 2026 and the
+    first PyPI release under the new names is pending, so `uv add netstead` / `pip install netstead` fail
+    today with "no matching distribution". Until the release is out, install both packages from GitHub in one
+    command, as shown on this page. Every `uv add 'netstead[<extras>]'` line elsewhere in these docs works as
+    written once the release is out; until then, put the same extras in the brackets of the GitHub form.
+
 ```bash
-uv add 'netstead[all]'
+uv add \
+  "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral" \
+  "netstead[all] @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/netstead"
 ```
 
 Then confirm the install with the built-in check:
@@ -42,40 +51,46 @@ under as its first row.
 
 ### 2. Pick an install tool
 
-Pick the tool you already use. These all produce the same install; `corral` (PyPI `dbcorral`) comes along
-automatically, so you never install both.
+Pick the tool you already use. These all produce the same install. While the beta installs from GitHub, name
+both packages: `corral` (PyPI name `dbcorral`) is a dependency of `netstead`, but the resolver cannot find
+it on PyPI yet. After the release, `corral` comes along automatically and you never install both.
 
 === "uv (recommended)"
 
     ```bash
-    uv add netstead
+    uv add \
+      "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral" \
+      "netstead @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/netstead"
     ```
 
     Fastest. Works inside a `uv`-managed project and writes to your `pyproject.toml` + `uv.lock`.
+    After the PyPI release: `uv add netstead`.
 
 === "uv pip"
 
     ```bash
-    uv pip install netstead
+    uv pip install \
+      "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral" \
+      "netstead @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/netstead"
     ```
 
     Drop-in `pip` replacement. Use this in a plain `venv` without a project file.
+    After the PyPI release: `uv pip install netstead`.
 
 === "pip"
 
     ```bash
-    pip install netstead
+    pip install \
+      "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral" \
+      "netstead @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/netstead"
     ```
 
-    Classic. Works anywhere Python does.
+    Classic. Works anywhere Python does. After the PyPI release: `pip install netstead`.
 
 === "pipx"
 
-    ```bash
-    pipx install netstead
-    ```
-
-    Isolated env for the `netstead` CLI only — your project env stays untouched.
+    Isolated env for the `netstead` CLI only — your project env stays untouched. `pipx install netstead`
+    works once the PyPI release is out; until then use one of the other tools.
 
 ### 3. Choose extras
 
@@ -87,6 +102,9 @@ Extras are named in square brackets after the package name, comma-separated, and
 uv add 'netstead[clean,server]'       # combine with commas
 uv add 'netstead[all]'                # everything
 ```
+
+While the beta installs from GitHub, the extras go in the same place inside the direct reference:
+`"netstead[clean,server] @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/netstead"`.
 
 | Extra | Pulls in | When you need it |
 |---|---|---|
@@ -176,8 +194,9 @@ ImportError: netstead.graph requires the [graph] extra: pip install 'netstead[gr
 ImportError: netstead.clean requires the [clean] extra: pip install 'netstead[clean]'
 ```
 
-Install the named extra (`uv add 'netstead[graph]'`, or `pip install 'netstead[graph]'`) into the **same**
-environment you run from. The CLI prints the same message in red (`netstead.server requires the [server]
+Install the named extra (`uv add 'netstead[graph]'`, or `pip install 'netstead[graph]'`; from GitHub while
+the beta is unpublished, see [Pick an install tool](#2-pick-an-install-tool)) into the **same** environment
+you run from. The CLI prints the same message in red (`netstead.server requires the [server]
 extra: ...`) and exits with code 1 when a command needs an extra you don't have: `netstead app` needs
 `[server]`, `netstead quality` and `netstead scope` need `[graph]`, `netstead clean` needs `[clean]`,
 `netstead mcp serve` needs `[mcp]`.

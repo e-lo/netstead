@@ -2,10 +2,10 @@
 
 Two Python packages for the [General Modeling Network Specification (GMNS)](https://github.com/zephyr-data-specs/GMNS), developed under the [Zephyr Foundation](http://zephyrtransport.org).
 
-| Package | What it is | PyPI | Docs |
+| Package | What it is | PyPI name | Docs |
 |---|---|---|---|
-| [`netstead`](packages/netstead/) | GMNS toolkit — build, load, validate, scope, edit GMNS networks, explore in a browser Workbench | [`netstead`](https://pypi.org/project/netstead/) | [e-lo.github.io/netstead/netstead/](https://e-lo.github.io/netstead/netstead/) |
-| [`corral`](packages/corral/) | Generic Frictionless Data Package engine that `netstead` builds on | [`dbcorral`](https://pypi.org/project/dbcorral/) | [e-lo.github.io/netstead/corral/](https://e-lo.github.io/netstead/corral/) |
+| [`netstead`](packages/netstead/) | GMNS toolkit — build, load, validate, scope, edit GMNS networks, explore in a browser Workbench | `netstead` (release pending; [install from GitHub](#-v10-beta-is-open)) | [e-lo.github.io/netstead/netstead/](https://e-lo.github.io/netstead/netstead/) |
+| [`corral`](packages/corral/) | Generic Frictionless Data Package engine that `netstead` builds on | `dbcorral` (release pending) | [e-lo.github.io/netstead/corral/](https://e-lo.github.io/netstead/corral/) |
 
 Most users only install `netstead`. `corral` comes as a transitive dependency.
 
@@ -15,10 +15,18 @@ Most users only install `netstead`. `corral` comes as a transitive dependency.
 
 We're shipping the v1.0 rewrite as a public beta. **If you can spare half an hour to try it on a real network, your feedback shapes GA.**
 
+The packages were renamed from `gmnspy` / `datagrove` in October 2026 and the first PyPI release under
+the new names is pending, so install the beta from GitHub (both packages, in one command):
+
 ```bash
-uv add 'netstead[all]==1.0.0b2'        # or: pip install 'netstead[all]==1.0.0b2'
+uv pip install \
+  "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral" \
+  "netstead[all] @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/netstead"
 netstead doctor                        # confirm install
 ```
+
+`pip install` and `uv add` accept the same two arguments. Once `netstead` 1.0.0b2 is on PyPI this
+becomes `uv add 'netstead[all]==1.0.0b2'`.
 
 - 📖 [Beta program details — what's in scope, how to report](BETA.md)
 - 🐛 [File a beta-feedback issue](https://github.com/e-lo/netstead/issues/new?template=beta-feedback.md)

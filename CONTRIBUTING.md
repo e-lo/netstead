@@ -171,6 +171,9 @@ uv run mkdocs serve -f packages/netstead/mkdocs.yml  # netstead docs
 uv run mkdocs serve -f packages/corral/mkdocs.yml    # corral docs
 ```
 
+Material for MkDocs prints a banner about the coming MkDocs 2.0 changes on every build. It is informational;
+CI sets `NO_MKDOCS_2_WARNING=1` to keep it out of the strict build, and you can export the same variable locally.
+
 General settings for documentation can be found in `mkdocs.yml`
 
 Each package site's mkdocs-macros hooks (spec tables, live nav) are in `packages/<pkg>/main.py`

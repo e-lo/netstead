@@ -75,7 +75,14 @@ pkg = Package.from_source("./mydata.csv.zip")                   # zipped CSV bun
 
 ## Install
 
-Pick the tool you already use — these all produce the same install:
+`dbcorral` 1.0.0b2 is not on PyPI yet (the package was renamed from `datagrove` in October 2026; the first
+release under the new name is pending), so the beta installs from GitHub with any of the tools below:
+
+```bash
+uv add "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral"
+```
+
+Once the release is out, pick the tool you already use — these all produce the same install:
 
 === "uv (recommended)"
 

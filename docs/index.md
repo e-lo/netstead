@@ -10,7 +10,7 @@ summary: Two PyPI packages with separate utility and separate audiences. corral 
 
 # Netstead + corral
 
-This repo holds **two PyPI packages with separate utility and separate audiences**. Each ships its own documentation site:
+This repo holds **two Python packages with separate utility and separate audiences**. Each ships its own documentation site:
 
 <div class="grid cards" markdown>
 
@@ -40,12 +40,20 @@ This repo holds **two PyPI packages with separate utility and separate audiences
 
 ## Which package do I install?
 
-Installing `netstead` brings `corral` along automatically. You only install `corral` directly if you're working on something non-GMNS.
+You only install `corral` directly if you're working on something non-GMNS. The first PyPI release under
+these names (`netstead`, `dbcorral`) is pending, so the v1.0 beta installs from GitHub:
 
 ```bash
-pip install netstead            # GMNS toolkit (brings corral with it)
-pip install dbcorral         # generic engine only — for non-GMNS use cases
+# GMNS toolkit (name both packages — dbcorral is not on PyPI yet)
+pip install \
+  "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral" \
+  "netstead[all] @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/netstead"
+
+# generic engine only — for non-GMNS use cases
+pip install "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral"
 ```
+
+Once published these become `pip install netstead` (which brings `corral` with it) and `pip install dbcorral`.
 
 ## Source
 

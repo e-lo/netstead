@@ -15,8 +15,10 @@ You want to load + validate + (optionally) spatially scope a Frictionless data p
 
 The fastest way to confirm `corral` is wired up is to load a real Frictionless package, run the four-pass validator, and print a one-line summary. The example below uses corral's own bundled sample fixture (three tables — `author`, `venue`, `book` — with two foreign keys and a WKT geometry column) as a stand-in for "any Frictionless package" — the API is identical regardless of spec.
 
+`dbcorral` 1.0.0b2 is not on PyPI yet (the first release under the new name is pending), so the beta installs from GitHub:
+
 ```bash
-pip install dbcorral
+pip install "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral"
 ```
 
 Then in Python:
@@ -72,7 +74,7 @@ Optional extras (`polars` / `pandas` / `s3` / `gcs` / `azure` / `keyring` / `mcp
 
 ### 2. Load a Frictionless package
 
-`Package.from_source` accepts a local path, an `s3://` / `https://` / `duckdb://` URL, or a directory of CSV / Parquet / DuckDB / zip-CSV files. The example below loads the Leavenworth GMNS fixture (a CSV directory that ships with `netstead` — `pip install netstead` to follow along, or keep using `corral.fixtures.sample`). Because a CSV-only directory doesn't carry a `datapackage.json` manifest, pass `spec=` explicitly to tell `corral` which schema to validate against.
+`Package.from_source` accepts a local path, an `s3://` / `https://` / `duckdb://` URL, or a directory of CSV / Parquet / DuckDB / zip-CSV files. The example below loads the Leavenworth GMNS fixture (a CSV directory that ships with `netstead` — [install netstead](https://e-lo.github.io/netstead/netstead/install/) to follow along, or keep using `corral.fixtures.sample`). Because a CSV-only directory doesn't carry a `datapackage.json` manifest, pass `spec=` explicitly to tell `corral` which schema to validate against.
 
 ```python
 from corral import Package

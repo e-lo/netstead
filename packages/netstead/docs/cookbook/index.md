@@ -51,7 +51,7 @@ For bbox / polygon (non-GMNS-specific) spatial scope, see [corral cookbook: spat
 
 ## Contributing a new recipe
 
-A recipe is `kind: howto` per the [Page Style Guide](../_page-style-guide.md):
+A recipe is `kind: howto` per the [Page Style Guide](https://github.com/e-lo/netstead/blob/main/packages/netstead/docs/_page-style-guide.md) (a contributor page in the repo, not on this site):
 
 * `When to use this` — 1-2 sentences, the trigger.
 * `Quick example` — ≤20 lines, copy-pasteable against the Leavenworth fixture, with **prose before the code**.

@@ -38,14 +38,17 @@ install or start, see [Install and troubleshoot](install.md).
 
 ### 1. Install and open the network
 
-Install with the tool you already use. The quotes matter on macOS (zsh): see
-[Install and troubleshoot](install.md#zsh-quote-the-brackets).
+Install with the tool you already use. `netstead` 1.0.0b2 is not on PyPI yet, so the beta installs from
+GitHub, both packages in one command (`pip install` takes the same two arguments). The quotes matter on
+macOS (zsh): see [Install and troubleshoot](install.md#zsh-quote-the-brackets).
 
 ```bash
-uv add 'netstead[server,graph,nl]'
+uv add \
+  "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral" \
+  "netstead[server,graph,nl] @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/netstead"
 ```
 
-(With pip: `pip install 'netstead[server,graph,nl]'`.)
+(Once the PyPI release is out: `uv add 'netstead[server,graph,nl]'`.)
 
 The Leavenworth fixture ships inside the `netstead` wheel, so there is nothing to download. Ask Python where
 it landed and keep the path in a shell variable:

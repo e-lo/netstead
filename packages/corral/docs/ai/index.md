@@ -177,6 +177,6 @@ When you change a public docstring or rename a page, those artifacts regenerate 
 
 ## See also
 
-* [Page Style Guide](../_page-style-guide.md) — what every page on this site follows so the AI artifacts have something parseable to consume.
+* [Page Style Guide](https://github.com/e-lo/netstead/blob/main/packages/corral/docs/_page-style-guide.md) (in the repo, not on this site) — what every page on this site follows so the AI artifacts have something parseable to consume.
 * [Architecture §6.9](../architecture.md#69-ai-accessibility) — design rationale for the four surfaces.
 * [Migration guide](https://e-lo.github.io/netstead/netstead/migration/v0.3-to-v1.0/#whats-new) — what's new vs v0.3 from an AI consumer's standpoint.

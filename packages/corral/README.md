@@ -38,6 +38,16 @@ Generic, Frictionless-aligned tabular-data-package engine. Powers [Netstead](htt
 
 Pick the tool you already use — these are equivalent:
 
+`dbcorral` 1.0.0b2 is not on PyPI yet (the package was renamed from `datagrove` in October 2026; the first
+release under the new name is pending), so the beta installs from GitHub:
+
+```bash
+# uv (recommended) — `uv pip install` and `pip install` take the same argument
+uv add "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral"
+```
+
+Once the PyPI release is out, the usual forms apply:
+
 ```bash
 # uv (recommended — fastest, handles workspace projects + lockfiles)
 uv add dbcorral

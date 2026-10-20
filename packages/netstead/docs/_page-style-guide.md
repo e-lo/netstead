@@ -160,7 +160,7 @@ The previous version of this guide said "use a table". That was wrong — reader
 For pages where the output *is* visual (a card-rendered `_repr_html_`, an HTML validation report, a map embed, a before/after geometry diff), include a screenshot. Don't just describe it.
 
 ```markdown
-![Validation report card for the Leavenworth fixture](assets/screenshots/leavenworth-validation.png){ .screenshot }
+![Validation report card for the Leavenworth fixture](assets/screenshots/leavenworth-validation-report.png){ .screenshot }
 *Validation report card. No ERRORs; one `fk.unverifiable` WARNING (`node.zone_id`, no `zone` table) and 16 INFO findings for optional tables the fixture doesn't ship.*
 ```
 

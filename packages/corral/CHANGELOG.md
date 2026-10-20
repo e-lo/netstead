@@ -8,6 +8,12 @@ This file is for the **corral** package only. `netstead` (which depends on corra
 
 ### Fixed
 
+- **`package_to_md` resource links hit their schema headings.** The overview
+  table hyphenated the resource name in its in-page link (`#link-tod`) while
+  `schemas_to_md` renders `## link_tod`, whose slug keeps the underscore, so
+  every resource with an underscore in its name linked to a missing anchor
+  (mkdocs logged "no such anchor" 16 times on each of the three netstead
+  spec pages). The link now uses the name verbatim.
 - **Credentials now reach csv / parquet reads and prefix listings over
   `s3://`, `gs://`, `az://`.** Any non-empty credentials — an explicit
   `credentials=` dict or the env / keyring / netrc cascade — made every csv
@@ -30,6 +36,12 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   staged beside `dest` and swapped into place once the write is complete
   (as zip targets already were), so a failed write also leaves an existing
   `dest` intact.
+- **Parquet and CSV directory writes now emit a `datapackage.json`.** A
+  directory source that carried its own descriptor lost it on an in-place
+  write, because only the zip writer produced one. Directory targets now get
+  the same self-describing descriptor (package metadata carried over,
+  resource paths rewritten, schemas inlined), so `Package.from_source` on
+  the written directory auto-discovers the spec again.
 
 ## [1.0.0-beta.2] — TBD
 

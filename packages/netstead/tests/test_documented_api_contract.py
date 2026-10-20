@@ -147,6 +147,10 @@ def _collect_references() -> dict[str, list[Path]]:
                 "",
                 text,
             )
+            # Strip URLs. The GitHub install form the beta documents
+            # (`git+https://github.com/e-lo/netstead.git@main#...`) contains
+            # `netstead.git`, which is a repository name, not a symbol.
+            text = re.sub(r"(?:git\+)?https?://\S+", "", text)
             # Strip migration-table "old API" cells. The migration guide
             # has a "| OLD | NEW | NOTES |" table where the OLD column
             # mentions v0.3 names that must NOT exist. We can't easily

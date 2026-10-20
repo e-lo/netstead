@@ -34,6 +34,11 @@ jobs:
         # --strict turns every mkdocs / plugin warning (broken link or
         # anchor, missing docstring type, unresolved cross-reference) into
         # a failed build, so a warning fails the PR instead of shipping.
+        env:
+          # Material for MkDocs >= 9.7.2 prints a banner about the coming
+          # MkDocs 2.0 changes on every build. It is informational, not a
+          # docs problem, so keep it out of the strict build's output.
+          NO_MKDOCS_2_WARNING: "1"
         run: |
           uv run mkdocs build --strict -f mkdocs.yml -d site
           uv run mkdocs build --strict -f packages/netstead/mkdocs.yml -d "$PWD/site/netstead"
