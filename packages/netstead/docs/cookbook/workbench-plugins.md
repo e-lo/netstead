@@ -9,10 +9,14 @@ summary: Package Actions, settings, state, an API router and a front-end module 
 
 ## When to use this
 
-You want the [Workbench](workbench.md) to do something it doesn't do yet, such as authoring project
-cards, managing a scenario catalog or running a domain check, and you don't want to fork netstead
-to get it. A plugin is a separate pip package. Install it next to netstead and `netstead app`
-picks it up.
+You want the [Workbench](workbench.md) to do something it doesn't do yet, such as
+[authoring project cards](workbench-project-cards.md), managing a scenario catalog or running a domain check, and you
+don't want to fork netstead to get it. A plugin is a separate pip package. Install it next to netstead and
+`netstead app` picks it up.
+
+For a full plugin built on this API (Actions with undo, routes, a dock panel, schema forms, a preview on a derived
+network), read the `netstead-project-cards` package in
+[`plugins/project-cards`](https://github.com/e-lo/netstead/tree/main/plugins/project-cards).
 
 The plugin API is **provisional until netstead v1.0** (see [Versioning](#versioning)).
 

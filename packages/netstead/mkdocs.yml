@@ -175,6 +175,7 @@ nav:
       - Workbench:
           - Explore in the Workbench: cookbook/workbench.md
           - Write a Workbench plugin: cookbook/workbench-plugins.md
+          - Author ProjectCards: cookbook/workbench-project-cards.md
           - Local language models (Ollama): cookbook/local-llm-ollama.md
       - Maps and reports:
           - View a network on a map: cookbook/view-your-network.md

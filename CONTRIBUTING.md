@@ -83,9 +83,13 @@ Generally:
 
 *Contributions which do not meet these requirements may not be approved*
 
+### First-party plugins
+
+First-party plugins live in `plugins/<name>`, each its own workspace package that may import only `netstead.workbench.plugins`' public API. Give each one an import-linter contract (see the `project_cards` one in `pyproject.toml`), a test step with its own coverage gate in `.github/workflows/tests.yml`, and an entry in `scripts/lint_no_sql.py`. The first is [`plugins/project-cards`](https://github.com/e-lo/netstead/tree/main/plugins/project-cards).
+
 ## Running tests
 
-Tests live in `packages/corral/tests` and `packages/netstead/tests` and use `pytest`. Run them through `uv run --all-extras` from the repo root.
+Tests live in `packages/corral/tests`, `packages/netstead/tests` and `plugins/project-cards/tests` and use `pytest`. Run them through `uv run --all-extras` from the repo root.
 
 **While iterating, run your domain. Before committing a cross-cutting change, run the default. Run the full suite before merge.**
 
@@ -123,6 +127,7 @@ Paths are relative to the repo root. `T=packages/netstead/tests`, `D=packages/co
 | `netstead/cli` | `$T/test_cli*.py` |
 | docs (`*.md` with Python blocks) | `$T/test_documented_*.py -m ""` |
 | `netstead/bench` | `$T/bench $T/test_bench_*.py $T/test_cli_bench*.py -m ""` |
+| `plugins/project-cards` (the project cards plugin) | `plugins/project-cards/tests` |
 
 A domain run skips the doctests in the source modules. The default run includes them.
 

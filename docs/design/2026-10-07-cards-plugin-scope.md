@@ -1,6 +1,6 @@
 # ProjectCard "project cards" plugin (`project_cards`): scope
 
-Status: **accepted** (2026-10-19) · Date: 2026-10-07 · Owner: Elizabeth Sall
+Status: **implemented** (#228, #229, #237) · Date: 2026-10-07 · Owner: Elizabeth Sall
 
 > **2026-10-19:** accepted. The pending decisions are decided (see "Decisions from the user", 7–11), the plugin lives
 > in this monorepo as the first-party plugin `plugins/project-cards`, and the [implementation plan](2026-10-19-cards-plugin-plan.md) is
@@ -278,3 +278,46 @@ Carried over from the first P2 draft's tests:
 
 Scenarios and the card catalog (the separate `catalog` plugin), transit changes (P6), `pycode`, managed lanes, and
 conflict or dependency resolution across cards.
+
+## Follow-ups
+
+From the implementation (2026-10; #228, #229, #237). Not filed as issues yet; each is small and independent.
+
+**Host API (core)**
+
+- **`Host.mutate` should wrap corral's `EditingError` in `ActionError`.** Today a plugin catches the corral error
+  itself to give the user a clean refusal.
+- **A rollback hook for plugins.** A `commit` nested in a parent Action that later fails can't be undone: core rolls
+  back its own state, but not the file a plugin wrote or its in-memory draft. Candidate: an `on_rollback` callback a
+  handler registers on the Host.
+- **A stable edit id.** `host.mutate` (its result) and/or `host.pending_edits` should name each edit, so a plugin
+  that undoes its own edits needn't read `NetworkHandle.lineage`.
+- **A lineage entry on commit.** The scope wants a committed card's id in the network's lineage; `Host` has no
+  method for it (only `host.mutate` appends). Candidate: `host.note_lineage(net_id, text)`.
+- **A read-path check.** `project_cards.import` vets the file it reads with `host.writable`. Candidate:
+  `host.readable(path)`.
+- **Compact-mode assistant tools from plugins.** A plugin can't declare compact tools, so with a local model the
+  card Actions are offered only when `assistant.compact_tools = "off"`.
+
+**Other core and the plugin's reads**
+
+- **The offline report's edit-log writer is not schema-valid.** `netstead.map.edits.dump_edit_log` writes
+  `facility: {model_link_id: [...]}` (the schema wants `facility.links.model_link_id` plus `ignore_missing`) and a
+  per-change `notes` (forbidden by `additionalProperties: false`). Make it emit schema-valid ProjectCards (keeping
+  `apply_edits` reading both shapes); the plugin's tolerant reader can then stay for old files only.
+- **`list_columns` performance.** The plugin's `routes.list_columns` checks every cell of each object column to find
+  list-valued ones, on every form read; that is slow on large link tables. Sample, or ask core for the column types.
+- **"Selection actions ▾" wording.** `packages/netstead/docs/cookbook/workbench-plugins.md` (the `"selection"`
+  context row) and `static/js/commands.js` (the menu's comment) place it in the Details panel; it is in the
+  **Selection** panel.
+
+**The plugin**
+
+- **Honour a query selection's own `links.ignore_missing` when lowering.** A property change follows it, but a
+  deletion made from a query selection is lowered as the link ids it resolved to, so the query's flag is lost.
+- **`apply_card`:** re-resolve a card's query selections on another network version (out of scope for v1).
+- **Scoped (time-of-day) values** in property changes.
+- **TOML cards**, once `projectcard` fixes `_read_toml`.
+- **Transit changes (P6).** The transit commands answer "not yet supported".
+- **projectcard upstream.** Its `validate_card` fills defaults into the caller's dict; `property_changes` is never
+  type-checked; `utils.py` has an invalid escape (`SyntaxWarning`). Report them, then drop the warning filter.

@@ -157,8 +157,9 @@ def few(ids: Sequence[Any], n: int = 5) -> str:
 def rows_by_key(frame: Any, pk: str, ids: Sequence[Any], columns: Sequence[str]) -> dict[str, dict[str, Any]]:
     """``{str(key): {column: value}}`` for the rows of a pandas ``frame`` whose ``pk`` is in ``ids``.
 
-    Keys compare as text (an id typed ``"7"`` finds row 7); missing cells come back as ``None`` and numpy scalars as
-    Python ones. Uses only the frame's own methods, so the plugin needs no pandas import.
+    Keys compare as text (an id typed ``"7"`` finds row 7); missing cells come back as ``None``, numpy scalars as
+    Python ones, and list or array cells as they are. Uses only the frame's own methods, so the plugin needs no
+    pandas import.
     """
     wanted = {str(i) for i in ids}
     keep = list(dict.fromkeys([pk, *columns]))
@@ -171,7 +172,8 @@ def rows_by_key(frame: Any, pk: str, ids: Sequence[Any], columns: Sequence[str])
 
 
 def _py(value: Any) -> Any:
-    return value.item() if hasattr(value, "item") else value
+    """A numpy scalar as a Python one; anything else (an array cell included) as it is."""
+    return value.item() if hasattr(value, "item") and getattr(value, "ndim", 0) == 0 else value
 
 
 def _what(pc: PropertyChange) -> str:
