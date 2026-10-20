@@ -11,7 +11,8 @@ This file is for the **corral** package only. `netstead` (which depends on corra
 - **`ResourceRef.table_schema`** (JSON key `schema`): the resource's schema
   when a scan already knows it, so consumers need not reopen the source.
   `ZipCsvAdapter.scan` fills it from inline schemas in the zip's own
-  `datapackage.json` (what `Package.write` produces); a schema given by
+  `datapackage.json` (what `Package.write` produces), matching resources by
+  path, or else by name when exactly one member has that stem; a schema given by
   reference is not fetched. Other adapters leave it `None`.
 - **`corral.dataset.infer_write_format(dest, format=None)`**: the format
   `Package.write` will use for `dest` (explicit `format` wins, `"zip"` means
@@ -19,6 +20,10 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   `netstead.Network.write` now call it instead of keeping their own copies,
   which fixes the `convert` summary reporting `"unknown"` for a `.zip`
   destination and `"zip"` for `--format zip`.
+- **`Engine.to_arrow(expr)` (#116).** The protocol gains an Arrow
+  converter beside `to_pandas` / `to_polars`; `IbisEngine.to_arrow` runs
+  `to_pyarrow` with no pandas hop, so `to_arrow(from_arrow(t))` equals `t`.
+  A third-party engine must now implement it to pass `register_engine`.
 
 ### Changed
 
@@ -29,8 +34,12 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   `corral.io.PackageWriter`). The csv, parquet, duckdb and zipcsv adapters
   implement it with the same layouts as before; an adapter without it gets
   one `dest/<table>` location per table. Zip writes now go through the same
-  staging and swap as every other format, so replacing an existing
-  directory with a zip is no longer a delete-then-rename.
+  staging and swap as every other format. Overwriting a file with a file
+  (a zip, or a duckdb file, which was not atomic before) is a single
+  atomic rename, so `dest` never goes missing. When a directory is
+  involved on either side, the old `dest` is still moved aside first and
+  put back if the final rename fails; for a zip replacing a directory,
+  that replaces the old delete-then-rename.
 - **`register_adapter` refuses collisions.** Registering a different adapter
   class under a taken name, or claiming an extension or URL scheme another
   adapter owns, now raises `DuplicateAdapterError` (a `FormatError`) instead
@@ -38,7 +47,8 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   Re-registering the same class still just replaces the instance.
 - **`dispatch` logs a probe that raises.** The probe chain still skips an
   adapter whose `probe()` raises, but now says so at DEBUG on the
-  `corral.io` logger (adapter name and error; URL userinfo is masked).
+  `corral.io` logger (adapter name and error; any URL in the error has its
+  userinfo masked up to the last `@` and its query string dropped).
 - **An unreadable netrc file is reported.** The credentials cascade used to
   skip a `.netrc` (or `$NETRC`) it could not read, such as one with the
   wrong permissions, without a word. It still skips it, but logs a warning
@@ -48,24 +58,38 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   `corral.io._reset_registry()` restores the five stock adapters and their
   bindings; one autouse fixture in `tests/io/conftest.py` calls it around every io
   test, replacing the per-file re-registration workarounds.
+- **`SpecVersion` is a plain ordered frozen dataclass.** Its ordering now
+  comes from `@dataclass(frozen=True, order=True)` instead of four
+  hand-written comparison methods. Behaviour is unchanged: versions still
+  order by `(major, minor, patch)`, and comparing with a non-`SpecVersion`
+  still raises `TypeError`. (#118)
+- **`Schema.missing_values` defaults to `[""]`, not `None`.** A schema whose
+  JSON omits `missingValues` now carries Frictionless's default (an empty
+  cell is null) instead of `None`, so readers no longer need
+  `schema.missing_values or [""]`. It is always a list, like
+  `foreign_keys`; an explicit `missingValues: []` (no nulls at all) is kept
+  as `[]`. Written descriptors now include `"missingValues": [""]` for such
+  schemas. (#119, #120)
+- **`Resource.path` keeps its `str | list[str]` type, now documented.** The
+  docstring states that `path` is descriptive: the loader carries a string
+  or a list through unchanged, and `Package.from_source` matches tables to
+  resources by name, so code that reads `path` must handle the list form.
+  A regression test pins both forms. (#124)
 
 ### Fixed
 
 - **Partitioned parquet writes stream.** `ParquetAdapter.write(...,
   partition_by=[...])` collected the whole table through pandas before
   writing, which runs out of memory on a regional network. It now streams
-  the expression's Arrow record batches into pyarrow's dataset writer.
+  the expression's Arrow record batches into pyarrow's dataset writer,
+  holding the engine's backend lock while the batches are read. Column
+  types in the written files now follow Arrow rather than a pandas round
+  trip, so the files carry the types duckdb produces (a date column stays
+  `date32`, for example).
 - **`DUCKDB://` URLs open the right file.** Dispatch and `probe` treat the
   `duckdb://` scheme case-insensitively, but the adapter stripped only the
   lowercase spelling, so `DUCKDB:///abs/x.duckdb` was handed to duckdb as a
   literal path. The scheme is now stripped with `urlparse`.
-- **`Engine.to_arrow(expr)` (#116).** The protocol gains an Arrow
-  converter beside `to_pandas` / `to_polars`; `IbisEngine.to_arrow` runs
-  `to_pyarrow` with no pandas hop, so `to_arrow(from_arrow(t))` equals `t`.
-  A third-party engine must now implement it to pass `register_engine`.
-
-### Fixed
-
 - **DuckDB writes no longer pull the whole table into memory (#128).**
   `IbisEngine.write_duckdb_table` materialised the expression as an Arrow
   table and re-created it on a second connection. It now ATTACHes the
@@ -152,26 +176,6 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   It now logs this at INFO, sets the new `Package.spec_missing` flag (kept
   by `scope()`), and `validate()` adds one INFO issue,
   `structural.spec_missing`, with a fix hint. (#143)
-
-### Changed
-
-- **`SpecVersion` is a plain ordered frozen dataclass.** Its ordering now
-  comes from `@dataclass(frozen=True, order=True)` instead of four
-  hand-written comparison methods. Behaviour is unchanged: versions still
-  order by `(major, minor, patch)`, and comparing with a non-`SpecVersion`
-  still raises `TypeError`. (#118)
-- **`Schema.missing_values` defaults to `[""]`, not `None`.** A schema whose
-  JSON omits `missingValues` now carries Frictionless's default (an empty
-  cell is null) instead of `None`, so readers no longer need
-  `schema.missing_values or [""]`. It is always a list, like
-  `foreign_keys`; an explicit `missingValues: []` (no nulls at all) is kept
-  as `[]`. Written descriptors now include `"missingValues": [""]` for such
-  schemas. (#119, #120)
-- **`Resource.path` keeps its `str | list[str]` type, now documented.** The
-  docstring states that `path` is descriptive: the loader carries a string
-  or a list through unchanged, and `Package.from_source` matches tables to
-  resources by name, so code that reads `path` must handle the list form.
-  A regression test pins both forms. (#124)
 
 ## [1.0.0-beta.2] — TBD
 

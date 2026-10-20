@@ -58,9 +58,36 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 
 _logger: Final = logging.getLogger(__name__)
 
-# ``scheme://user:secret@host`` userinfo, so a probe error that echoes its
-# source never puts a password in the log.
-_URL_USERINFO: Final = re.compile(r"(?<=://)[^/@\s]+@")
+# A URL inside free text (an exception message): scheme, ``://``, then up to whitespace.
+_URL_IN_TEXT: Final = re.compile(r"[A-Za-z][A-Za-z0-9+.\-]*://\S+")
+
+
+def _redact_url(url: str) -> str:
+    """Mask a URL's userinfo and drop its query string.
+
+    The userinfo runs to the *last* ``@`` (the rule urlparse applies to
+    the netloc), searched over the whole URL rather than only up to the
+    first ``/``: a password may itself contain ``@`` or an unescaped ``/``,
+    and over-masking a path that holds an ``@`` is the safe failure. A
+    query string can carry credentials too (a presigned
+    ``X-Amz-Signature=...``), so it is replaced by ``***``. The userinfo
+    is masked first, so a ``?`` inside a password is not mistaken for the
+    start of a query. A closing quote the URL was written inside (an
+    exception message's ``'...'``) stays outside the redaction.
+    """
+    stripped = url.rstrip("'\"")
+    closing = url[len(stripped) :]
+    scheme, _, rest = stripped.partition("://")
+    if "@" in rest:
+        rest = "***@" + rest.rpartition("@")[2]
+    rest, query_mark, _ = rest.partition("?")
+    return f"{scheme}://{rest}" + ("?***" if query_mark else "") + closing
+
+
+def _redact_urls(text: str) -> str:
+    """Apply :func:`_redact_url` to every URL in ``text``, so a probe error that echoes its source leaks no secret."""
+    return _URL_IN_TEXT.sub(lambda match: _redact_url(match.group(0)), text)
+
 
 # ---------------------------------------------------------------------------
 # Registry state
@@ -426,7 +453,7 @@ def dispatch(source: SourceRef, *, format: str | None = None) -> FormatAdapter:
                 "probe of adapter %r raised %s: %s; skipping it",
                 adapter.name,
                 type(exc).__name__,
-                _URL_USERINFO.sub("***@", str(exc)),
+                _redact_urls(str(exc)),
             )
             continue
 

@@ -336,6 +336,48 @@ def test_write_partitioned_streams_without_pandas(adapter: ParquetAdapter, tmp_p
     assert int(reread.count().to_pyarrow_batches().read_all().column(0)[0].as_py()) == expected_rows
 
 
+def test_write_partitioned_reads_batches_under_the_backend_lock(
+    adapter: ParquetAdapter, tmp_path: Path, monkeypatch
+) -> None:
+    """The batch reader pulls from duckdb while pyarrow writes, so the whole write must hold the backend lock.
+
+    The ibis engine's method locks cover ``to_pyarrow_batches`` only until it returns
+    (see the ``corral.engines.ibis_engine`` module docstring).
+    """
+    import threading
+
+    import pyarrow.parquet as pq
+    from corral.engines.ibis_engine import backend_lock
+
+    engine = get_engine("ibis")
+    expr = adapter.read(LEAVENWORTH_LINK_PARQUET, engine)
+    lock = backend_lock(expr._find_backend())
+    held_while_writing: list[bool] = []
+    real_write = pq.write_to_dataset
+
+    def lock_is_free_to_another_thread() -> bool:
+        free: list[bool] = []
+
+        def probe() -> None:
+            got = lock.acquire(blocking=False)
+            if got:
+                lock.release()
+            free.append(got)
+
+        t = threading.Thread(target=probe)
+        t.start()
+        t.join()
+        return free[0]
+
+    def checking_write(*args, **kwargs):
+        held_while_writing.append(not lock_is_free_to_another_thread())
+        return real_write(*args, **kwargs)
+
+    monkeypatch.setattr(pq, "write_to_dataset", checking_write)
+    adapter.write(expr, tmp_path / "partitioned", engine, partition_by=["facility_type"])
+    assert held_while_writing == [True]
+
+
 # ---------------------------------------------------------------------------
 # kwarg pass-through
 # ---------------------------------------------------------------------------

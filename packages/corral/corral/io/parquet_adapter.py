@@ -432,17 +432,24 @@ class ParquetAdapter:
         dest_path = _as_path(dest)
         dest_path.mkdir(parents=True, exist_ok=True)
 
-        batches = expr.to_pyarrow_batches()
-        # ``write_to_dataset(partition_cols=...)`` derives the partition schema
-        # with ``table.select``, which a batch reader lacks; build the same
-        # Hive partitioning from the reader's schema instead.
-        partition_schema = pa.schema([batches.schema.field(col) for col in partition_by])
-        pq.write_to_dataset(
-            batches,
-            root_path=str(dest_path),
-            partitioning=ds.partitioning(partition_schema, flavor="hive"),
-            **kwargs,
-        )
+        from corral.engines.ibis_engine import backend_lock
+
+        # The reader keeps pulling from the duckdb connection while pyarrow
+        # writes, after ``to_pyarrow_batches`` (and its method lock) has
+        # returned, so hold the backend lock for the whole write (see the
+        # ``corral.engines.ibis_engine`` module docstring).
+        with backend_lock(expr._find_backend(use_default=True)):
+            batches = expr.to_pyarrow_batches()
+            # ``write_to_dataset(partition_cols=...)`` derives the partition schema
+            # with ``table.select``, which a batch reader lacks; build the same
+            # Hive partitioning from the reader's schema instead.
+            partition_schema = pa.schema([batches.schema.field(col) for col in partition_by])
+            pq.write_to_dataset(
+                batches,
+                root_path=str(dest_path),
+                partitioning=ds.partitioning(partition_schema, flavor="hive"),
+                **kwargs,
+            )
 
 
 # ---------------------------------------------------------------------------

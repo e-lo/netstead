@@ -192,3 +192,65 @@ def test_probe_exception_log_hides_url_userinfo(caplog) -> None:
 
     assert "hunter2" not in caplog.text
     assert "magic://***@host/x" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("text", "secrets", "kept"),
+    [
+        ("cannot open s3://AK:se@cret@bucket/x", ["se@cret", "cret@", "AK:"], "s3://***@bucket/x"),
+        ("cannot open ftp://u:pa/ss@host/x", ["pa/ss", "u:pa"], "ftp://***@host/x"),
+        (
+            "cannot open https://h.example/f.csv?X-Amz-Signature=abc123&X-Amz-Credential=AKIA",
+            ["abc123", "AKIA", "X-Amz-Signature="],
+            "https://h.example/f.csv?***",
+        ),
+        ("plain error, no url", [], "plain error, no url"),
+    ],
+)
+def test_probe_log_redaction(text, secrets, kept) -> None:
+    """Userinfo is masked up to the *last* ``@`` (a password may hold ``@`` or ``/``); query strings are dropped."""
+    from corral.io import _redact_urls
+
+    redacted = _redact_urls(text)
+    for secret in secrets:
+        assert secret not in redacted
+    assert kept in redacted
+
+
+def test_probe_exception_log_drops_a_presigned_query(caplog) -> None:
+    import logging
+
+    _clear_registry()
+
+    class LeakyAdapter(FuzzyAdapter):
+        name = "leaky"
+
+        def probe(self, source):
+            raise ValueError(f"cannot open {source}")
+
+    register_adapter(LeakyAdapter())
+    register_adapter(FuzzyAdapter())
+
+    with caplog.at_level(logging.DEBUG, logger="corral.io"):
+        dispatch("magic://host/x?X-Amz-Signature=abc123")
+
+    assert "abc123" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("text", "secrets", "kept"),
+    [
+        ("cannot open s3://u:pa?ss@host/x", ["pa?ss", "ss@", "u:pa"], "s3://***@host/x"),
+        ("cannot open s3://u:pa?ss@host/x?sig=abc", ["pa?ss", "abc"], "s3://***@host/x?***"),
+        ("cannot open 's3://u:secret@host/x'", ["secret"], "'s3://***@host/x'"),
+        ('cannot open "https://h/f.csv?sig=abc"', ["abc"], '"https://h/f.csv?***"'),
+    ],
+)
+def test_probe_log_redaction_question_marks_and_quotes(text, secrets, kept) -> None:
+    """A ``?`` inside a password is userinfo, not a query; a closing quote stays outside the redaction."""
+    from corral.io import _redact_urls
+
+    redacted = _redact_urls(text)
+    for secret in secrets:
+        assert secret not in redacted
+    assert kept in redacted
