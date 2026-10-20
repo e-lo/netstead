@@ -218,7 +218,16 @@ def test_validate_flags_a_source_with_no_spec(caplog: pytest.LogCaptureFixture) 
     issues = [i for i in pkg.validate().issues if i.code == "structural.spec_missing"]
     assert len(issues) == 1
     assert issues[0].severity.name == "INFO"
-    assert "datapackage.json" in issues[0].message
+    assert "no spec was given and none was found beside the source" in issues[0].message
+    assert "spec=" in (issues[0].fix_hint or "")
+
+
+def test_spec_missing_does_not_claim_a_zip_has_no_descriptor() -> None:
+    """The Leavenworth zip embeds a datapackage.json; the issue must not say it has none (#143 review)."""
+    pkg = Package.from_source(leavenworth.zip_path(), engine=IbisEngine())
+    (issue,) = [i for i in pkg.validate().issues if i.code == "structural.spec_missing"]
+    assert "has no datapackage.json" not in issue.message
+    assert "zip" in (issue.fix_hint or "")
     assert "structural.spec_missing" not in {i.code for i in pkg.validate(structural=False).issues}
 
 

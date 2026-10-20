@@ -537,10 +537,14 @@ class Package:
                         category=Category.STRUCTURAL,
                         code="structural.spec_missing",
                         message=(
-                            f"package source {self.source!r} has no datapackage.json and no spec was "
-                            f"given, so no table was checked against a schema"
+                            f"package source {self.source!r}: no spec was given and none was found beside "
+                            f"the source, so no table was checked against a schema"
                         ),
-                        fix_hint="Pass spec= to Package.from_source, or put a datapackage.json beside the data.",
+                        fix_hint=(
+                            "Pass spec= to Package.from_source. Only a datapackage.json inside a source "
+                            "directory is discovered automatically; one inside a zip, next to a single "
+                            "file, or at a remote prefix is not."
+                        ),
                     )
                 )
 
@@ -1149,8 +1153,9 @@ def _resolve_spec(
     Order:
         1. Explicit :class:`DataPackage` — passed through.
         2. Explicit path / URL — loaded via :func:`load_package`.
-        3. ``None`` — look for a sibling ``datapackage.json`` next to
-           ``source_str``; if absent, log it and return ``None`` so
+        3. ``None`` — look for ``datapackage.json`` inside
+           ``source_str`` when it is a local directory (not inside a zip
+           or at a remote prefix); if absent, log it and return ``None`` so
            :meth:`Package.from_source` can mark the package
            ``spec_missing``.
     """
@@ -1163,7 +1168,7 @@ def _resolve_spec(
     if candidate.exists():
         return load_package(candidate)
     logger.info(
-        "no spec given and no datapackage.json in %s; tables load unchecked (validate() reports structural.spec_missing)",
+        "no spec= given and no datapackage.json found in %s; tables load without schema checks",
         source_str,
     )
     return None
