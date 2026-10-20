@@ -191,6 +191,33 @@ def test_netrc_missing_file_returns_empty(monkeypatch: pytest.MonkeyPatch, tmp_p
     assert creds_mod.resolve_credentials("example.com") == {}
 
 
+def test_netrc_missing_file_is_not_logged(monkeypatch: pytest.MonkeyPatch, tmp_path: Any, caplog) -> None:
+    """No netrc at all is the common case, not something to warn about."""
+    from corral.io import credentials as creds_mod
+
+    monkeypatch.setenv("NETRC", str(tmp_path / "does-not-exist"))
+    with caplog.at_level("DEBUG", logger="corral.io.credentials"):
+        assert creds_mod._lookup_netrc("example.com") == {}
+    assert caplog.records == []
+
+
+def test_unreadable_netrc_warns_with_its_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Any, caplog) -> None:
+    """A netrc that exists but can't be read (permissions, a directory) is skipped with a warning naming the file."""
+    from corral.io import credentials as creds_mod
+
+    unreadable = tmp_path / "netrc-is-a-directory"
+    unreadable.mkdir()
+    monkeypatch.setenv("NETRC", str(unreadable))
+
+    with caplog.at_level("WARNING", logger="corral.io.credentials"):
+        assert creds_mod._lookup_netrc("example.com") == {}
+
+    [record] = caplog.records
+    assert record.levelname == "WARNING"
+    assert str(unreadable) in record.getMessage()
+    assert "example.com" in record.getMessage()
+
+
 # ---------------------------------------------------------------------------
 # Terminal: empty
 # ---------------------------------------------------------------------------

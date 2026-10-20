@@ -23,26 +23,44 @@ Importing this package triggers self-registration of the five stock
 adapters (csv, parquet, duckdb, zipcsv, remote). Each adapter module
 calls ``register_adapter`` at import time; importing ``corral.io``
 imports all five. Tests that need an empty registry can call
-``_clear_registry()`` in a fixture.
+``_clear_registry()``; ``_reset_registry()`` puts the stock adapters back
+(``packages/corral/tests/io/conftest.py`` does so around every io test).
 """
 
 from __future__ import annotations
 
+import logging
+import re
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Final
 from urllib.parse import urlparse
 
 from ._paths import normalize_to_str
 from .base import (
     AdapterNotAvailableError,
+    DescriptorFactory,
+    DuplicateAdapterError,
     FormatAdapter,
     FormatError,
     FormatNotDetected,
     InvalidAdapterError,
+    PackageWriter,
     ResourceListing,
     ResourceRef,
     SourceRef,
 )
 from .errors import WriteUnsupportedForSchemeError
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from collections.abc import Mapping
+
+    from corral.engines.base import Engine
+
+_logger: Final = logging.getLogger(__name__)
+
+# ``scheme://user:secret@host`` userinfo, so a probe error that echoes its
+# source never puts a password in the log.
+_URL_USERINFO: Final = re.compile(r"(?<=://)[^/@\s]+@")
 
 # ---------------------------------------------------------------------------
 # Registry state
@@ -59,17 +77,27 @@ _BY_EXT: dict[str, str] = {}
 _BY_SCHEME: dict[str, str] = {}
 
 
-def register_adapter(adapter: FormatAdapter) -> None:
+def register_adapter(adapter: FormatAdapter, *, replace: bool = False) -> None:
     """Register ``adapter`` into the global registry.
 
-    Re-registering an adapter with an existing ``name`` overwrites the
-    previous entry (and rebinds its extensions/schemes). This makes
-    test setup and adapter swapping straightforward.
+    A collision is an error unless ``replace=True``: once adapters arrive
+    from third-party packages, two of them claiming one name, extension or
+    URL scheme would otherwise let import order pick the winner silently.
+    Re-registering an instance of the *same* class under its own name is
+    not a collision (a module reload, a test re-registering a stock
+    adapter); it replaces the previous instance.
 
     Args:
         adapter: A :class:`FormatAdapter` instance with non-empty ``name``.
+        replace: Override whatever already holds ``adapter.name`` or any of
+            its extensions/schemes. The replaced adapter's bindings are
+            dropped first.
 
     Raises:
+        DuplicateAdapterError: If, without ``replace=True``, a different
+            adapter class is registered under ``adapter.name``, or one of
+            ``adapter``'s extensions/schemes belongs to another adapter.
+            Nothing is registered.
         InvalidAdapterError: If ``adapter`` does not satisfy the
             :class:`FormatAdapter` protocol, or if ``adapter.name`` is
             empty. Catch via the ``FormatError`` base class to handle
@@ -100,7 +128,7 @@ def register_adapter(adapter: FormatAdapter) -> None:
         ...     get_adapter("doctest-register") is fake
         ... finally:
         ...     _ = _io._REGISTRY.pop("doctest-register", None)
-        ...     _io._purge_bindings_for("doctest-register")
+        ...     _ = _io._BY_EXT.pop("doctestfmt", None)
         True
     """
     if not isinstance(adapter, FormatAdapter):
@@ -113,10 +141,16 @@ def register_adapter(adapter: FormatAdapter) -> None:
 
     name = adapter.name
 
-    # If overwriting, scrub the previous adapter's ext/scheme bindings so we
-    # don't leave dangling pointers to a deregistered name.
+    if not replace:
+        _check_no_collision(adapter)
+
+    # If overwriting, scrub the previous adapter's ext/scheme bindings: the new
+    # adapter may claim fewer extensions, and a stale binding would route those
+    # sources to it anyway.
     if name in _REGISTRY:
-        _purge_bindings_for(name)
+        for bindings in (_BY_EXT, _BY_SCHEME):
+            for key in [key for key, owner in bindings.items() if owner == name]:
+                del bindings[key]
 
     _REGISTRY[name] = adapter
     for ext in adapter.extensions:
@@ -125,14 +159,29 @@ def register_adapter(adapter: FormatAdapter) -> None:
         _BY_SCHEME[scheme.lower()] = name
 
 
-def _purge_bindings_for(name: str) -> None:
-    """Remove ext/scheme bindings that point at ``name``."""
-    for ext, owner in list(_BY_EXT.items()):
-        if owner == name:
-            del _BY_EXT[ext]
-    for scheme, owner in list(_BY_SCHEME.items()):
-        if owner == name:
-            del _BY_SCHEME[scheme]
+def _implementation(adapter: FormatAdapter) -> str:
+    """The adapter's class as ``module.QualName``: stable across a module reload, unlike the class object."""
+    cls = type(adapter)
+    return f"{cls.__module__}.{cls.__qualname__}"
+
+
+def _check_no_collision(adapter: FormatAdapter) -> None:
+    """Raise :class:`DuplicateAdapterError` if ``adapter`` would displace another adapter."""
+    existing = _REGISTRY.get(adapter.name)
+    if existing is not None and _implementation(existing) != _implementation(adapter):
+        raise DuplicateAdapterError(
+            f"An adapter named {adapter.name!r} is already registered ({_implementation(existing)}); "
+            f"pass replace=True to register {_implementation(adapter)} in its place."
+        )
+    claims = [("extension", ext.lower().lstrip("."), _BY_EXT) for ext in adapter.extensions]
+    claims += [("URL scheme", scheme.lower(), _BY_SCHEME) for scheme in adapter.schemes]
+    for kind, key, bindings in claims:
+        owner = bindings.get(key)
+        if owner is not None and owner != adapter.name:
+            raise DuplicateAdapterError(
+                f"The {kind} {key!r} already belongs to adapter {owner!r}; "
+                f"pass replace=True to give it to {adapter.name!r}."
+            )
 
 
 def get_adapter(name: str) -> FormatAdapter:
@@ -180,7 +229,6 @@ def get_adapter(name: str) -> FormatAdapter:
         ...     get_adapter("doctest-get") is fake
         ... finally:
         ...     _ = _io._REGISTRY.pop("doctest-get", None)
-        ...     _io._purge_bindings_for("doctest-get")
         True
     """
     try:
@@ -217,7 +265,6 @@ def list_adapters() -> list[str]:
         ...     "doctest-list" in list_adapters()
         ... finally:
         ...     _ = _io._REGISTRY.pop("doctest-list", None)
-        ...     _io._purge_bindings_for("doctest-list")
         True
     """
     return list(_REGISTRY)
@@ -234,27 +281,22 @@ def _clear_registry() -> None:
     _BY_SCHEME.clear()
 
 
+def _reset_registry() -> None:
+    """Restore the registry to the stock adapters registered at import (test helper).
+
+    The one canonical teardown for tests that clear or re-populate the
+    registry: the same adapter instances and the same extension/scheme
+    bindings ``import corral.io`` produced. Not exported from ``__all__``.
+    """
+    _clear_registry()
+    _REGISTRY.update(_STOCK_REGISTRY)
+    _BY_EXT.update(_STOCK_BY_EXT)
+    _BY_SCHEME.update(_STOCK_BY_SCHEME)
+
+
 # ---------------------------------------------------------------------------
 # Dispatch
 # ---------------------------------------------------------------------------
-
-
-def _normalize_path_str(source: SourceRef) -> str:
-    """Coerce ``source`` to a string for URL/extension parsing.
-
-    Thin dispatcher-side wrapper over :func:`corral.io._paths.normalize_to_str`
-    — the same helper every FormatAdapter uses, so the dispatcher and its
-    delegates can't drift apart on what counts as a valid path-shaped
-    source.
-
-    Raises:
-        UnsupportedSourceError: If ``source`` is a ``dict`` (caller must
-            pass an explicit ``format=`` so :func:`dispatch` skips
-            sniffing) or an otherwise-unsupported type. The exception
-            inherits from ``TypeError`` so existing
-            ``pytest.raises(TypeError)`` patterns still match.
-    """
-    return normalize_to_str(source, adapter="dispatch")
 
 
 def _scheme_of(source_str: str) -> str | None:
@@ -337,7 +379,7 @@ def dispatch(source: SourceRef, *, format: str | None = None) -> FormatAdapter:
         ...     dispatch("data/example.doctestfmt") is fake
         ... finally:
         ...     _ = _io._REGISTRY.pop("doctest-dispatch", None)
-        ...     _io._purge_bindings_for("doctest-dispatch")
+        ...     _ = _io._BY_EXT.pop("doctestfmt", None)
         True
 
         An explicit ``format=`` short-circuits all sniffing. The
@@ -349,14 +391,17 @@ def dispatch(source: SourceRef, *, format: str | None = None) -> FormatAdapter:
         ...     dispatch("anything-at-all", format="doctest-dispatch").name
         ... finally:
         ...     _ = _io._REGISTRY.pop("doctest-dispatch", None)
-        ...     _io._purge_bindings_for("doctest-dispatch")
+        ...     _ = _io._BY_EXT.pop("doctestfmt", None)
         'doctest-dispatch'
     """
     # 1. Explicit format wins.
     if format is not None:
         return get_adapter(format)
 
-    source_str = _normalize_path_str(source)
+    # The same coercion every adapter uses, so the dispatcher and its delegates
+    # agree on what a path-shaped source is. A ``dict`` source raises
+    # UnsupportedSourceError (a TypeError): pass ``format=`` to skip sniffing.
+    source_str = normalize_to_str(source, adapter="dispatch")
 
     # 2. URL scheme match.
     scheme = _scheme_of(source_str)
@@ -373,10 +418,16 @@ def dispatch(source: SourceRef, *, format: str | None = None) -> FormatAdapter:
         try:
             if adapter.probe(source):
                 return adapter
-        except Exception:
+        except Exception as exc:
             # An adapter's probe must be cheap and total; if it raises,
             # treat it as a non-match rather than letting it crash the
-            # dispatch pipeline.
+            # dispatch pipeline, but leave a trace for whoever debugs it.
+            _logger.debug(
+                "probe of adapter %r raised %s: %s; skipping it",
+                adapter.name,
+                type(exc).__name__,
+                _URL_USERINFO.sub("***@", str(exc)),
+            )
             continue
 
     # 5. Give up with a useful error message.
@@ -385,12 +436,53 @@ def dispatch(source: SourceRef, *, format: str | None = None) -> FormatAdapter:
     )
 
 
+# ---------------------------------------------------------------------------
+# Whole-package writes
+# ---------------------------------------------------------------------------
+
+
+def write_package(
+    adapter: FormatAdapter,
+    tables: Mapping[str, Any],
+    dest: Path,
+    engine: Engine,
+    *,
+    describe: DescriptorFactory,
+) -> None:
+    """Write a multi-table package to ``dest`` in ``adapter``'s layout.
+
+    The layout is the adapter's decision: an adapter implementing
+    :class:`PackageWriter` lays the package out itself (csv / parquet: a
+    directory with a ``datapackage.json``; duckdb: one multi-table file;
+    zipcsv: one zip). Any other adapter gets one ``dest / <table>``
+    location per table through its ``write``, and raises there if that
+    layout doesn't fit. A new format slots in by implementing
+    ``write_package``; nothing central needs editing.
+
+    Args:
+        adapter: The adapter for the target format.
+        tables: ``{table name: expression}``, in package order.
+        dest: A location that does not exist yet (callers stage the write).
+        engine: The engine performing the writes.
+        describe: Builds the ``datapackage.json`` descriptor for a member
+            format, for layouts that carry one.
+    """
+    if isinstance(adapter, PackageWriter):
+        adapter.write_package(tables, dest, engine, describe=describe)
+        return
+    for name, expr in tables.items():
+        adapter.write(expr, dest / name, engine=engine)
+
+
 __all__ = [
     "AdapterNotAvailableError",
+    "DescriptorFactory",
+    "DuplicateAdapterError",
     "FormatAdapter",
     "FormatError",
     "FormatNotDetected",
     "InvalidAdapterError",
+    "PackageWriter",
     "ResourceListing",
     "ResourceRef",
     "SourceRef",
@@ -399,6 +491,7 @@ __all__ = [
     "get_adapter",
     "list_adapters",
     "register_adapter",
+    "write_package",
 ]
 
 
@@ -420,3 +513,8 @@ from . import duckdb_adapter as _duckdb_adapter  # noqa: E402,F401  -- self-regi
 from . import parquet_adapter as _parquet_adapter  # noqa: E402,F401  -- self-registers
 from . import remote as _remote  # noqa: E402,F401  -- self-registers; claims URL schemes per remote.REMOTE_SCHEMES
 from . import zipcsv_adapter as _zipcsv_adapter  # noqa: E402,F401  -- self-registers
+
+# Snapshot of the stock registry, for :func:`_reset_registry`.
+_STOCK_REGISTRY: dict[str, FormatAdapter] = dict(_REGISTRY)
+_STOCK_BY_EXT: dict[str, str] = dict(_BY_EXT)
+_STOCK_BY_SCHEME: dict[str, str] = dict(_BY_SCHEME)

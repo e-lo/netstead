@@ -48,6 +48,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urlparse
 
 import duckdb
 
@@ -57,7 +58,10 @@ from corral.io._paths import normalize_to_str
 from corral.io.base import ResourceListing, ResourceRef, SourceRef
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
+    from collections.abc import Mapping
+
     from corral.engines.base import Engine, TableExpr
+    from corral.io.base import DescriptorFactory
     from corral.spec.model import Schema
 
 
@@ -78,15 +82,17 @@ def _coerce_path(source: SourceRef) -> str:
         duckdb://rel/path.duckdb    → "rel/path.duckdb"
 
     Dict sources are not accepted here: the dispatcher does not feed
-    dicts to adapters (the dispatcher's ``_normalize_path_str`` rejects
+    dicts to adapters (``dispatch``'s own ``normalize_to_str`` call rejects
     them upstream), and our own read()/write() build the dict-form
     source themselves before passing to the engine.
     """
-    if isinstance(source, str) and source.startswith("duckdb://"):
-        # urlparse is overkill for one prefix; a literal strip is both
-        # more legible and more robust to weird URL fragments we don't
-        # care about for local paths.
-        return source[len("duckdb://") :]
+    if isinstance(source, str):
+        parsed = urlparse(source)
+        if parsed.scheme.lower() == "duckdb":
+            # Keep the netloc: unlike an object-store URL (where remote.py
+            # drops the bucket to get a key), ``duckdb://rel/x.duckdb`` puts
+            # the first path segment there.
+            return parsed.netloc + parsed.path
     return normalize_to_str(source, adapter="DuckdbAdapter")
 
 
@@ -358,6 +364,22 @@ class DuckdbAdapter:
             )
         path_str = _coerce_path(dest)
         engine.write_duckdb_table(expr, path_str, table=table, **kwargs)
+
+    def write_package(
+        self,
+        tables: Mapping[str, TableExpr],
+        dest: Path,
+        engine: Engine,
+        *,
+        describe: DescriptorFactory,
+    ) -> None:
+        """Write one duckdb file at ``dest`` holding a table per entry of ``tables``.
+
+        No ``datapackage.json``: the file is the whole package (``describe``
+        is not called).
+        """
+        for name, expr in tables.items():
+            self.write(expr, dest, engine, table=name)
 
 
 # ---------------------------------------------------------------------------

@@ -206,6 +206,53 @@ def test_package_validate_skip_individual_passes() -> None:
     assert (full_codes - full_schema_codes) <= skipped_codes
 
 
+def test_validate_flags_a_source_with_no_spec(caplog: pytest.LogCaptureFixture) -> None:
+    """No ``spec=`` and no ``datapackage.json``: say so, rather than pass silently (#143)."""
+    from corral.fixtures import sample
+
+    with caplog.at_level("INFO", logger="corral.dataset.package"):
+        pkg = Package.from_source(sample.csv_dir(), engine=IbisEngine())
+    assert pkg.spec_missing
+    assert any("datapackage.json" in r.getMessage() for r in caplog.records)
+
+    issues = [i for i in pkg.validate().issues if i.code == "structural.spec_missing"]
+    assert len(issues) == 1
+    assert issues[0].severity.name == "INFO"
+    assert "no spec was given and none was found beside the source" in issues[0].message
+    assert "spec=" in (issues[0].fix_hint or "")
+
+
+def test_spec_missing_does_not_claim_a_zip_has_no_descriptor() -> None:
+    """The Leavenworth zip embeds a datapackage.json; the issue must not say it has none (#143 review)."""
+    pkg = Package.from_source(leavenworth.zip_path(), engine=IbisEngine())
+    (issue,) = [i for i in pkg.validate().issues if i.code == "structural.spec_missing"]
+    assert "has no datapackage.json" not in issue.message
+    assert "zip" in (issue.fix_hint or "")
+    assert "structural.spec_missing" not in {i.code for i in pkg.validate(structural=False).issues}
+
+
+def test_spec_missing_survives_scope() -> None:
+    from corral.fixtures import sample
+
+    pkg = Package.from_source(sample.csv_dir(), engine=IbisEngine())
+    assert pkg.scope(tables=["book"]).spec_missing
+
+
+@pytest.mark.parametrize("how", ["explicit", "discovered"])
+def test_validate_does_not_flag_a_package_with_a_spec(how: str, tmp_path: Path) -> None:
+    from corral.fixtures import sample
+
+    if how == "explicit":
+        pkg = Package.from_source(sample.csv_dir(), engine=IbisEngine(), spec=sample.DATAPACKAGE)
+    else:
+        src = tmp_path / "csv"
+        shutil.copytree(sample.csv_dir(), src)
+        shutil.copy(sample.DATAPACKAGE, src / "datapackage.json")
+        pkg = Package.from_source(src, engine=IbisEngine())
+    assert not pkg.spec_missing
+    assert "structural.spec_missing" not in {i.code for i in pkg.validate().issues}
+
+
 # ---------------------------------------------------------------------------
 # Scope (table + column subset)
 # ---------------------------------------------------------------------------
@@ -656,3 +703,36 @@ def test_looks_remote_agrees_with_dispatch_scheme(path: str, expected: bool) -> 
 
     assert _looks_remote(path) is expected
     assert _looks_remote(path) is (_scheme_of(path) in REMOTE_SCHEMES)
+
+
+# ---------------------------------------------------------------------------
+# infer_write_format (#169)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("dest", "fmt", "expected"),
+    [
+        ("net.duckdb", None, "duckdb"),
+        ("net.zip", None, "zipcsv"),
+        ("net.csv.zip", None, "zipcsv"),
+        ("net.parquet", None, "parquet"),
+        ("net.csv", None, "csv"),
+        ("net", None, "parquet"),
+        ("net.parquet", "csv", "csv"),
+        ("net", "zip", "zipcsv"),
+    ],
+)
+def test_infer_write_format(dest: str, fmt: str | None, expected: str) -> None:
+    from corral.dataset import infer_write_format
+
+    assert infer_write_format(dest, fmt) == expected
+    assert infer_write_format(Path(dest), format=fmt) == expected
+
+
+def test_infer_write_format_rejects_an_unknown_extension() -> None:
+    from corral.dataset import infer_write_format
+    from corral.io import FormatNotDetected
+
+    with pytest.raises(FormatNotDetected, match="format="):
+        infer_write_format("net.xlsx")

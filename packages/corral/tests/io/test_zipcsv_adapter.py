@@ -24,23 +24,9 @@ import pandas as pd
 import pytest
 from corral.engines import get_engine
 from corral.engines.errors import InvalidEngineCallError
-from corral.io import FormatAdapter, dispatch, list_adapters, register_adapter
+from corral.io import FormatAdapter, dispatch, list_adapters
 from corral.io.base import ResourceRef
 from corral.io.zipcsv_adapter import ZipCsvAdapter
-
-
-@pytest.fixture(autouse=True)
-def _ensure_zipcsv_registered():
-    """Re-register ZipCsvAdapter before each test in this file.
-
-    Other tests (notably test_dispatch.py) call ``_clear_registry()`` in
-    their teardown, which would wipe the import-time registration done
-    by ``zipcsv_adapter.py``. Re-registering per-test keeps these tests
-    independent of suite execution order.
-    """
-    register_adapter(ZipCsvAdapter())
-    yield
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -397,3 +383,44 @@ def test_write_overwrite_true_replaces_existing_dest(tmp_path):
     # New content is in place.
     out = engine.to_pandas(adapter.read(dest, engine=engine, table="data"))
     assert list(out["a"]) == [2, 3, 4]
+
+
+# ---------------------------------------------------------------------------
+# scan() — schemas from the zip's own datapackage.json (#117)
+# ---------------------------------------------------------------------------
+
+
+def _zip_with_descriptor(path: Path, descriptor: object) -> Path:
+    import json
+
+    with zipfile.ZipFile(path, "w") as z:
+        z.writestr("link.csv", "link_id,name\n1,a\n")
+        z.writestr("node.csv", "node_id\n1\n")
+        z.writestr("datapackage.json", descriptor if isinstance(descriptor, str) else json.dumps(descriptor))
+    return path
+
+
+def test_scan_attaches_inline_schemas_from_the_zips_datapackage(tmp_path: Path) -> None:
+    descriptor = {
+        "name": "net",
+        "resources": [
+            {"name": "link", "path": "link.csv", "schema": {"fields": [{"name": "link_id", "type": "integer"}]}},
+            {"name": "node", "path": "node.csv", "schema": "https://example.com/node.schema.json"},
+        ],
+    }
+    refs = {r.name: r for r in ZipCsvAdapter().scan(_zip_with_descriptor(tmp_path / "net.zip", descriptor))}
+
+    link_schema = refs["link"].table_schema
+    assert link_schema is not None
+    assert [f.name for f in link_schema.fields] == ["link_id"]
+    assert refs["node"].table_schema is None, "a schema given by reference is not fetched during a scan"
+
+
+def test_scan_ignores_a_broken_datapackage(tmp_path: Path) -> None:
+    refs = ZipCsvAdapter().scan(_zip_with_descriptor(tmp_path / "net.zip", "{not json"))
+    assert {r.name for r in refs} == {"link", "node"}
+    assert all(r.table_schema is None for r in refs)
+
+
+def test_scan_of_a_zip_whose_schemas_are_references_leaves_schema_empty() -> None:
+    assert all(r.table_schema is None for r in ZipCsvAdapter().scan(LEAVENWORTH_ZIP))

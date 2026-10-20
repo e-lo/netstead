@@ -295,15 +295,15 @@ From the implementation (2026-10; #228, #229, #237). Not filed as issues yet; ea
   `ActionError` for corral's `EditingError` and Arrow, ibis and DuckDB errors; `host.undo` likewise.
 - ~~**A rollback hook for plugins.**~~ **Done (Host API 1.6):** `host.on_rollback(fn)`, run in its place on core's
   undo stack. The plugin's `commit` uses it to take back its file and restore the draft.
-- ~~**A stable edit id.**~~ **Done (Host API 1.6):** `host.mutate` returns a `Mutation` carrying the pending edit's
-  `seq` (never reused on an open network), `host.pending_edits(net_id)` lists them, and `host.undo()`'s `seq`
-  names the edit reversed. The plugin reconciles drafts against them instead of `NetworkHandle.lineage`.
+- ~~**A stable edit id.**~~ **Done (Host API 1.6):** `host.mutate` returns a `Mutation(results, seq)` (the seq
+  unique per network id for the session), `host.pending_edits(net_id)` returns `PendingEdits(issued, edits)`, and
+  `host.undo()`'s `seq` names the edit reversed. The plugin reconciles drafts against them instead of `NetworkHandle.lineage`.
 - **A lineage entry on commit.** The scope wants a committed card's id in the network's lineage; `Host` has no
   method for it (only `host.mutate` appends). Candidate: `host.note_lineage(net_id, text)`.
 - **A read-path check.** `project_cards.import` vets the file it reads with `host.writable`. Candidate:
   `host.readable(path)`.
-- ~~**Compact-mode assistant tools from plugins.**~~ **Done (Host API 1.6):** `compact: ClassVar[bool] = True` on
-  a `mutates` Action. The plugin marks `add_change`, `undo_change`, `preview` and `close_preview`.
+- ~~**Compact-mode assistant tools from plugins.**~~ **Done (Host API 1.6):**
+  `assistant_compact: ClassVar[bool] = True` on a `mutates` Action. The plugin marks `add_change`, `undo_change`, `preview` and `close_preview`.
 
 **Other core and the plugin's reads**
 

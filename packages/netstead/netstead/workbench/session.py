@@ -39,9 +39,12 @@ from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
+import duckdb
+import pyarrow as pa
 from corral.editing import Edit, EditingError, EditResult, affected_rows
 from corral.editing.apply import apply_edit, reverse_edit
 from corral.engines.ibis_engine import IbisEngine
+from ibis.common.exceptions import IbisError
 
 from netstead import Network
 from netstead.config import (
@@ -99,7 +102,7 @@ from .estimate import Estimate, needs_approval
 from .events import EventBus
 from .issues import IssueSet, locate_issues, run_validation
 from .jobs import Job, JobContext, JobRunner
-from .ledger import CORE_SOURCE, PYTHON_SOURCE, EditLedger, PendingEdit
+from .ledger import CORE_SOURCE, PYTHON_SOURCE, EditLedger, PendingEdit, PendingEdits
 from .paths import allowed_roots, open_locator, split_source
 from .plugins.discovery import PluginStatus, discover
 from .plugins.host import Host, PluginSettingsError, validate_plugin_settings
@@ -119,6 +122,9 @@ __all__ = [
 ]
 
 logger = logging.getLogger(__name__)
+
+#: What storage can raise applying or reversing an edit on a draft: refused as ``ActionError`` (``_storage_refusal``).
+_STORAGE_ERRORS = (EditingError, pa.ArrowException, IbisError, duckdb.Error)
 
 #: Selections one session keeps saved (``SaveSelection`` refuses another: delete one first).
 MAX_SAVED_SELECTIONS = 50
@@ -328,7 +334,7 @@ class _LedgerMark:
         issued = current.issued if current is not None else 0
         if self.before is None:
             session.edits.pop(self.net_id, None)
-            session._issued[self.net_id] = max(session._issued.get(self.net_id, 0), issued)
+            session._retire_seqs(self.net_id, issued)
         else:
             self.before.reserve(issued)
             session.edits[self.net_id] = self.before
@@ -345,6 +351,7 @@ class _PluginRollback:
         try:
             self.fn()
         except Exception:  # boundary: a plugin's callback must not stop core putting its own state back
+            # (a BaseException propagates; ``_roll_back`` finishes the rollback, then re-raises it)
             logger.exception("plugin %s: its rollback callback failed", self.plugin_id)
 
 
@@ -398,8 +405,11 @@ class Session:
         self.style: dict[str, Any] = copy.deepcopy(DEFAULT_STYLE)
         self.history: list[HistoryEntry] = []
         self.edits: dict[str, EditLedger] = {}  # net_id -> its pending edits
-        #: net_id -> the newest edit seq a rolled-back Action spent with its ledger: a new ledger starts after it.
+        #: net_id -> the newest edit seq handed out on a ledger that is gone (a rolled-back Action dropped it, or the
+        #: network was closed): a new ledger for that id starts after it, so a seq names one edit for the session.
         self._issued: dict[str, int] = {}
+        #: Set while :meth:`_roll_back` runs undo records (plugins' ``on_rollback`` callbacks among them).
+        self._rolling_back = False
         self.issues: dict[str, IssueSet] = {}  # net_id -> its last validation
         self._injected_parser = parser
         self._parser = parser
@@ -785,10 +795,26 @@ class Session:
         the networks it derived, and puts back the active network, selection, style, saved selections and
         filters. A plugin's
         own state (its closure, files it wrote) is the plugin's to put back: the callbacks it registered with
-        ``host.on_rollback`` run in their place on the undo stack.
+        ``host.on_rollback`` run in their place on the undo stack, while ``_rolling_back`` refuses Host calls that
+        would change the session (:meth:`_refuse_during_rollback`). An undo record that raises (a plugin callback's
+        ``BaseException``, say) does not stop the rest: the rollback finishes, then the first such exception propagates.
         """
-        while len(self._undo) > running.undo_mark:
-            self._undo.pop().undo(self)
+        raised: BaseException | None = None
+        before, self._rolling_back = self._rolling_back, True
+        try:
+            while len(self._undo) > running.undo_mark:
+                try:
+                    self._undo.pop().undo(self)
+                except BaseException as exc:  # finish putting the session back first; re-raised below
+                    raised = raised or exc
+        finally:
+            self._rolling_back = before
+        self._restore_view(running)
+        if raised is not None:
+            raise raised
+
+    def _restore_view(self, running: _Running) -> None:
+        """Put back the shared view state from before ``running``; mark its nested entries rolled back."""
         view = running.view
         ids = self.registry.ids()
         self.active = view.active if view.active in ids else (ids[0] if ids else None)
@@ -992,14 +1018,21 @@ class Session:
         never by reversing them on the network yourself. The ledger records the version and each changed
         table's expression, so it notices such a change (even one that left the version alone) and undo
         then refuses rather than reverse the edit a second time.
+
+        Storage refusing an edit while it is applied to the draft (corral's ``EditingError``, an Arrow, ibis
+        or DuckDB error) raises :class:`ActionError` ``"the edit failed: <type>: <scrubbed message>"`` (the
+        message loses URL credentials and key-shaped tokens; the original is logged). A failure after that
+        (while swapping in, re-checking or publishing) propagates as it is: the edit was applied.
         """
         with self._lock:
+            self._refuse_during_rollback("mutate")
             handle = self._handle(net_id)
             _check_version(handle, expected_version)
             if not edits:  # nothing to apply: no version bump, no pending edit, nothing recorded
                 return []
             draft = derived_copy(handle.roadway)  # shares the immutable table expressions; copies the wrappers
-            applied = [apply_edit(draft, edit) for edit in edits]
+            with _storage_refusal("the edit failed"):  # only applying to the draft: nothing has changed yet
+                applied = [apply_edit(draft, edit) for edit in edits]
             self._swap(handle, draft, {e.table for e in edits}, note, origin)
             touched = touched_keys(applied, table_keys(handle.roadway))
             for table, keys in [*(recheck or {}).items(), *self._referencing(handle, applied).items()]:
@@ -1022,9 +1055,11 @@ class Session:
         newest pending edit can be reverted, since corral reverses an edit against the table that edit left
         behind: anything else raises :class:`ActionError`, as does a network changed without the ledger
         (in place, outside :meth:`mutate` and :meth:`revert`): its version moved, or one of the edit's tables
-        holds an expression other than the one the ledger recorded.
+        holds an expression other than the one the ledger recorded. Storage refusing the reverse raises
+        :class:`ActionError` ``"the undo failed: ..."``, scrubbed as in :meth:`mutate`.
         """
         with self._lock:
+            self._refuse_during_rollback("undo")
             handle = self._handle(net_id)
             ledger = self.edits.get(handle.id)
             last = ledger.last() if ledger else None
@@ -1034,8 +1069,9 @@ class Session:
             if ledger.unseen_change(handle.version, _exprs(handle, tables)):  # type: ignore[union-attr]  # ``last`` is set
                 raise ActionError(f"{handle.id} changed outside the Workbench since; undo is unavailable")
             draft = derived_copy(handle.roadway)
-            for result in reversed(last.results):
-                reverse_edit(draft, result)
+            with _storage_refusal("the undo failed"):  # as in ``mutate``: only reversing on the draft
+                for result in reversed(last.results):
+                    reverse_edit(draft, result)
             self._swap(handle, draft, tables, note, origin)
             self._ledger_for(handle.id).pop(handle.version, _exprs(handle, tables))
             removed = _removed_links(last.results, reverted=True)
@@ -1125,20 +1161,35 @@ class Session:
             ledger = self.edits[net_id] = EditLedger(self._issued.get(net_id, 0))
         return ledger
 
-    def pending_edits(self, net_id: str | None) -> list[dict[str, Any]]:
-        """Each pending edit's view on a network, oldest first (``seq`` is its stable id); ``[]`` before any edit."""
+    def pending_edits(self, net_id: str | None) -> PendingEdits:
+        """A network's pending edits (views, oldest first) and the newest seq handed out, read in one moment."""
         with self._lock:
-            ledger = self.edits.get(self._handle(net_id).id)
-            return [e.view() for e in ledger.entries] if ledger else []
+            handle_id = self._handle(net_id).id
+            ledger = self.edits.get(handle_id)
+            if ledger is None:
+                return PendingEdits(self._issued.get(handle_id, 0), ())
+            return PendingEdits(ledger.issued, tuple(e.view() for e in ledger.entries))
+
+    def _retire_seqs(self, net_id: str, issued: int) -> None:
+        """A ledger that handed out seqs up to ``issued`` is going: the next one for ``net_id`` starts after them."""
+        self._issued[net_id] = max(self._issued.get(net_id, 0), issued)
+
+    def _refuse_during_rollback(self, what: str) -> None:
+        """Refuse a Host call that changes the session from inside a rollback (a plugin's ``on_rollback`` callback)."""
+        if self._rolling_back:
+            raise RuntimeError(f"host.{what} cannot be called from a rollback callback")
 
     def on_rollback(self, plugin_id: str, fn: Callable[[], None]) -> None:
         """Call ``fn()`` if the running Action (or one it is nested in) fails: plugin ``plugin_id`` puts its state back.
 
         It goes on the undo stack, so it runs in its place in the rollback, newest first: the network changes made
         after it are already undone. It is dropped once the outermost Action succeeds. A failing ``fn`` is logged and
-        the rollback goes on. Raises ``RuntimeError`` outside an Action handler, where nothing rolls back.
+        the rollback goes on (a ``BaseException`` is re-raised once the rollback has finished). ``fn`` may not call
+        back into the session: :meth:`mutate`, :meth:`revert`, :meth:`derive` and this method raise ``RuntimeError``
+        while a rollback runs. Raises ``RuntimeError`` outside an Action handler, where nothing rolls back.
         """
         with self._lock:
+            self._refuse_during_rollback("on_rollback")
             if not self._running:
                 raise RuntimeError(f"{plugin_id}: host.on_rollback works only inside an Action handler")
             self._undo.append(_PluginRollback(plugin_id, fn))
@@ -1283,6 +1334,7 @@ class Session:
         the base's lineage plus ``note``. The active network does not change.
         """
         with self._lock:
+            self._refuse_during_rollback("derive")
             base = self._handle(net_id)
             handle = self.registry.add(derived_copy(base.roadway), source=base.source, label=label)
             handle.derived_from = base.id
@@ -1334,7 +1386,8 @@ class Session:
 
         Each entry has ``type``, class ``name``, ``description`` (its docstring's first line), owning ``plugin``
         (``None`` for core), ``mutates``, ``assistant`` (whether it may ever be offered to the assistant: never
-        ``open_network``/``close_network``, nor an Action with ``assistant = False``) and its JSON ``schema``. A
+        ``open_network``/``close_network``, nor an Action with ``assistant = False``), ``assistant_compact`` (a mutating
+        Action offered in the compact tool set too) and its JSON ``schema``. A
         schema that can't be generated (install refuses such a plugin; this is defence in depth) is logged and
         listed as ``None``: one bad model must not fail the catalog for every caller.
         """
@@ -1354,6 +1407,7 @@ class Session:
                     "plugin": owner.get(action_type),
                     "mutates": model.mutates,
                     "assistant": offerable(action_type, model),
+                    "assistant_compact": model.assistant_compact,
                     "schema": _json_schema_or_none(model),
                 }
             )
@@ -1535,7 +1589,8 @@ class Session:
                 handle.derived_from = f"{action.net_id} (closed)"
         # Its few-shot examples go too: a later network may reuse the id.
         self._examples = deque((e for e in self._examples if e[0] != action.net_id), maxlen=_MAX_EXAMPLES)
-        self.edits.pop(action.net_id, None)
+        if (ledger := self.edits.pop(action.net_id, None)) is not None:
+            self._retire_seqs(action.net_id, ledger.issued)  # a network reopened under this id goes on numbering
         self.issues.pop(action.net_id, None)
         if self.selection and self.selection["net_id"] == action.net_id:
             self.selection = None
@@ -1932,10 +1987,8 @@ class Session:
     def _apply_plan(self, handle: NetworkHandle, plan: EditPlan, note: str | None) -> dict[str, Any]:
         """Apply ``plan`` as one pending edit and describe it, with the live warnings on the rows it touched."""
         text = f"{plan.summary} ({note})" if note else plan.summary
-        try:
-            self.mutate(handle.id, plan.edits, note=text, recheck=plan.recheck, expected_version=plan.version)
-        except EditingError as exc:  # corral refused the payload; the draft was discarded, nothing changed
-            raise ActionError(f"the edit failed: {exc}") from exc
+        # A payload storage refuses is an ActionError from ``mutate`` ("the edit failed: ..."): nothing changed.
+        self.mutate(handle.id, plan.edits, note=text, recheck=plan.recheck, expected_version=plan.version)
         ledger = self.edits[handle.id]
         entry = ledger.last()
         assert entry is not None  # mutate just added it
@@ -2077,6 +2130,21 @@ def _exprs(handle: NetworkHandle, tables: Iterable[str]) -> dict[str, Any]:
 def _same_results(given: Sequence[EditResult], held: Sequence[EditResult]) -> bool:
     """Whether ``given`` are exactly the ``EditResult`` objects a pending edit holds (identity, in order)."""
     return len(given) == len(held) and all(a is b for a, b in zip(given, held, strict=True))
+
+
+@contextmanager
+def _storage_refusal(what: str) -> Iterator[None]:
+    """Turn storage refusing an edit (on a draft: nothing changed) into an ``ActionError`` safe to show anywhere.
+
+    The message goes to history, plugin routes and possibly a remote assistant model, so it is
+    :func:`~netstead.workbench.redact.describe_error`'s (URL credentials and key-shaped tokens removed); the original
+    is logged with its traceback.
+    """
+    try:
+        yield
+    except _STORAGE_ERRORS as exc:
+        logger.warning("%s", what, exc_info=True)
+        raise ActionError(f"{what}: {describe_error(exc)}") from exc
 
 
 def _mark_rolled_back(children: list[_Nested], parent_type: str) -> None:

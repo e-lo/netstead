@@ -24,13 +24,10 @@ contract.
 
 from __future__ import annotations
 
-import json
 import logging
 import os
-import shutil
 import tempfile
 import warnings
-import zipfile
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -48,8 +45,9 @@ from corral.io import (
     dispatch,
     get_adapter,
     list_adapters,
+    write_package,
 )
-from corral.reports import Category, ValidationReport
+from corral.reports import Category, Issue, Severity, ValidationReport
 from corral.spec.loader import load_package
 from corral.spec.model import DataPackage, Resource, Schema
 from corral.validation import (
@@ -138,6 +136,11 @@ class Package:
             consults only the per-table ``dirty`` flag.
         metadata: Free-form bag of extras (engine name, write
             timestamp, etc.); echoed into the JSON validation report.
+        spec_missing: ``True`` when :meth:`from_source` found no spec
+            (no ``spec=`` and no ``datapackage.json`` beside the source)
+            and used an empty one. :meth:`validate` then reports
+            ``structural.spec_missing`` so the gap is not mistaken for a
+            clean pass.
 
     Examples:
         Load the bundled generic sample fixture, validate, then
@@ -166,6 +169,7 @@ class Package:
     source: str | None = None
     dirty_tracker: Any = None  # DirtyTracker | None — Any because the type may be unimportable.
     metadata: dict[str, Any] = field(default_factory=dict)
+    spec_missing: bool = False
 
     # ------------------------------------------------------------------
     # Constructors
@@ -269,7 +273,10 @@ class Package:
         eng = engine if engine is not None else get_engine()
         source_str = str(source)
         # 1. Resolve spec.
-        resolved_spec = _resolve_spec(spec, source_str)
+        found_spec = _resolve_spec(spec, source_str)
+        # Without a spec, tables still load, but nothing can be checked
+        # against a schema; keep an empty spec and flag it for validate().
+        resolved_spec = found_spec if found_spec is not None else DataPackage(name="auto", resources=[])
 
         # 2. Discover resources. ``format=`` narrows the top-level
         #    dispatch; the directory-of-known-formats walk still uses
@@ -332,6 +339,7 @@ class Package:
             tables=tables_out,
             engine=eng,
             source=source_str,
+            spec_missing=found_spec is None,
         )
 
     @classmethod
@@ -520,6 +528,23 @@ class Package:
                 ResourceRef(name=t.name, path=t.source or t.name, format=t.format or "") for t in self.tables.values()
             ]
             check_structural(self.spec, source=self.source, actual_resources=actual, report=report)
+            if self.spec_missing:
+                report.add_issue(
+                    Issue(
+                        severity=Severity.INFO,
+                        category=Category.STRUCTURAL,
+                        code="structural.spec_missing",
+                        message=(
+                            f"package source {self.source!r}: no spec was given and none was found beside "
+                            f"the source, so no table was checked against a schema"
+                        ),
+                        fix_hint=(
+                            "Pass spec= to Package.from_source. Only a datapackage.json inside a source "
+                            "directory is discovered automatically; one inside a zip, next to a single "
+                            "file, or at a remote prefix is not."
+                        ),
+                    )
+                )
 
         # Schema: per-table per-field rules. Iterates only over loaded
         # tables (a partial load skips schemas it can't run).
@@ -672,6 +697,7 @@ class Package:
             source=self.source,
             dirty_tracker=self.dirty_tracker,
             metadata=dict(self.metadata),
+            spec_missing=self.spec_missing,
         )
 
     # ------------------------------------------------------------------
@@ -707,15 +733,15 @@ class Package:
         * else default to ``"parquet"`` when ``dest`` looks like a
           directory.
 
-        For partitioned/multi-table formats (parquet directory, duckdb
-        file), each :class:`Table` writes to a per-table location under
-        ``dest``. The exact layout matches the read-side scan so a
-        round-trip via :meth:`from_source` returns the same logical
-        package. A parquet or csv directory also gets a
-        ``datapackage.json`` with inlined schemas, so a directory source
-        rewritten over itself keeps its descriptor. A zip (``.zip`` /
-        ``.csv.zip``, or ``format="zip"``) holds one flat ``<table>.csv``
-        member per table plus the same ``datapackage.json``.
+        The on-disk layout is the target adapter's decision (see
+        :func:`corral.io.write_package`), and matches the read-side scan
+        so a round-trip via :meth:`from_source` returns the same logical
+        package: a parquet or csv directory holds one ``<table>.<ext>``
+        per table plus a ``datapackage.json`` with inlined schemas (so a
+        directory source rewritten over itself keeps its descriptor); a
+        duckdb file holds a table each; a zip (``.zip`` / ``.csv.zip``, or
+        ``format="zip"``) holds one flat ``<table>.csv`` member per table
+        plus the same ``datapackage.json``.
 
         Every format is staged beside ``dest`` and swapped into place
         once the write is complete. The tables are lazy expressions
@@ -794,25 +820,29 @@ class Package:
                 f"Package.write: writing to a {scheme}:// URL is not supported; write to a local path instead"
             )
         dest_path = Path(dest)
-        target_format = _resolve_write_format(dest_path, format)
+        target_format = infer_write_format(dest_path, format)
 
         # 3. Overwrite guard. The existing ``dest`` stays in place until
         #    the staged write is complete (see step 4): the tables may
         #    still read from it.
         if dest_path.exists() and not overwrite:
             raise FileExistsError(f"Destination {dest_path!r} already exists. Pass overwrite=True to replace it.")
-        if target_format == "zipcsv":
-            _write_zipcsv_package(self, dest_path)
-            return
 
-        # 4. Per-table write into a staging directory beside ``dest``
-        #    (same filesystem, so the final swap is a rename), then the
-        #    swap. The staging directory, and the displaced old ``dest``
-        #    moved into it, go away with the context.
+        # 4. The adapter lays the package out (directory, multi-table file,
+        #    zip) into a staging area beside ``dest`` (same filesystem, so
+        #    the final swap is a rename), then the swap. The staging
+        #    directory, and the displaced old ``dest`` moved into it, go
+        #    away with the context.
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix=f".{dest_path.name}.", dir=dest_path.parent) as staging_dir:
             staged = Path(staging_dir) / dest_path.name
-            _write_package_tables(self, staged, target_format)
+            write_package(
+                get_adapter(target_format),
+                {name: table.expr for name, table in self.tables.items()},
+                staged,
+                self.engine,
+                describe=lambda fmt: _package_descriptor(self.spec, self.tables, format=fmt),
+            )
             _swap_into_place(staged, dest_path, aside=Path(staging_dir) / f"{dest_path.name}.previous")
 
     # ------------------------------------------------------------------
@@ -1119,16 +1149,17 @@ class Package:
 def _resolve_spec(
     spec: DataPackage | str | Path | None,
     source_str: str,
-) -> DataPackage:
+) -> DataPackage | None:
     """Resolve the ``spec`` argument to a :class:`DataPackage`.
 
     Order:
         1. Explicit :class:`DataPackage` — passed through.
         2. Explicit path / URL — loaded via :func:`load_package`.
-        3. ``None`` — look for a sibling ``datapackage.json`` next to
-           ``source_str``; if absent, synthesise an empty
-           :class:`DataPackage` (the structural validator will surface
-           the gap).
+        3. ``None`` — look for ``datapackage.json`` inside
+           ``source_str`` when it is a local directory (not inside a zip
+           or at a remote prefix); if absent, log it and return ``None`` so
+           :meth:`Package.from_source` can mark the package
+           ``spec_missing``.
     """
     if isinstance(spec, DataPackage):
         return spec
@@ -1138,10 +1169,11 @@ def _resolve_spec(
     candidate = Path(source_str) / "datapackage.json"
     if candidate.exists():
         return load_package(candidate)
-    # Synthesise an empty package — :meth:`Package.from_source` will
-    # populate ``tables`` from the scan, but the spec stays empty so
-    # downstream FK / schema checks no-op cleanly.
-    return DataPackage(name="auto", resources=[])
+    logger.info(
+        "no spec= given and no datapackage.json found in %s; tables load without schema checks",
+        source_str,
+    )
+    return None
 
 
 def _looks_remote(path: str) -> bool:
@@ -1276,49 +1308,6 @@ def _schema_for(spec: DataPackage, table_name: str) -> Schema | None:
     return None
 
 
-def _resolve_write_format(dest: Path, format: str | None) -> str:
-    """Return the canonical write-format name for :meth:`Package.write`.
-
-    An explicit ``format`` wins (``"zip"`` is an alias for the
-    ``"zipcsv"`` adapter, matching the user-facing ``--format zip``);
-    otherwise the format is inferred from ``dest``.
-    """
-    if format is None:
-        return _infer_write_format(dest)
-    return "zipcsv" if format == "zip" else format
-
-
-def _write_package_tables(pkg: Package, dest: Path, target_format: str) -> None:
-    """Write every table of ``pkg`` to ``dest`` in ``target_format``.
-
-    The layout depends on the format:
-
-    * parquet / csv: a directory with one ``<table>.<ext>`` file per table
-      plus a ``datapackage.json`` describing them (see
-      :func:`_package_descriptor`), so a directory source that carried its
-      own descriptor keeps one when written back over itself;
-    * duckdb: a single multi-table file, one table per :attr:`Package.tables` entry;
-    * anything else: one ``dest / <table>`` location per table through the
-      resolved adapter, which raises if the layout doesn't fit. This is the
-      seam new formats slot into without editing the central if/elif ladder.
-    """
-    if target_format in {"parquet", "csv"}:
-        dest.mkdir(parents=True, exist_ok=True)
-        adapter = get_adapter(target_format)
-        for name, table in pkg.tables.items():
-            adapter.write(table.expr, dest / f"{name}.{target_format}", engine=pkg.engine)
-        descriptor = _package_descriptor(pkg.spec, pkg.tables, format=target_format)
-        (dest / "datapackage.json").write_text(json.dumps(descriptor, indent=2))
-    elif target_format == "duckdb":
-        adapter = get_adapter("duckdb")
-        for name, table in pkg.tables.items():
-            adapter.write(table.expr, dest, engine=pkg.engine, table=name)
-    else:
-        adapter = get_adapter(target_format)
-        for name, table in pkg.tables.items():
-            adapter.write(table.expr, dest / name, engine=pkg.engine)
-
-
 def _swap_into_place(staged: Path, dest: Path, *, aside: Path) -> None:
     """Rename ``staged`` to ``dest``, first moving anything at ``dest`` to ``aside``.
 
@@ -1338,41 +1327,6 @@ def _swap_into_place(staged: Path, dest: Path, *, aside: Path) -> None:
         raise
 
 
-def _write_zipcsv_package(pkg: Package, dest: Path) -> None:
-    """Write ``pkg`` as a CSV-in-zip data package at ``dest``, atomically.
-
-    Layout: one flat ``<table>.csv`` member per table plus a
-    ``datapackage.json`` (see :func:`_package_descriptor`) — the same
-    shape :class:`~corral.io.zipcsv_adapter.ZipCsvAdapter` scans back.
-
-    Each table is encoded by the csv adapter into a staging directory
-    created *beside* ``dest`` (same filesystem), added to a staging
-    archive, and deleted, so at most one uncompressed CSV is on disk at a
-    time. The finished archive is ``os.replace``-d over ``dest``: readers
-    never see a partial zip, and a failed write leaves a previous *file*
-    ``dest`` intact. Replacing an existing *directory* ``dest`` is not
-    atomic — it is ``rmtree``-d just before the rename. The staging
-    directory is always removed. Resources without a resolvable schema
-    are written without a ``schema`` key.
-    """
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    csv_adapter = get_adapter("csv")
-    with tempfile.TemporaryDirectory(prefix=f".{dest.name}.", dir=dest.parent) as staging_dir:
-        staging = Path(staging_dir)
-        staged_zip = staging / ".package.zip"
-        with zipfile.ZipFile(staged_zip, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-            for name, table in pkg.tables.items():
-                member = staging / f"{name}.csv"
-                csv_adapter.write(table.expr, member, engine=pkg.engine)
-                zf.write(member, arcname=member.name)
-                member.unlink()
-            descriptor = _package_descriptor(pkg.spec, pkg.tables, format="csv")
-            zf.writestr("datapackage.json", json.dumps(descriptor, indent=2))
-        if dest.is_dir():
-            shutil.rmtree(dest)
-        os.replace(staged_zip, dest)
-
-
 #: Per-format resource properties written into a flat-layout descriptor.
 _FLAT_RESOURCE_PROPS: dict[str, dict[str, str]] = {
     "csv": {"format": "csv", "mediatype": "text/csv", "encoding": "utf-8"},
@@ -1390,7 +1344,7 @@ def _package_descriptor(spec: DataPackage, table_names: Iterable[str], *, format
     self-describing — a relative schema path from the source package would
     dangle next to the written files, so it is dropped instead.
     """
-    props = _FLAT_RESOURCE_PROPS[format]
+    props = _FLAT_RESOURCE_PROPS.get(format, {"format": format})
     descriptor = spec.model_dump(mode="json", by_alias=True, exclude_none=True, exclude={"resources"})
     originals = {r.name: r for r in spec.resources}
     resources: list[dict[str, Any]] = []
@@ -1409,21 +1363,43 @@ def _package_descriptor(spec: DataPackage, table_names: Iterable[str], *, format
     return descriptor
 
 
-def _infer_write_format(dest: Path) -> str:
-    """Infer a write format from ``dest``.
+def infer_write_format(dest: str | Path, format: str | None = None) -> str:
+    """Return the format :meth:`Package.write` uses for ``dest``.
+
+    Public so callers that report or branch on the format (the CLI's
+    ``convert`` summary, ``netstead.Network.write``) ask the writer
+    instead of re-implementing its rules.
 
     Order:
-        1. Extension match (``.parquet``, ``.csv``, ``.duckdb``,
+        1. An explicit ``format`` wins; ``"zip"`` is an alias for the
+           ``"zipcsv"`` adapter (the user-facing ``--format zip``).
+        2. Extension match (``.parquet``, ``.csv``, ``.duckdb``,
            ``.csv.zip`` / ``.zip``).
-        2. No extension at all → default to ``"parquet"`` (the
-           recommended persistent layout per architecture §6.1) so the
-           common "give me a directory" call site keeps working.
-        3. Unknown extension → raise :class:`FormatNotDetected` rather
-           than silently coercing to parquet; the user almost certainly
-           meant a specific format and a silent default would hide the
-           bug.
+        3. No extension at all → ``"parquet"`` (the recommended persistent
+           layout per architecture §6.1), so the common "give me a
+           directory" call keeps working.
+        4. Unknown extension → :class:`FormatNotDetected` rather than a
+           silent parquet default that would hide a typo.
+
+    Args:
+        dest: The write destination.
+        format: The ``format=`` the caller passed to :meth:`Package.write`, if any.
+
+    Returns:
+        An adapter name: ``"parquet"``, ``"csv"``, ``"duckdb"``, ``"zipcsv"``,
+        or the explicit ``format``.
+
+    Raises:
+        FormatNotDetected: If ``format`` is ``None`` and the extension is unknown.
+
+    Examples:
+        >>> from corral.dataset import infer_write_format
+        >>> infer_write_format("net.csv.zip"), infer_write_format("out"), infer_write_format("x", "zip")
+        ('zipcsv', 'parquet', 'zipcsv')
     """
-    name = dest.name.lower()
+    if format is not None:
+        return "zipcsv" if format == "zip" else format
+    name = Path(dest).name.lower()
     if name.endswith(".duckdb"):
         return "duckdb"
     if name.endswith(".zip"):
@@ -1432,7 +1408,6 @@ def _infer_write_format(dest: Path) -> str:
         return "parquet"
     if name.endswith(".csv"):
         return "csv"
-    # No extension at all → directory-ish; default to parquet per §6.1.
     if "." not in name:
         return "parquet"
     raise FormatNotDetected(

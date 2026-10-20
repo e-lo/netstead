@@ -34,14 +34,18 @@ Usage::
 
     uv sync --extra dev-fixtures
     uv run python packages/netstead/netstead/fixtures/leavenworth/scripts/build_leavenworth.py
+
+After a change to the vendored spec only, ``descriptor.py`` in this folder
+rewrites datapackage.json and the zip without this script's extra or an OSM
+fetch::
+
+    uv run --frozen python packages/netstead/netstead/fixtures/leavenworth/scripts/descriptor.py
 """
 
 from __future__ import annotations
 
-import json
 import shutil
 import sys
-import zipfile
 from datetime import UTC, datetime
 from io import StringIO
 from pathlib import Path
@@ -51,18 +55,24 @@ import osmnx as ox
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
+from descriptor import (
+    CSV_DIR,
+    DATAPACKAGE_PATH,
+    FIXTURE_DIR,
+    TABLE_ORDER,
+    ZIP_PATH,
+    write_datapackage,
+    write_zip,
+)
 from shapely.geometry import LineString
 
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
 
-FIXTURE_DIR = Path(__file__).resolve().parent.parent
-CSV_DIR = FIXTURE_DIR / "csv"
+# FIXTURE_DIR, CSV_DIR, ZIP_PATH and DATAPACKAGE_PATH come from descriptor.py.
 PARQUET_DIR = FIXTURE_DIR / "parquet"
 DUCKDB_PATH = FIXTURE_DIR / "leavenworth.duckdb"
-ZIP_PATH = FIXTURE_DIR / "leavenworth.csv.zip"
-DATAPACKAGE_PATH = FIXTURE_DIR / "datapackage.json"
 
 # ---------------------------------------------------------------------------
 # OSM source signature - documented for reproducibility
@@ -543,72 +553,6 @@ def write_duckdb(tables: dict[str, pd.DataFrame]) -> None:
         con.close()
 
 
-def write_zip() -> None:
-    """Zip the canonical csv/ tree into leavenworth.csv.zip."""
-    if ZIP_PATH.exists():
-        ZIP_PATH.unlink()
-    members = sorted(CSV_DIR.glob("*.csv"))
-    # ZipFile honours fixed dates so we set ZipInfo manually for byte-identity
-    with zipfile.ZipFile(ZIP_PATH, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-        for member in members:
-            info = zipfile.ZipInfo(filename=member.name, date_time=(2020, 1, 1, 0, 0, 0))
-            info.compress_type = zipfile.ZIP_DEFLATED
-            zf.writestr(info, member.read_bytes())
-    # Also include datapackage.json for self-contained zip use
-    with zipfile.ZipFile(ZIP_PATH, mode="a", compression=zipfile.ZIP_DEFLATED) as zf:
-        info = zipfile.ZipInfo(filename="datapackage.json", date_time=(2020, 1, 1, 0, 0, 0))
-        info.compress_type = zipfile.ZIP_DEFLATED
-        zf.writestr(info, DATAPACKAGE_PATH.read_bytes())
-
-
-def write_datapackage(table_names: list[str]) -> None:
-    """Write a Frictionless datapackage.json that references the csv/ tree."""
-    resources = []
-    for name in table_names:
-        # Use JSON Pointer-style schema reference into the vendored 0.97 spec.
-        # Loaders that don't resolve $ref can still fall back to the inline
-        # datapackage description.
-        resources.append(
-            {
-                "name": name,
-                "path": f"csv/{name}.csv",
-                "format": "csv",
-                "mediatype": "text/csv",
-                "encoding": "utf-8",
-                "schema": f"../../spec/0.97/{name}.schema.json",
-            }
-        )
-    package = {
-        "$schema": "https://datapackage.org/profiles/2.0/datapackage.json",
-        "name": "leavenworth-wa",
-        "title": "Leavenworth, WA - example GMNS network",
-        "version": "0.1.0",
-        "spec": {"name": "gmns", "version": "0.97"},
-        "description": (
-            "Tiny example General Modeling Network Specification (GMNS) network "
-            "synthesized from OpenStreetMap for the historic downtown core of "
-            "Leavenworth, Washington. Bundled with netstead for tests and the "
-            "5-minute getting-started example."
-        ),
-        "homepage": "https://github.com/e-lo/netstead",
-        "licenses": [
-            {
-                "name": "ODbL-1.0",
-                "title": "Open Database License",
-                "path": "https://opendatacommons.org/licenses/odbl/1-0/",
-            }
-        ],
-        "sources": [
-            {
-                "title": "OpenStreetMap",
-                "path": "https://www.openstreetmap.org/",
-            }
-        ],
-        "resources": resources,
-    }
-    DATAPACKAGE_PATH.write_text(json.dumps(package, indent=2, sort_keys=True) + "\n")
-
-
 # ---------------------------------------------------------------------------
 # Validation
 # ---------------------------------------------------------------------------
@@ -671,8 +615,7 @@ def main() -> int:
     link_tod_df = build_link_tod_table(link_df)
     sig_ctrl_df = build_signal_controller_table(node_df)
 
-    # Order matters for datapackage.json resource order (deterministic)
-    tables: dict[str, pd.DataFrame] = {
+    built: dict[str, pd.DataFrame] = {
         "node": node_df,
         "link": link_df,
         "geometry": geom_df,
@@ -681,9 +624,11 @@ def main() -> int:
         "use_group": use_grp_df,
         "time_set_definitions": tsd_df,
         "link_tod": link_tod_df,
+        "signal_controller": sig_ctrl_df,
     }
-    if not sig_ctrl_df.empty:
-        tables["signal_controller"] = sig_ctrl_df
+    # TABLE_ORDER fixes the datapackage.json resource order; an empty
+    # signal_controller (no signals in the extract) is left out.
+    tables = {name: built[name] for name in TABLE_ORDER if not (name == "signal_controller" and built[name].empty)}
 
     # FK validation before write
     fk_errors = validate_fks(tables)

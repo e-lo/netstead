@@ -17,6 +17,49 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   any engine's expression through ibis); it is groundwork for Arrow
   consumers.
 
+### Added
+
+- **`ResourceRef.table_schema`** (JSON key `schema`): the resource's schema
+  when a scan already knows it, so consumers need not reopen the source.
+  `ZipCsvAdapter.scan` fills it from inline schemas in the zip's own
+  `datapackage.json` (what `Package.write` produces); a schema given by
+  reference is not fetched. Other adapters leave it `None`.
+- **`corral.dataset.infer_write_format(dest, format=None)`**: the format
+  `Package.write` will use for `dest` (explicit `format` wins, `"zip"` means
+  `"zipcsv"`, else the extension, else parquet). `corral convert` and
+  `netstead.Network.write` now call it instead of keeping their own copies,
+  which fixes the `convert` summary reporting `"unknown"` for a `.zip`
+  destination and `"zip"` for `--format zip`.
+
+### Changed
+
+- **Adapters decide how a package lands on disk.** `Package.write` no
+  longer branches per format: it stages the write and calls the new
+  `corral.io.write_package`, which uses the adapter's optional
+  `write_package(tables, dest, engine, *, describe)` (protocol
+  `corral.io.PackageWriter`). The csv, parquet, duckdb and zipcsv adapters
+  implement it with the same layouts as before; an adapter without it gets
+  one `dest/<table>` location per table. Zip writes now go through the same
+  staging and swap as every other format, so replacing an existing
+  directory with a zip is no longer a delete-then-rename.
+- **`register_adapter` refuses collisions.** Registering a different adapter
+  class under a taken name, or claiming an extension or URL scheme another
+  adapter owns, now raises `DuplicateAdapterError` (a `FormatError`) instead
+  of silently overwriting. Pass `replace=True` to override on purpose.
+  Re-registering the same class still just replaces the instance.
+- **`dispatch` logs a probe that raises.** The probe chain still skips an
+  adapter whose `probe()` raises, but now says so at DEBUG on the
+  `corral.io` logger (adapter name and error; URL userinfo is masked).
+- **An unreadable netrc file is reported.** The credentials cascade used to
+  skip a `.netrc` (or `$NETRC`) it could not read, such as one with the
+  wrong permissions, without a word. It still skips it, but logs a warning
+  naming the file and the host. A missing or unparsable netrc is still
+  silent.
+- **Tests run against the stock adapter registry.** A new private
+  `corral.io._reset_registry()` restores the five stock adapters and their
+  bindings; one autouse fixture in `tests/io/conftest.py` calls it around every io
+  test, replacing the per-file re-registration workarounds.
+
 ### Internal
 
 - **`Engine.scan` contract suite (#141).** One test class per invariant on
@@ -27,6 +70,14 @@ This file is for the **corral** package only. `netstead` (which depends on corra
 
 ### Fixed
 
+- **Partitioned parquet writes stream.** `ParquetAdapter.write(...,
+  partition_by=[...])` collected the whole table through pandas before
+  writing, which runs out of memory on a regional network. It now streams
+  the expression's Arrow record batches into pyarrow's dataset writer.
+- **`DUCKDB://` URLs open the right file.** Dispatch and `probe` treat the
+  `duckdb://` scheme case-insensitively, but the adapter stripped only the
+  lowercase spelling, so `DUCKDB:///abs/x.duckdb` was handed to duckdb as a
+  literal path. The scheme is now stripped with `urlparse`.
 - **DuckDB writes no longer pull the whole table into memory (#128).**
   `IbisEngine.write_duckdb_table` materialised the expression as one Arrow
   table. It now streams record batches (100k rows at a time) from the
@@ -105,6 +156,39 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   the same self-describing descriptor (package metadata carried over,
   resource paths rewritten, schemas inlined), so `Package.from_source` on
   the written directory auto-discovers the spec again.
+- **Chained and circular `$ref`s in schemas.** A `$ref` whose target was
+  itself a `$ref` was left unresolved, so the field silently loaded with a
+  raw `$ref` and no `enum`. The loader now follows chained refs to the end
+  (refs inside an external file resolve against that file) and raises
+  `SpecLoadError("Circular $ref ...")`, naming the chain, when a ref leads
+  back to itself, however the file paths along the way are spelled
+  (`./a.json`, `sub/../a.json`). (#122)
+- **A package loaded without any spec now says so.** `Package.from_source`
+  on a source with no `spec=` and no `datapackage.json` used to synthesise
+  an empty spec silently, so `validate()` could pass with nothing checked.
+  It now logs this at INFO, sets the new `Package.spec_missing` flag (kept
+  by `scope()`), and `validate()` adds one INFO issue,
+  `structural.spec_missing`, with a fix hint. (#143)
+
+### Changed
+
+- **`SpecVersion` is a plain ordered frozen dataclass.** Its ordering now
+  comes from `@dataclass(frozen=True, order=True)` instead of four
+  hand-written comparison methods. Behaviour is unchanged: versions still
+  order by `(major, minor, patch)`, and comparing with a non-`SpecVersion`
+  still raises `TypeError`. (#118)
+- **`Schema.missing_values` defaults to `[""]`, not `None`.** A schema whose
+  JSON omits `missingValues` now carries Frictionless's default (an empty
+  cell is null) instead of `None`, so readers no longer need
+  `schema.missing_values or [""]`. It is always a list, like
+  `foreign_keys`; an explicit `missingValues: []` (no nulls at all) is kept
+  as `[]`. Written descriptors now include `"missingValues": [""]` for such
+  schemas. (#119, #120)
+- **`Resource.path` keeps its `str | list[str]` type, now documented.** The
+  docstring states that `path` is descriptive: the loader carries a string
+  or a list through unchanged, and `Package.from_source` matches tables to
+  resources by name, so code that reads `path` must handle the list form.
+  A regression test pins both forms. (#124)
 
 ## [1.0.0-beta.2] — TBD
 

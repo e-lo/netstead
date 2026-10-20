@@ -45,5 +45,5 @@ engines / adapters that legitimately need it (duckdb table refs,
 partitioned-parquet handles). Adapters that cannot handle a dict should
 raise a clear :class:`TypeError` rather than silently mis-routing it;
 the :func:`corral.io.dispatch` helper does the same at the dispatch
-layer (see :func:`corral.io._normalize_path_str`).
+layer (via :func:`corral.io._paths.normalize_to_str`).
 """

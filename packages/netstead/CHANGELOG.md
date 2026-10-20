@@ -26,6 +26,14 @@ This file is for the **netstead** package only. The underlying generic engine `c
   disconnect in the build job's `finally` (or the estimate's) replaced the
   build's real error and its estimate payload, or failed a build whose output
   was already written. `build.close_quietly` now logs it as a warning.
+- **The Leavenworth fixture's `datapackage.json` is self-contained.** Each
+  resource now carries its resolved GMNS 0.97 schema inline instead of a
+  `../../spec/0.97/...` path, so the descriptor loads wherever it is copied,
+  including the copy inside `leavenworth.csv.zip`, which could not resolve
+  any schema before (and still described the package as gmnspy's). A test
+  fails if an inlined schema drifts from `spec/0.97/`;
+  `scripts/descriptor.py` regenerates the descriptor and zip without an
+  OpenStreetMap fetch or the `dev-fixtures` extra. (#127)
 - **The offline report's "Fix locally" edit log is a schema-valid ProjectCard.**
   `netstead.map.edits.dump_edit_log` and the browser download (`buildYaml` in
   `map_component.js`) put the facility under `links` / `nodes` with
@@ -72,28 +80,57 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Added
 
+- **Quality rule `quality.overlapping_links`** ([#5](https://github.com/e-lo/netstead/issues/5)).
+  Flags pairs of links whose shapes share a stretch longer than
+  `min_overlap_units` (default `0`, in CRS units), such as a link drawn on top of
+  part of another. Links that meet at a node, cross, or have the identical shape
+  (two-way twins) are not flagged. Reads inline `link.geometry` or the `geometry`
+  table via `geometry_id`; needs shapely (`[clean]`). One WARNING per pair with
+  `extra` `link_ids`, `rows` and `overlap_length`. Candidate pairs come from an
+  STRtree box query cut down in numpy before the exact test: 0.2 s on a 100k-link
+  network.
+- **Quality rule `quality.non_unique_combination`** ([#7](https://github.com/e-lo/netstead/issues/7)).
+  Flags rows that repeat a column combination that should be unique, such as two
+  `link_tod` rows for the same `link_id` and `time_day` (GMNS 0.97 gives the
+  time-of-day tables a surrogate key, so spec validation lets these through). It
+  checks every time-of-day table plus `lane` / `segment_lane` lane numbers by
+  default; the `combinations` threshold replaces that list. One WARNING per
+  repeated combination, with its row positions in `extra["rows"]`. Grouping runs
+  in DuckDB (0.03 s on a 100k-row `link_tod` plus a 200k-row `lane`).
 - **`Network.from_source(url, credentials=...)`** forwards explicit cloud
   credentials (fsspec storage options) to `Package.from_source`, as the
   [Read from S3](https://e-lo.github.io/netstead/corral/cookbook/read-from-s3/) cookbook describes.
 
 - **Plugin Host API 1.6** (the cards plugin's follow-ups):
-  - `host.mutate` raises `ActionError` ("the edit failed: ...") when storage
-    refuses an edit (corral's `EditingError`, an Arrow, ibis or DuckDB error),
-    so a plugin's failed edit reads as a refusal instead of "internal error".
-    `host.undo` does the same for a failed reverse.
-  - Stable edit ids: `host.mutate` returns a `Mutation` (exported), still the
-    list of `EditResult`s, carrying the pending edit's `seq`.
-    `host.pending_edits(net_id)` lists a network's pending edits (`seq`,
-    `source`, `note`, `version`, `rows`, `saved`), and `host.undo()`'s `seq`
-    names the edit it reversed. A seq is never reused on an open network, even
-    after a rolled-back Action spent it (the ledger used to hand it out again).
+  - Storage refusing an edit (corral's `EditingError`, an Arrow, ibis or
+    DuckDB error) while `Session.mutate` applies it to the draft is an
+    `ActionError` ("the edit failed: <type>: <message>"), and refusing a
+    reverse in `Session.revert` is "the undo failed: ...". The message is
+    scrubbed of URL credentials and key-shaped tokens (it reaches history,
+    plugin routes and the assistant); the original is logged. A failure after
+    the edit was applied is not reported as a failed edit. This covers
+    `host.mutate`, `host.undo` and core's edit Actions alike. **Breaking** for
+    Python callers of `Session.mutate`, which used to get corral's exception.
+  - Stable edit ids: `host.mutate` returns a frozen `Mutation(results, seq)`
+    (exported). **Breaking**: it used to return the list of `EditResult`s.
+    `host.pending_edits(net_id)` returns a frozen `PendingEdits(issued, edits)`
+    (exported), read in one moment: `edits` are the pending edits' views (`seq`,
+    `source`, `note`, `version`, `rows`, `saved`) and `issued` the newest seq
+    handed out. `host.undo()`'s `seq` names the edit it reversed. A network
+    id's seqs are unique for the session: not reused after a rolled-back Action
+    spent one (the ledger used to hand it out again), nor after the network is
+    closed and reopened. The Edits panel's seqs can have gaps after a rollback.
   - `host.on_rollback(fn)`: a handler registers a callback that core calls when
     its Action is rolled back, including after it succeeded inside an Action
-    that failed later, so the plugin can put back its own state and files.
-  - `compact: ClassVar[bool] = True` on a `mutates` Action offers it in the
-    assistant's compact tool set (a local model's). Core's everyday edits
-    (`edit_cells`, `delete_rows`, `undo_edit`) now carry the flag, in place of
-    a hard-coded list; what core offers is unchanged.
+    that failed later, so the plugin can put back its own state and files. A
+    callback that raises is logged and the rollback goes on (a
+    `BaseException` is re-raised once it has finished); `host.mutate`,
+    `derive`, `undo` and `on_rollback` refuse to run from a callback.
+  - `assistant_compact: ClassVar[bool] = True` on a `mutates` Action offers it
+    in the assistant's compact tool set (a local model's), and `GET
+    /api/actions` entries carry it. Core's everyday edits (`edit_cells`,
+    `delete_rows`, `undo_edit`) carry the flag, in place of a hard-coded list;
+    what core offers is unchanged.
 - **Plugin Host API 1.5:** `ActionError` and `NotSupportedYet` are exported from
   `netstead.workbench.plugins`, so a plugin handler can refuse with a message the
   user sees (anything else it raises is still an internal error).
@@ -187,6 +224,18 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Changed
 
+- **The quality rule pack filters in DuckDB instead of materialising tables**
+  ([#181](https://github.com/e-lo/netstead/issues/181)). Each rule now writes its
+  predicate as an ibis expression and fetches only the offending rows, so findings
+  are unchanged (a golden test pins every field on Leavenworth, RDU I-40 and a
+  synthetic edge-case network) but a 100k-link network checks much faster:
+  `duplicate_near_nodes` drops from 75 s to 0.04 s (an O(n²) Python scan became a
+  grid self-join), and the other table rules are 7–25× faster.
+  `sharp_angle_bends` still parses geometries with shapely, now vectorised and
+  reading only `link_id` and `geometry`. One visible difference: a message quotes
+  a value as stored, so a float column of whole numbers shows `1000.0` where it
+  used to show `1000`. The "write your own rule" cookbook example now shows the
+  pushdown pattern.
 - **`CloseNetwork.mutates` is `True`** (it throws away unsaved edits). It is never
   offered to the assistant either.
 

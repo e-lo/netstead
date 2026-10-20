@@ -12,6 +12,7 @@ from pydantic import ValidationError
 
 from .card import DraftCard
 from .errors import CardError, CardNotSupported, not_supported
+from .lower import Pending
 from .mapping import FieldMap
 from .state import CardsState
 from .types import TRANSIT_TYPES, NetworkChange, RoadwayDeletion, RoadwayPropertyChange, Selection, incomplete
@@ -62,13 +63,17 @@ def open_handle(host: Host, net_id: str) -> Any | None:
         return None
 
 
-def pending_seqs(host: Host, net_id: str) -> frozenset[int]:
-    """The seqs of this plugin's pending edits on the open network ``net_id`` (empty when it is not open)."""
+def pending_seqs(host: Host, net_id: str) -> Pending:
+    """This plugin's pending edits on the open network ``net_id``, read at one moment.
+
+    When the network is not open (it closed after its handle was read), the read knows of no edit (``issued`` 0), so
+    reconciling changes nothing; the draft goes with its handle.
+    """
     try:
-        edits = host.pending_edits(net_id)
+        pending = host.pending_edits(net_id)
     except ActionError:
-        return frozenset()
-    return frozenset(e["seq"] for e in edits if e["source"] == host.plugin_id)
+        return Pending(frozenset(), 0)
+    return Pending(frozenset(e["seq"] for e in pending.edits if e["source"] == host.plugin_id), pending.issued)
 
 
 def target_network(host: Host, state: CardsState, net_id: str | None) -> str:

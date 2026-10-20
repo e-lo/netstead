@@ -153,6 +153,24 @@ def test_an_undo_rolled_back_under_a_change_added_and_undone_in_the_same_parent_
     assert nested.dispatch(UndoChange())["undone"].endswith("link 2: lanes → 3") and cell(nested, 2) == [1]
 
 
+def _cards_state(session):
+    """The plugin's ``CardsState`` (in its factory's closure), through a bound handler."""
+    return session.plugins["project_cards"].actions[0].handler.__self__.state
+
+
+def test_a_stale_pending_read_never_drops_a_change_made_after_it(session, host, no_state_reads):
+    """A route reads the pending edits outside the session lock; a change landing before it reconciles must stay."""
+    from netstead_project_cards.flow import pending_seqs
+
+    no_state_reads(session)
+    session.dispatch(AddChange(change=lanes(1, 2)))
+    stale = pending_seqs(host, NET)  # the route's read
+    session.dispatch(AddChange(change=lanes(2, 3)))  # lands before the route reconciles
+    state = _cards_state(session)
+    state.sync(NET, session.network(NET), stale)
+    assert [e.change.facility.ids for e in state._drafts[NET].entries] == [[1], [2]]
+
+
 def test_a_nested_commit_whose_parent_fails_removes_the_file_and_restores_the_draft(nested, tmp_path):
     nested.dispatch(AddChange(change=lanes(1, 2)))
     path = tmp_path / "cards" / "card.yml"
@@ -259,6 +277,7 @@ def test_a_reopened_network_does_not_inherit_the_closed_ones_draft(session, no_s
 def test_state_reads_the_networks_before_it_takes_its_own_lock(session):
     import weakref
 
+    from netstead_project_cards.lower import Pending
     from netstead_project_cards.state import CardsState, Preview
 
     state, held = CardsState(), []
@@ -271,5 +290,5 @@ def test_state_reads_the_networks_before_it_takes_its_own_lock(session):
         held.append(state._lock._is_owned())
         return handle if net_id == NET else None
 
-    snapshot = state.snapshot(network, lambda net_id: frozenset())
+    snapshot = state.snapshot(network, lambda net_id: Pending(frozenset(), 0))
     assert held and not any(held) and snapshot["preview"] is None

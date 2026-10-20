@@ -57,25 +57,34 @@ after extracting the chosen member.
 from __future__ import annotations
 
 import contextlib
+import json
+import logging
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Final
 from urllib.parse import urlparse
 
 import fsspec
 
 from corral.engines.errors import InvalidEngineCallError
 from corral.io import _scheme_of, register_adapter
+from corral.io._package import DESCRIPTOR_NAME
 from corral.io._paths import normalize_to_str
 from corral.io.base import ResourceListing, ResourceRef, SourceRef
 from corral.io.credentials import resolve_credentials
 from corral.io.errors import WriteUnsupportedForSchemeError
 
+_logger: Final = logging.getLogger(__name__)
+
+#: The data-package descriptor member a csv zip may carry (Package.write writes one).
+_DESCRIPTOR_MEMBER: Final = DESCRIPTOR_NAME
+
 if TYPE_CHECKING:  # pragma: no cover - typing only
-    from collections.abc import Iterator
+    from collections.abc import Iterator, Mapping
 
     from corral.engines.base import Engine, TableExpr
+    from corral.io.base import DescriptorFactory
     from corral.spec.model import Schema
 
 
@@ -221,6 +230,7 @@ class ZipCsvAdapter:
         path_str = normalize_to_str(source, adapter="zipcsv adapter")
         with _open_zip(path_str) as z:
             members = [n for n in z.namelist() if _is_csv_member(n)]
+            schemas = _inline_schemas(z)
         return [
             ResourceRef(
                 name=Path(m).stem,
@@ -228,6 +238,7 @@ class ZipCsvAdapter:
                 format="csv",
                 container_adapter=self.name,
                 member=m,
+                schema=schemas.get(m),
             )
             for m in members
         ]
@@ -412,6 +423,36 @@ class ZipCsvAdapter:
             with zipfile.ZipFile(dest_str, mode="w", compression=zipfile.ZIP_DEFLATED) as z:
                 z.write(tmp_csv, arcname=inner_name)
 
+    def write_package(
+        self,
+        tables: Mapping[str, TableExpr],
+        dest: Path,
+        engine: Engine,
+        *,
+        describe: DescriptorFactory,
+    ) -> None:
+        """Write one zip at ``dest``: a flat ``<table>.csv`` member per table plus a ``datapackage.json``.
+
+        The same shape :meth:`scan` reads back. Each table is encoded to a
+        csv in a scratch directory beside ``dest``, added to the archive and
+        deleted, so at most one uncompressed csv is on disk at a time. The
+        descriptor describes the members, so it is built for ``"csv"``.
+        """
+        from corral.io import get_adapter
+
+        csv_adapter = get_adapter("csv")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        with (
+            tempfile.TemporaryDirectory(prefix=f".{dest.name}.", dir=dest.parent) as scratch_dir,
+            zipfile.ZipFile(dest, mode="w", compression=zipfile.ZIP_DEFLATED) as zf,
+        ):
+            for name, expr in tables.items():
+                member = Path(scratch_dir) / f"{name}.csv"
+                csv_adapter.write(expr, member, engine=engine)
+                zf.write(member, arcname=member.name)
+                member.unlink()
+            zf.writestr(_DESCRIPTOR_MEMBER, json.dumps(describe("csv"), indent=2))
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -436,6 +477,30 @@ def _open_zip(path_str: str, storage_options: dict | None = None) -> Iterator[zi
         storage_options = resolve_credentials(urlparse(path_str).hostname or "")
     with fsspec.open(path_str, "rb", **storage_options) as f, zipfile.ZipFile(f) as z:
         yield z
+
+
+def _inline_schemas(z: zipfile.ZipFile) -> dict[str, Schema]:
+    """Map member name to schema, from the zip's own ``datapackage.json``.
+
+    Only schemas written inline count: a schema given by reference (a URL
+    or a path outside the zip) is not fetched during a scan. A missing or
+    unreadable descriptor yields no schemas rather than failing the scan,
+    which only needs the member list.
+    """
+    from corral.spec.model import DataPackage, Schema
+
+    try:
+        package = DataPackage.model_validate_json(z.read(_DESCRIPTOR_MEMBER))
+    except KeyError:
+        return {}
+    except ValueError as exc:  # malformed JSON or a descriptor the model rejects
+        _logger.debug("ignoring unreadable %s in zip: %s", _DESCRIPTOR_MEMBER, exc)
+        return {}
+    return {
+        resource.path: resource.table_schema
+        for resource in package.resources
+        if isinstance(resource.path, str) and isinstance(resource.table_schema, Schema)
+    }
 
 
 def _is_csv_member(name: str) -> bool:
