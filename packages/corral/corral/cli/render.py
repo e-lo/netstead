@@ -21,7 +21,10 @@ import sys
 from typing import Any
 
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
+
+from corral.reports.grouping import group_issues, severity_summary, strip_source_prefix
 
 __all__ = ["console", "render_dict", "render_issues", "render_table"]
 
@@ -75,13 +78,38 @@ def render_table(rows: list[dict[str, Any]], *, json_out: bool, title: str | Non
     console.print(table)
 
 
-def render_issues(issues: list[Any], *, json_out: bool, header: str | None = None) -> None:
+def render_issues(
+    issues: list[Any],
+    *,
+    json_out: bool,
+    header: str | None = None,
+    source: str | None = None,
+    all: bool = False,  # mirrors the CLI flag name
+) -> None:
     """Render a list of :class:`~corral.reports.Issue` records.
 
-    JSON mode emits the issues array (each issue via ``__dict__`` /
-    dataclass asdict-equivalent — :class:`Issue` is a dataclass so
-    ``vars(...)`` works). Rich mode prints a one-line-per-issue table
-    grouped by severity for at-a-glance reading.
+    JSON mode emits ``{"header": ..., "issues": [...]}`` — one dict per
+    issue via :func:`_issue_to_payload`; the shape is a published
+    contract and is not affected by ``source`` or ``all``.
+
+    Rich mode prints, in order: the header (when given), a severity
+    summary line (``0 errors · 1 warning · 16 info``), ``source: <path>``
+    once (when given and not already part of the header), then the
+    table. Structural findings that share a
+    code and differ only by resource — the sixteen
+    ``structural.missing_optional_resource`` lines a partial GMNS
+    package produces — fold into one row whose table column says
+    ``16 tables`` and whose message lists the resources
+    (:func:`~corral.reports.grouping.group_issues`). ``all=True``
+    expands them to one row per finding. The ``package source '…': ``
+    lead-in is stripped from every message once ``source`` has been
+    printed on its own line.
+
+    At a narrow console width the severity and row columns never wrap,
+    and code / table / message fold rather than truncate with an
+    ellipsis, so every code stays greppable. (No ``min_width`` on
+    purpose: rich adds it on top of padding and overshoots the console
+    by a column, cropping the right border.)
     """
     if json_out:
         # Each Issue is a frozen dataclass; vars() works on it.
@@ -91,21 +119,39 @@ def render_issues(issues: list[Any], *, json_out: bool, header: str | None = Non
         return
 
     if header:
-        console.print(f"[bold]{header}[/bold]")
+        console.print(f"[bold]{escape(header)}[/bold]")
+    console.print(escape(severity_summary(issues)), highlight=False)
     if not issues:
         console.print("[green]✓ no issues[/green]")
         return
+    if source and not (header and str(source) in header):
+        # The CLI headers already name the source; print it once, not twice.
+        console.print(f"[dim]source:[/dim] {escape(str(source))}", highlight=False)
+
     table = Table()
-    for col in ("severity", "code", "table", "row", "message"):
-        table.add_column(col)
-    for issue in issues:
-        table.add_row(
-            str(getattr(issue, "severity", "")),
-            str(getattr(issue, "code", "")),
-            str(getattr(issue, "table", "")),
-            str(getattr(issue, "row", "")),
-            str(getattr(issue, "message", "")),
-        )
+    table.add_column("severity", no_wrap=True)
+    table.add_column("code", overflow="fold")
+    table.add_column("table", overflow="fold")
+    table.add_column("row", no_wrap=True, justify="right")
+    table.add_column("message", ratio=1, overflow="fold")
+    for group in group_issues(issues):
+        if group.groupable and not all:
+            table.add_row(
+                str(group.severity),
+                group.code,
+                f"{len(group.table_names)} tables",
+                "",
+                group.summary(),
+            )
+            continue
+        for issue in group.issues:
+            table.add_row(
+                str(issue.severity),
+                issue.code,
+                str(issue.table or ""),
+                "" if issue.row is None else str(issue.row),
+                strip_source_prefix(issue.message, source),
+            )
     console.print(table)
 
 

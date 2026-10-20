@@ -537,3 +537,60 @@ def test_the_payload_script_still_parses_to_the_original_data(tmp_path):
     payload = json.loads(match.group(1))
     messages = [marker["message"] for marker in payload.get("markers", [])]
     assert evil in messages
+
+
+# ---------------------------------------------------------------------------
+# Grouped unlocated findings + resource inventory (2026-10-20 beta feedback)
+# ---------------------------------------------------------------------------
+
+
+def _leavenworth_html() -> tuple[str, str]:
+    net = _leavenworth_network()
+    report = net.validate()
+    return render_validation_html(net, report), str(report.source)
+
+
+def test_unlocated_findings_are_collapsed_by_default_with_the_count():
+    html, _ = _leavenworth_html()
+    match = re.search(r'<details class="gv-unlocated"([^>]*)>\s*<summary>Unlocated findings \((\d+)\)</summary>', html)
+    assert match, "unlocated block missing or not a <details>"
+    assert "open" not in match.group(1)
+    assert match.group(2) == "17"
+
+
+def test_source_path_appears_exactly_once_in_the_report():
+    html, source = _leavenworth_html()
+    assert html.count(source) == 1
+
+
+def test_grouped_structural_findings_render_as_one_line_with_the_resource_list():
+    html, _ = _leavenworth_html()
+    start = html.index('<details class="gv-unlocated"')
+    unlocated = html[start : html.index("</details>", start)]
+    assert unlocated.count("structural.missing_optional_resource") == 1
+    assert unlocated.count("optional resources absent:") == 1
+    assert "zone, config, curb_seg" in unlocated  # every name is listed, not truncated
+    assert "fk.unverifiable" in unlocated
+    assert unlocated.count("<li") == 2
+    # Every list entry still links to a findings-table row.
+    assert unlocated.count("data-unlocated-issue-id=") == 2
+
+
+def test_resources_table_lists_present_and_absent_spec_tables():
+    html, _ = _leavenworth_html()
+    start = html.index('<details class="gv-resources"')
+    resources = html[start : html.index("</details>", start)]
+    assert "Resources (9 of 25 present)" in resources
+    rows = re.findall(r"<tr data-resource=\"(\w+)\" data-present=\"(\w+)\">(.*?)</tr>", resources, flags=re.DOTALL)
+    by_name = {name: (present, body) for name, present, body in rows}
+    assert by_name["link"][0] == "true"
+    assert "required" in by_name["link"][1] and "339" in by_name["link"][1]
+    assert by_name["zone"][0] == "false"
+    assert "optional" in by_name["zone"][1]
+    assert html.index("gv-resources") < html.index("gv-unlocated") < html.index("gv-table-section")
+
+
+def test_findings_table_messages_drop_the_repeated_source_lead_in():
+    html, source = _leavenworth_html()
+    assert f"package source &#39;{source}&#39;" not in html
+    assert "optional resource &#39;zone&#39; is not present" in html

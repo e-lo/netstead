@@ -64,9 +64,16 @@ The same operation is available from the shell, with three output formats:
 
 ```bash
 netstead validate <source>                       # human-readable summary
+netstead validate <source> --all                 # ...one row per finding, nothing folded
 netstead validate <source> --json                # machine-readable
 netstead validate <source> --html report.html    # standalone HTML report
 ```
+
+The human-readable table opens with a severity summary line (`0 errors · 1 warning · 16 info`)
+and names the source once. Structural findings that differ only by resource — the sixteen
+`structural.missing_optional_resource` lines above — fold into one row whose table column reads
+`16 tables` and whose message lists the absent resources; `--all` expands them to a row each.
+`--json` is never folded.
 
 ### 2. Read the report shape
 
@@ -164,9 +171,12 @@ Stable identifier strings let you script around specific findings without parsin
     pane on top plots each finding on the actual network geometry
     (Leaflet, vendored — no network calls when the report is opened);
     the filterable table below shows the same findings with severity,
-    code, message, and fix hint. For networks imported from
-    OpenStreetMap, each finding's popup carries a one-click "Edit in
-    OSM" deep link to the iD editor.
+    code, message, and fix hint. A "Resources" table above the findings
+    lists every spec table with required / optional, present ✓ / ✗ and
+    its row count, and the "Unlocated findings" block (collapsed by
+    default) folds repeated structural findings into one line. For
+    networks imported from OpenStreetMap, each finding's popup carries
+    a one-click "Edit in OSM" deep link to the iD editor.
 
     ```bash
     netstead validate <source> --html report.html

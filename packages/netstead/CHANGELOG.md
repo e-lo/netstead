@@ -139,6 +139,19 @@ This file is for the **netstead** package only. The underlying generic engine `c
   tooltips (inline SVG from `static/js/icons.js`); the model picker's tooltip
   shows the full model label; the empty "No edit warnings." text is gone (the
   count says so).
+- **Validation output reads at a glance** (2026-10-20 beta feedback).
+  `netstead validate` opens with a severity summary line
+  (`0 errors · 1 warning · 16 info`), names the source once, and folds the
+  sixteen `structural.missing_optional_resource` findings a partial network
+  produces into one row (`16 tables` / `optional resources absent: …`) so the
+  `fk.unverifiable` WARNING is no longer buried; `--all` expands them. The
+  table keeps every code readable at a narrow terminal width. The `--html`
+  report gains a "Resources" table (resource · required/optional · present
+  ✓/✗ · rows) above the findings, its "Unlocated findings" block is a
+  `<details>` collapsed by default with the count in the summary and grouped
+  codes on one line, and the `package source '…': ` lead-in is dropped from
+  every message. Its page title is now `validation report` with the source in
+  the subtitle. `--json` is unchanged.
 - **Quality rule `quality.overlapping_links`** ([#5](https://github.com/e-lo/netstead/issues/5)).
   Flags pairs of links whose shapes share a stretch longer than
   `min_overlap_units` (default `0`, in CRS units), such as a link drawn on top of
