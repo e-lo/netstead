@@ -27,6 +27,16 @@ This file is for the **netstead** package only. The underlying generic engine `c
   node-to-node line. `viz.buffers.pack_network` now takes the optional
   `geometry` frame and resolves shapes in GMNS order: an inline `link.geometry`,
   else the `geometry_id` row, else the straight from/to segment.
+- **Workbench map: a legible focus colour, and direction arrows that follow
+  their offset line.** The focused link is now a saturated magenta over a dark
+  casing (it was white: invisible on the light Positron basemap and over white
+  highway casings); highlights keep their cyan and get the same casing. With
+  "Offset directions" on, each link row's arrow now sits on that row's own
+  offset line instead of the centreline, so a two-way street shows one arrow
+  per direction rather than two crossed into an X. Arrows sit at the path's
+  midpoint by length (not its middle vertex), have a dark outline, and grow
+  from 8 px at zoom 13 to 18 px at zoom 18. The selection colour is still
+  yours to set (`style.colors.selection`).
 - **A Workbench build's engine failing to close no longer hides the result.**
   Since corral's `IbisEngine.close()` stopped swallowing errors, a failed
   disconnect in the build job's `finally` (or the estimate's) replaced the
