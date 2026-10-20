@@ -646,3 +646,43 @@ def test_add_and_reverse_keep_typed_nulls_in_struct_and_list_columns() -> None:
     assert schema.field("lst").type == pa.list_(pa.int64())
     reverse_edit(pkg, r)
     assert _rows(pkg) == before
+
+
+# ---------------------------------------------------------------------------
+# #145: a long session does not pile up memtables
+# ---------------------------------------------------------------------------
+
+
+def _table_counts(engine: IbisEngine) -> tuple[int, int]:
+    """Tables on ibis's process-wide default backend, and on ``engine``'s own connection."""
+    import gc
+
+    import ibis
+
+    gc.collect()
+    con: Any = engine.con
+    return len(ibis.get_backend().list_tables()), len(con.list_tables())
+
+
+def test_edits_run_on_the_engine_and_register_no_memtables() -> None:
+    """Each edit leaves one snapshot table on the engine and nothing on ibis's default backend.
+
+    Before, every delete/update built an ``ibis.memtable`` of the whole table, which ran on (and stayed
+    registered with) ibis's default backend, outside the engine's lock; ``from_arrow`` left a second one
+    behind on the engine for every edit.
+    """
+    pkg = _make_pkg("ibis", rows=[{"id": i, "v": "a"} for i in range(50)])
+    engine = pkg.tables["t"].engine
+    assert isinstance(engine, IbisEngine)
+    default_before, engine_before = _table_counts(engine)
+    n = 10
+    with Session(pkg) as s:
+        for i in range(n):
+            s.add_edit(
+                Edit(op="update_rows", table="t", payload={"predicate": lambda t, i=i: t.id == i, "set": {"v": "b"}})
+            )
+            s.add_edit(Edit(op="delete_rows", table="t", payload={"predicate": lambda t, i=i: t.id == 25 + i}))
+    default_after, engine_after = _table_counts(engine)
+    assert default_after == default_before
+    assert engine_after - engine_before == 2 * n
+    assert pkg["t"].count() == 50 - n

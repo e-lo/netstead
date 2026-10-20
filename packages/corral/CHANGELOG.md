@@ -29,6 +29,15 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   The error now propagates; `close()` stays idempotent because only the
   first call disconnects, and disconnecting an already-closed duckdb
   connection does not raise. `__del__` still never raises.
+- **Long edit sessions no longer pile up memtables (#145).** Every
+  `delete_rows` / `update_rows` built an `ibis.memtable` of the whole
+  table, which ran on (and stayed registered with) ibis's process-wide
+  default backend, outside the engine's lock; and `from_records` /
+  `from_arrow` left a memtable view behind on the engine for every call.
+  Forward edits now run on the table's own engine expression (the "before"
+  sample fetches only its rows), and the engine hands Arrow straight to
+  `create_table`, which drops its staging view. A 20-edit session went
+  from 20 stray default-backend memtables plus 40 engine tables to 0 and 20.
 - **`Engine.scan` contract suite (#141).** One test class per invariant on
   the `scan` docstring (inline `{"data": ...}` through `from_records`,
   duckdb handles through `read_duckdb_table`, unknown dict shapes raise

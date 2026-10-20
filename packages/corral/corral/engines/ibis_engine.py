@@ -389,7 +389,7 @@ class IbisEngine:
         # unknown all-null column — before handing the table to duckdb.
         arrow = _coerce_all_null_columns_to_string(arrow)
         name = _temp_table_name("inline")
-        self.con.create_table(name, obj=ibis.memtable(arrow), temp=True)
+        self.con.create_table(name, obj=arrow, temp=True)  # raw Arrow: ibis drops its staging view after
         expr = self.con.table(name)
         return self.cast_schema(expr, schema) if schema is not None else expr
 
@@ -405,7 +405,7 @@ class IbisEngine:
         """
         arrow_table = _coerce_all_null_columns_to_string(arrow_table)
         name = _temp_table_name("inline_arrow")
-        self.con.create_table(name, obj=ibis.memtable(arrow_table), temp=True)
+        self.con.create_table(name, obj=arrow_table, temp=True)  # raw Arrow: ibis drops its staging view after
         return self.con.table(name)
 
     # ------------------------------------------------------------------
