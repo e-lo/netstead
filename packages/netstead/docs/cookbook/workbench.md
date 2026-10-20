@@ -408,8 +408,8 @@ you opened, local or remote, is never written to, and a copy inside the source f
   model is asked again. The model sees what each GMNS column means
   (`free_speed` is the speed limit). With `assistant.compact_tools = "auto"` (the default) a model on this machine is
   offered fewer tools: the read-only ones that apply now (no network switch with one network open, no saved selection
-  to reuse when none is saved) plus edit, delete and undo. `"on"` does this for any model, `"off"` never; it never
-  offers more than `assistant.actions` / `assistant.plugins` allow. Measured with `scripts/eval_nl_assistant.py` on
+  to reuse when none is saved) plus edit, delete, undo and the plugin Actions marked `compact`. `"on"` does this for
+  any model, `"off"` never; it never offers more than `assistant.actions` / `assistant.plugins` allow. Measured with `scripts/eval_nl_assistant.py` on
   `qwen2.5:7b` (15 requests, 3 runs): 39/45 correct (87%), every answer valid. It still drops the second half of
   "select …, then save it as …": ask in two steps.
 - **Limits:** `assistant.remote_token_budget` (200,000 tokens a session, shared by every remote provider and model;

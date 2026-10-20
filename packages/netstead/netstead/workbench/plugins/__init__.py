@@ -11,7 +11,7 @@ from ..actions import BaseAction
 from ..editing import EditPlan, EditRefused
 from ..errors import ActionError, NotSupportedYet
 from .discovery import ENTRY_POINT_GROUP, PluginStatus, discover
-from .host import Host
+from .host import Host, Mutation
 from .spec import HOST_API, ActionSpec, WorkbenchPlugin
 
 __all__ = [
@@ -23,6 +23,7 @@ __all__ = [
     "EditPlan",
     "EditRefused",
     "Host",
+    "Mutation",
     "NotSupportedYet",
     "PluginStatus",
     "WorkbenchPlugin",
