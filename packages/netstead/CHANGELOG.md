@@ -36,11 +36,18 @@ This file is for the **netstead** package only. The underlying generic engine `c
       signal_phase_num)`.
     - `DEFAULT_UNIQUE_COMBINATIONS` is read-only (a `MappingProxyType` of
       tuples).
-    - A user-configured combination naming a missing table or column gets an
-      INFO issue instead of being skipped silently. Missing tables in the
-      defaults stay silent.
+    - A user-configured combination naming a missing table or column is logged
+      as a warning (logger `netstead.quality.rules`) instead of being skipped
+      silently. It is not an issue, so `severity_override=ERROR` never turns a
+      missing optional table into a failure. Missing tables in the defaults
+      stay silent.
     - A `combinations` value of the wrong shape raises a `ValueError` that
       shows the expected form.
+  - `validation.rules` settings reject a negative or non-numeric
+    `epsilon_units` and a malformed `combinations` when they load, so
+    `SetSetting` refuses the value up front instead of one bad threshold
+    breaking the whole validation run. The rules keep the same check at run
+    time for configs built in code.
   - `quality.duplicate_near_nodes` raises `ValueError` for a negative
     `epsilon_units`. It used to skip the check silently.
   - A seeded property test checks the grid self-join against a pairwise scan

@@ -41,6 +41,7 @@ shape.
 
 from __future__ import annotations
 
+import logging
 import math
 import re
 from collections.abc import Mapping
@@ -50,6 +51,10 @@ from typing import TYPE_CHECKING, Any
 import ibis
 from corral.quality import RuleConfig, register_rule
 from corral.reports import Category, Issue, Severity
+
+from netstead._quality_thresholds import check_combinations, check_epsilon
+
+_log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from collections.abc import Callable
@@ -412,9 +417,7 @@ class DuplicateNearNodesRule:
 
     def run(self, package: Package, report: ValidationReport, rc: RuleConfig | None = None) -> None:
         """Self-join node points on grid cells; flag every pair within epsilon."""
-        epsilon = _threshold(rc, "epsilon_units", 1e-5)
-        if epsilon < 0:
-            raise ValueError(f"{self.code}: thresholds['epsilon_units'] must be >= 0, got {epsilon}")
+        epsilon = check_epsilon(rc.thresholds.get("epsilon_units", 1e-5) if rc else 1e-5)
         node_table = package.tables["node"]
         show_id = _id_display(node_table.expr, "node_id")
         seen_pairs: set[tuple[Any, Any]] = set()
@@ -816,9 +819,11 @@ class NonUniqueCombinationRule:
       of column names. Setting it **replaces** the defaults, so include
       every combination you still want checked. A default combination
       whose table or columns are absent is skipped silently; a configured
-      one gets an INFO issue saying what is missing, since it is probably a
-      typo. A value that isn't a mapping of table name to a list of column
-      lists raises :class:`ValueError`.
+      one is logged (a ``WARNING`` on the ``netstead.quality.rules``
+      logger), since it is probably a typo. It is not an issue, so
+      ``severity_override`` never escalates it. A value that isn't a
+      mapping of table name to a list of column lists raises
+      :class:`ValueError` (settings reject it when they load).
 
     Rows with a null in any of the combination's columns are skipped (a
     missing value is the schema validator's concern, not a duplicate).
@@ -843,7 +848,7 @@ class NonUniqueCombinationRule:
     def run(self, package: Package, report: ValidationReport, rc: RuleConfig | None = None) -> None:
         """Group each configured table by each key combination; emit one issue per repeated combination."""
         configured = rc is not None and "combinations" in rc.thresholds
-        combos_by_table = self._combinations(rc.thresholds["combinations"]) if configured else _default_combinations()
+        combos_by_table = check_combinations(rc.thresholds["combinations"]) if configured else _default_combinations()
         for table_name, combos in combos_by_table.items():
             table = package.tables.get(table_name)
             present = set(table.columns()) if table is not None else set()
@@ -851,51 +856,21 @@ class NonUniqueCombinationRule:
                 missing = [c for c in columns if c not in present]
                 if table is None or missing:
                     if configured:
-                        self._report_unchecked(report, table_name, columns, None if table is None else missing)
+                        self._log_unchecked(table_name, columns, None if table is None else missing)
                     continue
                 show = {c: _id_display(table.expr, c) if c.endswith("_id") else (lambda v: v) for c in columns}
                 for group in _rows(_duplicate_groups(table, columns)):
                     self._report(report, table_name, columns, group, show)
 
-    def _combinations(self, value: object) -> dict[str, list[list[str]]]:
-        """Validate a configured ``combinations`` threshold into ``{table: [[column, ...], ...]}``."""
-        expected = (
-            f"{self.code}: thresholds['combinations'] must map table names to lists of column-name lists, "
-            'e.g. {"link_tod": [["link_id", "time_day"]]}'
-        )
-        if not isinstance(value, Mapping):
-            raise ValueError(f"{expected}; got {type(value).__name__}")
-        out: dict[str, list[list[str]]] = {}
-        for table_name, combos in value.items():
-            if isinstance(combos, str) or not isinstance(combos, (list, tuple)):
-                raise ValueError(f"{expected}; {table_name!r} maps to {combos!r}")
-            for combo in combos:
-                if (
-                    isinstance(combo, str)
-                    or not isinstance(combo, (list, tuple))
-                    or not combo
-                    or not all(isinstance(c, str) for c in combo)
-                ):
-                    raise ValueError(f"{expected}; {table_name!r} has the combination {combo!r}")
-            out[str(table_name)] = [list(c) for c in combos]
-        return out
+    def _log_unchecked(self, table_name: str, columns: list[str], missing: list[str] | None) -> None:
+        """Log a configured combination naming a table (``missing=None``) or columns the network lacks.
 
-    def _report_unchecked(
-        self, report: ValidationReport, table_name: str, columns: list[str], missing: list[str] | None
-    ) -> None:
-        """INFO: a configured combination names a table (``missing=None``) or columns the network lacks."""
+        A log line, not an issue: ``run_quality`` applies ``severity_override`` to every issue a rule emits, so
+        a "not checked" note would become an ERROR next to the real duplicates whenever CI promotes this rule,
+        and fail every network that lacks an optional table.
+        """
         what = f"table {table_name!r} is not in the network" if missing is None else f"{table_name} has no {missing}"
-        report.add_issue(
-            Issue(
-                severity=Severity.INFO,
-                category=Category.DATA_QUALITY,
-                code=self.code,
-                message=f"Configured combination ({', '.join(columns)}) on {table_name} not checked: {what}.",
-                table=table_name,
-                fix_hint="Check the table and column names in the rule's 'combinations' setting.",
-                extra={"columns": columns, "unchecked": True, "missing_columns": missing},
-            )
-        )
+        _log.warning("%s: configured combination (%s) not checked: %s.", self.code, ", ".join(columns), what)
 
     def _report(
         self,

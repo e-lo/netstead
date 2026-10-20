@@ -678,21 +678,48 @@ def test_non_unique_combination_defaults_are_read_only():
     assert all(isinstance(v, tuple) and all(isinstance(c, tuple) for c in v) for v in values)
 
 
-def test_non_unique_combination_reports_configured_combinations_it_cannot_check():
-    """A user-configured table or column that is missing gets an INFO issue; missing default tables stay silent."""
+def test_non_unique_combination_logs_configured_combinations_it_cannot_check(caplog):
+    """A user-configured table or column that is missing is logged; missing default tables stay silent.
+
+    A log line rather than an issue: ``run_quality`` applies ``severity_override`` to every issue a rule emits,
+    so a "not checked" note would turn into an ERROR alongside the real duplicates.
+    """
     engine = _engine()
     net = _tod_network(engine, [{"link_tod_id": 1, "link_id": 1, "time_day": "x"}])
     custom = RuleConfig(
         thresholds={"combinations": {"link_tod": [["link_id", "no_such_column"]], "movement_tod": [["mvmt_id"]]}}
     )
-    flagged = _issues_with_code(
-        run_quality(net, config={"quality.non_unique_combination": custom}), "quality.non_unique_combination"
-    )
-    assert [(i.severity, i.table) for i in flagged] == [(Severity.INFO, "link_tod"), (Severity.INFO, "movement_tod")]
-    assert "no_such_column" in flagged[0].message
-    # The defaults name many tables Leavenworth lacks: none of them is reported.
-    report = run_quality(Network.from_source(leavenworth.csv_dir(), engine=_engine()))
+    with caplog.at_level("WARNING", logger="netstead.quality.rules"):
+        report = run_quality(net, config={"quality.non_unique_combination": custom})
+    assert [i for i in report.issues if i.code.startswith("quality.non_unique_combination")] == []
+    notes = [r.getMessage() for r in caplog.records if r.name == "netstead.quality.rules"]
+    assert len(notes) == 2
+    assert "no_such_column" in notes[0] and "movement_tod" in notes[1]
+    # The defaults name many tables Leavenworth lacks: none of them is reported or logged.
+    caplog.clear()
+    with caplog.at_level("WARNING", logger="netstead.quality.rules"):
+        report = run_quality(Network.from_source(leavenworth.csv_dir(), engine=_engine()))
     assert _issues_with_code(report, "quality.non_unique_combination") == []
+    assert not [r for r in caplog.records if r.name == "netstead.quality.rules"]
+
+
+def test_non_unique_combination_severity_override_does_not_escalate_unchecked_notes():
+    """severity_override=ERROR promotes real duplicates only; a missing optional table never becomes an ERROR."""
+    engine = _engine()
+    net = _tod_network(
+        engine,
+        [
+            {"link_tod_id": 1, "link_id": 1, "time_day": "x"},
+            {"link_tod_id": 2, "link_id": 1, "time_day": "x"},
+        ],
+    )
+    custom = RuleConfig(
+        severity_override=Severity.ERROR,
+        thresholds={"combinations": {"link_tod": [["link_id", "time_day"]], "movement_tod": [["mvmt_id", "time_day"]]}},
+    )
+    report = run_quality(net, config={"quality.non_unique_combination": custom})
+    mine = [i for i in report.issues if i.code.startswith("quality.non_unique_combination")]
+    assert [(i.severity, i.table) for i in mine] == [(Severity.ERROR, "link_tod")]
 
 
 @pytest.mark.parametrize("bad", [[["link_id", "time_day"]], "link_tod", {"link_tod": "link_id"}])
