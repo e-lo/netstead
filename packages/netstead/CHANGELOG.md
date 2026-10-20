@@ -67,6 +67,23 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Added
 
+- **Quality rule `quality.overlapping_links`** ([#5](https://github.com/e-lo/netstead/issues/5)).
+  Flags pairs of links whose shapes share a stretch longer than
+  `min_overlap_units` (default `0`, in CRS units), such as a link drawn on top of
+  part of another. Links that meet at a node, cross, or have the identical shape
+  (two-way twins) are not flagged. Reads inline `link.geometry` or the `geometry`
+  table via `geometry_id`; needs shapely (`[clean]`). One WARNING per pair with
+  `extra` `link_ids`, `rows` and `overlap_length`. Candidate pairs come from an
+  STRtree box query cut down in numpy before the exact test: 0.2 s on a 100k-link
+  network.
+- **Quality rule `quality.non_unique_combination`** ([#7](https://github.com/e-lo/netstead/issues/7)).
+  Flags rows that repeat a column combination that should be unique, such as two
+  `link_tod` rows for the same `link_id` and `time_day` (GMNS 0.97 gives the
+  time-of-day tables a surrogate key, so spec validation lets these through). It
+  checks every time-of-day table plus `lane` / `segment_lane` lane numbers by
+  default; the `combinations` threshold replaces that list. One WARNING per
+  repeated combination, with its row positions in `extra["rows"]`. Grouping runs
+  in DuckDB (0.03 s on a 100k-row `link_tod` plus a 200k-row `lane`).
 - **`Network.from_source(url, credentials=...)`** forwards explicit cloud
   credentials (fsspec storage options) to `Package.from_source`, as the
   [Read from S3](https://e-lo.github.io/netstead/corral/cookbook/read-from-s3/) cookbook describes.
@@ -182,6 +199,18 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Changed
 
+- **The quality rule pack filters in DuckDB instead of materialising tables**
+  ([#181](https://github.com/e-lo/netstead/issues/181)). Each rule now writes its
+  predicate as an ibis expression and fetches only the offending rows, so findings
+  are unchanged (a golden test pins every field on Leavenworth, RDU I-40 and a
+  synthetic edge-case network) but a 100k-link network checks much faster:
+  `duplicate_near_nodes` drops from 75 s to 0.04 s (an O(n²) Python scan became a
+  grid self-join), and the other table rules are 7–25× faster.
+  `sharp_angle_bends` still parses geometries with shapely, now vectorised and
+  reading only `link_id` and `geometry`. One visible difference: a message quotes
+  a value as stored, so a float column of whole numbers shows `1000.0` where it
+  used to show `1000`. The "write your own rule" cookbook example now shows the
+  pushdown pattern.
 - **`CloseNetwork.mutates` is `True`** (it throws away unsaved edits). It is never
   offered to the assistant either.
 
