@@ -107,8 +107,8 @@ EVERY = COMPACT | {"commit", "import"}
 
 @pytest.mark.parametrize(("mode", "offered"), [("auto", COMPACT), ("off", EVERY)])
 def test_a_local_model_gets_the_everyday_cards_tools_while_tools_are_compact(make_session, mode, offered):
-    # Core's compact tool set ("auto" on a local endpoint) drafts only the Actions marked ``compact``: the cards
-    # Actions that need no file path. Committing and importing (a path) need assistant.compact_tools = "off".
+    # Core's compact tool set ("auto" on a local endpoint) drafts only the Actions marked ``assistant_compact``:
+    # the cards Actions that need no file path. Committing and importing (a path) need compact_tools = "off".
     provider = Scripted(reply(text="ok"))
     session = make_session(provider=provider, overrides={"assistant.plugins": ["project_cards"]})
     session.dispatch({"type": "set_setting", "key": "assistant.compact_tools", "value": mode})

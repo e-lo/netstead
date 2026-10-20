@@ -26,13 +26,13 @@ from __future__ import annotations
 import re
 import threading
 import weakref
-from collections.abc import Callable, Collection, Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
 
 from .card import DraftCard
-from .lower import Applied, Mark, describe
+from .lower import Applied, Mark, Pending, describe
 from .types import CHANGE_TYPES, ROADWAY_TYPES, NetworkChange
 
 __all__ = ["CardsState", "Draft", "Entry", "Preview", "slug"]
@@ -54,13 +54,13 @@ class Entry:
     change: NetworkChange
     marks: tuple[Mark, ...]
 
-    def holds(self, pending: Collection[int]) -> bool:
-        """Whether the network, whose pending edits have the seqs ``pending``, still has every mutation of it."""
+    def holds(self, pending: Pending) -> bool:
+        """Whether the network still has every mutation of this change (see :meth:`Mark.holds`)."""
         return all(m.holds(pending) for m in self.marks)
 
-    def back(self, pending: Collection[int]) -> bool:
+    def back(self, pending: Pending) -> bool:
         """Whether an undone change is back on the network: the undo that took it out was rolled back."""
-        return any(m.holds(pending) for m in self.marks)
+        return any(m.back(pending) for m in self.marks)
 
 
 @dataclass
@@ -79,13 +79,14 @@ class Draft:
     entries: list[Entry] = field(default_factory=list)
     undone: list[Entry] = field(default_factory=list)
 
-    def reconcile(self, pending: Collection[int]) -> None:
+    def reconcile(self, pending: Pending) -> None:
         """Make the draft describe the network: put back changes whose undo was rolled back, drop changes that were.
 
-        ``pending`` are the seqs of this plugin's pending edits on the network. Core never reuses a seq, so an undone
-        change whose edits are pending again had its undo rolled back; one whose edits stay gone was undone, or was
-        itself rolled back with its undo, and never comes back. Undos are taken newest first, so putting the changes
-        back newest first restores the draft's order.
+        ``pending`` is this plugin's pending edits on the network, read at one moment. Core never reuses a seq, so an
+        undone change whose edits are pending again had its undo rolled back; one whose edits stay gone was undone, or
+        was itself rolled back with its undo, and never comes back. A change whose edits are newer than the read
+        (``pending.issued``) is left as it is. Undos are taken newest first, so putting the changes back newest first
+        restores the draft's order.
         """
         back = [u for u in reversed(self.undone) if u.back(pending)]
         kept = [e for e in [*self.entries, *back] if e.holds(pending)]
@@ -166,8 +167,8 @@ class CardsState:
             if self._preview is preview:
                 self._preview = None
 
-    def sync(self, net_id: str, handle: Any, pending: Collection[int]) -> None:
-        """Bring ``net_id``'s draft in line with its network ``handle`` and its pending edits' seqs ``pending``.
+    def sync(self, net_id: str, handle: Any, pending: Pending) -> None:
+        """Bring ``net_id``'s draft in line with its network ``handle`` and this plugin's ``pending`` edits on it.
 
         Both are read before the call, outside the lock. A draft made on another handle (a closed network whose id
         was reused) is dropped; otherwise changes a rolled-back Action left behind are dropped, and changes whose
@@ -284,15 +285,14 @@ class CardsState:
 
         return card_id, undo
 
-    def snapshot(
-        self, network: Callable[[str], Any | None], pending: Callable[[str], Collection[int]]
-    ) -> dict[str, Any]:
+    def snapshot(self, network: Callable[[str], Any | None], pending: Callable[[str], Pending]) -> dict[str, Any]:
         """JSON-safe state for ``/api/state`` (``plugins.project_cards``), each draft reconciled with its network.
 
         ``network(net_id)`` is the open network's handle, or ``None``: the drafts of a closed network are dropped (its
         pending edits went with it, so its draft can never be committed or undone), and so is a preview whose network
-        or base is gone (:meth:`Preview.stands_for_base`). ``pending(net_id)`` are the seqs of the plugin's pending
-        edits on an open network. Both are called before the lock is taken, never under it.
+        or base is gone (:meth:`Preview.stands_for_base`). ``pending(net_id)`` is the plugin's pending edits on an
+        open network (:class:`~netstead_project_cards.lower.Pending`). Both are called before the lock is taken, never
+        under it.
         """
         with self._lock:
             ids = list(self._drafts)

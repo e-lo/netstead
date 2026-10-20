@@ -801,12 +801,12 @@ def test_mutate_publishes_state(opened):
 
 
 def test_mutate_is_all_or_nothing(opened):
-    from corral.editing import Edit, UnsupportedEditOp
+    from corral.editing import Edit
 
     handle = opened.registry.get("rdu-i40")
     first = int(handle.links_df()["link_id"].iloc[0])  # its row holds NULLs (name, ref, free_speed)
     before = _lanes(handle, first)
-    with pytest.raises(UnsupportedEditOp):
+    with pytest.raises(ActionError, match="the edit failed: UnsupportedEditOp"):
         opened.mutate("rdu-i40", [_set_lanes(first, 9), Edit(op="explode", table="link")], note="bad")
     assert handle.version == 0 and _lanes(handle, first) == before and handle.lineage == []
     assert not handle.roadway.links.dirty
@@ -827,8 +827,9 @@ def test_mutate_rolls_back_every_table_of_a_cascade(opened):
         ),
         Edit(op="delete_rows", table="node", payload={"predicate": lambda t: t.node_id == node}),
     ]
-    with pytest.raises(UnknownTable):
+    with pytest.raises(ActionError, match="the edit failed: UnknownTable") as info:
         opened.mutate(None, [*cascade, Edit(op="delete_rows", table="nope", payload={})], note="bad")
+    assert isinstance(info.value.__cause__, UnknownTable)
     assert handle.links_df().shape == links.shape and handle.nodes_df().shape == nodes.shape  # NULL rows not doubled
     results = opened.mutate(None, cascade, note=f"delete node {node}")
     assert results[0].diff.rows_removed >= 1 and results[1].diff.rows_removed == 1

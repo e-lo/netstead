@@ -264,10 +264,10 @@ A plugin never sees the `Session`. Every handler, `router`, `state` and `on_load
 | `host.saved_selections()` | A summary of each saved selection: `name`, `net_id`, `status`, `links` (a count), `utterance`, `by` (`query` or `ids`) and `stale` (it was saved with a stale pin). API 1.3. |
 | `host.saved_selection(name)` | A copy of the selection saved as `name`, or `None`: `net_id`, `source` (a locator: no query string), `version`, `status`, `utterance`, `intent` (with any pins), `parsed_by`, `link_ids`, the anchors' nodes and `stale_pins`, plus `projectcard` (its facility forms) and `warnings` (a stale pin, in words). It is the selection as saved; `UseSelection` resolves it again on the network as it is now. API 1.3. |
 | `host.network(net_id=None)` | The network handle (default: the active one). Read it, but change it only through `mutate`. |
-| `host.mutate(net_id, edits, note=..., expected_version=None)` | Applies `corral.editing.Edit`s to a network's roadway **all or nothing**. The edits run on a draft, so a failing edit leaves the network (and its caches) untouched and re-raises. If storage refuses an edit (corral's `EditingError`, or an Arrow, ibis or DuckDB error), it raises `ActionError` ("the edit failed: ..."), so the user sees why (API 1.6; before, a plugin's handler failed with "internal error"). On success it bumps the version, appends `"<id>: <note>"` to the lineage and pushes state. It returns a `Mutation`: the list of `EditResult`s (the rollback data) with the pending edit's `seq`, its stable id (API 1.6; `None` for an empty list of edits). Inside a handler, the change is undone if the handler fails. Outside one (a job, a route), it is recorded as a non-replayable `<id>.mutate` history entry. With `expected_version` (a plan's `version`, API 1.2) it refuses with `ActionError`, changing nothing, if the network's version moved since. |
-| `host.undo(net_id=None)` | Reverts this plugin's newest mutation of a network, if it is that network's newest change, and returns the undone entry (`seq`, `source`, `note`, `version`, `rows`, `saved`); `seq` is the id `host.mutate` returned for it. Raises `ActionError` when there is nothing to undo or the newest change came from core, Python or another plugin. API 1.2. |
-| `host.pending_edits(net_id=None)` | The network's pending edits from every source, oldest first, each as `host.undo` returns it (`seq`, `source`, `note`, `version`, `rows`, `saved`). Check your own edits against it rather than the network's lineage. Raises `ActionError` if the network is not open. API 1.6. |
-| `host.on_rollback(fn)` | From a handler: call `fn()` if this Action is rolled back, either because it fails or because an Action it is nested in fails after it succeeded. Use it to put back your own state and files, which core does not roll back. See [Rolling back your own state](#rolling-back-your-own-state-api-16). Raises `RuntimeError` outside a handler. API 1.6. |
+| `host.mutate(net_id, edits, note=..., expected_version=None)` | Applies `corral.editing.Edit`s to a network's roadway **all or nothing**. The edits run on a draft, so a failing edit leaves the network (and its caches) untouched and re-raises. If storage refuses an edit while it is applied to the draft (corral's `EditingError`, or an Arrow, ibis or DuckDB error), it raises `ActionError` ("the edit failed: <type>: <message>", with URL credentials and key-shaped tokens scrubbed; the original is logged), so the user sees why (API 1.6; before, a plugin's handler failed with "internal error"). Any other exception re-raises as it is, and so does a failure after the edit was applied: it is not reported as a failed edit. On success it bumps the version, appends `"<id>: <note>"` to the lineage and pushes state. It returns a `Mutation`, a frozen dataclass: `results` (a tuple of the `EditResult`s, the rollback data) and `seq`, the pending edit's id (API 1.6; `None` for an empty list of edits). Before 1.6 it returned the list of results itself. Inside a handler, the change is undone if the handler fails. Outside one (a job, a route), it is recorded as a non-replayable `<id>.mutate` history entry. With `expected_version` (a plan's `version`, API 1.2) it refuses with `ActionError`, changing nothing, if the network's version moved since. |
+| `host.undo(net_id=None)` | Reverts this plugin's newest mutation of a network, if it is that network's newest change, and returns the undone entry (`seq`, `source`, `note`, `version`, `rows`, `saved`); `seq` is the id `host.mutate` returned for it. Raises `ActionError` when there is nothing to undo or the newest change came from core, Python or another plugin, and (API 1.6) when storage refuses the reverse ("the undo failed: ...", scrubbed as for `mutate`). API 1.2. |
+| `host.pending_edits(net_id=None)` | A `PendingEdits` (frozen), read in one moment under the session lock: `edits`, the network's pending edits from every source, oldest first, each as `host.undo` returns it (`seq`, `source`, `note`, `version`, `rows`, `saved`); and `issued`, the newest seq handed out at that moment. Check your own edits against it rather than the network's lineage. Raises `ActionError` if the network is not open. API 1.6. |
+| `host.on_rollback(fn)` | From a handler: call `fn()` if this Action is rolled back, either because it fails or because an Action it is nested in fails after it succeeded. Use it to put back your own state and files, which core does not roll back. See [Rolling back your own state](#rolling-back-your-own-state-api-16). Raises `RuntimeError` outside a handler, and from inside a rollback callback. API 1.6. |
 | `host.edit_warnings(net_id=None)` | The live edit warnings on a network now, from every source (dicts with `code`, `table`, `key`, `column`, `value`, `message`). API 1.2. |
 | `host.plan_update(net_id, table, ids, values)`, `host.plan_delete(net_id, table, ids)`, `host.plan_add(net_id, table, rows)` | Core's edit plans (`EditPlan`: `edits`, `summary`, `rows` per table, `keys`, and the `version` it planned on), refusing what storage cannot hold with `EditRefused`. Apply one with `host.mutate`. API 1.2. |
 | `host.derive(net_id, label=..., note=...)` | Registers a **copy-on-write** copy of a network (a preview or scenario) and returns its id. Edits to the copy never touch the base. The copy records `derived_from` and inherits the lineage. Inside a handler that fails, the copy is unregistered again. |
@@ -327,22 +327,28 @@ def retag(host: Host, action: Retag) -> list[dict]:
 
 ### Edit ids (API 1.6)
 
-`host.mutate` returns a `Mutation`, which is still the list of `EditResult`s, with one more attribute: `seq`, the
-pending edit's id. `host.pending_edits(net_id)` lists the network's pending edits (each with its `seq`) and
-`host.undo()` returns the `seq` it reversed, so a plugin that keeps a record of its own edits can check it against
-the ledger:
+`host.mutate` returns a `Mutation(results, seq)`: `seq` is the pending edit's id. `host.pending_edits(net_id)`
+returns a `PendingEdits(issued, edits)`, and `host.undo()` returns the `seq` it reversed, so a plugin that keeps a
+record of its own edits can check it against the ledger:
 
 <!-- doctest: skip -->
 ```python
 done = host.mutate(None, plan.edits, note=plan.summary, expected_version=plan.version)
 my_edits.append(done.seq)
 ...
-still_there = {e["seq"] for e in host.pending_edits() if e["source"] == host.plugin_id}
+pending = host.pending_edits()
+mine = {e["seq"] for e in pending.edits if e["source"] == host.plugin_id}
+gone = [seq for seq in my_edits if seq <= pending.issued and seq not in mine]
 ```
 
-A `seq` is never handed out twice while a network is open, not even after a rolled-back Action spent it, so an edit
-a rollback took away never comes back under the same id. A network closed and opened again is a new handle
-(`host.network(net_id)`), and its ids start again: keep the handle beside the ids if you hold them across Actions.
+- A network id's seqs are unique for the whole session: a seq is never handed out twice, not after a rolled-back
+  Action spent it, and not after the network is closed and opened again under the same id (numbering goes on).
+  So an edit a rollback took away never comes back under the same id. (The handle still changes when a network is
+  reopened; checking it too costs nothing.)
+- Because rolled-back edits keep their seqs, the seqs in the Edits panel can have gaps.
+- `issued` is the newest seq handed out when the edits were read. An edit you hold with a seq above it was made
+  after the read, so the read says nothing about it: don't drop it. This matters when you read outside an Action
+  handler (a route), where an Action can land between your read and what you do with it.
 
 ### Rolling back your own state (API 1.6)
 
@@ -366,9 +372,14 @@ def commit(host: Host, action: Commit) -> dict:
   outermost Action succeeds, it is dropped.
 - Rollback runs newest first, in one stack with core's own undo records: when your callback runs, the network
   changes made after you registered it are already undone, and the ones made before it are not yet.
-- It runs under the session lock. Put back your own state and files there, and call no `Host` method.
-- An exception in it is logged and the rest of the rollback still runs. Handle your own failures (a file that
-  can't be restored) inside it.
+- It runs under the session lock. Put back your own state and files there, and call no `Host` method:
+  `host.mutate`, `host.derive`, `host.undo` and `host.on_rollback` raise `RuntimeError("... cannot be called from a
+  rollback callback")`.
+- Lock order is the session lock, then your plugin's own lock. Take your lock inside the callback if you need it,
+  and never call `Host` while holding your own lock: a handler holds the session lock and then takes yours, so the
+  other order can deadlock.
+- An exception in it is logged and the rest of the rollback still runs. A `BaseException` (`KeyboardInterrupt`)
+  lets the rollback finish, then propagates. Handle your own failures (a file that can't be restored) inside it.
 
 ## Your Actions in the assistant
 
@@ -390,7 +401,8 @@ class Rebuild(BaseAction):
 `assistant` needs Host API 1.4. Your browser commands are not offered to the assistant.
 
 With a model on this machine (`assistant.compact_tools = "auto"`, the default, or `"on"`) the assistant gets a compact
-tool set: the read-only Actions that apply now, and only those `mutates` Actions marked `compact`. Core marks its
+tool set: the read-only Actions that apply now, and only those `mutates` Actions marked `assistant_compact`. Core
+marks its
 everyday edits (`edit_cells`, `delete_rows`, `undo_edit`). Mark yours when a small model can fill in its fields
 reliably (no file path, no judgement call):
 
@@ -399,11 +411,11 @@ reliably (no file path, no judgement call):
 class AddChange(BaseAction):
     type: Literal["cards.add_change"] = "cards.add_change"
     mutates: ClassVar[bool] = True
-    compact: ClassVar[bool] = True  # offered to a local model too
+    assistant_compact: ClassVar[bool] = True  # offered to a local model too
 ```
 
-`compact` needs Host API 1.6. Before it, a plugin's mutating Actions were offered only with
-`assistant.compact_tools = "off"`.
+`assistant_compact` needs Host API 1.6 (`GET /api/actions` entries carry it). Before it, a plugin's mutating Actions
+were offered only with `assistant.compact_tools = "off"`.
 
 Declare `mutates` honestly. An Action the assistant runs at once (one without `mutates = True`) can't change a
 network: if its handler dispatches a mutating Action through `host.dispatch`, or calls `host.mutate`, `host.undo` (which
@@ -693,7 +705,7 @@ A minor bump only adds to the API and a major bump breaks it.
 | `1.3` | Saved selections: `host.saved_selections()` and `host.saved_selection(name)`. `host.selection`'s anchors carry `anchor`, `confidence`, `pinned` and `candidates`, and the payload carries `stale_pins`. New core Actions a plugin may dispatch: `PinAnchor`, `SaveSelection`, `UseSelection`, `DeleteSelection`, `Filter`, `Style(width_by=…)` and `Navigate(record=…)`. |
 | `1.4` | The assistant: `assistant: ClassVar[bool] = False` on an Action keeps it out of the NL assistant's tools; a plugin's Actions are offered as tools once the plugin is listed in `assistant.plugins`. `GET /api/actions` entries carry `assistant`. |
 | `1.5` | `ActionError` and `NotSupportedYet` are exported from `netstead.workbench.plugins`: a handler raises them to refuse with a message the user sees. |
-| `1.6` | `host.mutate` raises `ActionError` when storage refuses an edit (corral's `EditingError`, an Arrow, ibis or DuckDB error) and returns a `Mutation` (exported): the `EditResult` list plus the pending edit's `seq`, a stable id. `host.pending_edits(net_id)` lists the pending edits; `host.undo()`'s `seq` names the one it reversed. `host.on_rollback(fn)` lets a handler put its own state back when its Action is rolled back. `compact: ClassVar[bool] = True` on a `mutates` Action offers it in the assistant's compact tool set. |
+| `1.6` | `host.mutate` and `host.undo` raise `ActionError` when storage refuses the edit or its reverse (corral's `EditingError`, an Arrow, ibis or DuckDB error), with the message scrubbed of credentials and keys. `host.mutate` returns a `Mutation(results, seq)` (exported; **breaking**: it used to return the list of results), `seq` being the pending edit's id, unique per network id for the session. `host.pending_edits(net_id)` returns a `PendingEdits(issued, edits)` (exported); `host.undo()`'s `seq` names the edit it reversed. `host.on_rollback(fn)` lets a handler put its own state back when its Action is rolled back. `assistant_compact: ClassVar[bool] = True` on a `mutates` Action offers it in the assistant's compact tool set; `GET /api/actions` entries carry `assistant_compact`. |
 
 **The plugin API is provisional until netstead v1.0.** Until then it may change without a major
 bump. Pin the netstead versions you support in your package's dependencies, and check the changelog

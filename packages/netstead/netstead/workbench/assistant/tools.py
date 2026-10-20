@@ -155,7 +155,7 @@ def tool_specs(session: Session, *, warn: bool = True, compact: bool = False) ->
     plugin. Neither ever offers :data:`NEVER`, nor an Action that sets ``assistant = False``. ``warn=False`` skips
     the allowlist check, for a caller that has just made it (:func:`warn_allowlist`). ``compact`` offers fewer of
     the allowed tools: the read-only ones that apply now (:func:`compact_drops`) and the drafted ones marked
-    ``compact`` (``BaseAction.compact``); it never adds one.
+    ``assistant_compact`` (``BaseAction.assistant_compact``); it never adds one.
     """
     settings = session.settings.assistant
     if warn:
@@ -168,9 +168,9 @@ def tool_specs(session: Session, *, warn: bool = True, compact: bool = False) ->
         allowed = owner in settings.plugins if owner else action_type in settings.actions
         if not offerable(action_type, model) or not allowed:
             continue
-        # A compact set drafts only the Actions marked ``compact`` (core's everyday edits, a plugin's own picks): the
-        # rest (saving a copy, the opt-ins) need a path or a judgement a small model rarely gets right.
-        if action_type in dropped or (compact and model.mutates and not model.compact):
+        # A compact set drafts only the Actions marked ``assistant_compact`` (core's everyday edits, a plugin's picks):
+        # the rest (saving a copy, the opt-ins) need a path or a judgement a small model rarely gets right.
+        if action_type in dropped or (compact and model.mutates and not model.assistant_compact):
             continue
         try:
             tool = _tool(action_type, model)
