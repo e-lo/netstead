@@ -619,7 +619,7 @@ Dispatching an Action of a plugin that isn't loaded fails like any unknown Actio
 
 `HOST_API` (in `netstead.workbench.plugins`) is a `major.minor` string. A plugin's `requires_api`
 is compatible when the major versions are equal and the host's minor is at least the plugin's. A
-plugin written against `1.0` runs on `1.4`, but not on `2.0`, and a `1.4` plugin doesn't run on `1.0`.
+plugin written against `1.0` runs on `1.5`, but not on `2.0`, and a `1.5` plugin doesn't run on `1.0`.
 A minor bump only adds to the API and a major bump breaks it.
 
 | `HOST_API` | Added |
