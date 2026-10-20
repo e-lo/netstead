@@ -19,7 +19,7 @@ import logging
 import os
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import fsspec
 from pydantic import ValidationError
@@ -86,14 +86,19 @@ def _read_json(source: str | Path) -> tuple[Any, str]:
 
 
 def _join(base: str, relative: str) -> str:
-    """Join a base URI/path with a relative reference."""
+    """Join a base URI/path with a relative reference, in canonical form.
+
+    The result names one file one way: local paths are made absolute and
+    ``.``/``..`` segments are collapsed, URLs are joined with
+    :func:`urllib.parse.urljoin`. ``$ref`` cycle detection and the
+    document cache key on this, so ``./a.json`` and ``sub/../a.json``
+    must come out identical.
+    """
     if _is_url(relative):
         return relative
     if _is_url(base):
-        if base.endswith("/"):
-            return base + relative
-        return base + "/" + relative
-    return os.path.join(base, relative)
+        return urljoin(base if base.endswith("/") else base + "/", relative)
+    return os.path.abspath(os.path.join(os.path.expanduser(base), os.path.expanduser(relative)))
 
 
 # ---------------------------------------------------------------------------
@@ -134,12 +139,21 @@ def _resolve_pointer(doc: Any, pointer: str) -> Any:
     return cur
 
 
+def _base_of(target: str) -> str:
+    """Return the directory against which refs inside ``target`` resolve."""
+    if _is_url(target):
+        return target.rsplit("/", 1)[0] + "/"
+    return os.path.dirname(target)
+
+
 def _resolve_refs(
     obj: Any,
     *,
     base: str,
     cache: dict[str, Any],
     self_doc: Any,
+    doc_key: str = "<dict>",
+    chain: tuple[str, ...] = (),
 ) -> Any:
     """Recursively resolve ``$ref`` references in ``obj``.
 
@@ -148,7 +162,19 @@ def _resolve_refs(
     JSON pointer fragment. A ``$ref`` of just ``"#/path"`` resolves
     against ``self_doc``. External docs are cached by absolute path/URL.
 
+    The value a ref points at is itself resolved, so chained refs are
+    followed to the end; refs inside an external target resolve against
+    that target's own file. ``doc_key`` names the document ``self_doc``
+    came from and ``chain`` holds the refs being expanded above this
+    call, each as ``"<doc>#<pointer>"``.
+
     Returns the (possibly transformed) value with refs replaced.
+
+    Raises:
+        SpecLoadError: If a target cannot be read or a pointer does not
+            resolve, or if a ref leads back to one already being
+            expanded (a circular reference). The message names the ref
+            and the chain that led to it.
     """
     # WHY single function for ref resolution: the recursion shape (descend
     # into dicts and lists, swap out any {"$ref": "..."} node for its
@@ -158,25 +184,37 @@ def _resolve_refs(
     if isinstance(obj, dict):
         ref = obj.get("$ref")
         if isinstance(ref, str):
-            # Same-document pointer: "#/foo/bar" → resolve against self_doc.
-            if ref.startswith("#"):
-                return _resolve_pointer(self_doc, ref)
-            # External ref: "file.json" or "file.json#/foo/bar".
+            # "file.json#/foo" is external; "#/foo" points into self_doc.
             file_part, _, pointer = ref.partition("#")
-            target = _join(base, file_part)
-            if target not in cache:
-                try:
-                    loaded, _ignored_base = _read_json(target)
-                except SpecLoadError as e:
-                    raise SpecLoadError(f"Failed to resolve $ref {ref!r}: {e}") from e
-                cache[target] = loaded
-            doc = cache[target]
-            if not pointer:
-                return doc
-            return _resolve_pointer(doc, "#" + pointer)
-        return {k: _resolve_refs(v, base=base, cache=cache, self_doc=self_doc) for k, v in obj.items()}
+            if file_part:
+                target_key = _join(base, file_part)
+                if target_key not in cache:
+                    try:
+                        loaded, _ignored_base = _read_json(target_key)
+                    except SpecLoadError as e:
+                        raise SpecLoadError(f"Failed to resolve $ref {ref!r}: {e}") from e
+                    cache[target_key] = loaded
+                target_doc, target_base = cache[target_key], _base_of(target_key)
+            else:
+                target_key, target_doc, target_base = doc_key, self_doc, base
+            ref_key = f"{target_key}#{pointer}"
+            if ref_key in chain:
+                raise SpecLoadError(f"Circular $ref {ref!r}: {' -> '.join([*chain, ref_key])}")
+            value = _resolve_pointer(target_doc, "#" + pointer) if pointer else target_doc
+            return _resolve_refs(
+                value,
+                base=target_base,
+                cache=cache,
+                self_doc=target_doc,
+                doc_key=target_key,
+                chain=(*chain, ref_key),
+            )
+        return {
+            k: _resolve_refs(v, base=base, cache=cache, self_doc=self_doc, doc_key=doc_key, chain=chain)
+            for k, v in obj.items()
+        }
     if isinstance(obj, list):
-        return [_resolve_refs(v, base=base, cache=cache, self_doc=self_doc) for v in obj]
+        return [_resolve_refs(v, base=base, cache=cache, self_doc=self_doc, doc_key=doc_key, chain=chain) for v in obj]
     return obj
 
 
@@ -302,8 +340,9 @@ def load_schema(
     if not isinstance(doc, dict):
         raise SpecLoadError(f"Schema in {label} must be a JSON object, got {type(doc).__name__}")
 
+    root_key = "<dict>" if isinstance(source, dict) else _join(".", str(source))
     try:
-        resolved = _resolve_refs(doc, base=resolved_base, cache=cache, self_doc=doc)
+        resolved = _resolve_refs(doc, base=resolved_base, cache=cache, self_doc=doc, doc_key=root_key)
     except SpecLoadError as e:
         raise SpecLoadError(f"Failed resolving references in {label}: {e}") from e
 
@@ -412,12 +451,21 @@ def load_package(source: str | Path | dict[str, Any]) -> DataPackage:
             except SpecLoadError as e:
                 rname = resource.get("name", f"<index {idx}>")
                 raise SpecLoadError(f"{label}: failed to load schema for resource {rname!r}: {e}") from e
-            resolved_schema = _resolve_refs(schema_doc, base=schema_base, cache=cache, self_doc=schema_doc)
+            resolved_schema = _resolve_refs(
+                schema_doc, base=schema_base, cache=cache, self_doc=schema_doc, doc_key=schema_path
+            )
             if isinstance(resolved_schema, dict):
                 _inline_shared_categories(resolved_schema)
             resource["schema"] = resolved_schema
         elif isinstance(schema_ref, dict):
-            resolved_schema = _resolve_refs(schema_ref, base=base, cache=cache, self_doc=schema_ref)
+            descriptor_key = label if isinstance(source, dict) else _join(".", str(source))
+            resolved_schema = _resolve_refs(
+                schema_ref,
+                base=base,
+                cache=cache,
+                self_doc=schema_ref,
+                doc_key=f"{descriptor_key}#/resources/{idx}/schema",
+            )
             if isinstance(resolved_schema, dict):
                 _inline_shared_categories(resolved_schema)
             resource["schema"] = resolved_schema

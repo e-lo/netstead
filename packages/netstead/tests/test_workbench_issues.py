@@ -54,6 +54,13 @@ def test_unknown_rule_codes_are_reported(session):
     assert session.dispatch(RunValidation())["unknown_rules"] == ["quality.no_such_rule"]
 
 
+def test_new_quality_rules_are_known_to_validation_settings(session):
+    # Settings key rules by code: a code with no installed rule comes back in unknown_rules.
+    rules = {"quality.non_unique_combination": {"enabled": False}, "quality.overlapping_links": {"enabled": False}}
+    session.dispatch(SetSetting(key="validation.rules", value=rules))
+    assert session.dispatch(RunValidation())["unknown_rules"] == []
+
+
 def test_severity_overrides_are_checked_when_settings_load():
     cfg = rule_configs(ValidationSettings(rules={"quality.high_speed_residential": {"severity_override": "info"}}))
     assert cfg["quality.high_speed_residential"].severity_override == Severity.INFO

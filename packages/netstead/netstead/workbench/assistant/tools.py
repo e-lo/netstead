@@ -69,9 +69,6 @@ _ON_SELECTION = {
     "description": "Act on the links of the current selection (table link) instead of listing ids.",
 }
 _DRAFTED = " (drafted for the user to approve)"
-#: The drafted tools a compact tool set keeps (``assistant.compact_tools``): the everyday edits. The rest (saving a
-#: copy, the opt-ins, a plugin's mutating Actions) need a path or a judgement a small model rarely gets right.
-_COMPACT_DRAFTED = frozenset({"edit_cells", "delete_rows", "undo_edit"})
 #: One example for the tools small models call with the wrong shape (measured: ``navigate(link=170)``,
 #: ``style(show=…)``, a request's second part dropped), appended to the tool's description.
 _EXAMPLES = {
@@ -157,7 +154,8 @@ def tool_specs(session: Session, *, warn: bool = True, compact: bool = False) ->
     A core Action is offered when ``assistant.actions`` lists it; a plugin's when ``assistant.plugins`` lists the
     plugin. Neither ever offers :data:`NEVER`, nor an Action that sets ``assistant = False``. ``warn=False`` skips
     the allowlist check, for a caller that has just made it (:func:`warn_allowlist`). ``compact`` offers fewer of
-    the allowed tools (:func:`compact_drops`); it never adds one.
+    the allowed tools: the read-only ones that apply now (:func:`compact_drops`) and the drafted ones marked
+    ``compact`` (``BaseAction.compact``); it never adds one.
     """
     settings = session.settings.assistant
     if warn:
@@ -170,7 +168,9 @@ def tool_specs(session: Session, *, warn: bool = True, compact: bool = False) ->
         allowed = owner in settings.plugins if owner else action_type in settings.actions
         if not offerable(action_type, model) or not allowed:
             continue
-        if action_type in dropped or (compact and model.mutates and action_type not in _COMPACT_DRAFTED):
+        # A compact set drafts only the Actions marked ``compact`` (core's everyday edits, a plugin's own picks): the
+        # rest (saving a copy, the opt-ins) need a path or a judgement a small model rarely gets right.
+        if action_type in dropped or (compact and model.mutates and not model.compact):
             continue
         try:
             tool = _tool(action_type, model)

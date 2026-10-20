@@ -59,6 +59,52 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   `duckdb://` scheme case-insensitively, but the adapter stripped only the
   lowercase spelling, so `DUCKDB:///abs/x.duckdb` was handed to duckdb as a
   literal path. The scheme is now stripped with `urlparse`.
+- **`Engine.to_arrow(expr)` (#116).** The protocol gains an Arrow
+  converter beside `to_pandas` / `to_polars`; `IbisEngine.to_arrow` runs
+  `to_pyarrow` with no pandas hop, so `to_arrow(from_arrow(t))` equals `t`.
+  A third-party engine must now implement it to pass `register_engine`.
+
+### Fixed
+
+- **DuckDB writes no longer pull the whole table into memory (#128).**
+  `IbisEngine.write_duckdb_table` materialised the expression as an Arrow
+  table and re-created it on a second connection. It now ATTACHes the
+  destination file to the expression's own connection and creates the
+  table there, so duckdb streams the rows and the write stays lazy at
+  regional scale; the file is detached afterwards. Writing into the file
+  the engine itself was opened on also works, as does a path containing a
+  quote.
+- **`IbisEngine.close()` no longer hides a failed disconnect (#132).** It
+  wrapped `disconnect()` in `suppress(Exception)`, hiding real failures
+  (an in-flight query, a file-backed database that cannot be released).
+  The error now propagates; `close()` stays idempotent because only the
+  first call disconnects, and disconnecting an already-closed duckdb
+  connection does not raise. `__del__` still never raises.
+- **Long edit sessions no longer pile up memtables (#145).** Every
+  `delete_rows` / `update_rows` built an `ibis.memtable` of the whole
+  table, which ran on (and stayed registered with) ibis's process-wide
+  default backend, outside the engine's lock; and `from_records` /
+  `from_arrow` left a memtable view behind on the engine for every call.
+  Forward edits now run on the table's own engine expression (the "before"
+  sample fetches only its rows), and the engine hands Arrow straight to
+  `create_table`, which drops its staging view. A 20-edit session went
+  from 20 stray default-backend memtables plus 40 engine tables to 0 and 20.
+- **One encoding for "no session" in the rollback log (#147).** The log
+  wrote a missing `session_id` as `""` and read it back as `None`. It now
+  writes null; older logs with `""` still read as `None`.
+  `rollback(to="")`, which named no session, now raises `RollbackError`
+  instead of silently reversing nothing.
+- **`Engine.scan` contract suite (#141).** One test class per invariant on
+  the `scan` docstring (inline `{"data": ...}` through `from_records`,
+  duckdb handles through `read_duckdb_table`, unknown dict shapes raise
+  `UnsupportedSourceError`, `format` / `schema` / `**kwargs` reach the
+  adapter verbatim), parametrised over every registered engine.
+- **`replace_table` on a table with an all-null column (#163).** Already
+  fixed by the engine coercing `null`-typed Arrow columns to `string` before
+  duckdb sees them; now locked in by a regression test that runs the
+  `netstead clean` shape (rebuild Leavenworth `node`, whose `name` is all
+  null, from row dicts) through a session, a duckdb write and rollback.
+
 - **`package_to_md` resource links hit their schema headings.** The overview
   table hyphenated the resource name in its in-page link (`#link-tod`) while
   `schemas_to_md` renders `## link_tod`, whose slug keeps the underscore, so
@@ -93,6 +139,39 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   the same self-describing descriptor (package metadata carried over,
   resource paths rewritten, schemas inlined), so `Package.from_source` on
   the written directory auto-discovers the spec again.
+- **Chained and circular `$ref`s in schemas.** A `$ref` whose target was
+  itself a `$ref` was left unresolved, so the field silently loaded with a
+  raw `$ref` and no `enum`. The loader now follows chained refs to the end
+  (refs inside an external file resolve against that file) and raises
+  `SpecLoadError("Circular $ref ...")`, naming the chain, when a ref leads
+  back to itself, however the file paths along the way are spelled
+  (`./a.json`, `sub/../a.json`). (#122)
+- **A package loaded without any spec now says so.** `Package.from_source`
+  on a source with no `spec=` and no `datapackage.json` used to synthesise
+  an empty spec silently, so `validate()` could pass with nothing checked.
+  It now logs this at INFO, sets the new `Package.spec_missing` flag (kept
+  by `scope()`), and `validate()` adds one INFO issue,
+  `structural.spec_missing`, with a fix hint. (#143)
+
+### Changed
+
+- **`SpecVersion` is a plain ordered frozen dataclass.** Its ordering now
+  comes from `@dataclass(frozen=True, order=True)` instead of four
+  hand-written comparison methods. Behaviour is unchanged: versions still
+  order by `(major, minor, patch)`, and comparing with a non-`SpecVersion`
+  still raises `TypeError`. (#118)
+- **`Schema.missing_values` defaults to `[""]`, not `None`.** A schema whose
+  JSON omits `missingValues` now carries Frictionless's default (an empty
+  cell is null) instead of `None`, so readers no longer need
+  `schema.missing_values or [""]`. It is always a list, like
+  `foreign_keys`; an explicit `missingValues: []` (no nulls at all) is kept
+  as `[]`. Written descriptors now include `"missingValues": [""]` for such
+  schemas. (#119, #120)
+- **`Resource.path` keeps its `str | list[str]` type, now documented.** The
+  docstring states that `path` is descriptive: the loader carries a string
+  or a list through unchanged, and `Package.from_source` matches tables to
+  resources by name, so code that reads `path` must handle the list form.
+  A regression test pins both forms. (#124)
 
 ## [1.0.0-beta.2] — TBD
 

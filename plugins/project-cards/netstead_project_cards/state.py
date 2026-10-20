@@ -3,10 +3,11 @@
 It lives in the plugin factory's closure (one per Workbench session) and is changed only by the plugin's Action
 handlers, after every Host call they make has succeeded: a failing handler's network changes are rolled back by the
 Workbench, and this state must not have moved. A handler nested in another Action can succeed and still be rolled
-back when its parent fails, which core does not tell the plugin; so each draft change records the marks its
-mutations left (:class:`~netstead_project_cards.lower.Mark`), and every handler and ``state()`` first reconciles the
-draft with its network (:meth:`CardsState.sync`). It has its own lock, so that ``state()`` and the routes
-(:mod:`~netstead_project_cards.routes`) can read it outside the session lock.
+back when its parent fails. So each draft change records the pending edits its mutations made (their seqs,
+:class:`~netstead_project_cards.lower.Mark`), and every handler and ``state()`` first reconciles the draft with its
+network's pending edits (``host.pending_edits``, :meth:`CardsState.sync`). A commit, which changes no network, puts
+its file and the draft back from a ``host.on_rollback`` callback instead (:meth:`CardsState.commit`). It has its own
+lock, so that ``state()`` and the routes (:mod:`~netstead_project_cards.routes`) can read it outside the session lock.
 
 The open preview (:class:`Preview`) is checked the same way, by handle: it stands for its base only while both
 networks are the ones it was made on.
@@ -15,8 +16,6 @@ Known limits, each after an enclosing Action fails once a nested ``project_cards
 
 - a preview that closes an older one (a second preview) cannot reopen it, so the new copy is rolled back and the
   older preview stays closed;
-- a ``project_cards.commit`` is not reconciled: the file stays written and the draft stays reset (the network still
-  holds the edits). Core would need a rollback hook for plugins;
 - an imported change that applied nothing cannot be reconciled after a parent Action's rollback: it has no marks, so
   it stays in the draft. (``project_cards.add_change`` refuses such a change; ``project_cards.import`` keeps it, as
   part of the card.)
@@ -27,7 +26,8 @@ from __future__ import annotations
 import re
 import threading
 import weakref
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Iterator, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -35,7 +35,7 @@ from .card import DraftCard
 from .lower import Applied, Mark, describe
 from .types import CHANGE_TYPES, ROADWAY_TYPES, NetworkChange
 
-__all__ = ["CardsState", "Draft", "Entry", "Preview", "Undone", "slug"]
+__all__ = ["CardsState", "Draft", "Entry", "Preview", "slug"]
 
 
 def slug(text: str) -> str:
@@ -54,17 +54,13 @@ class Entry:
     change: NetworkChange
     marks: tuple[Mark, ...]
 
-    def holds(self, lineage: Sequence[str], version: int) -> bool:
-        """Whether the network still has every mutation of this change."""
-        return all(m.holds(lineage, version) for m in self.marks)
+    def holds(self, pending: Collection[int]) -> bool:
+        """Whether the network, whose pending edits have the seqs ``pending``, still has every mutation of it."""
+        return all(m.holds(pending) for m in self.marks)
 
-
-@dataclass(frozen=True)
-class Undone:
-    """A change ``project_cards.undo_change`` took out of the draft, and the marks its ``host.undo`` calls left."""
-
-    entry: Entry
-    marks: tuple[Mark, ...]
+    def back(self, pending: Collection[int]) -> bool:
+        """Whether an undone change is back on the network: the undo that took it out was rolled back."""
+        return any(m.holds(pending) for m in self.marks)
 
 
 @dataclass
@@ -72,30 +68,30 @@ class Draft:
     """A network's draft card, its changes (``entries``, in step with ``card.changes``) and the changes undone.
 
     ``handle`` is a weak reference to the network handle the draft was made on: core reuses a closed network's id,
-    and a reopened network is a new handle. ``undone`` keeps undone changes so that a rolled-back undo (an
-    ``undo_change`` nested in an Action that failed) puts its change back. A later change does not clear it: an
-    enclosing Action that undid a change and then added one rolls both back together, and the undone change must
-    come back.
+    and a reopened network is a new handle (whose edit seqs start again). ``undone`` keeps undone changes (newest
+    last) so that a rolled-back undo (an ``undo_change`` nested in an Action that failed) puts its change back. A
+    later change does not clear it: an enclosing Action that undid a change and then added one rolls both back
+    together, and the undone change must come back.
     """
 
     handle: weakref.ref[Any]
     card: DraftCard = field(default_factory=DraftCard)
     entries: list[Entry] = field(default_factory=list)
-    undone: list[Undone] = field(default_factory=list)
+    undone: list[Entry] = field(default_factory=list)
 
-    def reconcile(self, lineage: Sequence[str], version: int) -> None:
+    def reconcile(self, pending: Collection[int]) -> None:
         """Make the draft describe the network: put back changes whose undo was rolled back, drop changes that were.
 
-        A failed Action's rollback cuts its lines off the lineage, so the undos it rolled back are the newest ones.
+        ``pending`` are the seqs of this plugin's pending edits on the network. Core never reuses a seq, so an undone
+        change whose edits are pending again had its undo rolled back; one whose edits stay gone was undone, or was
+        itself rolled back with its undo, and never comes back. Undos are taken newest first, so putting the changes
+        back newest first restores the draft's order.
         """
-        restored = False
-        while self.undone and not all(m.holds(lineage, version) for m in self.undone[-1].marks):
-            self.entries.append(self.undone.pop().entry)
-            restored = True
-        kept = [e for e in self.entries if e.holds(lineage, version)]
-        if restored or len(kept) != len(self.entries):
+        back = [u for u in reversed(self.undone) if u.back(pending)]
+        kept = [e for e in [*self.entries, *back] if e.holds(pending)]
+        if back or len(kept) != len(self.entries):
             self.entries = kept
-            self.undone = [u for u in self.undone if u.entry.holds(lineage, version)]
+            self.undone = [u for u in self.undone if not any(u is b for b in back)]
             self.card = self.card.model_copy(update={"changes": [e.change for e in kept]})
 
 
@@ -152,6 +148,7 @@ class CardsState:
         self._drafts: dict[str, Draft] = {}
         self.committed: list[dict[str, Any]] = []
         self._preview: Preview | None = None
+        self._undoing: set[str] = set()  # networks whose draft's last change is being undone right now
 
     def preview(self) -> Preview | None:
         """The open preview (``None`` when there is none); a frozen record, safe to read outside the lock."""
@@ -169,13 +166,13 @@ class CardsState:
             if self._preview is preview:
                 self._preview = None
 
-    def sync(self, net_id: str, handle: Any) -> None:
-        """Bring ``net_id``'s draft in line with its network ``handle`` (read before the call, outside the lock).
+    def sync(self, net_id: str, handle: Any, pending: Collection[int]) -> None:
+        """Bring ``net_id``'s draft in line with its network ``handle`` and its pending edits' seqs ``pending``.
 
-        A draft made on another handle (a closed network whose id was reused) is dropped; otherwise changes a
-        rolled-back Action left behind are dropped, and changes whose undo was rolled back are put back.
+        Both are read before the call, outside the lock. A draft made on another handle (a closed network whose id
+        was reused) is dropped; otherwise changes a rolled-back Action left behind are dropped, and changes whose
+        undo was rolled back are put back.
         """
-        lineage, version = list(handle.lineage), handle.version
         with self._lock:
             d = self._drafts.get(net_id)
             if d is None:
@@ -183,7 +180,23 @@ class CardsState:
             if d.handle() is not handle:
                 del self._drafts[net_id]
                 return
-            d.reconcile(lineage, version)
+            if net_id not in self._undoing:
+                d.reconcile(pending)
+
+    @contextmanager
+    def undoing(self, net_id: str) -> Iterator[None]:
+        """Hold off reconciling ``net_id``'s draft while its last change is being undone (``host.undo`` calls).
+
+        Each ``host.undo`` publishes the session state, and with it ``state()``; between the first undo and
+        :meth:`pop`, the change's edits are no longer pending, and reconciling would drop it as if rolled back.
+        """
+        with self._lock:
+            self._undoing.add(net_id)
+        try:
+            yield
+        finally:
+            with self._lock:
+                self._undoing.discard(net_id)
 
     def last(self, net_id: str) -> Entry | None:
         """The last change of ``net_id``'s draft (``None`` when it has none)."""
@@ -221,14 +234,14 @@ class CardsState:
             d.card = d.card.model_copy(update={"changes": [e.change for e in d.entries]})
             return len(d.entries)
 
-    def pop(self, net_id: str, entry: Entry, undo_marks: Sequence[Mark]) -> int:
+    def pop(self, net_id: str, entry: Entry) -> int:
         """Take ``entry`` (the draft's last change, which the caller has undone) out; return the change count."""
         with self._lock:
             d = self._drafts[net_id]
             if not d.entries or d.entries[-1] is not entry:
                 raise RuntimeError(f"{net_id}'s draft changed while its last change was being undone")
             d.entries.pop()
-            d.undone.append(Undone(entry, tuple(undo_marks)))
+            d.undone.append(entry)
             d.card = d.card.model_copy(update={"changes": [e.change for e in d.entries]})
             return len(d.entries)
 
@@ -238,32 +251,48 @@ class CardsState:
             d = self._drafts.get(net_id)
             return d.card.project if d is not None else ""
 
-    def commit(self, net_id: str, card: DraftCard, path: str) -> str:
-        """Record ``card`` as committed to ``path``, start a new empty draft, and return the card's id."""
+    def commit(self, net_id: str, card: DraftCard, path: str) -> tuple[str, Callable[[], None]]:
+        """Record ``card`` as committed to ``path`` and start a new empty draft; return the card's id and an undo.
+
+        The undo (for ``host.on_rollback``) forgets the committed card and puts the draft back as it was. Anything
+        done after the commit in the same rolled-back Action has been undone before it runs (rollback runs newest
+        first), so the draft it replaces is one that Action started.
+        """
         with self._lock:
             taken = {c["card_id"] for c in self.committed}
             base = card_id = slug(card.project)
             n = 2
             while card_id in taken:
                 card_id, n = f"{base}-{n}", n + 1
-            self.committed.append(
-                {
-                    "card_id": card_id,
-                    "net_id": net_id,
-                    "path": path,
-                    "project": card.project,
-                    "changes": len(card.changes),
-                }
-            )
-            self._drafts.pop(net_id, None)
-            return card_id
+            record = {
+                "card_id": card_id,
+                "net_id": net_id,
+                "path": path,
+                "project": card.project,
+                "changes": len(card.changes),
+            }
+            self.committed.append(record)
+            draft = self._drafts.pop(net_id, None)
 
-    def snapshot(self, network: Callable[[str], Any | None]) -> dict[str, Any]:
+        def undo() -> None:
+            with self._lock:
+                self.committed = [c for c in self.committed if c is not record]
+                if draft is None:
+                    self._drafts.pop(net_id, None)
+                else:
+                    self._drafts[net_id] = draft
+
+        return card_id, undo
+
+    def snapshot(
+        self, network: Callable[[str], Any | None], pending: Callable[[str], Collection[int]]
+    ) -> dict[str, Any]:
         """JSON-safe state for ``/api/state`` (``plugins.project_cards``), each draft reconciled with its network.
 
         ``network(net_id)`` is the open network's handle, or ``None``: the drafts of a closed network are dropped (its
         pending edits went with it, so its draft can never be committed or undone), and so is a preview whose network
-        or base is gone (:meth:`Preview.stands_for_base`). It is called before the lock is taken, never under it.
+        or base is gone (:meth:`Preview.stands_for_base`). ``pending(net_id)`` are the seqs of the plugin's pending
+        edits on an open network. Both are called before the lock is taken, never under it.
         """
         with self._lock:
             ids = list(self._drafts)
@@ -273,7 +302,7 @@ class CardsState:
         standing = preview is not None and preview.stands_for_base(network(preview.net_id), base)
         for net_id, handle in handles.items():
             if handle is not None:
-                self.sync(net_id, handle)
+                self.sync(net_id, handle, pending(net_id))
         with self._lock:
             for net_id, handle in handles.items():
                 if handle is None:

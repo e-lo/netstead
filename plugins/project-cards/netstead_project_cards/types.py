@@ -183,12 +183,19 @@ class RoadwayDeletion(_Model):
     A deleted link takes the rows that depend on it (lanes, time-of-day rows), as core plans it. ``clean_nodes`` also
     deletes the deleted links' end nodes that no remaining link uses. ``links`` may be left out when
     ``project_cards.add_change`` takes them from a selection.
+
+    ``ignore_missing`` is the ``links`` selector's: ``True`` skips a link id the network does not have (listed as
+    skipped), ``False`` refuses the change. ``False`` is the default; ``project_cards.add_change`` sets it ``False``
+    for a picked selection and takes the query's own flag for a query selection, and import reads it from the card's
+    ``links``. Nodes are always aimed at specific records, so a missing node always refuses the change (and the card
+    writes ``ignore_missing: false`` for them).
     """
 
     type: Literal["roadway_deletion"] = "roadway_deletion"
     links: list[Id] = Field(default_factory=list)
     nodes: list[Id] = Field(default_factory=list)
     clean_nodes: bool = False
+    ignore_missing: bool = False
     note: str | None = Field(default=None, max_length=500)
 
 

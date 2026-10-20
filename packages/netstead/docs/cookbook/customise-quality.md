@@ -46,7 +46,7 @@ Expected:
 
 ### 1. List the rules currently registered
 
-Inspect the registered rule pack to see codes, defaults, and severities. The GMNS pack ships seven rules out of the box:
+Inspect the registered rule pack to see codes, defaults, and severities. The GMNS pack ships nine rules out of the box:
 
 ```python
 from corral.quality import list_rules, get_rule
@@ -67,8 +67,23 @@ for code in list_rules():
 | `quality.sharp_angle_bends` | `min_angle_degrees` | `30` | WARNING |
 | `quality.implausible_vc` | `vc_max` | `1.5` | WARNING |
 | `quality.missing_critical_fields` | `coverage_min` | `0.90` | INFO |
+| `quality.non_unique_combination` | `combinations` | see below | WARNING |
+| `quality.overlapping_links` | `min_overlap_units` | `0` | WARNING |
 
-Two of these are conditional: `quality.disconnected_components` builds the scipy graph index, so `run_quality` needs the `[graph]` extra; `quality.sharp_angle_bends` only applies when the link table carries an inline `geometry` column (Leavenworth keeps geometry in a separate table, so the rule is skipped there).
+Three of these are conditional: `quality.disconnected_components` builds the scipy graph index, so `run_quality` needs the `[graph]` extra; `quality.overlapping_links` needs shapely (the `[clean]` extra) and link shapes, inline or in the `geometry` table; `quality.sharp_angle_bends` only applies when the link table carries an inline `geometry` column (Leavenworth keeps geometry in a separate table, so the rule is skipped there).
+
+`quality.non_unique_combination` catches rows that repeat a column combination GMNS expects to be unique even though the table's primary key is a surrogate id: two `link_tod` rows for the same `link_id` and `time_day` pass spec validation but contradict each other. It emits one issue per repeated combination, with the row positions in `extra["rows"]`. By default it checks `(<parent id>, time_day)` and `(<parent id>, timeday_id)` on every time-of-day table (`link_tod`, `lane_tod`, `segment_tod`, `segment_lane_tod`, `movement_tod`, `signal_timing_plan`), plus `(link_id, lane_num)` on `lane` and `(segment_id, lane_num)` on `segment_lane`. Setting `combinations` replaces that list, so name every combination you still want:
+
+```python
+report = run_quality(
+    net,
+    config={
+        "quality.non_unique_combination": RuleConfig(
+            thresholds={"combinations": {"link_tod": [["link_id", "time_day"]], "link": [["osm_way_id", "from_node_id"]]}}
+        )
+    },
+)
+```
 
 ### 2. Override a threshold
 
@@ -120,10 +135,10 @@ has_errors = any(i.severity is Severity.ERROR for i in report.issues)
 
 A rule is a plain class (no base class needed — `corral.quality.Rule` is a `Protocol`) with three attributes, `code`, `description` and `severity`, and two methods: `applies_to(package) -> bool`, a cheap predicate the runner calls first, and `run(package, report, config)`, which appends findings to `report` with `report.add_issue(...)`. Accept the third `config` argument to read `RuleConfig.thresholds`; a rule with no thresholds may define `run(self, package, report)` and the runner passes two arguments. Don't apply `severity_override` yourself — `run_quality` rewrites the severity of every issue your rule emitted after it returns.
 
-This rule flags links longer than a configurable maximum (Leavenworth's `length` column is in metres):
+Write the predicate against the table's ibis expression (`package.tables["link"].expr`) so DuckDB filters the rows and only the offending ones reach Python; on a 200k-link network that is the difference between materialising every row and fetching a handful. Number the rows with `ibis.row_number()` *before* filtering so `Issue.row` is the row's position in the whole table. This rule flags links longer than a configurable maximum (Leavenworth's `length` column is in metres):
 
 ```python
-import pandas as pd
+import ibis
 from corral.quality import RuleConfig, register_rule, run_quality
 from corral.reports import Category, Issue, Severity
 
@@ -140,9 +155,14 @@ class LongLinkRule:
     def run(self, package, report, config: RuleConfig | None = None) -> None:
         thresholds = config.thresholds if config else {}
         max_length = float(thresholds.get("max_length", 1000.0))
-        for i, row in package.tables["link"].to_pandas().iterrows():
-            if pd.isna(row["length"]) or row["length"] <= max_length:
-                continue
+        link = package.tables["link"].expr
+        link = link.mutate(row=ibis.row_number())
+        offending = (
+            link.filter(link.length.notnull(), link.length > max_length)
+            .select("row", "link_id", "length")
+            .order_by("row")
+        )
+        for row in offending.to_pyarrow().to_pylist():
             report.add_issue(
                 Issue(
                     severity=self.severity,
@@ -151,7 +171,7 @@ class LongLinkRule:
                     message=f"link {row['link_id']} is {row['length']:.0f} long (> {max_length:.0f})",
                     table="link",
                     column="length",
-                    row=int(i),
+                    row=row["row"],
                     fix_hint="Split the link, or check its length.",
                 )
             )
@@ -222,6 +242,7 @@ myproject = "myproject.rules:register_rules"
 ## Pitfalls
 
 * **`epsilon_units` is CRS-sensitive.** The default `1e-5` is tight for WGS84 degrees (~1 metre near the equator). A network in projected meters needs something like `epsilon_units=0.5` for the same intent. Always set this explicitly for non-WGS84 networks.
+* **`quality.overlapping_links` measures overlap in CRS units too.** It flags two links whose shapes share a stretch longer than `min_overlap_units` (default `0`, so any shared stretch). Links that only meet at a node, cross, or carry the identical shape (the usual way two directions of a two-way street are drawn) are not flagged; a short link running along part of a longer one is. Raise `min_overlap_units` to ignore digitising noise, e.g. `0.00002` (about 2 m) in WGS84 degrees or `2.0` in projected metres.
 * **`severity_override` doesn't mute — it replaces.** Setting `severity_override=Severity.INFO` on a WARNING rule still produces issues; if you want to drop them, use `enabled=False`.
 * **`applies_to` is a method, not a tuple.** The runner calls `rule.applies_to(package)` before `run` and skips the rule silently when it returns `False`. Check for the tables and columns you need there (a rule reading `signal` should return `False` when the table is absent) rather than raising inside `run`.
 

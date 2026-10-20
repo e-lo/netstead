@@ -23,6 +23,7 @@ __all__ = [
     "check_card_shape",
     "complete_change",
     "open_handle",
+    "pending_seqs",
     "refuse_transit",
     "selection_facility",
     "selection_networks",
@@ -61,14 +62,23 @@ def open_handle(host: Host, net_id: str) -> Any | None:
         return None
 
 
+def pending_seqs(host: Host, net_id: str) -> frozenset[int]:
+    """The seqs of this plugin's pending edits on the open network ``net_id`` (empty when it is not open)."""
+    try:
+        edits = host.pending_edits(net_id)
+    except ActionError:
+        return frozenset()
+    return frozenset(e["seq"] for e in edits if e["source"] == host.plugin_id)
+
+
 def target_network(host: Host, state: CardsState, net_id: str | None) -> str:
     """The network a change goes to: ``net_id``, else the active one; an open preview stands for its base.
 
     The preview stands for its base only while both are the networks it was made on
     (:meth:`~netstead_project_cards.state.Preview.stands_for_base`): once the base is closed (even if a network with
     its id was opened since), a change aimed at the preview is refused rather than sent to another network.
-    Its draft is reconciled with the network first (:meth:`CardsState.sync`), so every handler starts from a draft
-    that describes the network.
+    Its draft is reconciled with the network's pending edits first (:meth:`CardsState.sync`), so every handler
+    starts from a draft that describes the network.
     """
     net = net_id or host.active
     if net is None:
@@ -83,7 +93,7 @@ def target_network(host: Host, state: CardsState, net_id: str | None) -> str:
         handle = base
     if handle is None:
         raise CardError(f"there is no open network {net!r}")
-    state.sync(net, handle)
+    state.sync(net, handle, pending_seqs(host, net))
     return net
 
 
@@ -151,7 +161,9 @@ def complete_change(
     if isinstance(change, RoadwayDeletion):
         if change.links or change.nodes:
             raise CardError("give the links to delete or use a selection, not both")
-        return change.model_copy(update={"links": selection.target_ids()}), warnings
+        # A pick's links fail loudly when one is gone; a query's follow its ignore_missing, as a property change does.
+        update = {"links": selection.target_ids(), "ignore_missing": selection.ignore_missing}
+        return change.model_copy(update=update), warnings
     if not isinstance(change, RoadwayPropertyChange) or change.facility is not None:
         raise CardError("give a facility or use a selection, not both")
     return change.model_copy(update={"facility": selection}), warnings

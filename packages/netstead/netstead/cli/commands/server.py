@@ -6,7 +6,7 @@ from pathlib import Path
 
 import typer
 
-from .._extras import require_extra
+from .._extras import missing_extra, require_extra
 
 __all__ = ["register"]
 
@@ -31,14 +31,16 @@ def register(app: typer.Typer) -> None:
         The CLI ``--bind`` / ``--port`` flags override the matching
         config keys for one-off testing without editing the file.
         """
-        # Optional-extra modules go through require_extra() so the
+        # The two netstead/corral modules go through require_extra() so the
         # static contract `netstead.cli must not import netstead.server`
-        # holds. The import-linter scans static imports only; runtime
-        # discovery via importlib is the architecture-blessed way to
-        # thread a CLI entry point into an optional submodule.
+        # holds: the import-linter scans static imports only. uvicorn is
+        # third-party and under no contract, so it is a plain import (#173).
         server_module = require_extra("netstead.server", "server")
         api_module = require_extra("corral.api", "server")
-        uvicorn = require_extra("uvicorn", "server")
+        try:
+            import uvicorn
+        except ImportError as exc:
+            missing_extra("uvicorn", "server", exc)
 
         settings = api_module.load_settings(config) if config else api_module.ServerSettings()
         if bind is not None:

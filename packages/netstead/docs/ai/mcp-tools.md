@@ -52,7 +52,7 @@ Generic package overview. Available on any Frictionless package, not just GMNS. 
 
 ### `validate_package(source)`
 
-Run corral's **generic** validation pipeline (structural + schema + foreign-key + sync-state) against whatever spec the source carries, and return the report. It does **not** apply the GMNS spec: on a bare CSV directory such as the Leavenworth fixture there is no spec to check against, so `spec_version` is `null` and the only findings are nine `structural.unexpected_resource` warnings (one per CSV the inferred spec does not declare). For GMNS validation use `netstead validate <source> --json`, which emits the same report shape with the vendored spec applied.
+Run corral's **generic** validation pipeline (structural + schema + foreign-key + sync-state) against whatever spec the source carries, and return the report. It does **not** apply the GMNS spec: on a bare CSV directory such as the Leavenworth fixture there is no spec to check against, so `spec_version` is `null` and the findings are one `structural.spec_missing` info (no `datapackage.json`, no spec given) and nine `structural.unexpected_resource` warnings (one per CSV the empty spec does not declare). For GMNS validation use `netstead validate <source> --json`, which emits the same report shape with the vendored spec applied.
 
 **Parameters**
 
@@ -69,8 +69,19 @@ Run corral's **generic** validation pipeline (structural + schema + foreign-key 
   "source": "<echoed input>",
   "created_at": "2026-10-19T13:12:08.078865",
   "metadata": {},
-  "summary": {"error": 0, "warning": 9, "info": 0, "data_quality": 0, "is_clean": false},
+  "summary": {"error": 0, "warning": 9, "info": 1, "data_quality": 0, "is_clean": false},
   "issues": [
+    {
+      "severity": "info",
+      "category": "structural",
+      "code": "structural.spec_missing",
+      "message": "package source '...': no spec was given and none was found beside the source, so no table was checked against a schema",
+      "table": null,
+      "column": null,
+      "row": null,
+      "fix_hint": "Pass spec= to Package.from_source. Only a datapackage.json inside a source directory is discovered automatically; one inside a zip, next to a single file, or at a remote prefix is not.",
+      "extra": {}
+    },
     {
       "severity": "warning",
       "category": "structural",
@@ -86,7 +97,7 @@ Run corral's **generic** validation pipeline (structural + schema + foreign-key 
 }
 ```
 
-`severity` is one of `error`, `warning`, `info`; `category` is one of `schema`, `structural`, `foreign_key`, `sync_state`, `data_quality`. `summary.is_clean` is `true` only when `issues` is empty.
+`severity` is one of `error`, `warning`, `info`; `category` is one of `schema`, `structural`, `foreign_key`, `sync_state`, `data_quality`. `summary.is_clean` is `true` when there are no `error` or `warning` issues; `info` issues do not affect it. The example above shows the `spec_missing` info and the first of the nine warnings.
 
 **Example**
 

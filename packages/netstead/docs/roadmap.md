@@ -47,8 +47,14 @@ Everything below is on `main` and in the current beta.
   selection verification with pinned anchors, saved selections and export; style, filter and
   navigate actions; the natural-language assistant with approved drafts. Every action is recorded
   and replayable as Python.
-- **Plugins.** Python entry-point plugins with a versioned `Host` API (currently 1.4) and
+- **Plugins.** Python entry-point plugins with a versioned `Host` API (currently 1.5) and
   browser slots for workspaces, panels, commands and map layers.
+- **Project cards plugin.** Lives in the repository at `plugins/project-cards` and authors
+  [ProjectCards](https://github.com/network-wrangler/projectcard) from Workbench edits: the change
+  model, draft cards written as YAML or JSON in Wrangler names, import of card files and of the
+  offline edit log, the `project_cards.*` Actions (add a change, undo, commit, import, preview) and
+  the Card panel in the Workbench. See
+  [Author ProjectCards in the Workbench](cookbook/workbench-project-cards.md).
 - **AI surface.** `--json` on every data command, `llms.txt`, an MCP server with seven tools,
   and Claude Code skills in the repository.
 
@@ -64,11 +70,6 @@ page describes them.
    and modified features and validation-issue deltas.
 3. **Workbench P6: Transit.** A GTFS component beside the roadway network: routes and stops
    layers, transit selections, roadway-to-transit consistency checks.
-4. **Project cards plugin.** Lives in the repository at `plugins/project-cards` and authors
-   [ProjectCards](https://github.com/network-wrangler/projectcard) from Workbench edits. The change
-   model, draft cards written as YAML or JSON in Wrangler names, import of card files and of the
-   offline edit log, and the `project_cards.*` Actions (add a change, undo, commit, import, preview)
-   are on `main`; its Edit workspace panels are next.
 
 ## Designed, not scheduled
 

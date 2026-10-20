@@ -14,6 +14,7 @@ exceptions propagate.
 from __future__ import annotations
 
 from pathlib import Path
+from types import ModuleType
 
 import typer
 from corral.cli.render import render_dict
@@ -108,7 +109,7 @@ def register(app: typer.Typer) -> None:
         render_dict(summarise_scope(scope), json_out=json_out, title=f"netstead scope from-zone: {source}")
 
 
-def _import_scope():
+def _import_scope() -> ModuleType:
     """Resolve :mod:`netstead.scope`, first checking the ``[graph]`` extra is installed.
 
     ``netstead.scope`` itself is part of the core install (no extra needed),

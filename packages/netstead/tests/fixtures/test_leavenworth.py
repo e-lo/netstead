@@ -18,7 +18,9 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 import pytest
+from corral.spec import load_package, load_schema
 from netstead.fixtures import leavenworth
+from netstead.spec import get_spec_path
 
 # ---------------------------------------------------------------------------
 # Spec - mirrored from packages/netstead/netstead/spec/0.97/shared_categories.json
@@ -150,6 +152,36 @@ def test_datapackage_lists_resources() -> None:
     for name in EXPECTED_TABLES:
         assert name in resource_names, f"datapackage missing resource {name}"
     assert pkg["spec"]["version"] == "0.97"
+
+
+def test_datapackage_schemas_match_vendored_spec() -> None:
+    """Each resource inlines its resolved GMNS 0.97 schema, identical to the vendored one (#127).
+
+    The descriptor is self-contained (no path into ``netstead/spec``), so
+    this is the drift guard: when ``spec/0.97/`` changes, rerun
+    ``fixtures/leavenworth/scripts/descriptor.py``.
+    """
+    pkg = json.loads(leavenworth.DATAPACKAGE.read_text())
+    spec_dir = get_spec_path("0.97")
+    for resource in pkg["resources"]:
+        expected = load_schema(spec_dir / f"{resource['name']}.schema.json")
+        assert resource["schema"] == expected.model_dump(mode="json", by_alias=True, exclude_none=True), (
+            f"{resource['name']}: schema drifted from spec/0.97; rerun fixtures/leavenworth/scripts/descriptor.py"
+        )
+
+
+def test_datapackage_loads_after_being_moved(tmp_path: Path) -> None:
+    """The descriptor resolves on its own, away from the package tree."""
+    moved = tmp_path / "datapackage.json"
+    moved.write_bytes(leavenworth.DATAPACKAGE.read_bytes())
+    pkg = load_package(moved)
+    assert {r.name for r in pkg.resources} >= set(EXPECTED_TABLES)
+
+
+def test_zip_carries_the_current_datapackage() -> None:
+    """The zip's embedded descriptor is the same file as the on-disk one."""
+    with zipfile.ZipFile(leavenworth.zip_path()) as zf:
+        assert zf.read("datapackage.json") == leavenworth.DATAPACKAGE.read_bytes()
 
 
 @pytest.mark.parametrize("table", EXPECTED_TABLES)

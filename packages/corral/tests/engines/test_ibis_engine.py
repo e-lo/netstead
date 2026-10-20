@@ -12,6 +12,7 @@ import re
 import shutil
 import threading
 from pathlib import Path
+from typing import Any
 
 import ibis
 import pytest
@@ -246,6 +247,43 @@ def test_to_polars_returns_polars_dataframe(engine: IbisEngine, link_csv: Path):
     assert len(df) == 339
 
 
+@pytest.mark.parametrize("table", ["link", "node", "geometry", "lane"])
+def test_to_arrow_round_trips_leavenworth_parquet(engine: IbisEngine, table: str):
+    """#116: ``to_arrow`` hands back the same Arrow table that was read, and ``from_arrow`` takes it back."""
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    def narrow(t: pa.DataType) -> pa.DataType:  # the fixture files store large_string; the engine reads string
+        return {pa.large_string(): pa.string(), pa.large_binary(): pa.binary()}.get(t, t)
+
+    source = leavenworth.parquet_dir() / f"{table}.parquet"
+    on_disk = pq.read_table(source)
+    expected = on_disk.cast(pa.schema([(f.name, narrow(f.type)) for f in on_disk.schema]))
+    arrow = engine.to_arrow(engine.scan(source))
+    assert isinstance(arrow, pa.Table)
+    assert arrow.equals(expected)
+    assert engine.to_arrow(engine.from_arrow(arrow)).equals(expected)
+
+
+def test_to_arrow_keeps_awkward_types(engine: IbisEngine):
+    """Arrow-native types survive ``from_arrow`` -> ``to_arrow`` without a pandas or records hop."""
+    import datetime as dt
+    from decimal import Decimal
+
+    import pyarrow as pa
+
+    arrow = pa.table(
+        {
+            "ts": pa.array([dt.datetime(2026, 1, 1, tzinfo=dt.UTC), None], pa.timestamp("us", tz="UTC")),
+            "dec": pa.array([Decimal("1.25"), None], pa.decimal128(10, 2)),
+            "bin": pa.array([b"a", None], pa.binary()),
+            "lst": pa.array([[1, 2], None], pa.list_(pa.int64())),
+            "n": pa.array([1, None], pa.int32()),
+        }
+    )
+    assert engine.to_arrow(engine.from_arrow(arrow)).equals(arrow)
+
+
 def test_to_polars_without_polars_raises_engine_not_available(engine: IbisEngine, link_csv: Path, monkeypatch):
     """Parity with IbisEngine: missing polars must raise EngineNotAvailableError.
 
@@ -308,6 +346,62 @@ def test_write_duckdb_roundtrip(engine: IbisEngine, link_csv: Path, tmp_path: Pa
     assert again.count().to_pyarrow().as_py() == 339
 
 
+def test_write_duckdb_stays_inside_duckdb(engine: IbisEngine, link_parquet: Path, tmp_path: Path, monkeypatch):
+    """#128: the duckdb write never materialises the table in Python (no Arrow hop, no memtable)."""
+    import ibis.expr.types as ir
+
+    expected = engine.to_arrow(engine.scan(link_parquet))
+
+    def _refuse(*_a, **_kw):
+        raise AssertionError("write_duckdb_table materialised the table through Arrow")
+
+    out = tmp_path / "out.duckdb"
+    with monkeypatch.context() as m:
+        m.setattr(ir.Table, "to_pyarrow", _refuse)
+        m.setattr(ir.Table, "to_pyarrow_batches", _refuse)
+        m.setattr(ibis, "memtable", _refuse)
+        engine.write_duckdb_table(engine.scan(link_parquet), out, table="link")
+    assert engine.to_arrow(engine.read_duckdb_table(out, table="link")).equals(expected)
+
+
+def test_write_duckdb_replaces_an_existing_table_and_keeps_the_others(engine: IbisEngine, tmp_path: Path):
+    out = tmp_path / "out.duckdb"
+    engine.write_duckdb_table(engine.from_records([{"a": 1}]), out, table="t")
+    engine.write_duckdb_table(engine.from_records([{"b": "x"}]), out, table="keep")
+    engine.write_duckdb_table(engine.from_records([{"a": 2}, {"a": 3}]), out, table="t")
+    assert engine.to_arrow(engine.read_duckdb_table(out, table="t")).to_pylist() == [{"a": 2}, {"a": 3}]
+    assert engine.to_arrow(engine.read_duckdb_table(out, table="keep")).to_pylist() == [{"b": "x"}]
+
+
+def test_write_duckdb_releases_the_destination(engine: IbisEngine, tmp_path: Path):
+    """The destination is detached afterwards: the engine's catalogs are unchanged and the file can be moved."""
+    con: Any = engine.con
+    catalogs = set(con.list_catalogs())
+    out = tmp_path / "out.duckdb"
+    engine.write_duckdb_table(engine.from_records([{"a": 1}]), out, table="t")
+    assert set(con.list_catalogs()) == catalogs
+    moved = out.rename(tmp_path / "moved.duckdb")
+    assert engine.to_arrow(engine.read_duckdb_table(moved, table="t")).to_pylist() == [{"a": 1}]
+
+
+def test_write_duckdb_to_a_path_with_a_quote(engine: IbisEngine, tmp_path: Path):
+    out = tmp_path / "o'brien" / "out.duckdb"
+    out.parent.mkdir()
+    engine.write_duckdb_table(engine.from_records([{"a": 1}]), out, table="t")
+    assert engine.to_arrow(engine.read_duckdb_table(out, table="t")).to_pylist() == [{"a": 1}]
+
+
+def test_write_duckdb_into_the_engines_own_database_file(tmp_path: Path):
+    """An engine opened on a duckdb file can write a table back into that same file."""
+    db = tmp_path / "own.duckdb"
+    e = IbisEngine(con=ibis.duckdb.connect(str(db)))
+    try:
+        e.write_duckdb_table(e.from_records([{"a": 1}, {"a": 2}]), db, table="t")
+        assert e.to_arrow(e.con.table("t")).to_pylist() == [{"a": 1}, {"a": 2}]
+    finally:
+        e.con.disconnect()
+
+
 def test_write_unsupported_format_raises(engine: IbisEngine, link_csv: Path, tmp_path: Path):
     """Post-#134: unknown write fmt raises AdapterNotAvailableError from the registry."""
     from corral.io import AdapterNotAvailableError
@@ -351,6 +445,28 @@ def test_close_is_idempotent():
     e = IbisEngine()
     e.close()
     e.close()  # second call must not raise
+
+
+def test_close_surfaces_a_failed_disconnect(monkeypatch):
+    """#132: a genuine disconnect failure propagates; the engine still counts as closed afterwards."""
+    e = IbisEngine()
+    real_disconnect = e.con.disconnect
+
+    def _fail() -> None:
+        raise PermissionError("simulated: cannot release the database file")
+
+    monkeypatch.setattr(e.con, "disconnect", _fail)
+    with pytest.raises(PermissionError, match="cannot release"):
+        e.close()
+    e.close()  # not retried: close() stays idempotent
+    real_disconnect()
+
+
+def test_close_after_the_connection_was_disconnected_elsewhere():
+    """Someone else already disconnected the backend: close() must not raise."""
+    e = IbisEngine()
+    e.con.disconnect()
+    e.close()
 
 
 # ---------------------------------------------------------------------------

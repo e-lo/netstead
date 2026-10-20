@@ -14,6 +14,7 @@ from corral.spec import (
     Resource,
     Schema,
     SharedCategory,
+    load_package,
 )
 
 
@@ -174,3 +175,35 @@ def test_resource_json_round_trip_uses_schema_alias():
     dumped = r.model_dump(by_alias=True)
     assert "schema" in dumped
     assert "table_schema" not in dumped
+
+
+def test_missing_values_defaults_to_frictionless_empty_string():
+    """Absent ``missingValues`` means Frictionless's default ``[""]``, not ``None`` (#119)."""
+    s = Schema.model_validate({"fields": [{"name": "id", "type": "integer"}]})
+    assert s.missing_values == [""]
+
+
+def test_missing_values_explicit_empty_list_means_no_nulls():
+    """``missingValues: []`` is distinct from absent: no string is read as null (#119)."""
+    s = Schema.model_validate({"fields": [], "missingValues": []})
+    assert s.missing_values == []
+
+
+def test_missing_values_default_is_not_shared_between_instances():
+    a, b = Schema(fields=[]), Schema(fields=[])
+    a.missing_values.append("NA")
+    assert b.missing_values == [""]
+
+
+@pytest.mark.parametrize("path", ["link.csv", ["link-1.csv", "link-2.csv"]])
+def test_resource_path_loads_as_string_or_list(path):
+    """Frictionless allows a list of paths; the loader carries either form through (#124)."""
+    pkg = load_package({"resources": [{"name": "link", "path": path, "schema": {"fields": []}}]})
+    assert pkg.resources[0].path == path
+
+
+def test_collection_defaults_are_iterable_without_none_check():
+    """``foreign_keys`` and ``missing_values`` both default to lists (#120)."""
+    s = Schema(fields=[])
+    assert isinstance(s.foreign_keys, list)
+    assert isinstance(s.missing_values, list)

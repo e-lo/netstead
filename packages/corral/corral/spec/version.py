@@ -13,20 +13,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from .errors import InvalidSpecVersionError
 
 __all__ = ["SpecVersion", "compatible", "parse_version_dir"]
 
 
-@dataclass(frozen=True, order=False)
+@dataclass(frozen=True, order=True)
 class SpecVersion:
     """A simple semantic version triple for data specifications.
 
     Supports two- or three-component dotted strings (``"0.97"`` or
     ``"0.97.1"``). Missing components default to zero. Instances are
-    frozen and hashable so they can be used as dict keys.
+    frozen and hashable so they can be used as dict keys, and ordered
+    lexicographically by ``(major, minor, patch)``.
 
     Attributes:
         major: Major version component.
@@ -86,34 +86,6 @@ class SpecVersion:
     def __str__(self) -> str:
         """Return canonical ``MAJOR.MINOR.PATCH`` string form."""
         return f"{self.major}.{self.minor}.{self.patch}"
-
-    # Manual ordering — keeps comparison total even though dataclass(order=False).
-    def _key(self) -> tuple[int, int, int]:
-        return (self.major, self.minor, self.patch)
-
-    def __lt__(self, other: Any) -> bool:
-        """Lexicographic comparison by (major, minor, patch)."""
-        if not isinstance(other, SpecVersion):
-            return NotImplemented
-        return self._key() < other._key()
-
-    def __le__(self, other: Any) -> bool:
-        """``self <= other`` by (major, minor, patch)."""
-        if not isinstance(other, SpecVersion):
-            return NotImplemented
-        return self._key() <= other._key()
-
-    def __gt__(self, other: Any) -> bool:
-        """``self > other`` by (major, minor, patch)."""
-        if not isinstance(other, SpecVersion):
-            return NotImplemented
-        return self._key() > other._key()
-
-    def __ge__(self, other: Any) -> bool:
-        """``self >= other`` by (major, minor, patch)."""
-        if not isinstance(other, SpecVersion):
-            return NotImplemented
-        return self._key() >= other._key()
 
 
 def compatible(a: SpecVersion, b: SpecVersion) -> bool:

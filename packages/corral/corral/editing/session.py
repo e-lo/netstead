@@ -186,7 +186,7 @@ class Session:
 def _serialize_result(index: int, result: EditResult) -> dict[str, Any]:
     """Flatten an :class:`EditResult` into a parquet-safe row dict (JSON-encoded blobs)."""
     return {
-        "session_id": result.session_id or "",
+        "session_id": result.session_id or None,  # null, never "": rollback(to=...) never matches it
         "edit_index": index,
         "op": result.edit.op,
         "table": result.edit.table,

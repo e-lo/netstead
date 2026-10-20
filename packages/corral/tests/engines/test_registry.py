@@ -74,6 +74,9 @@ class FakeEngine:
     def to_polars(self, expr):
         return None
 
+    def to_arrow(self, expr):
+        return None
+
     # Lazy introspection — promoted to the protocol in Phase 5 hardening.
     def columns(self, expr):
         return []
@@ -186,6 +189,7 @@ def test_register_non_engine_raises_structured_typeerror():
     assert "materialize" in msg
     assert "to_pandas" in msg
     assert "to_polars" in msg
+    assert "to_arrow" in msg
     assert "write" in msg
 
 

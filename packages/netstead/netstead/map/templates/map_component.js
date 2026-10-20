@@ -540,49 +540,67 @@
       //     spec_version: ...
       //     created_at: ...
       //     client: netstead.map (browser)
+      //     netstead.note[0]: reason · issue_id=i0 · edit_id=e...
       //   changes:
       //     - roadway_property_change:
       //         facility:
-      //           model_link_id: [42]     # or model_node_id for node edits
+      //           links:                 # or nodes / model_node_id for node edits
+      //             model_link_id: [42]
+      //             ignore_missing: false  # clicked ids: fail loudly when one is gone
       //         property_changes:
       //           free_speed:
       //             existing: 40           # our "from" (omitted when null)
       //             set: 25                # our "to"
-      //         notes: 'reason · issue_id=i0 · edit_id=e...'
       //
-      // Node property changes aren't a first-class ProjectCard type; we
-      // emit the same shape via ``model_node_id`` as a netstead extension
-      // so the file round-trips through netstead.map.edits.load_edit_log.
+      // Schema-valid, the same shape as netstead.map.edits.dump_edit_log: a
+      // change cannot carry its own notes, so each change's note is one
+      // ``netstead.note[<i>]`` line of the card's notes (the convention the
+      // project-cards plugin reads).
       const log = loadEditLog();
-      const PK_TO_FACILITY = { link_id: "model_link_id", node_id: "model_node_id" };
+      const PK_TO_FACILITY = {
+        link_id: ["links", "model_link_id"],
+        node_id: ["nodes", "model_node_id"],
+      };
+      const noteLines = [];
+      let changes = "";
+      let n = 0;
+      log.forEach((e) => {
+        let fac = null, facId = null;
+        for (const [col, val] of Object.entries(e.pk || {})) {
+          if (PK_TO_FACILITY[col]) { fac = PK_TO_FACILITY[col]; facId = val; break; }
+        }
+        if (!fac) return; // skip unsupported PK shape
+        changes += "  - roadway_property_change:\n";
+        changes += "      facility:\n";
+        changes += "        " + fac[0] + ":\n";
+        changes += "          " + fac[1] + ": [" + yamlScalar(facId) + "]\n";
+        changes += "          ignore_missing: false\n";
+        changes += "      property_changes:\n";
+        changes += "        " + e.column + ":\n";
+        if (e.from_value !== null && e.from_value !== undefined) {
+          changes += "          existing: " + yamlScalar(e.from_value) + "\n";
+        }
+        changes += "          set: " + yamlScalar(e.to_value) + "\n";
+        const bits = [];
+        for (const bit of [
+          e.reason ? foldLine(e.reason) : "",
+          e.issue_id ? foldLine("issue_id=" + e.issue_id) : "",
+          e.id ? foldLine("edit_id=" + e.id) : "",
+        ]) {
+          if (bit) bits.push(bit);
+        }
+        if (bits.length) noteLines.push("netstead.note[" + n + "]: " + bits.join(" · "));
+        n += 1;
+      });
+      const now = new Date().toISOString();
       let s = "";
-      s += "project: netstead edits " + new Date().toISOString() + "\n";
+      s += "project: netstead edits " + now + "\n";
       s += "tags: [netstead, edit-log]\n";
       s += "notes: |\n";
-      s += "  created_at: " + new Date().toISOString() + "\n";
+      s += "  created_at: " + now + "\n";
       s += "  client: netstead.map (browser)\n";
-      s += "changes:\n";
-      log.forEach((e) => {
-        let facKey = null, facId = null;
-        for (const [col, val] of Object.entries(e.pk || {})) {
-          if (PK_TO_FACILITY[col]) { facKey = PK_TO_FACILITY[col]; facId = val; break; }
-        }
-        if (!facKey) return; // skip unsupported PK shape
-        s += "  - roadway_property_change:\n";
-        s += "      facility:\n";
-        s += "        " + facKey + ": [" + yamlScalar(facId) + "]\n";
-        s += "      property_changes:\n";
-        s += "        " + e.column + ":\n";
-        if (e.from_value !== null && e.from_value !== undefined) {
-          s += "          existing: " + yamlScalar(e.from_value) + "\n";
-        }
-        s += "          set: " + yamlScalar(e.to_value) + "\n";
-        const bits = [];
-        if (e.reason) bits.push(e.reason);
-        if (e.issue_id) bits.push("issue_id=" + e.issue_id);
-        if (e.id) bits.push("edit_id=" + e.id);
-        if (bits.length) s += "      notes: " + yamlScalar(bits.join(" · ")) + "\n";
-      });
+      noteLines.forEach((line) => { s += "  " + line + "\n"; });
+      s += "changes:\n" + (changes || "  []\n");
       return s;
     }
     function yamlScalar(v) {
@@ -593,6 +611,15 @@
         return s;
       }
       return "'" + s.replace(/'/g, "''") + "'";
+    }
+    function foldLine(v) {
+      // One line of the card's notes block: control characters (C0, C1 — NEL included — and U+FEFF) and runs of
+      // whitespace become single spaces, as netstead.map.edits._fold does.
+      return String(v)
+        .replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f﻿]/g, " ")
+        .split(/\s+/)
+        .filter(Boolean)
+        .join(" ");
     }
     function downloadYaml() {
       const yaml = buildYaml();

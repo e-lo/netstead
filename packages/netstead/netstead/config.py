@@ -97,6 +97,16 @@ class IOSettings(_Section):
     default_format: Literal["csv", "parquet", "duckdb", "zip"] = "parquet"
     allowed_roots: list[str] = Field(default_factory=list)
 
+    @field_validator("allowed_roots")
+    @classmethod
+    def _no_blank_roots(cls, value: list[str]) -> list[str]:
+        # "" resolves to the current folder, which is never what an empty-looking entry meant.
+        if any(not root.strip() for root in value):
+            raise ValueError(
+                "allowed_roots has a blank entry; list folder paths, or use [] for the default (your home folder)"
+            )
+        return value
+
 
 class EngineSettings(_Section):
     """DuckDB engine tuning (``None`` = DuckDB's own default)."""
@@ -307,7 +317,8 @@ class AssistantSettings(_Section):
     It uses the selection provider and model (``select.provider`` / ``select.model``) and the same ``llm.quality``
     privacy gates. ``plugins`` lists plugin ids whose Actions it may call (none by default). ``compact_tools`` offers
     a small model fewer tools per question (``auto``: on for a local endpoint): the read-only ones that apply right
-    now, plus edit, delete and undo. It never allows more than ``actions`` / ``plugins`` do.
+    now, plus edit, delete, undo and the plugin Actions marked ``compact``. It never allows more than ``actions`` /
+    ``plugins`` do.
     """
 
     actions: list[str] = Field(default_factory=lambda: list(DEFAULT_ASSISTANT_ACTIONS))
