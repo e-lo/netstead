@@ -49,7 +49,7 @@ from corral.io import (
     get_adapter,
     list_adapters,
 )
-from corral.reports import Category, ValidationReport
+from corral.reports import Category, Issue, Severity, ValidationReport
 from corral.spec.loader import load_package
 from corral.spec.model import DataPackage, Resource, Schema
 from corral.validation import (
@@ -138,6 +138,11 @@ class Package:
             consults only the per-table ``dirty`` flag.
         metadata: Free-form bag of extras (engine name, write
             timestamp, etc.); echoed into the JSON validation report.
+        spec_missing: ``True`` when :meth:`from_source` found no spec
+            (no ``spec=`` and no ``datapackage.json`` beside the source)
+            and used an empty one. :meth:`validate` then reports
+            ``structural.spec_missing`` so the gap is not mistaken for a
+            clean pass.
 
     Examples:
         Load the bundled generic sample fixture, validate, then
@@ -166,6 +171,7 @@ class Package:
     source: str | None = None
     dirty_tracker: Any = None  # DirtyTracker | None — Any because the type may be unimportable.
     metadata: dict[str, Any] = field(default_factory=dict)
+    spec_missing: bool = False
 
     # ------------------------------------------------------------------
     # Constructors
@@ -269,7 +275,10 @@ class Package:
         eng = engine if engine is not None else get_engine()
         source_str = str(source)
         # 1. Resolve spec.
-        resolved_spec = _resolve_spec(spec, source_str)
+        found_spec = _resolve_spec(spec, source_str)
+        # Without a spec, tables still load, but nothing can be checked
+        # against a schema; keep an empty spec and flag it for validate().
+        resolved_spec = found_spec if found_spec is not None else DataPackage(name="auto", resources=[])
 
         # 2. Discover resources. ``format=`` narrows the top-level
         #    dispatch; the directory-of-known-formats walk still uses
@@ -332,6 +341,7 @@ class Package:
             tables=tables_out,
             engine=eng,
             source=source_str,
+            spec_missing=found_spec is None,
         )
 
     @classmethod
@@ -520,6 +530,23 @@ class Package:
                 ResourceRef(name=t.name, path=t.source or t.name, format=t.format or "") for t in self.tables.values()
             ]
             check_structural(self.spec, source=self.source, actual_resources=actual, report=report)
+            if self.spec_missing:
+                report.add_issue(
+                    Issue(
+                        severity=Severity.INFO,
+                        category=Category.STRUCTURAL,
+                        code="structural.spec_missing",
+                        message=(
+                            f"package source {self.source!r}: no spec was given and none was found beside "
+                            f"the source, so no table was checked against a schema"
+                        ),
+                        fix_hint=(
+                            "Pass spec= to Package.from_source. Only a datapackage.json inside a source "
+                            "directory is discovered automatically; one inside a zip, next to a single "
+                            "file, or at a remote prefix is not."
+                        ),
+                    )
+                )
 
         # Schema: per-table per-field rules. Iterates only over loaded
         # tables (a partial load skips schemas it can't run).
@@ -672,6 +699,7 @@ class Package:
             source=self.source,
             dirty_tracker=self.dirty_tracker,
             metadata=dict(self.metadata),
+            spec_missing=self.spec_missing,
         )
 
     # ------------------------------------------------------------------
@@ -1119,16 +1147,17 @@ class Package:
 def _resolve_spec(
     spec: DataPackage | str | Path | None,
     source_str: str,
-) -> DataPackage:
+) -> DataPackage | None:
     """Resolve the ``spec`` argument to a :class:`DataPackage`.
 
     Order:
         1. Explicit :class:`DataPackage` — passed through.
         2. Explicit path / URL — loaded via :func:`load_package`.
-        3. ``None`` — look for a sibling ``datapackage.json`` next to
-           ``source_str``; if absent, synthesise an empty
-           :class:`DataPackage` (the structural validator will surface
-           the gap).
+        3. ``None`` — look for ``datapackage.json`` inside
+           ``source_str`` when it is a local directory (not inside a zip
+           or at a remote prefix); if absent, log it and return ``None`` so
+           :meth:`Package.from_source` can mark the package
+           ``spec_missing``.
     """
     if isinstance(spec, DataPackage):
         return spec
@@ -1138,10 +1167,11 @@ def _resolve_spec(
     candidate = Path(source_str) / "datapackage.json"
     if candidate.exists():
         return load_package(candidate)
-    # Synthesise an empty package — :meth:`Package.from_source` will
-    # populate ``tables`` from the scan, but the spec stays empty so
-    # downstream FK / schema checks no-op cleanly.
-    return DataPackage(name="auto", resources=[])
+    logger.info(
+        "no spec= given and no datapackage.json found in %s; tables load without schema checks",
+        source_str,
+    )
+    return None
 
 
 def _looks_remote(path: str) -> bool:

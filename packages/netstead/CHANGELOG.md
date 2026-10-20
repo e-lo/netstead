@@ -21,6 +21,14 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Fixed
 
+- **The Leavenworth fixture's `datapackage.json` is self-contained.** Each
+  resource now carries its resolved GMNS 0.97 schema inline instead of a
+  `../../spec/0.97/...` path, so the descriptor loads wherever it is copied,
+  including the copy inside `leavenworth.csv.zip`, which could not resolve
+  any schema before (and still described the package as gmnspy's). A test
+  fails if an inlined schema drifts from `spec/0.97/`;
+  `scripts/descriptor.py` regenerates the descriptor and zip without an
+  OpenStreetMap fetch or the `dev-fixtures` extra. (#127)
 - **The offline report's "Fix locally" edit log is a schema-valid ProjectCard.**
   `netstead.map.edits.dump_edit_log` and the browser download (`buildYaml` in
   `map_component.js`) put the facility under `links` / `nodes` with
