@@ -159,14 +159,14 @@ def test_datapackage_schemas_match_vendored_spec() -> None:
 
     The descriptor is self-contained (no path into ``netstead/spec``), so
     this is the drift guard: when ``spec/0.97/`` changes, rerun
-    ``build_leavenworth.py --descriptor-only``.
+    ``fixtures/leavenworth/scripts/descriptor.py``.
     """
     pkg = json.loads(leavenworth.DATAPACKAGE.read_text())
     spec_dir = get_spec_path("0.97")
     for resource in pkg["resources"]:
         expected = load_schema(spec_dir / f"{resource['name']}.schema.json")
         assert resource["schema"] == expected.model_dump(mode="json", by_alias=True, exclude_none=True), (
-            f"{resource['name']}: inlined schema drifted from spec/0.97; rerun build_leavenworth.py --descriptor-only"
+            f"{resource['name']}: schema drifted from spec/0.97; rerun fixtures/leavenworth/scripts/descriptor.py"
         )
 
 

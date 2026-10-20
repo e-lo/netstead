@@ -35,16 +35,17 @@ Usage::
     uv sync --extra dev-fixtures
     uv run python packages/netstead/netstead/fixtures/leavenworth/scripts/build_leavenworth.py
 
-    # After a change to the vendored spec only (no OSM fetch):
-    uv run python packages/netstead/netstead/fixtures/leavenworth/scripts/build_leavenworth.py --descriptor-only
+After a change to the vendored spec only, ``descriptor.py`` in this folder
+rewrites datapackage.json and the zip without this script's extra or an OSM
+fetch::
+
+    uv run --frozen python packages/netstead/netstead/fixtures/leavenworth/scripts/descriptor.py
 """
 
 from __future__ import annotations
 
-import json
 import shutil
 import sys
-import zipfile
 from datetime import UTC, datetime
 from io import StringIO
 from pathlib import Path
@@ -54,21 +55,24 @@ import osmnx as ox
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
-from corral.spec import load_schema
-from netstead.spec import get_spec_path
+from descriptor import (
+    CSV_DIR,
+    DATAPACKAGE_PATH,
+    FIXTURE_DIR,
+    TABLE_ORDER,
+    ZIP_PATH,
+    write_datapackage,
+    write_zip,
+)
 from shapely.geometry import LineString
 
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
 
-FIXTURE_DIR = Path(__file__).resolve().parent.parent
-CSV_DIR = FIXTURE_DIR / "csv"
+# FIXTURE_DIR, CSV_DIR, ZIP_PATH and DATAPACKAGE_PATH come from descriptor.py.
 PARQUET_DIR = FIXTURE_DIR / "parquet"
 DUCKDB_PATH = FIXTURE_DIR / "leavenworth.duckdb"
-ZIP_PATH = FIXTURE_DIR / "leavenworth.csv.zip"
-DATAPACKAGE_PATH = FIXTURE_DIR / "datapackage.json"
-SPEC_VERSION = "0.97"
 
 # ---------------------------------------------------------------------------
 # OSM source signature - documented for reproducibility
@@ -549,81 +553,6 @@ def write_duckdb(tables: dict[str, pd.DataFrame]) -> None:
         con.close()
 
 
-def write_zip() -> None:
-    """Zip the canonical csv/ tree into leavenworth.csv.zip."""
-    if ZIP_PATH.exists():
-        ZIP_PATH.unlink()
-    members = sorted(CSV_DIR.glob("*.csv"))
-    # ZipFile honours fixed dates so we set ZipInfo manually for byte-identity
-    with zipfile.ZipFile(ZIP_PATH, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-        for member in members:
-            info = zipfile.ZipInfo(filename=member.name, date_time=(2020, 1, 1, 0, 0, 0))
-            info.compress_type = zipfile.ZIP_DEFLATED
-            zf.writestr(info, member.read_bytes())
-    # Also include datapackage.json for self-contained zip use
-    with zipfile.ZipFile(ZIP_PATH, mode="a", compression=zipfile.ZIP_DEFLATED) as zf:
-        info = zipfile.ZipInfo(filename="datapackage.json", date_time=(2020, 1, 1, 0, 0, 0))
-        info.compress_type = zipfile.ZIP_DEFLATED
-        zf.writestr(info, DATAPACKAGE_PATH.read_bytes())
-
-
-def write_datapackage(table_names: list[str]) -> None:
-    """Write a self-contained Frictionless datapackage.json for the csv/ tree.
-
-    Each resource carries its GMNS 0.97 schema inline, resolved from the
-    vendored spec (``$ref``s and shared categories expanded), rather than a
-    relative path into ``netstead/spec``. The descriptor therefore loads
-    wherever it is copied, including from inside the zip, and matches the
-    self-describing descriptors corral writes for directory packages.
-    ``tests/fixtures/test_leavenworth.py`` checks each inlined schema
-    against the vendored one, so a spec change shows up as a test failure
-    (fix: rerun this script with ``--descriptor-only``).
-    """
-    spec_dir = get_spec_path(SPEC_VERSION)
-    resources = []
-    for name in table_names:
-        schema = load_schema(spec_dir / f"{name}.schema.json")
-        resources.append(
-            {
-                "name": name,
-                "path": f"csv/{name}.csv",
-                "format": "csv",
-                "mediatype": "text/csv",
-                "encoding": "utf-8",
-                "schema": schema.model_dump(mode="json", by_alias=True, exclude_none=True),
-            }
-        )
-    package = {
-        "$schema": "https://datapackage.org/profiles/2.0/datapackage.json",
-        "name": "leavenworth-wa",
-        "title": "Leavenworth, WA - example GMNS network",
-        "version": "0.1.0",
-        "spec": {"name": "gmns", "version": SPEC_VERSION},
-        "description": (
-            "Tiny example General Modeling Network Specification (GMNS) network "
-            "synthesized from OpenStreetMap for the historic downtown core of "
-            "Leavenworth, Washington. Bundled with netstead for tests and the "
-            "5-minute getting-started example."
-        ),
-        "homepage": "https://github.com/e-lo/netstead",
-        "licenses": [
-            {
-                "name": "ODbL-1.0",
-                "title": "Open Database License",
-                "path": "https://opendatacommons.org/licenses/odbl/1-0/",
-            }
-        ],
-        "sources": [
-            {
-                "title": "OpenStreetMap",
-                "path": "https://www.openstreetmap.org/",
-            }
-        ],
-        "resources": resources,
-    }
-    DATAPACKAGE_PATH.write_text(json.dumps(package, indent=2, sort_keys=True) + "\n")
-
-
 # ---------------------------------------------------------------------------
 # Validation
 # ---------------------------------------------------------------------------
@@ -671,33 +600,8 @@ def _dir_size(p: Path) -> int:
     return sum(f.stat().st_size for f in p.rglob("*") if f.is_file())
 
 
-def refresh_descriptor() -> int:
-    """Rewrite datapackage.json (and the zip that embeds it) from the csv/ tree.
-
-    No OSM fetch: use this when only the vendored spec changed.
-    """
-    resource_order = [
-        "node",
-        "link",
-        "geometry",
-        "lane",
-        "use_definition",
-        "use_group",
-        "time_set_definitions",
-        "link_tod",
-        "signal_controller",
-    ]
-    names = [n for n in resource_order if (CSV_DIR / f"{n}.csv").is_file()]
-    write_datapackage(names)
-    write_zip()
-    print(f"[leavenworth] rewrote {DATAPACKAGE_PATH.name} and {ZIP_PATH.name} for {len(names)} tables")
-    return 0
-
-
 def main() -> int:
     """Build all four format variants. Print a summary; return non-zero on failure."""
-    if "--descriptor-only" in sys.argv[1:]:
-        return refresh_descriptor()
     print(f"[leavenworth] fetching OSM: place={OSM_PLACE!r} type={OSM_NETWORK_TYPE}")
     g, fetched_at = fetch_graph()
     print(f"[leavenworth] OSM graph: {len(g.nodes)} nodes, {len(g.edges)} edges (fetched at {fetched_at})")
@@ -711,8 +615,7 @@ def main() -> int:
     link_tod_df = build_link_tod_table(link_df)
     sig_ctrl_df = build_signal_controller_table(node_df)
 
-    # Order matters for datapackage.json resource order (deterministic)
-    tables: dict[str, pd.DataFrame] = {
+    built: dict[str, pd.DataFrame] = {
         "node": node_df,
         "link": link_df,
         "geometry": geom_df,
@@ -721,9 +624,11 @@ def main() -> int:
         "use_group": use_grp_df,
         "time_set_definitions": tsd_df,
         "link_tod": link_tod_df,
+        "signal_controller": sig_ctrl_df,
     }
-    if not sig_ctrl_df.empty:
-        tables["signal_controller"] = sig_ctrl_df
+    # TABLE_ORDER fixes the datapackage.json resource order; an empty
+    # signal_controller (no signals in the extract) is left out.
+    tables = {name: built[name] for name in TABLE_ORDER if not (name == "signal_controller" and built[name].empty)}
 
     # FK validation before write
     fk_errors = validate_fks(tables)

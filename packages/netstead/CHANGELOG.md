@@ -14,8 +14,8 @@ This file is for the **netstead** package only. The underlying generic engine `c
   including the copy inside `leavenworth.csv.zip`, which could not resolve
   any schema before (and still described the package as gmnspy's). A test
   fails if an inlined schema drifts from `spec/0.97/`;
-  `build_leavenworth.py --descriptor-only` regenerates the descriptor and
-  zip without an OpenStreetMap fetch. (#127)
+  `scripts/descriptor.py` regenerates the descriptor and zip without an
+  OpenStreetMap fetch or the `dev-fixtures` extra. (#127)
 - **Validation and network HTML reports no longer show "API KEY REQUIRED" tiles when
   zoomed in.** CARTO now watermarks its raster basemap without an API key, and a key
   cannot be added: the report is a static, shareable file, so the key would ship inside
