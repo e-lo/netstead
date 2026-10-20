@@ -6,12 +6,24 @@ This file is for the **corral** package only. `netstead` (which depends on corra
 
 ## [Unreleased]
 
-### Added
+### Changed (breaking)
 
-- **`Engine.to_arrow(expr)` (#116).** The protocol gains an Arrow
+- **`Engine.to_arrow(expr)` joins the protocol (#116).** An Arrow
   converter beside `to_pandas` / `to_polars`; `IbisEngine.to_arrow` runs
   `to_pyarrow` with no pandas hop, so `to_arrow(from_arrow(t))` equals `t`.
-  A third-party engine must now implement it to pass `register_engine`.
+  **A third-party engine must now implement it** or `register_engine`
+  refuses it; the error now ends with `missing: ...`, naming the members
+  the engine lacks. Corral's editing layer does not call it yet (it reads
+  any engine's expression through ibis); it is groundwork for Arrow
+  consumers.
+
+### Internal
+
+- **`Engine.scan` contract suite (#141).** One test class per invariant on
+  the `scan` docstring (inline `{"data": ...}` through `from_records`,
+  duckdb handles through `read_duckdb_table`, unknown dict shapes raise
+  `UnsupportedSourceError`, `format` / `schema` / `**kwargs` reach the
+  adapter verbatim), parametrised over every registered engine.
 
 ### Fixed
 
@@ -53,11 +65,6 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   writes null; older logs with `""` still read as `None`.
   `rollback(to="")`, which named no session, now raises `RollbackError`
   instead of silently reversing nothing.
-- **`Engine.scan` contract suite (#141).** One test class per invariant on
-  the `scan` docstring (inline `{"data": ...}` through `from_records`,
-  duckdb handles through `read_duckdb_table`, unknown dict shapes raise
-  `UnsupportedSourceError`, `format` / `schema` / `**kwargs` reach the
-  adapter verbatim), parametrised over every registered engine.
 - **`replace_table` on a table with an all-null column (#163).** Already
   fixed by the engine coercing `null`-typed Arrow columns to `string` before
   duckdb sees them; now locked in by a regression test that runs the
