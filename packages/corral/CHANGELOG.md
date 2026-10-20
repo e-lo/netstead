@@ -46,7 +46,8 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   Re-registering the same class still just replaces the instance.
 - **`dispatch` logs a probe that raises.** The probe chain still skips an
   adapter whose `probe()` raises, but now says so at DEBUG on the
-  `corral.io` logger (adapter name and error; URL userinfo is masked).
+  `corral.io` logger (adapter name and error; any URL in the error has its
+  userinfo masked up to the last `@` and its query string dropped).
 - **An unreadable netrc file is reported.** The credentials cascade used to
   skip a `.netrc` (or `$NETRC`) it could not read, such as one with the
   wrong permissions, without a word. It still skips it, but logs a warning
