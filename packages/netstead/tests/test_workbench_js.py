@@ -823,14 +823,21 @@ def test_every_data_icon_in_index_is_in_the_set(node_module):
     assert used <= set(node_module("icons.js", ["ICONS"], "Object.keys(ICONS)"))
 
 
-def test_redo_is_blocked_without_a_redo_stack(node_module):
-    def blocked(state):
-        return node_module("editmodel.js", ["redoBlocked"], f"redoBlocked({state})")
+def test_a_prototype_key_is_not_an_icon(node_module):
+    expr = '(() => { try { icon("toString"); return null; } catch (e) { return e.message; } })()'
+    assert "toString" in node_module("icons.js", ["icon"], expr)
 
-    reason = blocked('{active: "n", edits: {n: {redo_count: 0}}}')
+
+def test_redo_is_blocked_without_a_redo_stack(node_module):
+    def blocked(summary):
+        return node_module("editmodel.js", ["redoBlocked"], f"redoBlocked({summary})")
+
+    reason = blocked("{redo_count: 0}")
     assert isinstance(reason, str) and reason
-    assert blocked('{active: "n", edits: {n: {redo_count: 2}}}') is None
-    assert blocked("null") and blocked('{active: "n", edits: {n: {pending: 1}}}')  # no summary, or no redo_count
+    assert blocked("{redo_count: 2}") == ""  # like undoBlocked: "" when allowed
+    assert blocked("null") and blocked("{pending: 1}")  # no summary, or no redo_count
+
+
 # --- netbuf.js: direction arrows (beta item 16) ---------------------------------------------------------------
 
 
@@ -859,7 +866,8 @@ def test_build_arrows_places_one_arrow_per_link_row_on_its_offset_side(node_modu
     assert [a["position"] for a in on] == [[2, 0], [0, 2]]
     assert [a["angle"] for a in on] == [-90, 0]
     mids = node_module(
-        "netbuf.js", ["buildArrows", "midpointByLength"],
+        "netbuf.js",
+        ["buildArrows", "midpointByLength"],
         f"buildArrows({paths}).map(a => [a.position, midpointByLength({paths}[a.link])])",
     )
     assert all(pos == mid for pos, mid in mids)

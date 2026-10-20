@@ -119,12 +119,8 @@ export function undoBlocked(summary) {
   return "";
 }
 
-// Why core's Redo is unavailable (from the session state: the active network's summary has no undone edit waiting),
-// or null when it can redo.
-export function redoBlocked(state) {
-  const s = editSummary(state);
-  return s && s.redo_count ? null : "Nothing to redo.";
-}
+// Why core's Redo is unavailable (no undone edit is waiting in the summary's `redo_count`), or "" when it can redo.
+export const redoBlocked = summary => (summary && summary.redo_count ? "" : "Nothing to redo.");
 
 // The confirmation before saving a copy, from the Edits data or a refused save's payload ({check_failed,
 // truncated, warnings, count?}); "" when there is nothing to confirm. A failed or cut-short live check is said

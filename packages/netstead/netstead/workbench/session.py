@@ -998,8 +998,11 @@ class Session:
         origin: str | None = None,
         recheck: Mapping[str, Iterable[Any]] | None = None,
         expected_version: int | None = None,
+        _redo: Sequence[PendingEdit] = (),
     ) -> list[EditResult]:
         """Apply corral ``edits`` to a network's roadway, in order and all-or-nothing; return their results.
+
+        ``_redo`` is :meth:`redo_last`'s: the redo stack the ledger keeps after this edit (any other edit empties it).
 
         ``expected_version`` (an :class:`~netstead.workbench.editing.EditPlan`'s ``version``) makes it refuse,
         with :class:`ActionError` and nothing changed, when the network is no longer at that version: the
@@ -1042,14 +1045,24 @@ class Session:
                 touched.setdefault(table, set()).update(keys)
             tables, removed = {e.table for e in edits}, _removed_links(applied, reverted=False)
             exprs = _exprs(handle, tables)
-            self._ledger_for(handle.id).add(self._source(origin), note, handle.version, applied, touched, exprs)
+            self._ledger_for(handle.id).add(
+                self._source(origin), note, handle.version, applied, touched, exprs, redo=_redo
+            )
             self._settle(handle, note, origin, kind="mutate", first=touched, tables=tables, removed=removed)
         return applied
 
     def revert(
-        self, net_id: str | None, results: Sequence[EditResult], *, note: str, origin: str | None = None
+        self,
+        net_id: str | None,
+        results: Sequence[EditResult],
+        *,
+        note: str,
+        origin: str | None = None,
+        _redo: Sequence[PendingEdit] = (),
     ) -> None:
         """Reverse the network's newest pending edit, given its ``results``: :meth:`mutate` run backwards.
+
+        ``_redo`` is :meth:`undo_last`'s: the redo stack the ledger keeps after the revert (a plain revert empties it).
 
         The results are reversed newest first on a copy-on-write draft, which is swapped in the way a
         mutation is: the version is bumped, ``note`` extends the lineage (prefixed with ``origin``), the
@@ -1076,7 +1089,7 @@ class Session:
                 for result in reversed(last.results):
                     reverse_edit(draft, result)
             self._swap(handle, draft, tables, note, origin)
-            self._ledger_for(handle.id).pop(handle.version, _exprs(handle, tables))
+            self._ledger_for(handle.id).pop(handle.version, _exprs(handle, tables), redo=_redo)
             removed = _removed_links(last.results, reverted=True)
             self._settle(handle, note, origin, kind="revert", first=last.touched, tables=tables, removed=removed)
 
@@ -1096,11 +1109,10 @@ class Session:
                 who = "the Workbench" if last.source == CORE_SOURCE else last.source
                 raise ActionError(f"the last change to {handle.id} was made by {who} ({last.note}); undo it there")
             origin = None if source in (CORE_SOURCE, PYTHON_SOURCE) else source
+            # The Workbench's own undo is redoable; another source's undo empties the stack. The ledger takes the
+            # stack as it pops (inside an Action, after its rollback snapshot), so the state published then is right.
             redo = [*ledger.redo, last] if source == CORE_SOURCE else []  # type: ignore[union-attr]  # ``last`` is set
-            self.revert(handle.id, last.results, note=f"undo: {last.note}", origin=origin)
-            # ``revert`` snapshotted the ledger (inside an Action) before emptying the stack, so a rollback puts the
-            # old stack back. The Workbench's own undo is redoable; another source's undo clears the stack.
-            self.edits[handle.id].redo = redo
+            self.revert(handle.id, last.results, note=f"undo: {last.note}", origin=origin, _redo=redo)
         return last
 
     def redo_last(self, net_id: str | None) -> PendingEdit:
@@ -1108,7 +1120,9 @@ class Session:
 
         The entry's edits run through :meth:`mutate` with note ``"redo: <its note>"``, so the redo is a pending
         edit like any other (undoable, recorded, re-checked). Raises :class:`ActionError` ``"nothing to redo"``
-        when no undone edit is waiting: nothing was undone, or the network changed since the undo.
+        when no undone edit is waiting (nothing was undone, or the network changed since the undo), and
+        ``"... changed outside the Workbench since; redo is unavailable"`` (the stack emptied) when the network
+        changed without the ledger since the undo, as :meth:`revert` refuses.
         """
         with self._lock:
             handle = self._handle(net_id)
@@ -1116,10 +1130,20 @@ class Session:
             if ledger is None or not ledger.redo:
                 raise ActionError(f"nothing to redo on {handle.id}")
             *rest, entry = ledger.redo
-            # ``mutate`` snapshots the ledger (inside an Action) and empties the stack as it adds: a failure leaves
-            # the stack as it was, a rollback restores the snapshot, and on success only the redone entry leaves it.
-            self.mutate(handle.id, [r.edit for r in entry.results], note=f"redo: {entry.note}", recheck=entry.touched)
-            ledger.redo = rest
+            tables = {r.edit.table for r in entry.results}
+            if ledger.unseen_change(handle.version, _exprs(handle, tables)):
+                ledger.redo = []  # the undone edits were planned against tables that are gone
+                raise ActionError(f"{handle.id} changed outside the Workbench since; redo is unavailable")
+            # ``mutate`` snapshots the ledger (inside an Action) and sets the stack as it adds: a failure leaves the
+            # stack as it was, a rollback restores the snapshot, and on success only the redone entry leaves it.
+            self.mutate(
+                handle.id,
+                [r.edit for r in entry.results],
+                note=f"redo: {entry.note}",
+                recheck=entry.touched,
+                expected_version=ledger.version,
+                _redo=rest,
+            )
             redone = ledger.last()
             assert redone is not None  # mutate just added it
         return redone

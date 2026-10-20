@@ -69,7 +69,7 @@
              font-size:16px; cursor:pointer; backdrop-filter:blur(3px); }
   .iconbtn.on { background:var(--accent); color:#11151a; border-color:var(--accent); }
   .iconbtn svg { width:18px; height:18px; display:block; }
-  .iconbtn.off { opacity:.45; pointer-events:none; }
+  .iconbtn.off { opacity:.45; cursor:default; }  /* still hoverable: its tooltip says what it would do */
   /* a pure-CSS tooltip: to the left of the button (the map's corner, the dock, the footer), or below it in the header,
      where a tooltip above or beside the button would be clipped by the window's edge */
   [data-tip]:hover::after { content:attr(data-tip); position:absolute; top:50%; right:calc(100% + 8px);

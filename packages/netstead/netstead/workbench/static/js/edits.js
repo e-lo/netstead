@@ -49,7 +49,7 @@ export function renderEdits(edits) {
   const e = edits && edits.net_id === activeId() ? edits : null;
   const why = undoBlocked(e);
   setBlocked("ed-undo", why, "Undo last edit");
-  setBlocked("ed-redo", redoBlocked(store.get().server), "Redo");
+  setBlocked("ed-redo", redoBlocked(e), "Redo");
   $("ed-undo-why").textContent = e && e.pending ? why : "";
   const parts = e ? [dirtyBadge(e) || (e.pending ? "Every edit is in a saved copy." : ""),
     e.warnings.length ? `${e.warnings.length} open warning(s): see Issues.` : "",

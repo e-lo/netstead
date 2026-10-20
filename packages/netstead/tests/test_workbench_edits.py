@@ -669,12 +669,68 @@ def test_undo_twice_then_redo_twice_restores_both_edits_in_order(session):
     assert cell(session, 18, "lanes") == [2] and session.state()["edits"]["leavenworth"]["redo_count"] == 0
 
 
-def test_a_redo_is_undone_with_its_action(session):
+def test_undoing_a_redo_puts_it_back_on_the_redo_stack(session):
     session.dispatch(EditCells(ids=[17], values={"free_speed": 42.0}))
     session.dispatch(UndoEdit())
     session.dispatch(RedoEdit())
     session.dispatch(UndoEdit())  # the redone edit is the newest pending edit again
     assert cell(session, 17) != [42.0] and session.state()["edits"]["leavenworth"]["redo_count"] == 1
+
+
+def test_redo_refuses_after_a_change_the_ledger_did_not_see(session):
+    session.dispatch(EditCells(ids=[17], values={"free_speed": 42.0}))
+    session.dispatch(UndoEdit())
+    handle(session).bump()  # a version bump behind the ledger's back
+    with pytest.raises(ActionError, match="changed outside the Workbench since; redo is unavailable"):
+        session.dispatch(RedoEdit())
+    assert session.state()["edits"]["leavenworth"]["redo_count"] == 0 and cell(session, 17) != [42.0]
+
+
+def test_a_python_mutation_after_an_undo_empties_the_redo_stack(session):
+    session.dispatch(EditCells(ids=[17], values={"free_speed": 42.0}))
+    session.dispatch(UndoEdit())
+    mutate(session, plan_update(handle(session).roadway, "link", [18], {"lanes": 2}))  # from Python, not an Action
+    assert session.state()["edits"]["leavenworth"]["redo_count"] == 0
+
+
+def test_another_sources_undo_empties_the_redo_stack(session):
+    mutate(session, plan_update(handle(session).roadway, "link", [18], {"lanes": 2}), origin="cards")
+    session.dispatch(EditCells(ids=[17], values={"free_speed": 42.0}))
+    session.dispatch(UndoEdit())
+    assert session.state()["edits"]["leavenworth"]["redo_count"] == 1
+    session.undo_last("leavenworth", source="cards")  # the plugin takes back its own edit, now the newest
+    assert session.state()["edits"]["leavenworth"]["redo_count"] == 0
+
+
+class RedoThenFail(BaseAction):
+    type: Literal["rtf.go"] = "rtf.go"
+    mutates: ClassVar[bool] = True
+
+
+def _redo_then_fail(host, action: RedoThenFail) -> None:
+    host.dispatch({"type": "redo_edit"})
+    raise RuntimeError("after the redo")
+
+
+def test_a_failed_action_rolls_a_redo_back_to_the_earlier_redo_stack(tmp_path, isolated_env):
+    plugin = WorkbenchPlugin(
+        id="rtf",
+        name="Redo then fail",
+        version="0",
+        requires_api=HOST_API,
+        actions=(ActionSpec(RedoThenFail, _redo_then_fail),),
+    )
+    s = Session(project_dir=tmp_path, environ=isolated_env, parser=StubParser(), plugins=[plugin])
+    s.dispatch(OpenNetwork(source=SRC))
+    s.dispatch(EditCells(ids=[17], values={"free_speed": 42.0}))
+    s.dispatch(EditCells(ids=[18], values={"lanes": 2}))
+    s.dispatch(UndoEdit())
+    s.dispatch(UndoEdit())
+    assert s.state()["edits"]["leavenworth"]["redo_count"] == 2
+    assert not s.dispatch_recorded(RedoThenFail()).ok
+    assert s.state()["edits"]["leavenworth"]["redo_count"] == 2 and cell(s, 17) != [42.0]
+    s.dispatch(RedoEdit())  # the stack is intact: the same edit redoes again
+    assert cell(s, 17) == [42.0] and s.state()["edits"]["leavenworth"]["redo_count"] == 1
 
 
 def test_core_undo_last_refuses_a_python_entry(session):

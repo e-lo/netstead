@@ -43,8 +43,8 @@ const attr = v => String(v).replace(/[&<>"]/g, c => ATTR[c]);
 // The inline <svg> for `name`: decorative (hidden from readers) unless `label` names it as an image. An icon button's
 // accessible name is its aria-label, so its icon stays decorative.
 export function icon(name, { size = 18, label = null } = {}) {
+  if (!Object.hasOwn(ICONS, name)) throw new Error(`unknown icon "${name}"`);  // never a prototype key
   const body = ICONS[name];
-  if (!body) throw new Error(`unknown icon "${name}"`);
   const a11y = label == null ? 'aria-hidden="true"' : `role="img" aria-label="${attr(label)}"`;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" ` +
     `stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ${a11y}>${body}</svg>`;

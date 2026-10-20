@@ -8,6 +8,7 @@ results of its edits: they are what :meth:`~netstead.workbench.session.Session.r
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from typing import Any
 
@@ -110,36 +111,36 @@ class EditLedger:
         results: list[EditResult],
         touched: dict[str, set[Any]],
         exprs: dict[str, Any],
+        redo: Sequence[PendingEdit] = (),
     ) -> PendingEdit:
         """Record one applied mutation and return it; ``exprs`` maps each table it changed to its new expression.
 
-        The redo stack is replaced by an empty one (the old list object is left alone, so a caller re-applying an
-        undone edit can put the rest of it back).
+        ``redo`` becomes the redo stack: empty, unless this is a redo putting the rest of the stack back.
         """
         self._seq += 1
         entry = PendingEdit(self._seq, source, note, version, list(results), touched)
         self.entries.append(entry)
         self.version = version
         self.exprs.update(exprs)
-        self.redo = []
+        self.redo = list(redo)
         return entry
 
     def last(self) -> PendingEdit | None:
         """The newest entry (``None`` when there is none)."""
         return self.entries[-1] if self.entries else None
 
-    def pop(self, version: int, exprs: dict[str, Any]) -> PendingEdit:
+    def pop(self, version: int, exprs: dict[str, Any], redo: Sequence[PendingEdit] = ()) -> PendingEdit:
         """Drop the newest entry (after its edits were reverted, leaving the network at ``version``); return it.
 
-        ``exprs`` maps each table the revert changed to its new expression. The redo stack is replaced by an empty
-        one: the Workbench's own undo pushes the entry back on afterwards.
+        ``exprs`` maps each table the revert changed to its new expression. ``redo`` becomes the redo stack: empty,
+        unless this is the Workbench's own undo, which keeps the stack with the entry on top.
         """
         entry = self.entries.pop()
         if entry.saved:
             self.diverged = True
         self.version = version
         self.exprs.update(exprs)
-        self.redo = []
+        self.redo = list(redo)
         return entry
 
     def unseen_change(self, version: int, exprs: dict[str, Any]) -> bool:
