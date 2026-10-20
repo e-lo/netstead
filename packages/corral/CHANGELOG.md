@@ -29,6 +29,11 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   The error now propagates; `close()` stays idempotent because only the
   first call disconnects, and disconnecting an already-closed duckdb
   connection does not raise. `__del__` still never raises.
+- **`Engine.scan` contract suite (#141).** One test class per invariant on
+  the `scan` docstring (inline `{"data": ...}` through `from_records`,
+  duckdb handles through `read_duckdb_table`, unknown dict shapes raise
+  `UnsupportedSourceError`, `format` / `schema` / `**kwargs` reach the
+  adapter verbatim), parametrised over every registered engine.
 - **`replace_table` on a table with an all-null column (#163).** Already
   fixed by the engine coercing `null`-typed Arrow columns to `string` before
   duckdb sees them; now locked in by a regression test that runs the
