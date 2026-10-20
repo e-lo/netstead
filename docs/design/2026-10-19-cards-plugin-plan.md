@@ -1,6 +1,6 @@
 # Project cards plugin (ProjectCard authoring) Implementation Plan
 
-Status: **implemented** (#228, #229; PR C, the UI and docs, pending) · Date: 2026-10-19 · Owner: Elizabeth Sall
+Status: **implemented** (#228, #229, PR C) · Date: 2026-10-19 · Owner: Elizabeth Sall
 
 **Note:** Code blocks in Tasks 3–6 predate review fixes; the code in `plugins/project-cards` is authoritative.
 
