@@ -91,6 +91,7 @@ Records on a branch go here, then move to the tables above when they merge.
 
 | Record | Kind | Branch | Status | Notes |
 |---|---|---|---|---|
+| [Workbench beta feedback](2026-10-20-workbench-beta-feedback-plan.md) | plan | `feat/workbench-beta-feedback` | accepted | 20 beta-feedback items from the 2026-10-20 quickstart walk: rendering fixes, filters, categorical edits, grouped validation findings, panel restructure, Cards panel with catalog (Host API 1.7) |
 
 ## Gaps to close
 
