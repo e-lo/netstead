@@ -100,10 +100,11 @@ Under **Import a card**, give the path of a card or edit log, then press **Impor
 one fails, none are applied, and the message names the one that failed ("change 2 of 2: …"). An empty draft takes
 the card's project, tags, dependencies and notes.
 
-Import reads YAML and JSON cards. It also reads the edit log that the offline validation report's "Fix locally"
-editor downloads (see [Triage and fix findings](fix-findings.md)), although that file is not a schema-valid
-ProjectCard: its facility holds `model_link_id` at the top level, and its changes carry their own `notes`. Each of
-those notes becomes the change's note, and is written into the card's notes on commit.
+Import reads YAML and JSON cards. The edit log that the offline validation report's "Fix locally" editor downloads
+(see [Triage and fix findings](fix-findings.md)) is one: each fix is a picked id with `ignore_missing: false`, and its
+`netstead.note[<i>]` line becomes the change's note. Edit logs written before netstead 2026-10-20 are not
+schema-valid (the facility holds `model_link_id` at the top level, and each change carries its own `notes`); import
+still reads them, and each of those notes becomes the change's note, written into the card's notes on commit.
 
 Import refuses:
 
@@ -125,7 +126,7 @@ The card uses network_wrangler's names. GMNS names map to them through a data fi
 |---|---|
 | Picked links (click or box) | `facility: {links: {model_link_id: [...], ignore_missing: false}}` |
 | Selected by a request ("Benton Street") | The query, `facility: {links: {name: [Benton Street], ignore_missing: true}}`, plus a `netstead.resolved[<i>]` line in the card's `notes` |
-| Deleted links | `roadway_deletion` by id, `ignore_missing: false`; **Also delete end nodes** is `clean_nodes: true` |
+| Deleted links | `roadway_deletion` by id: `ignore_missing: false` for picked links, the query's own flag for links a request selected; **Also delete end nodes** is `clean_nodes: true` |
 | Added a link | `roadway_addition` in network_wrangler's names, with `walk_access`, `bike_access` and `drive_access` derived from `allowed_uses` |
 | Wrote a note | a `netstead.note[<i>]` line in the card's `notes` |
 
@@ -158,9 +159,11 @@ skip it (`true`).
 - **A query selection** keeps the query's own `ignore_missing`, which is `true` (network_wrangler's default) when
   the query has none. The plugin applies it now too: a resolved id the network no longer has is skipped and listed,
   instead of refusing the change.
-- **Deletions** are always written by id with `ignore_missing: false`, even when the selection came from a query.
-- **Reading a card**, a selector without `ignore_missing` reads as `true`. A deletion's flag is dropped, and the
-  deletion is written back with `false`. The offline edit log's ids read as `false`.
+- **Deletions** are written by id (the links the selection resolved to). Picked links get `ignore_missing: false`;
+  links a query selected keep the query's flag, so with `true` a resolved link that is gone is skipped and listed,
+  as for a property change. A deletion's nodes always get `false`.
+- **Reading a card**, a selector without `ignore_missing` reads as `true`. A deletion keeps its links' flag; its
+  nodes' flag is dropped and written back as `false`. The offline edit log's ids read as `false`.
 
 ## From Python
 
@@ -246,11 +249,11 @@ The assistant offers a plugin's Actions only when you opt in. In **Settings → 
 ```toml
 [assistant]
 plugins = ["project_cards"]
-compact_tools = "off"
 ```
 
-`plugins` is the opt-in. `compact_tools = "off"` matters only with a model on this machine (Ollama): its default,
-`auto`, gives a local model a smaller set of tools that leaves out the cards tools.
+`plugins` is the opt-in. With a model on this machine (Ollama), the default `compact_tools = "auto"` gives it a smaller
+set of tools. That set includes adding, undoing and previewing a change and closing the preview, but not committing
+or importing, which need a file path. To draft those with a local model as well, set `compact_tools = "off"`.
 
 Every `project_cards` Action changes a network, opens or closes a preview, or writes a file, so the assistant
 drafts each one for you to approve. Nothing runs until you do. A drafted change made while a preview was open is

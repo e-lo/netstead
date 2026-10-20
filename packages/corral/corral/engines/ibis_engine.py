@@ -389,7 +389,7 @@ class IbisEngine:
         # unknown all-null column — before handing the table to duckdb.
         arrow = _coerce_all_null_columns_to_string(arrow)
         name = _temp_table_name("inline")
-        self.con.create_table(name, obj=ibis.memtable(arrow), temp=True)
+        self.con.create_table(name, obj=arrow, temp=True)  # raw Arrow: ibis drops its staging view after
         expr = self.con.table(name)
         return self.cast_schema(expr, schema) if schema is not None else expr
 
@@ -405,7 +405,7 @@ class IbisEngine:
         """
         arrow_table = _coerce_all_null_columns_to_string(arrow_table)
         name = _temp_table_name("inline_arrow")
-        self.con.create_table(name, obj=ibis.memtable(arrow_table), temp=True)
+        self.con.create_table(name, obj=arrow_table, temp=True)  # raw Arrow: ibis drops its staging view after
         return self.con.table(name)
 
     # ------------------------------------------------------------------
@@ -468,14 +468,17 @@ class IbisEngine:
     ) -> None:
         """Write ``expr`` into a duckdb file as a named table.
 
-        We can't ``create_table`` on a different backend directly with
-        an ibis expression rooted in ``self.con``, so we hop through
-        Arrow. For Leavenworth-sized fixtures this is free; for very
-        large writes the duckdb adapter could later ATTACH instead.
+        The destination file is ATTACHed to the connection ``expr`` runs
+        on and the table is created there from the expression, so duckdb
+        streams the rows from source to destination and nothing is
+        materialised in Python (a regional-scale table never has to fit
+        in memory). The file is DETACHed afterwards. When ``dest`` is
+        already attached (an engine opened on that very file), the table
+        is created in that catalog instead.
 
-        Overwrite semantics: the destination table is dropped if it
-        exists, so ``write_duckdb_table`` is idempotent (same as
-        ``to_parquet``'s file-replacement behaviour).
+        Overwrite semantics: an existing destination table is replaced,
+        so ``write_duckdb_table`` is idempotent (same as ``to_parquet``'s
+        file-replacement behaviour); other tables in the file are kept.
 
         Args:
             expr: An ibis expression.
@@ -486,14 +489,19 @@ class IbisEngine:
         del kwargs  # reserved for future use
         if not table:
             raise InvalidEngineCallError("ibis engine: write_duckdb_table requires a non-empty table= argument")
-        arrow = expr.to_pyarrow()
-        dst = ibis.duckdb.connect(_as_path_str(dest))
-        try:
-            if table in dst.list_tables():
-                dst.drop_table(table)
-            dst.create_table(table, obj=ibis.memtable(arrow))
-        finally:
-            dst.disconnect()
+        backend: Any = expr._find_backend() if _is_duckdb(expr) else self.con  # a duckdb Backend
+        path = Path(_as_path_str(dest)).resolve()
+        with backend_lock(backend):
+            catalog = _attached_catalog(backend, path)
+            if catalog is not None:
+                backend.create_table(table, obj=expr, database=(catalog, "main"), overwrite=True)
+                return
+            alias = _temp_table_name("dest")
+            backend.attach(str(path).replace("'", "''"), name=alias)  # ibis interpolates it into ATTACH '...'
+            try:
+                backend.create_table(table, obj=expr, database=(alias, "main"), overwrite=True)
+            finally:
+                backend.detach(alias)
 
     # ------------------------------------------------------------------
     # Schema cast — promoted from internal helper to public primitive
@@ -700,6 +708,24 @@ class IbisEngine:
                 "polars is required for IbisEngine.to_polars; install with `pip install dbcorral[polars]`"
             ) from exc
 
+    def to_arrow(self, expr: ir.Table) -> pa.Table:
+        """Materialize ``expr`` and return a :class:`pyarrow.Table`.
+
+        Runs ibis's ``to_pyarrow`` (under the backend lock, like every
+        backend call); no pandas hop, so binary / decimal / timestamp
+        (with tz) / nested columns keep their Arrow types.
+
+        Examples:
+            >>> import pyarrow as pa
+            >>> from corral.engines.ibis_engine import IbisEngine
+            >>> engine = IbisEngine()
+            >>> tbl = pa.table({"a": [1, 2], "b": ["x", None]})
+            >>> engine.to_arrow(engine.from_arrow(tbl)).equals(tbl)
+            True
+            >>> engine.close()
+        """
+        return expr.to_pyarrow()
+
     # ------------------------------------------------------------------
     # Lazy introspection — routed via ibis' native expression API.
     # Single-line wrappers; promoted to the Engine protocol so the
@@ -739,8 +765,11 @@ class IbisEngine:
     def close(self) -> None:
         """Disconnect the backend if we created it.
 
-        Idempotent — safe to call multiple times. Connections passed
-        in by the caller are left alone.
+        Idempotent — safe to call multiple times; only the first call
+        disconnects. A failure to disconnect (a file-backed database
+        that cannot be released, say) propagates, and the engine still
+        counts as closed. Connections passed in by the caller are left
+        alone.
 
         Examples:
             >>> from corral.engines.ibis_engine import IbisEngine
@@ -748,12 +777,10 @@ class IbisEngine:
             >>> engine.close()
             >>> engine.close()  # idempotent
         """
-        if self._owns_con and self.con is not None:
-            with contextlib.suppress(Exception):
-                # Already-closed connections raise; that's fine — close()
-                # is documented as idempotent.
-                self.con.disconnect()
-            self._owns_con = False
+        if not (self._owns_con and self.con is not None):
+            return
+        self._owns_con = False  # first: a disconnect that raises is not retried by the next close()
+        self.con.disconnect()
 
     def __del__(self) -> None:  # pragma: no cover - GC-driven
         """Best-effort connection release on GC; never raise here."""
@@ -878,6 +905,15 @@ def _coerce_all_null_columns_to_string(arrow_table: Any) -> Any:
         idx = new_schema.get_field_index(name)
         new_schema = new_schema.set(idx, pa.field(name, pa.string()))
     return arrow_table.cast(new_schema)
+
+
+def _attached_catalog(backend: BaseBackend, path: Path) -> str | None:
+    """The catalog name under which ``backend`` already has the duckdb file ``path`` attached, if any.
+
+    Caller holds :func:`backend_lock`; ``raw_sql`` hands back a cursor used outside the method wrapper.
+    """
+    rows = backend.raw_sql("SELECT database_name, path FROM duckdb_databases()").fetchall()  # type: ignore[attr-defined]
+    return next((name for name, p in rows if p and Path(p).resolve() == path), None)
 
 
 def _is_duckdb(expr: Any) -> bool:

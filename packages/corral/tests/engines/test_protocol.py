@@ -72,6 +72,9 @@ class FakeEngine:
     def to_polars(self, expr):
         return None
 
+    def to_arrow(self, expr):
+        return None
+
     # Lazy introspection — promoted to the protocol in Phase 5 hardening.
     def columns(self, expr):
         return []
@@ -121,3 +124,9 @@ def test_engine_missing_primitives_fails_protocol_check():
 def test_engine_protocol_runtime_checkable_class_object():
     # Defensive sanity: re-confirm instance check after mutation in other tests.
     assert isinstance(FakeEngine(), Engine)
+
+
+def test_engine_without_to_arrow_fails_protocol_check():
+    """#116: ``to_arrow`` is part of the protocol, so an engine lacking it is not an Engine."""
+    no_arrow = type("NoArrowEngine", (FakeEngine,), {"to_arrow": None})()
+    assert not isinstance(no_arrow, Engine)

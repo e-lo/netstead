@@ -36,11 +36,16 @@ write (a POST from a page with a different origin, or flagged `Sec-Fetch-Site: c
 exposes it to the rest of the network — there's no authentication in front of it, so don't do that on a
 shared network.
 
-> **Known issue.** Running with `--host 0.0.0.0` while `io.allowed_roots` is empty (the default) lets anyone
-> on your network browse your home folder through the server-side file browser described below, with no
-> authentication. Set `io.allowed_roots` to the specific folders you want exposed before binding to
-> `0.0.0.0`, or don't use `--host 0.0.0.0` on a shared network. This is a known limitation, not something
-> a future release has silently fixed — check the current docs before relying on it.
+> **Exposing the Workbench needs explicit roots.** `netstead app` refuses a non-loopback host (from
+> `--host`, `NETSTEAD_APP__HOST` or a config file) while `io.allowed_roots` is empty, because empty means your
+> home folder and the server-side file browser described below would show it to anyone on the network. It
+> exits with code 2 and says how to fix it. List the folders you want to share first, in `./netstead.toml`
+> or your user `config.toml` (see [Which folders the app can read and write](#which-folders-the-app-can-read-and-write)), or
+> for one run with `NETSTEAD_IO__ALLOWED_ROOTS='["/data/networks"]'`. Paths you name on the command line
+> are allowed for that session, but they don't count as explicit roots. Blank entries such as `[""]` are
+> rejected (a blank path would mean the current folder). Other loopback spellings, such as `127.0.0.2` or
+> `LOCALHOST`, are refused too while the roots are empty: the Host-header check above only covers
+> `127.0.0.1`, `localhost` and `::1`, so use one of those.
 
 > **Plugins.** Installed [Workbench plugins](workbench-plugins.md) are full-trust Python running inside
 > this server, and an exposed bind exposes their routes and Actions too. Install only plugins you trust,
@@ -408,8 +413,8 @@ you opened, local or remote, is never written to, and a copy inside the source f
   model is asked again. The model sees what each GMNS column means
   (`free_speed` is the speed limit). With `assistant.compact_tools = "auto"` (the default) a model on this machine is
   offered fewer tools: the read-only ones that apply now (no network switch with one network open, no saved selection
-  to reuse when none is saved) plus edit, delete and undo. `"on"` does this for any model, `"off"` never; it never
-  offers more than `assistant.actions` / `assistant.plugins` allow. Measured with `scripts/eval_nl_assistant.py` on
+  to reuse when none is saved) plus edit, delete, undo and the plugin Actions marked `compact`. `"on"` does this for
+  any model, `"off"` never; it never offers more than `assistant.actions` / `assistant.plugins` allow. Measured with `scripts/eval_nl_assistant.py` on
   `qwen2.5:7b` (15 requests, 3 runs): 39/45 correct (87%), every answer valid. It still drops the second half of
   "select …, then save it as …": ask in two steps.
 - **Limits:** `assistant.remote_token_budget` (200,000 tokens a session, shared by every remote provider and model;

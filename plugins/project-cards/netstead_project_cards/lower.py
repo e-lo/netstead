@@ -19,7 +19,7 @@ from __future__ import annotations
 import math
 import numbers
 from collections import defaultdict
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -37,7 +37,7 @@ from .types import (
     incomplete,
 )
 
-__all__ = ["KEYS", "Applied", "Mark", "apply_change", "describe", "few", "mark_after", "rows_by_key"]
+__all__ = ["KEYS", "Applied", "Mark", "apply_change", "describe", "few", "rows_by_key"]
 
 #: The key column of each table a roadway change edits (GMNS names), from the mapping file's selectors.
 KEYS = {table: load_mapping().selector(table)[0] for table in ("link", "node")}
@@ -45,27 +45,18 @@ KEYS = {table: load_mapping().selector(table)[0] for table in ("link", "node")}
 
 @dataclass(frozen=True)
 class Mark:
-    """What one ``host.mutate`` (or ``host.undo``) left on a network: its lineage line, version and ledger note.
+    """One ``host.mutate`` of a change: the pending edit's ``seq`` (its stable id) and its ledger note.
 
-    ``index`` is the line's position in the network's lineage. Core only appends to a lineage, except that a failed
-    Action's rollback cuts off the lines it added (and sets the version back), so a mark whose line is gone, or whose
-    version is newer than the network's, describes a change the network no longer has.
+    The network holds the change while the seq is among its pending edits (``host.pending_edits``): ``host.undo``
+    and a failed Action's rollback take it out, and core never hands the seq out again on that network.
     """
 
-    index: int
-    line: str
-    version: int
+    seq: int | None  # ``None`` only for a mutation with no edits, which no change makes (it never holds)
     note: str
 
-    def holds(self, lineage: Sequence[str], version: int) -> bool:
-        """Whether the network (its ``lineage`` and ``version`` now) still has this change."""
-        return self.index < len(lineage) and lineage[self.index] == self.line and version >= self.version
-
-
-def mark_after(host: Host, net_id: str, note: str) -> Mark:
-    """The mark the ``host.mutate`` or ``host.undo`` with ledger note ``note`` just left on ``net_id``."""
-    h = host.network(net_id)
-    return Mark(len(h.lineage) - 1, h.lineage[-1], h.version, note)
+    def holds(self, pending: Collection[int]) -> bool:
+        """Whether the network, whose pending edits have the seqs ``pending``, still has this mutation."""
+        return self.seq in pending
 
 
 @dataclass
@@ -107,8 +98,9 @@ def apply_change(host: Host, net_id: str, change: NetworkChange) -> Applied:
     any other reason (core refuses its plan, or the network changed in between), the first stays applied unless the
     calling Action's failure rolls it back. Call it from an Action handler.
 
-    A property change whose selection has ``ignore_missing`` skips ids that are not in the network (listed in
-    :attr:`Applied.skipped`); without it, a missing id refuses the change.
+    A property change whose selection has ``ignore_missing``, or a deletion with ``ignore_missing`` (a query
+    selection's links), skips ids that are not in the network (listed in :attr:`Applied.skipped`); without it, a
+    missing id refuses the change.
 
     Raises:
         CardNotSupported: a transit change, or an added record field with no column in the network.
@@ -204,8 +196,7 @@ def _mutate(host: Host, net_id: str, version: int, plans: list[EditPlan], note: 
     if any(p.version != version for p in plans):
         raise CardError(f"{net_id} changed while the change was being planned; apply it again")
     edits = [e for p in plans for e in p.edits]
-    host.mutate(net_id, edits, note=note, expected_version=version)
-    return mark_after(host, net_id, note)
+    return Mark(host.mutate(net_id, edits, note=note, expected_version=version).seq, note)
 
 
 def _same(current: Any, existing: Any) -> bool:
@@ -308,22 +299,28 @@ def _users(links: Any, nodes: Sequence[Any], deleted: Sequence[Any]) -> dict[str
 def _deletion(host: Host, net_id: str, change: RoadwayDeletion, note: str) -> Applied:
     """Links, then nodes. Which nodes go (and whether any is still in use) is decided before the first mutation."""
     out = Applied(change)
-    two_steps = bool(change.links) and (bool(change.nodes) or change.clean_nodes)
     version = host.network(net_id).version  # before the frame: it decides which nodes go
     links = _frame(host, net_id, "link")
-    if in_use := _users(links, change.nodes, change.links):  # core would refuse it only at step 2, after step 1
+    deleted = list(change.links)
+    if deleted and change.ignore_missing:  # a query selection's links: skip the ones the network no longer has
+        there = rows_by_key(links, "link_id", deleted, [])
+        if missing := [i for i in deleted if str(i) not in there]:
+            out.skipped.append(f"link {few(missing)} not found; skipped (ignore_missing)")
+            deleted = [i for i in deleted if str(i) in there]
+    two_steps = bool(deleted) and (bool(change.nodes) or change.clean_nodes)
+    if in_use := _users(links, change.nodes, deleted):  # core would refuse it only at step 2, after step 1
         raise CardError(_in_use(in_use))
     nodes = list(change.nodes)
-    if change.links and change.clean_nodes:
-        rows = rows_by_key(links, "link_id", change.links, ["from_node_id", "to_node_id"])
+    if deleted and change.clean_nodes:
+        rows = rows_by_key(links, "link_id", deleted, ["from_node_id", "to_node_id"])
         ends = list(
             dict.fromkeys(v for r in rows.values() for v in (r["from_node_id"], r["to_node_id"]) if v is not None)
         )
-        used = _users(links, ends, change.links)
+        used = _users(links, ends, deleted)
         taken = {str(n) for n in nodes}
         nodes += [e for e in ends if str(e) not in used and str(e) not in taken]
-    if change.links:
-        plan = _plan(host.plan_delete, net_id, "link", change.links)
+    if deleted:
+        plan = _plan(host.plan_delete, net_id, "link", deleted)
         out.marks.append(_mutate(host, net_id, version, [plan], f"{note} (links)" if two_steps else note))
         _add_rows(out.rows, plan.rows)
     if nodes:

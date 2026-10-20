@@ -35,6 +35,7 @@ The library the Workbench pieces build on:
 - `project_cards.add_change`, `project_cards.undo_change`, `project_cards.commit`, `project_cards.import`,
   `project_cards.preview`, `project_cards.close_preview`.
 - Usable from Python (`app.do(...)`), over HTTP (`/api/actions`), from the command palette, and by the assistant: opt
-  in with `assistant.plugins`; with a local model also set `assistant.compact_tools = "off"`.
+  in with `assistant.plugins`. A local model is offered every Action except commit and import (which need a path)
+  unless `assistant.compact_tools = "off"`.
 
 **Routes** (read-only, for the panel): `GET /api/plugins/project_cards/form` and `/commit-check`.

@@ -107,6 +107,24 @@ def test_a_deletion_takes_its_links_from_the_selection(session):
     session.dispatch(Select(link_ids=[2]))
     result = session.dispatch(AddChange(use_selection=True, change=RoadwayDeletion()))
     assert result["change"]["links"] == [2] and cell(session, 2, "lanes") == []
+    assert result["change"]["ignore_missing"] is False  # a pick fails loudly when a link is gone
+
+
+def test_a_deletion_from_a_query_selection_keeps_the_querys_ignore_missing(session):
+    session.dispatch(Select(utterance="Benton Street"))
+    result = session.dispatch(AddChange(use_selection=True, change=RoadwayDeletion()))
+    assert result["change"]["links"] == [1, 5, 6, 8] and result["change"]["ignore_missing"] is True
+    assert cell(session, 8, "lanes") == []
+
+
+def test_a_deletion_from_a_query_selection_skips_a_link_that_is_gone(session):
+    """The query's ``ignore_missing: true`` decides: a resolved link deleted since is skipped, not refused."""
+    session.dispatch(Select(utterance="Benton Street"))
+    session.dispatch(SaveSelection(name="benton"))
+    session.dispatch(AddChange(change=RoadwayDeletion(links=[5])))
+    result = session.dispatch(AddChange(saved_selection="benton", change=RoadwayDeletion()))
+    assert result["change"]["links"] == [1, 5, 6, 8] and cell(session, 1, "lanes") == []
+    assert any("link 5 not found; skipped (ignore_missing)" in s for s in result["skipped"])
 
 
 @pytest.mark.parametrize(

@@ -6,8 +6,34 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ## [Unreleased]
 
+### Security
+
+- **`netstead app` refuses to expose your home folder.** A non-loopback host
+  (`--host 0.0.0.0`, `NETSTEAD_APP__HOST` or a config file) with an empty
+  `io.allowed_roots` (which means the home folder) now exits with code 2 and
+  explains how to set the roots. Before, anyone on the network could browse the
+  home folder through the Workbench file browser. Sources named on the command
+  line are still allowed for the session but don't satisfy the check. Loopback
+  spellings the Host-header guard doesn't cover (`127.0.0.2`, `LOCALHOST`,
+  `[::1]`) are refused the same way, with their own message. A blank
+  `io.allowed_roots` entry (`[""]`, which resolved to the current folder) is now
+  a settings error.
+
 ### Fixed
 
+- **The offline report's "Fix locally" edit log is a schema-valid ProjectCard.**
+  `netstead.map.edits.dump_edit_log` and the browser download (`buildYaml` in
+  `map_component.js`) put the facility under `links` / `nodes` with
+  `ignore_missing: false` (the ids were clicked), and move each change's reason,
+  issue id and edit id from a per-change `notes` (which the schema forbids) to a
+  `netstead.note[<i>]: ...` line of the card's `notes`, the convention the
+  project-cards plugin reads. Both writers fold control characters and line
+  breaks in a note the same way. `load_edit_log` / `apply_edits` read both the
+  new shape and logs written before it, split a note back into reason, issue id
+  and edit id (so a dump → load → dump round trip writes the same file), and
+  yield no edits for a selector that is not ids alone (ids narrowed by another
+  key, or a `from` / `to` segment). netstead core still does not depend on
+  `projectcard`; the tests validate with it when it is installed.
 - **Validation and network HTML reports no longer show "API KEY REQUIRED" tiles when
   zoomed in.** CARTO now watermarks its raster basemap without an API key, and a key
   cannot be added: the report is a static, shareable file, so the key would ship inside
@@ -45,6 +71,24 @@ This file is for the **netstead** package only. The underlying generic engine `c
   credentials (fsspec storage options) to `Package.from_source`, as the
   [Read from S3](https://e-lo.github.io/netstead/corral/cookbook/read-from-s3/) cookbook describes.
 
+- **Plugin Host API 1.6** (the cards plugin's follow-ups):
+  - `host.mutate` raises `ActionError` ("the edit failed: ...") when storage
+    refuses an edit (corral's `EditingError`, an Arrow, ibis or DuckDB error),
+    so a plugin's failed edit reads as a refusal instead of "internal error".
+    `host.undo` does the same for a failed reverse.
+  - Stable edit ids: `host.mutate` returns a `Mutation` (exported), still the
+    list of `EditResult`s, carrying the pending edit's `seq`.
+    `host.pending_edits(net_id)` lists a network's pending edits (`seq`,
+    `source`, `note`, `version`, `rows`, `saved`), and `host.undo()`'s `seq`
+    names the edit it reversed. A seq is never reused on an open network, even
+    after a rolled-back Action spent it (the ledger used to hand it out again).
+  - `host.on_rollback(fn)`: a handler registers a callback that core calls when
+    its Action is rolled back, including after it succeeded inside an Action
+    that failed later, so the plugin can put back its own state and files.
+  - `compact: ClassVar[bool] = True` on a `mutates` Action offers it in the
+    assistant's compact tool set (a local model's). Core's everyday edits
+    (`edit_cells`, `delete_rows`, `undo_edit`) now carry the flag, in place of
+    a hard-coded list; what core offers is unchanged.
 - **Plugin Host API 1.5:** `ActionError` and `NotSupportedYet` are exported from
   `netstead.workbench.plugins`, so a plugin handler can refuse with a message the
   user sees (anything else it raises is still an internal error).
