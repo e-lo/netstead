@@ -146,7 +146,7 @@ Show only the links matching every condition; the map dims the rest and the tabl
 | `net_id` | `str \| None` | `None` |
 | `where` | `list[FilterCond] \| None` | `None` |
 
-A `FilterCond` is `{col: str, op: FilterOp, val}` with `op` one of `eq ne lt lte gt gte in contains isnull notnull`; `in` takes a list, `isnull` / `notnull` take no value.
+A `FilterCond` is `{col: str, op: FilterOp, val}` with `op` one of `eq ne lt lte gt gte in contains isnull notnull any_of all_of none_of between`; `in` takes a list, `isnull` / `notnull` take no value. The token operators `any_of` / `all_of` / `none_of` match a list of values against a comma-separated cell such as `allowed_uses` (`"auto"` matches `"auto,truck,walk"`; a bare value is read as a one-element list; an empty cell matches only `none_of`). `between` takes `[low, high]`, inclusive.
 
 Replay: `app.do(Filter(where=[{'col': 'lanes', 'op': 'gte', 'val': 2}]))`
 

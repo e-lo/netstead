@@ -90,3 +90,30 @@ def test_unknown_column_and_op_raise(engine_name):
         filter_rows(t, [{"col": "nope", "op": "eq", "val": 1}])
     with pytest.raises(FilterSpecError):
         filter_rows(t, [{"col": "lanes", "op": "bogus", "val": 1}])
+
+
+_USES = [
+    {"id": 0, "u": "auto", "n": 30},
+    {"id": 1, "u": "auto, truck", "n": 40},
+    {"id": 2, "u": "walk", "n": 50},
+    {"id": 3, "u": None, "n": None},
+]
+
+
+def _uses_ids(spec: list[dict]) -> list[int]:
+    e = IbisEngine()
+    t = filter_rows(Table(name="t", expr=e.from_records(_USES), engine=e), spec)
+    return sorted(t.to_pandas()["id"].tolist())
+
+
+def test_token_ops_split_on_commas_and_strip():
+    assert _uses_ids([{"col": "u", "op": "any_of", "val": ["auto"]}]) == [0, 1]
+    assert _uses_ids([{"col": "u", "op": "any_of", "val": "truck"}]) == [1]
+    assert _uses_ids([{"col": "u", "op": "all_of", "val": ["auto", "truck"]}]) == [1]
+    assert _uses_ids([{"col": "u", "op": "none_of", "val": ["auto"]}]) == [2, 3]  # a null cell has no token
+
+
+def test_between_is_inclusive_and_needs_a_pair():
+    assert _uses_ids([{"col": "n", "op": "between", "val": [40, 50]}]) == [1, 2]
+    with pytest.raises(FilterSpecError):
+        _uses_ids([{"col": "n", "op": "between", "val": [40]}])

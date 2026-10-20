@@ -19,6 +19,11 @@ This file is for the **corral** package only. `netstead` (which depends on corra
 
 ### Added
 
+- **`filter_rows` operators `any_of`, `all_of`, `none_of` and `between`.** The
+  token operators split a cell on commas (tokens stripped) and match a list of
+  values, for comma-separated categoricals such as GMNS `allowed_uses`; a null
+  cell matches only `none_of`. `between` is an inclusive `[low, high]` range.
+  Pushed down as ibis array and `BETWEEN` expressions like the other operators.
 - **`ResourceRef.table_schema`** (JSON key `schema`): the resource's schema
   when a scan already knows it, so consumers need not reopen the source.
   `ZipCsvAdapter.scan` fills it from inline schemas in the zip's own
