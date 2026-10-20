@@ -526,6 +526,39 @@ def test_session_rollback_failure_surfaces(monkeypatch: pytest.MonkeyPatch) -> N
 # ---------------------------------------------------------------------------
 
 
+def _names_pkg() -> Package:
+    return _make_pkg("ibis", rows=[{"id": 1, "name": "x"}, {"id": 2, "name": None}, {"id": 3, "name": "y"}])
+
+
+def _names(pkg: Package) -> list[Any]:
+    return [r["name"] for r in sorted(pkg["t"].expr.to_pyarrow().to_pylist(), key=lambda r: r["id"])]
+
+
+def test_delete_keeps_rows_whose_predicate_is_null_and_rollback_restores() -> None:
+    """M6 on #245: ``name == "x"`` is NULL where name is NULL; that row is not deleted, so it must be kept.
+
+    It used to land in neither ``filter(cond)`` nor ``filter(~cond)``: silently dropped, and missing from
+    the rollback blob, so undo could not bring it back.
+    """
+    pkg = _names_pkg()
+    r = apply_edit(pkg, Edit(op="delete_rows", table="t", payload={"predicate": lambda t: t.name == "x"}))
+    assert _names(pkg) == [None, "y"]
+    assert r.diff.rows_removed == 1
+    reverse_edit(pkg, r)
+    assert _names(pkg) == ["x", None, "y"]
+
+
+def test_update_leaves_rows_whose_predicate_is_null_untouched() -> None:
+    pkg = _names_pkg()
+    r = apply_edit(
+        pkg, Edit(op="update_rows", table="t", payload={"predicate": lambda t: t.name == "x", "set": {"name": "z"}})
+    )
+    assert _names(pkg) == ["z", None, "y"]
+    assert r.diff.rows_changed == 1
+    reverse_edit(pkg, r)
+    assert _names(pkg) == ["x", None, "y"]
+
+
 def test_reverse_edit_preserves_clean_dirty_flag() -> None:
     """Edit + rollback on a clean table leaves it clean."""
     pkg = _make_pkg("pandas")

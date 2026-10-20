@@ -26,6 +26,11 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   into the engine's own file, and expressions bound to another backend (or
   none), also work. A non-file destination (URL, `:memory:`, `md:`) is
   refused.
+- **`delete_rows` no longer drops rows whose predicate is NULL.** A
+  predicate such as `name == "x"` is NULL where `name` is NULL; those rows
+  matched neither the delete nor the keep filter, so they vanished and
+  rollback (Workbench undo included) could not restore them. Predicates
+  now read NULL as "no match" in `delete_rows` and `update_rows`.
 - **`IbisEngine.close()` no longer hides a failed disconnect (#132).** It
   wrapped `disconnect()` in `suppress(Exception)`, hiding real failures
   (an in-flight query, a file-backed database that cannot be released).
