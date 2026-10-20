@@ -75,8 +75,9 @@ class BaseAction(BaseModel):
     are fields forced in the ``to_python`` replay snippet, and ``replay_omits`` are fields it leaves out
     (a guard that only means something in the live session, such as a planned version). ``assistant = False``
     keeps an Action out of the natural-language assistant's tools, even when its plugin is opted in (Host API 1.4).
-    ``compact = True`` offers a ``mutates`` Action in the assistant's compact tool set too (``assistant.compact_tools``,
-    on for a model on this machine): that set keeps the read-only Actions and only the mutating ones so marked (1.6).
+    ``assistant_compact = True`` offers a ``mutates`` Action in the assistant's compact tool set too
+    (``assistant.compact_tools``, on for a model on this machine): that set keeps the read-only Actions and only the
+    mutating ones so marked (Host API 1.6).
 
     Field values must round-trip through ``repr`` (str, numbers, bools, None, lists/dicts/tuples of
     those, nested pydantic models): "copy session as Python" writes each field as ``name=<repr(value)>``,
@@ -89,7 +90,7 @@ class BaseAction(BaseModel):
     replay_overrides: ClassVar[dict[str, Any]] = {}
     replay_omits: ClassVar[frozenset[str]] = frozenset()
     assistant: ClassVar[bool] = True  # False keeps this Action out of the NL assistant's tools, even when opted in
-    compact: ClassVar[bool] = False  # True offers a mutating Action in the compact tool set too (read-only ones are)
+    assistant_compact: ClassVar[bool] = False  # True: a mutating Action in the compact tool set too (1.6)
     if TYPE_CHECKING:  # every concrete Action declares its own ``type`` field; not a field of the base
         type: str
 
@@ -372,7 +373,7 @@ class EditCells(BaseAction):
 
     type: Literal["edit_cells"] = "edit_cells"
     mutates: ClassVar[bool] = True
-    compact: ClassVar[bool] = True  # an everyday edit: kept in the compact tool set
+    assistant_compact: ClassVar[bool] = True  # an everyday edit: kept in the compact tool set
     replay_omits: ClassVar[frozenset[str]] = frozenset({"expected_version"})
     net_id: str | None = None
     component: Component = "roadway"
@@ -394,7 +395,7 @@ class DeleteRows(BaseAction):
 
     type: Literal["delete_rows"] = "delete_rows"
     mutates: ClassVar[bool] = True
-    compact: ClassVar[bool] = True  # an everyday edit: kept in the compact tool set
+    assistant_compact: ClassVar[bool] = True  # an everyday edit: kept in the compact tool set
     replay_omits: ClassVar[frozenset[str]] = frozenset({"expected_version"})
     net_id: str | None = None
     component: Component = "roadway"
@@ -421,7 +422,7 @@ class UndoEdit(BaseAction):
 
     type: Literal["undo_edit"] = "undo_edit"
     mutates: ClassVar[bool] = True
-    compact: ClassVar[bool] = True  # an everyday edit: kept in the compact tool set
+    assistant_compact: ClassVar[bool] = True  # an everyday edit: kept in the compact tool set
     net_id: str | None = None
 
 

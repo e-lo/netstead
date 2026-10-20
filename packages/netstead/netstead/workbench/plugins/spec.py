@@ -24,8 +24,8 @@ __all__ = ["HOST_API", "ActionSpec", "WorkbenchPlugin", "api_compatible", "probl
 #: 1.3: Host.saved_selections and Host.saved_selection (named selections, P3).
 #: 1.4: BaseAction.assistant (keep an Action out of the NL assistant).
 #: 1.5: ActionError and NotSupportedYet exported, so a plugin handler can refuse with a user-facing message.
-#: 1.6: Host.mutate refuses storage errors as ActionError and returns a Mutation carrying the edit's seq;
-#:      Host.pending_edits; Host.undo names the seq it reversed; Host.on_rollback; BaseAction.compact.
+#: 1.6: Host.mutate and Host.undo refuse storage errors as ActionError (scrubbed); Host.mutate returns a Mutation
+#:      (results, seq); Host.pending_edits returns PendingEdits; Host.on_rollback; BaseAction.assistant_compact.
 HOST_API = "1.6"
 
 #: A plugin id: the namespace for its Action types, routes, state, settings and static files (``fullmatch``).

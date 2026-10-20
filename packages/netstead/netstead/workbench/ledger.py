@@ -15,12 +15,25 @@ from corral.editing import EditResult
 
 from .editcheck import CheckResult
 
-__all__ = ["CORE_SOURCE", "PYTHON_SOURCE", "EditLedger", "PendingEdit"]
+__all__ = ["CORE_SOURCE", "PYTHON_SOURCE", "EditLedger", "PendingEdit", "PendingEdits"]
 
 #: The source of edits made by a core Action (plugins use their id).
 CORE_SOURCE = "workbench"
 #: The source of a ``Session.mutate`` called outside any Action (Part 1 records it as ``python.mutate``).
 PYTHON_SOURCE = "python"
+
+
+@dataclass(frozen=True)
+class PendingEdits:
+    """A network's pending edits read at one moment (``host.pending_edits``, Host API 1.6).
+
+    ``edits`` are the entries' views, oldest first (``seq``, ``source``, ``note``, ``version``, ``rows``, ``saved``).
+    ``issued`` is the newest seq handed out on the network when they were read: an edit whose seq is above it was made
+    after the read, so the read says nothing about it.
+    """
+
+    issued: int
+    edits: tuple[dict[str, Any], ...]
 
 
 @dataclass

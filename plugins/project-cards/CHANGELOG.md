@@ -54,10 +54,12 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
 - Approving a drafted card change made while a preview is active is refused as stale when the previewed network
   changed since (core checks a derived copy's base).
 - Local models are offered `add_change`, `undo_change`, `preview` and `close_preview` in the compact tool set
-  (`assistant.compact_tools = "auto"` on a local endpoint): they set `compact` (Host API 1.6). `commit` and `import`
+  (`assistant.compact_tools = "auto"` on a local endpoint): they set `assistant_compact` (Host API 1.6). `commit` and `import`
   (a file path) still need `compact_tools = "off"`.
 - Requires Host API 1.6. Drafts are reconciled against the network's pending edits (`host.pending_edits`, the
-  edit seqs `host.mutate` returns) instead of its lineage.
+  edit seqs `host.mutate` returns) instead of its lineage. A read is trusted only for edits made by then
+  (`PendingEdits.issued`), so a route reconciling outside the session lock never drops a change that landed after
+  its read.
 - A `project_cards.commit` nested in an Action that fails afterwards is rolled back too (`host.on_rollback`): its
   file is removed (or the file it replaced restored, with the folders it made), the committed card is forgotten and
   the draft comes back. A file that can't be put back is logged.
