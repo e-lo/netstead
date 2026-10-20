@@ -251,8 +251,18 @@ class InvalidAdapterError(FormatError):
     """
 
 
+class DuplicateAdapterError(FormatError):
+    """A registration would displace an adapter that is already registered.
+
+    Raised by ``register_adapter`` when a different adapter class already
+    holds the name, or another adapter owns one of the extensions or URL
+    schemes. Pass ``replace=True`` to override deliberately.
+    """
+
+
 __all__ = [
     "AdapterNotAvailableError",
+    "DuplicateAdapterError",
     "FormatAdapter",
     "FormatError",
     "FormatNotDetected",

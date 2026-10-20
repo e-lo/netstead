@@ -8,6 +8,11 @@ This file is for the **corral** package only. `netstead` (which depends on corra
 
 ### Changed
 
+- **`register_adapter` refuses collisions.** Registering a different adapter
+  class under a taken name, or claiming an extension or URL scheme another
+  adapter owns, now raises `DuplicateAdapterError` (a `FormatError`) instead
+  of silently overwriting. Pass `replace=True` to override on purpose.
+  Re-registering the same class still just replaces the instance.
 - **Tests run against the stock adapter registry.** A new private
   `corral.io._reset_registry()` restores the five stock adapters and their
   bindings; one autouse fixture in `tests/conftest.py` calls it around every

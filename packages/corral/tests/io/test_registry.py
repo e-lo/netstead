@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 from corral.io import (
     AdapterNotAvailableError,
+    DuplicateAdapterError,
     FormatError,
     InvalidAdapterError,
     _clear_registry,
@@ -34,13 +35,64 @@ def test_register_then_lookup() -> None:
     assert get_adapter("csv") is adapter
 
 
-def test_re_register_overwrites_same_name() -> None:
+def test_re_registering_the_same_implementation_replaces_it() -> None:
+    """A second instance of the same class (a module reload, a test re-registering) is not a collision."""
     a1 = FakeCsvAdapter()
     a2 = FakeCsvAdapter()
     register_adapter(a1)
     register_adapter(a2)
     assert list_adapters() == ["csv"]
     assert get_adapter("csv") is a2
+
+
+class _OtherCsv(FakeCsvAdapter):
+    """A different implementation that claims the ``csv`` name."""
+
+
+class _XlsxA(FakeCsvAdapter):
+    name = "xlsx-a"
+    extensions = ("xlsx",)
+
+
+class _XlsxB(FakeCsvAdapter):
+    name = "xlsx-b"
+    extensions = ("xlsx",)
+
+
+def test_a_different_implementation_under_a_taken_name_raises() -> None:
+    """Two plugins claiming one name must not let import order pick the winner silently."""
+    original = FakeCsvAdapter()
+    register_adapter(original)
+    with pytest.raises(DuplicateAdapterError, match=r"'csv'.*replace=True"):
+        register_adapter(_OtherCsv())
+    assert get_adapter("csv") is original
+
+
+def test_an_extension_claimed_by_another_adapter_raises() -> None:
+    register_adapter(_XlsxA())
+    with pytest.raises(DuplicateAdapterError, match=r"'xlsx'.*'xlsx-a'"):
+        register_adapter(_XlsxB())
+    assert list_adapters() == ["xlsx-a"], "a refused registration leaves the registry untouched"
+
+
+def test_replace_true_overrides_a_taken_name() -> None:
+    register_adapter(FakeCsvAdapter())
+    replacement = _OtherCsv()
+    register_adapter(replacement, replace=True)
+    assert get_adapter("csv") is replacement
+
+
+def test_replace_true_takes_over_an_extension() -> None:
+    register_adapter(_XlsxA())
+    b = _XlsxB()
+    register_adapter(b, replace=True)
+    from corral.io import dispatch
+
+    assert dispatch("sheet.xlsx") is b
+
+
+def test_duplicate_adapter_error_is_format_error_subclass() -> None:
+    assert issubclass(DuplicateAdapterError, FormatError)
 
 
 def test_get_unknown_adapter_raises() -> None:

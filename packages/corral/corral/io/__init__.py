@@ -35,6 +35,7 @@ from urllib.parse import urlparse
 from ._paths import normalize_to_str
 from .base import (
     AdapterNotAvailableError,
+    DuplicateAdapterError,
     FormatAdapter,
     FormatError,
     FormatNotDetected,
@@ -60,17 +61,27 @@ _BY_EXT: dict[str, str] = {}
 _BY_SCHEME: dict[str, str] = {}
 
 
-def register_adapter(adapter: FormatAdapter) -> None:
+def register_adapter(adapter: FormatAdapter, *, replace: bool = False) -> None:
     """Register ``adapter`` into the global registry.
 
-    Re-registering an adapter with an existing ``name`` overwrites the
-    previous entry (and rebinds its extensions/schemes). This makes
-    test setup and adapter swapping straightforward.
+    A collision is an error unless ``replace=True``: once adapters arrive
+    from third-party packages, two of them claiming one name, extension or
+    URL scheme would otherwise let import order pick the winner silently.
+    Re-registering an instance of the *same* class under its own name is
+    not a collision (a module reload, a test re-registering a stock
+    adapter); it replaces the previous instance.
 
     Args:
         adapter: A :class:`FormatAdapter` instance with non-empty ``name``.
+        replace: Override whatever already holds ``adapter.name`` or any of
+            its extensions/schemes. The replaced adapter's bindings are
+            dropped first.
 
     Raises:
+        DuplicateAdapterError: If, without ``replace=True``, a different
+            adapter class is registered under ``adapter.name``, or one of
+            ``adapter``'s extensions/schemes belongs to another adapter.
+            Nothing is registered.
         InvalidAdapterError: If ``adapter`` does not satisfy the
             :class:`FormatAdapter` protocol, or if ``adapter.name`` is
             empty. Catch via the ``FormatError`` base class to handle
@@ -114,6 +125,9 @@ def register_adapter(adapter: FormatAdapter) -> None:
 
     name = adapter.name
 
+    if not replace:
+        _check_no_collision(adapter)
+
     # If overwriting, scrub the previous adapter's ext/scheme bindings: the new
     # adapter may claim fewer extensions, and a stale binding would route those
     # sources to it anyway.
@@ -127,6 +141,31 @@ def register_adapter(adapter: FormatAdapter) -> None:
         _BY_EXT[ext.lower().lstrip(".")] = name
     for scheme in adapter.schemes:
         _BY_SCHEME[scheme.lower()] = name
+
+
+def _implementation(adapter: FormatAdapter) -> str:
+    """The adapter's class as ``module.QualName``: stable across a module reload, unlike the class object."""
+    cls = type(adapter)
+    return f"{cls.__module__}.{cls.__qualname__}"
+
+
+def _check_no_collision(adapter: FormatAdapter) -> None:
+    """Raise :class:`DuplicateAdapterError` if ``adapter`` would displace another adapter."""
+    existing = _REGISTRY.get(adapter.name)
+    if existing is not None and _implementation(existing) != _implementation(adapter):
+        raise DuplicateAdapterError(
+            f"An adapter named {adapter.name!r} is already registered ({_implementation(existing)}); "
+            f"pass replace=True to register {_implementation(adapter)} in its place."
+        )
+    claims = [("extension", ext.lower().lstrip("."), _BY_EXT) for ext in adapter.extensions]
+    claims += [("URL scheme", scheme.lower(), _BY_SCHEME) for scheme in adapter.schemes]
+    for kind, key, bindings in claims:
+        owner = bindings.get(key)
+        if owner is not None and owner != adapter.name:
+            raise DuplicateAdapterError(
+                f"The {kind} {key!r} already belongs to adapter {owner!r}; "
+                f"pass replace=True to give it to {adapter.name!r}."
+            )
 
 
 def get_adapter(name: str) -> FormatAdapter:
@@ -377,6 +416,7 @@ def dispatch(source: SourceRef, *, format: str | None = None) -> FormatAdapter:
 
 __all__ = [
     "AdapterNotAvailableError",
+    "DuplicateAdapterError",
     "FormatAdapter",
     "FormatError",
     "FormatNotDetected",
