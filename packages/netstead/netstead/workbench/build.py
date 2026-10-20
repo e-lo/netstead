@@ -180,6 +180,18 @@ def _count(action: BuildNetwork, plan: BuildPlan, settings: Settings, http: Any,
     return count_overture(read.pop("bbox"), network_type=action.network_type, engine=engine, **read)
 
 
+def close_quietly(engine: Any) -> None:
+    """Close a build's private engine from a ``finally``: a failure is logged, never raised.
+
+    Raising there would replace the error already propagating (and the payload, like the estimate,
+    that the caller attached to it), or fail a build whose output is already written.
+    """
+    try:
+        engine.close()
+    except Exception as exc:  # boundary: cleanup must not mask the result
+        logger.warning("could not close the build engine: %s: %s", type(exc).__name__, exc)
+
+
 def estimate_for(
     action: BuildNetwork, plan: BuildPlan, settings: Settings, *, http: Any = None, engine: Any = None
 ) -> Estimate:
@@ -197,7 +209,7 @@ def estimate_for(
         )
     finally:
         if own_engine:
-            engine.close()
+            close_quietly(engine)
     return estimate_build(plan.kind, n, output_format=action.output_format)
 
 

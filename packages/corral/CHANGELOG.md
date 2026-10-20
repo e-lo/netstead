@@ -6,6 +6,17 @@ This file is for the **corral** package only. `netstead` (which depends on corra
 
 ## [Unreleased]
 
+### Changed (breaking)
+
+- **`Engine.to_arrow(expr)` joins the protocol (#116).** An Arrow
+  converter beside `to_pandas` / `to_polars`; `IbisEngine.to_arrow` runs
+  `to_pyarrow` with no pandas hop, so `to_arrow(from_arrow(t))` equals `t`.
+  **A third-party engine must now implement it** or `register_engine`
+  refuses it; the error now ends with `missing: ...`, naming the members
+  the engine lacks. Corral's editing layer does not call it yet (it reads
+  any engine's expression through ibis); it is groundwork for Arrow
+  consumers.
+
 ### Added
 
 - **`ResourceRef.table_schema`** (JSON key `schema`): the resource's schema
@@ -76,6 +87,14 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   resources by name, so code that reads `path` must handle the list form.
   A regression test pins both forms. (#124)
 
+### Internal
+
+- **`Engine.scan` contract suite (#141).** One test class per invariant on
+  the `scan` docstring (inline `{"data": ...}` through `from_records`,
+  duckdb handles through `read_duckdb_table`, unknown dict shapes raise
+  `UnsupportedSourceError`, `format` / `schema` / `**kwargs` reach the
+  adapter verbatim), parametrised over every registered engine.
+
 ### Fixed
 
 - **Partitioned parquet writes stream.** `ParquetAdapter.write(...,
@@ -91,13 +110,32 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   lowercase spelling, so `DUCKDB:///abs/x.duckdb` was handed to duckdb as a
   literal path. The scheme is now stripped with `urlparse`.
 - **DuckDB writes no longer pull the whole table into memory (#128).**
-  `IbisEngine.write_duckdb_table` materialised the expression as an Arrow
-  table and re-created it on a second connection. It now ATTACHes the
-  destination file to the expression's own connection and creates the
-  table there, so duckdb streams the rows and the write stays lazy at
-  regional scale; the file is detached afterwards. Writing into the file
-  the engine itself was opened on also works, as does a path containing a
-  quote.
+  `IbisEngine.write_duckdb_table` materialised the expression as one Arrow
+  table. It now streams record batches (100k rows at a time) from the
+  expression's own backend into the destination, which it opens with
+  `ibis.duckdb.connect`, the same per-process instance `read_duckdb_table`
+  uses. The interim ATTACH-based version from #245 made a second database
+  instance on a file a reader already held: stale reads and a corrupted
+  file on duckdb 1.1, "Unique file handle conflict" on duckdb 1.5. Writing
+  into the engine's own file, and expressions bound to another backend (or
+  none), also work. A non-file destination (URL, `:memory:`, `md:`) is
+  refused.
+- **`sqlglot` is capped below 30.18.** From sqlglot 30.18 on, ibis 12's
+  duckdb `create_table(..., overwrite=True)` renders invalid SQL, so every
+  overwriting write (`write_duckdb_table`, `Package.write` to duckdb) failed
+  with a `ParserException` on a fresh install that resolved the newest
+  sqlglot; ibis 12 does not cap it. `dbcorral` now requires
+  `sqlglot>=23.4,!=26.32.0,<30.18`.
+- **No staging memtables left behind on non-duckdb or bare inputs.** A bare
+  `ibis.memtable` written with `write_duckdb_table` is unregistered from the
+  engine afterwards (and can be written again), and `from_records` /
+  `from_arrow` on an `IbisEngine` over a non-duckdb ibis backend no longer
+  call duckdb-only cleanup.
+- **`delete_rows` no longer drops rows whose predicate is NULL.** A
+  predicate such as `name == "x"` is NULL where `name` is NULL; those rows
+  matched neither the delete nor the keep filter, so they vanished and
+  rollback (Workbench undo included) could not restore them. Predicates
+  now read NULL as "no match" in `delete_rows` and `update_rows`.
 - **`IbisEngine.close()` no longer hides a failed disconnect (#132).** It
   wrapped `disconnect()` in `suppress(Exception)`, hiding real failures
   (an in-flight query, a file-backed database that cannot be released).
@@ -110,19 +148,16 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   default backend, outside the engine's lock; and `from_records` /
   `from_arrow` left a memtable view behind on the engine for every call.
   Forward edits now run on the table's own engine expression (the "before"
-  sample fetches only its rows), and the engine hands Arrow straight to
-  `create_table`, which drops its staging view. A 20-edit session went
-  from 20 stray default-backend memtables plus 40 engine tables to 0 and 20.
+  sample fetches only its rows), and the engine unregisters the staging
+  memtable once the temp table holds the copy. (The interim version in
+  #245 handed raw pyarrow to `create_table` instead, which fails with newer
+  sqlglot releases.) A 20-edit session went from 20 stray default-backend
+  memtables plus 40 engine tables to 0 and 20.
 - **One encoding for "no session" in the rollback log (#147).** The log
   wrote a missing `session_id` as `""` and read it back as `None`. It now
   writes null; older logs with `""` still read as `None`.
   `rollback(to="")`, which named no session, now raises `RollbackError`
   instead of silently reversing nothing.
-- **`Engine.scan` contract suite (#141).** One test class per invariant on
-  the `scan` docstring (inline `{"data": ...}` through `from_records`,
-  duckdb handles through `read_duckdb_table`, unknown dict shapes raise
-  `UnsupportedSourceError`, `format` / `schema` / `**kwargs` reach the
-  adapter verbatim), parametrised over every registered engine.
 - **`replace_table` on a table with an all-null column (#163).** Already
   fixed by the engine coercing `null`-typed Arrow columns to `string` before
   duckdb sees them; now locked in by a regression test that runs the

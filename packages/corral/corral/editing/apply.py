@@ -8,6 +8,13 @@ table, one per op, registered with ibis's process-wide default backend
 (#145). Results materialise via pyarrow so the module stays
 pandas-free. Sample capture is bounded at :data:`SAMPLE_CAP` rows.
 
+Because the expression is live, one edit queries it more than once: a
+``delete_rows`` / ``update_rows`` runs three queries (the "before"
+sample, the matched rows, the result). That is safe because the table's
+expression is only replaced at the end of :func:`apply_edit`, and a
+:class:`~corral.editing.Session` applies one edit at a time. Predicates
+read NULL as "no match" (:func:`_matches`).
+
 The dispatch tables :data:`APPLY_OPS` + :data:`REVERSE_OPS` are the
 sole extension seam — a new op only adds to those two dicts.
 """
@@ -177,13 +184,26 @@ def _apply_add_rows(current_expr: ibis.Table, edit: Edit, engine: Engine) -> tup
     )
 
 
+def _matches(predicate: Any, table: ibis.Table) -> Any:
+    """``predicate(table)`` with NULL read as "no match", so every row is either matched or not.
+
+    ``name == "x"`` is NULL where ``name`` is NULL; such a row is in neither ``filter(cond)`` nor
+    ``filter(~cond)``, so a delete used to drop it silently, with no rollback record to restore it.
+    """
+    return predicate(table).fill_null(False)
+
+
 def _apply_delete_rows(ibis_current: ibis.Table, edit: Edit, engine: Engine) -> tuple[pa.Table, Any, dict]:
-    """Remove rows matching ``payload['predicate']``; rollback blob carries the removed rows."""
+    """Remove rows matching ``payload['predicate']``; rollback blob carries the removed rows.
+
+    Reads the live expression twice (matched rows for the rollback blob, then the kept rows), so the
+    table must not change in between; the session applies one edit at a time.
+    """
     predicate = _require(edit.payload, "predicate", edit.op)
     if not callable(predicate):
         raise InvalidPayload("Edit op 'delete_rows' payload['predicate'] must be callable(ibis.Table) -> BooleanColumn")
 
-    cond: Any = predicate(ibis_current)  # an ibis BooleanColumn, per the payload contract
+    cond: Any = _matches(predicate, ibis_current)
     deleted_arrow = ibis_current.filter(cond).to_pyarrow()
     kept_arrow = ibis_current.filter(~cond).to_pyarrow()
     return (
@@ -194,7 +214,10 @@ def _apply_delete_rows(ibis_current: ibis.Table, edit: Edit, engine: Engine) -> 
 
 
 def _apply_update_rows(ibis_current: ibis.Table, edit: Edit, engine: Engine) -> tuple[pa.Table, Any, dict]:
-    """Update matched rows via ``payload['predicate']`` + ``set``; blob stores prior values."""
+    """Update matched rows via ``payload['predicate']`` + ``set``; blob stores prior values.
+
+    Reads the live expression twice (matched rows, then the updated table); see :func:`_apply_delete_rows`.
+    """
     predicate = _require(edit.payload, "predicate", edit.op)
     changes: dict = _require(edit.payload, "set", edit.op)
     if not callable(predicate):
@@ -202,7 +225,7 @@ def _apply_update_rows(ibis_current: ibis.Table, edit: Edit, engine: Engine) -> 
     if not isinstance(changes, dict) or not changes:
         raise InvalidPayload("Edit op 'update_rows' payload['set'] must be a non-empty dict")
 
-    cond: Any = predicate(ibis_current)  # an ibis BooleanColumn, per the payload contract
+    cond: Any = _matches(predicate, ibis_current)
     matched_arrow = ibis_current.filter(cond).to_pyarrow()
     mutated = ibis_current.mutate(
         **{col: cond.ifelse(ibis.literal(val), ibis_current[col]) for col, val in changes.items()}

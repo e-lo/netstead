@@ -214,6 +214,54 @@ def test_from_records_with_all_null_column_does_not_raise(engine: IbisEngine):
     assert df["name"].isna().all()
 
 
+def test_inline_tables_reach_create_table_as_ibis_expressions_and_leave_nothing_registered(
+    engine: IbisEngine, monkeypatch
+):
+    """``create_table`` never gets raw pyarrow, and no staging memtable outlives the call.
+
+    Raw pyarrow sends ibis 12 down a path newer sqlglot renders unparseably (a duckdb
+    ``ParserException`` with sqlglot 30); the memtable wrapper is dropped once the copy exists.
+    """
+    import pyarrow as pa
+
+    con: Any = engine.con
+    real_create = con.create_table
+    seen: list[type] = []
+
+    def create_table(name, obj=None, **kwargs):
+        seen.append(type(obj))
+        return real_create(name, obj=obj, **kwargs)
+
+    monkeypatch.setattr(con, "create_table", create_table)
+    before = set(con.list_tables())
+    a = engine.from_records([{"a": 1}])
+    b = engine.from_arrow(pa.table({"b": ["x"]}))
+    assert all(issubclass(t, ibis.expr.types.Table) for t in seen), seen
+    assert set(con.list_tables()) - before == {a.get_name(), b.get_name()}
+
+
+def test_sqlglot_is_capped_below_the_release_that_breaks_overwrite_writes():
+    """sqlglot 30.18+ renders ibis 12's ``create_table(..., overwrite=True)`` as invalid duckdb SQL."""
+    from importlib.metadata import requires
+
+    from packaging.requirements import Requirement
+
+    [sqlglot] = [r for r in map(Requirement, requires("dbcorral") or []) if r.name == "sqlglot"]
+    assert "30.18.0" not in sqlglot.specifier
+    assert "30.17.0" in sqlglot.specifier
+    assert "25.20.2" in sqlglot.specifier  # the locked version
+
+
+def test_inline_tables_on_a_backend_that_is_not_duckdb():
+    """``from_records`` / ``from_arrow`` must not reach for duckdb-only calls on another ibis backend."""
+    import pyarrow as pa
+
+    pytest.importorskip("polars")
+    e = IbisEngine(con=ibis.polars.connect())
+    assert e.to_arrow(e.from_records([{"a": 1}])).to_pylist() == [{"a": 1}]
+    assert e.to_arrow(e.from_arrow(pa.table({"b": ["x"]}))).to_pylist() == [{"b": "x"}]
+
+
 def test_from_arrow_with_all_null_column_does_not_raise(engine: IbisEngine):
     """``from_arrow`` shares the same coercion — verify in parity with from_records."""
     import pyarrow as pa
@@ -346,22 +394,92 @@ def test_write_duckdb_roundtrip(engine: IbisEngine, link_csv: Path, tmp_path: Pa
     assert again.count().to_pyarrow().as_py() == 339
 
 
-def test_write_duckdb_stays_inside_duckdb(engine: IbisEngine, link_parquet: Path, tmp_path: Path, monkeypatch):
-    """#128: the duckdb write never materialises the table in Python (no Arrow hop, no memtable)."""
+def test_write_duckdb_streams_instead_of_materialising(
+    engine: IbisEngine, link_parquet: Path, tmp_path: Path, monkeypatch
+):
+    """#128: the duckdb write streams record batches; it never materialises the whole table in Python."""
     import ibis.expr.types as ir
 
     expected = engine.to_arrow(engine.scan(link_parquet))
 
     def _refuse(*_a, **_kw):
-        raise AssertionError("write_duckdb_table materialised the table through Arrow")
+        raise AssertionError("write_duckdb_table materialised the whole table")
 
     out = tmp_path / "out.duckdb"
     with monkeypatch.context() as m:
-        m.setattr(ir.Table, "to_pyarrow", _refuse)
-        m.setattr(ir.Table, "to_pyarrow_batches", _refuse)
+        for name in ("to_pyarrow", "to_pandas", "to_polars", "execute"):
+            m.setattr(ir.Table, name, _refuse)
         m.setattr(ibis, "memtable", _refuse)
         engine.write_duckdb_table(engine.scan(link_parquet), out, table="link")
     assert engine.to_arrow(engine.read_duckdb_table(out, table="link")).equals(expected)
+
+
+_REOPEN = """
+import sys
+import ibis
+con = ibis.duckdb.connect(sys.argv[1])
+print(sorted((name, con.table(name).to_pyarrow().num_rows) for name in con.list_tables()))
+"""
+
+
+def test_write_duckdb_while_a_reader_holds_the_file(engine: IbisEngine, tmp_path: Path):
+    """C1 on #245: writing into a file a reader already has open is seen by a fresh reader and leaves it sound.
+
+    ``read_duckdb_table`` opens the file through duckdb's per-process instance cache. ATTACHing that
+    same file into the engine's connection made a second instance on it: stale reads on duckdb 1.1,
+    checksum errors on reopen, and "Unique file handle conflict" on duckdb 1.5.
+    """
+    import gc
+    import subprocess
+    import sys
+
+    f = tmp_path / "f.duckdb"
+    engine.write_duckdb_table(engine.from_records([{"a": 1}]), f, table="a")
+    reader = engine.read_duckdb_table(f, table="a")
+    assert engine.count(reader) == 1
+
+    engine.write_duckdb_table(engine.from_records([{"b": 1}, {"b": 2}]), f, table="b")
+    assert engine.to_arrow(engine.read_duckdb_table(f, table="b")).to_pylist() == [{"b": 1}, {"b": 2}]
+    assert engine.count(reader) == 1
+
+    reader._find_backend().disconnect()
+    del reader
+    gc.collect()
+    reopened = subprocess.run([sys.executable, "-c", _REOPEN, str(f)], capture_output=True, text=True, check=False)
+    assert reopened.returncode == 0, reopened.stderr
+    assert reopened.stdout.strip() == "[('a', 1), ('b', 2)]"
+
+
+@pytest.mark.parametrize("dest", [":memory:", "md:my_db", "s3://bucket/net.duckdb"])
+def test_write_duckdb_refuses_a_destination_that_is_not_a_local_file(engine: IbisEngine, dest: str):
+    from corral.engines.errors import InvalidEngineCallError
+
+    with pytest.raises(InvalidEngineCallError, match="local file"):
+        engine.write_duckdb_table(engine.from_records([{"a": 1}]), dest, table="t")
+
+
+def test_write_duckdb_of_an_expression_not_bound_to_duckdb(engine: IbisEngine, tmp_path: Path):
+    """I1 on #245: an expression on another (or no) backend streams too instead of taking a duckdb-only path."""
+    import pyarrow as pa
+
+    unbound = ibis.memtable(pa.table({"a": [1, 2]}))
+    out = tmp_path / "out.duckdb"
+    engine.write_duckdb_table(unbound, out, table="t")
+    assert engine.to_arrow(engine.read_duckdb_table(out, table="t")).to_pylist() == [{"a": 1}, {"a": 2}]
+
+
+def test_write_duckdb_of_a_bare_memtable_leaves_nothing_registered(engine: IbisEngine, tmp_path: Path):
+    """The memtable a bare expression is staged through on the engine goes once written, and can be written again."""
+    import pyarrow as pa
+
+    con: Any = engine.con
+    before = set(con.list_tables())
+    unbound = ibis.memtable(pa.table({"a": [1, 2]}))
+    engine.write_duckdb_table(unbound, tmp_path / "one.duckdb", table="t")
+    assert set(con.list_tables()) == before
+    engine.write_duckdb_table(unbound, tmp_path / "two.duckdb", table="t")  # reuse: ibis must re-register it
+    assert engine.count(engine.read_duckdb_table(tmp_path / "two.duckdb", table="t")) == 2
+    assert set(con.list_tables()) == before
 
 
 def test_write_duckdb_replaces_an_existing_table_and_keeps_the_others(engine: IbisEngine, tmp_path: Path):

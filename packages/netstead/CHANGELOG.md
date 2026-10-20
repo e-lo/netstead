@@ -21,6 +21,11 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Fixed
 
+- **A Workbench build's engine failing to close no longer hides the result.**
+  Since corral's `IbisEngine.close()` stopped swallowing errors, a failed
+  disconnect in the build job's `finally` (or the estimate's) replaced the
+  build's real error and its estimate payload, or failed a build whose output
+  was already written. `build.close_quietly` now logs it as a warning.
 - **Quality rules: review follow-ups for #246.**
   - `quality.high_speed_residential` again ignores every character Python's
     `str.strip()` removes around `facility_type`, including `\v`, NBSP and other

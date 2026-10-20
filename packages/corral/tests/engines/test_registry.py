@@ -193,6 +193,13 @@ def test_register_non_engine_raises_structured_typeerror():
     assert "write" in msg
 
 
+def test_register_names_the_members_an_engine_is_missing():
+    """M4 on #245: an engine written before ``to_arrow`` joined the protocol is told exactly that."""
+    stale = type("StaleEngine", (FakeEngine,), {"to_arrow": None})(name="stale")
+    with pytest.raises(TypeError, match=r"missing: to_arrow\b"):
+        register_engine(stale)
+
+
 def test_register_engine_with_empty_name_raises_valueerror():
     bad = FakeEngine(name="")
     with pytest.raises(ValueError):

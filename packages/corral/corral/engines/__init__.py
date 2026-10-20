@@ -103,13 +103,21 @@ def register_engine(engine: Engine, *, default: bool = False) -> None:
             "read_csv/read_parquet/read_duckdb_table/from_records/from_arrow and "
             "write_csv/write_parquet/write_duckdb_table, plus cast_schema, "
             "scan, write, materialize, to_pandas, to_polars, to_arrow, "
-            "and the lazy-introspection methods columns/count/head/select/order_by/limit)"
+            "and the lazy-introspection methods columns/count/head/select/order_by/limit); "
+            f"missing: {', '.join(_missing_members(engine))}"
         )
     if not getattr(engine, "name", None):
         raise ValueError("Engine.name must be a non-empty string")
     _REGISTRY[engine.name] = engine
     if default or _DEFAULT is None:
         _DEFAULT = engine.name
+
+
+def _missing_members(engine: object) -> list[str]:
+    """The :class:`Engine` protocol members ``engine`` lacks (absent, or ``None`` / not callable for a method)."""
+    methods = sorted(n for n, v in vars(Engine).items() if callable(v) and not n.startswith("_"))
+    missing = [] if hasattr(engine, "name") else ["name"]
+    return missing + [n for n in methods if not callable(getattr(engine, n, None))]
 
 
 def get_engine(name: str | None = None) -> Engine:

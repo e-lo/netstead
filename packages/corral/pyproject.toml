@@ -30,10 +30,14 @@ classifiers = [
 ]
 dependencies = [
     "pydantic>=2.6",
-    # ibis 10+ wrapped-memtable create_table fix is in ibis_engine.py; see from_records.
+    # create_table from raw pyarrow breaks with newer sqlglot; see IbisEngine._create_temp_table.
     # Capped below 13: IbisEngine.to_pandas mirrors ibis 12's duckdb Backend.execute
     # (_to_duckdb_relation + DuckDBPandasData); re-check that equivalence test before raising it.
     "ibis-framework[duckdb]>=10,<13",
+    # Capped below 30.18: from 30.18 sqlglot renders ibis 12's duckdb create_table(..., overwrite=True)
+    # as invalid SQL (a ParserException on every overwriting write). The floor and the exclusion are
+    # ibis 12's own. Re-check when the ibis cap above moves.
+    "sqlglot>=23.4,!=26.32.0,<30.18",
     "duckdb>=1.1",
     "pyarrow>=17",
     "fsspec>=2026.6.0",
