@@ -135,3 +135,41 @@ def test_netstead_server_run_help_runs():
     runner = CliRunner()
     result = runner.invoke(netstead_cli_app, ["server", "run", "--help"])
     assert result.exit_code == 0
+
+
+def test_netstead_server_run_imports_uvicorn_directly(monkeypatch, tmp_path):
+    """Issue #173: only the netstead-internal modules go through ``require_extra``; uvicorn is a plain import."""
+    import uvicorn
+    from netstead.cli._extras import require_extra
+    from netstead.cli.app import app as netstead_cli_app
+    from netstead.cli.commands import server as server_cmd
+    from typer.testing import CliRunner
+
+    looked_up: list[str] = []
+
+    def _recording_require_extra(module_name: str, extra_name: str):
+        looked_up.append(module_name)
+        return require_extra(module_name, extra_name)
+
+    served: list[tuple[str, int]] = []
+    monkeypatch.setattr(server_cmd, "require_extra", _recording_require_extra)
+    monkeypatch.setattr(uvicorn, "run", lambda app, host, port: served.append((host, port)))
+
+    config = tmp_path / "server.json"
+    config.write_text('{"auth": {"kind": "none"}}', encoding="utf-8")
+    result = CliRunner().invoke(netstead_cli_app, ["server", "run", "--config", str(config), "--port", "9411"])
+    assert result.exit_code == 0, result.output
+    assert served == [("127.0.0.1", 9411)]
+    assert looked_up == ["netstead.server", "corral.api"]
+
+
+def test_netstead_server_run_without_uvicorn_prints_the_server_extra_hint(monkeypatch):
+    import sys
+
+    from netstead.cli.app import app as netstead_cli_app
+    from typer.testing import CliRunner
+
+    monkeypatch.setitem(sys.modules, "uvicorn", None)  # makes `import uvicorn` raise ImportError
+    result = CliRunner().invoke(netstead_cli_app, ["server", "run"])
+    assert result.exit_code == 1
+    assert "pip install 'netstead[server]'" in result.output
