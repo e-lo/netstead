@@ -98,6 +98,9 @@ committed cards in plugin state.
      a street should still apply where some of its segments differ.
    - Core writes the flag on every selector (P2 Task 2) with the intent's value (a pick's forms say `true`); the
      plugin writes `false` for picks and deletions.
+   - **(2026-10-20)** A deletion made from a *query* selection is both, and follows the query: its links carry the
+     query's flag, in the lowering (a resolved link that is gone is skipped) and in the card, so the card replays as
+     it was applied. Typed and picked deletions, and every deletion's nodes, still write `false`.
 8. **Importing the offline report's edit-log YAML** (decided 2026-10-19). netstead's offline HTML validation report
    (`render_validation_html`, from `netstead.map`) has a "Fix locally" editor; the session downloads as a YAML "edit
    log" (`netstead.map.edits.dump_edit_log`) that looks like a ProjectCard with `roadway_property_change` entries
@@ -108,6 +111,9 @@ committed cards in plugin state.
      and a per-change `notes` becomes that change's note.
    - The offline writer stays as it is (a separate surface with its own tests). The plan's last task writes a short
      follow-up note (in this scope's "Follow-ups") instead of filing an issue.
+   - **(2026-10-20)** Done: both writers (`dump_edit_log` and the browser's `buildYaml`) now emit schema-valid cards
+     (facility under `links` / `nodes` with `ignore_missing: false`, notes as `netstead.note[<i>]` lines). The
+     tolerant read stays for logs written before.
 9. **Repo and name** (decided 2026-10-19): inside this monorepo, as the first-party plugin `plugins/project-cards`.
    First-party plugins live in `plugins/<name>`, each its own uv workspace package (the root workspace lists
    `plugins/*` beside `packages/*`) that may import only `netstead.workbench.plugins`' public API. This one is
@@ -301,10 +307,11 @@ From the implementation (2026-10; #228, #229, #237). Not filed as issues yet; ea
 
 **Other core and the plugin's reads**
 
-- **The offline report's edit-log writer is not schema-valid.** `netstead.map.edits.dump_edit_log` writes
-  `facility: {model_link_id: [...]}` (the schema wants `facility.links.model_link_id` plus `ignore_missing`) and a
-  per-change `notes` (forbidden by `additionalProperties: false`). Make it emit schema-valid ProjectCards (keeping
-  `apply_edits` reading both shapes); the plugin's tolerant reader can then stay for old files only.
+- ~~**The offline report's edit-log writer is not schema-valid.**~~ **Done (2026-10-20).**
+  `netstead.map.edits.dump_edit_log` and the browser's `buildYaml` write the facility under `links` / `nodes` with
+  `ignore_missing: false` and each change's notes as a `netstead.note[<i>]` line of the card's `notes`;
+  `load_edit_log` / `apply_edits` read both shapes, and the plugin's tolerant reader stays for old files only. Core
+  does not depend on `projectcard`; its tests validate with it when installed.
 - **`list_columns` performance.** The plugin's `routes.list_columns` checks every cell of each object column to find
   list-valued ones, on every form read; that is slow on large link tables. Sample, or ask core for the column types.
 - **"Selection actions ▾" wording.** `packages/netstead/docs/cookbook/workbench-plugins.md` (the `"selection"`
@@ -313,8 +320,10 @@ From the implementation (2026-10; #228, #229, #237). Not filed as issues yet; ea
 
 **The plugin**
 
-- **Honour a query selection's own `links.ignore_missing` when lowering.** A property change follows it, but a
-  deletion made from a query selection is lowered as the link ids it resolved to, so the query's flag is lost.
+- ~~**Honour a query selection's own `links.ignore_missing` when lowering.**~~ **Done (2026-10-20).**
+  `RoadwayDeletion.ignore_missing` (its links') is set from the selection: `false` for a pick, the query's flag for a
+  query. The lowering skips a missing link when it is `true`, the card writes it on `links`, and import reads it
+  back (see decision 7).
 - **`apply_card`:** re-resolve a card's query selections on another network version (out of scope for v1).
 - **Scoped (time-of-day) values** in property changes.
 - **TOML cards**, once `projectcard` fixes `_read_toml`.

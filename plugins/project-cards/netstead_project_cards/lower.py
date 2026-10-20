@@ -107,8 +107,9 @@ def apply_change(host: Host, net_id: str, change: NetworkChange) -> Applied:
     any other reason (core refuses its plan, or the network changed in between), the first stays applied unless the
     calling Action's failure rolls it back. Call it from an Action handler.
 
-    A property change whose selection has ``ignore_missing`` skips ids that are not in the network (listed in
-    :attr:`Applied.skipped`); without it, a missing id refuses the change.
+    A property change whose selection has ``ignore_missing``, or a deletion with ``ignore_missing`` (a query
+    selection's links), skips ids that are not in the network (listed in :attr:`Applied.skipped`); without it, a
+    missing id refuses the change.
 
     Raises:
         CardNotSupported: a transit change, or an added record field with no column in the network.
@@ -308,22 +309,28 @@ def _users(links: Any, nodes: Sequence[Any], deleted: Sequence[Any]) -> dict[str
 def _deletion(host: Host, net_id: str, change: RoadwayDeletion, note: str) -> Applied:
     """Links, then nodes. Which nodes go (and whether any is still in use) is decided before the first mutation."""
     out = Applied(change)
-    two_steps = bool(change.links) and (bool(change.nodes) or change.clean_nodes)
     version = host.network(net_id).version  # before the frame: it decides which nodes go
     links = _frame(host, net_id, "link")
-    if in_use := _users(links, change.nodes, change.links):  # core would refuse it only at step 2, after step 1
+    deleted = list(change.links)
+    if deleted and change.ignore_missing:  # a query selection's links: skip the ones the network no longer has
+        there = rows_by_key(links, "link_id", deleted, [])
+        if missing := [i for i in deleted if str(i) not in there]:
+            out.skipped.append(f"link {few(missing)} not found; skipped (ignore_missing)")
+            deleted = [i for i in deleted if str(i) in there]
+    two_steps = bool(deleted) and (bool(change.nodes) or change.clean_nodes)
+    if in_use := _users(links, change.nodes, deleted):  # core would refuse it only at step 2, after step 1
         raise CardError(_in_use(in_use))
     nodes = list(change.nodes)
-    if change.links and change.clean_nodes:
-        rows = rows_by_key(links, "link_id", change.links, ["from_node_id", "to_node_id"])
+    if deleted and change.clean_nodes:
+        rows = rows_by_key(links, "link_id", deleted, ["from_node_id", "to_node_id"])
         ends = list(
             dict.fromkeys(v for r in rows.values() for v in (r["from_node_id"], r["to_node_id"]) if v is not None)
         )
-        used = _users(links, ends, change.links)
+        used = _users(links, ends, deleted)
         taken = {str(n) for n in nodes}
         nodes += [e for e in ends if str(e) not in used and str(e) not in taken]
-    if change.links:
-        plan = _plan(host.plan_delete, net_id, "link", change.links)
+    if deleted:
+        plan = _plan(host.plan_delete, net_id, "link", deleted)
         out.marks.append(_mutate(host, net_id, version, [plan], f"{note} (links)" if two_steps else note))
         _add_rows(out.rows, plan.rows)
     if nodes:

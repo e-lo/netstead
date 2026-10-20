@@ -10,6 +10,12 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
 - **Importing the offline report's edit log.** netstead now writes it as a schema-valid card (picked ids with
   `ignore_missing: false`, notes as `netstead.note[<i>]` lines), which import reads as an ordinary card. The tolerant
   reading of the old shape (ids at the top of the facility, a per-change `notes`) stays, for logs written before.
+- **A deletion made from a query selection honours the query's `ignore_missing`.** `RoadwayDeletion` gains
+  `ignore_missing` (its links'; default `false`). `project_cards.add_change` sets it from the selection: `false` for
+  a pick, the query's own flag (default `true`) for a query. With `true`, a resolved link the network no longer has is
+  skipped and listed instead of refusing the change, and the card writes `links.ignore_missing: true`, so replaying
+  it in network_wrangler does the same. Import keeps a deletion's links flag (it used to drop it); its nodes are still
+  written with `false`.
 
 ### Added
 

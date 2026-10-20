@@ -44,6 +44,31 @@ def test_missing_ids_are_refused(host):
         apply_change(host, NET, RoadwayDeletion(links=[999999]))
 
 
+def test_ignore_missing_skips_missing_links(session, host):
+    before = counts(session)
+    applied = apply_change(host, NET, RoadwayDeletion(links=[1, 999999], ignore_missing=True))
+    assert counts(session)["link"] == before["link"] - 1 and applied.rows == {"lane": 1, "link": 1}
+    assert applied.skipped == ["link 999999 not found; skipped (ignore_missing)"]
+
+
+def test_ignore_missing_with_clean_nodes_uses_only_the_links_still_there(session, host):
+    plain = apply_change(host, NET, RoadwayDeletion(links=[1], clean_nodes=True)).rows
+    host.undo(NET)
+    applied = apply_change(host, NET, RoadwayDeletion(links=[999999, 1], clean_nodes=True, ignore_missing=True))
+    assert applied.rows == plain and applied.skipped == ["link 999999 not found; skipped (ignore_missing)"]
+
+
+def test_ignore_missing_with_every_link_gone_changes_nothing(session, host):
+    applied = apply_change(host, NET, RoadwayDeletion(links=[999998, 999999], ignore_missing=True))
+    assert applied.marks == [] and applied.skipped == ["link 999998, 999999 not found; skipped (ignore_missing)"]
+    assert session.network(NET).version == 0
+
+
+def test_ignore_missing_is_for_links_only(host):
+    with pytest.raises(CardError, match="not found"):
+        apply_change(host, NET, RoadwayDeletion(nodes=[999999], ignore_missing=True))
+
+
 def test_an_empty_deletion_is_refused(host):
     with pytest.raises(CardError, match="needs links and/or nodes"):
         apply_change(host, NET, RoadwayDeletion())

@@ -562,7 +562,24 @@ def test_extra_selector_keys_are_not_dropped(card):
         DraftCard.from_card(card)
 
 
-def test_importing_a_deletion_writes_ignore_missing_false():
-    card = _one("roadway_deletion", {"links": {"model_link_id": [4], "ignore_missing": True}})
-    written = DraftCard.from_card(card).to_card()
-    assert written["changes"][0]["roadway_deletion"]["links"]["ignore_missing"] is False
+def test_a_deletion_writes_its_links_ignore_missing_and_nodes_false():
+    """A deletion made from a query selection carries the query's flag; nodes are always aimed at specific records."""
+    card = draft(RoadwayDeletion(links=[1], nodes=[9], ignore_missing=True)).to_card()
+    deletion = card["changes"][0]["roadway_deletion"]
+    assert deletion["links"] == {"model_link_id": [1], "ignore_missing": True}
+    assert deletion["nodes"] == {"model_node_id": [9], "ignore_missing": False}
+    assert card_problems(card) == []
+
+
+def test_importing_a_deletion_keeps_its_links_ignore_missing():
+    links = {"model_link_id": [4], "ignore_missing": True}
+    card = _one("roadway_deletion", {"links": links, "nodes": {"model_node_id": [9], "ignore_missing": True}})
+    (change,) = DraftCard.from_card(card).changes
+    assert change == RoadwayDeletion(links=[4], nodes=[9], ignore_missing=True)
+    written = DraftCard.from_card(card).to_card()["changes"][0]["roadway_deletion"]
+    assert written["links"]["ignore_missing"] is True and written["nodes"]["ignore_missing"] is False
+
+
+def test_a_node_only_deletion_reads_ignore_missing_false():
+    card = _one("roadway_deletion", {"nodes": {"model_node_id": [9], "ignore_missing": True}})
+    assert DraftCard.from_card(card).changes == [RoadwayDeletion(nodes=[9])]

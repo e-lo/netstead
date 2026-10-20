@@ -109,8 +109,8 @@ class DraftCard(BaseModel):
                 scoped (time-of-day) value in an added record, or a selector key other than the id and
                 ``ignore_missing``.
 
-        A deletion has no ``ignore_missing`` of its own: importing one drops the card's flag, and writing it back
-        always gives ``ignore_missing: false`` (a deletion aims at specific records and fails loudly when one is gone).
+        A deletion keeps its ``links`` selector's ``ignore_missing``. Its ``nodes`` flag is dropped and written back
+        as ``ignore_missing: false`` (a node deletion aims at specific records and fails loudly when one is gone).
         """
         m = mapping or load_mapping()
         if not isinstance(data, Mapping) or "project" not in data:
@@ -232,9 +232,9 @@ def _body(i: int, c: Any, m: FieldMap) -> dict[str, Any]:
         return {"facility": _facility(c.facility, m), "property_changes": props}
     if isinstance(c, RoadwayDeletion):
         body: dict[str, Any] = {}
-        if c.links:  # a deletion aims at specific records: fail loudly when one is gone
-            body["links"] = _ids(c.links, "link", m, ignore_missing=False)
-        if c.nodes:
+        if c.links:  # false for picked or typed links; a query selection's own flag for the links it resolved to
+            body["links"] = _ids(c.links, "link", m, ignore_missing=c.ignore_missing)
+        if c.nodes:  # nodes are aimed at specific records: fail loudly when one is gone
             body["nodes"] = _ids(c.nodes, "node", m, ignore_missing=False)
         if c.clean_nodes:
             body["clean_nodes"] = True
@@ -401,10 +401,12 @@ def _change(kind: str, body: Any, m: FieldMap, resolved: list[Any] | None, note:
         sel = _selection(_mapping(body.get("facility") or {}, "facility"), m, resolved)
         return RoadwayPropertyChange(facility=sel, property_changes=_properties(body, sel, m), note=note)
     if kind == "roadway_deletion":
+        links = _selector_ids(body.get("links"), "link", m, "links")
         change = RoadwayDeletion(
-            links=_selector_ids(body.get("links"), "link", m, "links"),
+            links=links,
             nodes=_selector_ids(body.get("nodes"), "node", m, "nodes"),
             clean_nodes=bool(body.get("clean_nodes")),
+            ignore_missing=bool(links) and bool(body["links"].get("ignore_missing")),
             note=note,
         )
         if problem := incomplete(change):

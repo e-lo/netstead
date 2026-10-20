@@ -126,7 +126,7 @@ The card uses network_wrangler's names. GMNS names map to them through a data fi
 |---|---|
 | Picked links (click or box) | `facility: {links: {model_link_id: [...], ignore_missing: false}}` |
 | Selected by a request ("Benton Street") | The query, `facility: {links: {name: [Benton Street], ignore_missing: true}}`, plus a `netstead.resolved[<i>]` line in the card's `notes` |
-| Deleted links | `roadway_deletion` by id, `ignore_missing: false`; **Also delete end nodes** is `clean_nodes: true` |
+| Deleted links | `roadway_deletion` by id: `ignore_missing: false` for picked links, the query's own flag for links a request selected; **Also delete end nodes** is `clean_nodes: true` |
 | Added a link | `roadway_addition` in network_wrangler's names, with `walk_access`, `bike_access` and `drive_access` derived from `allowed_uses` |
 | Wrote a note | a `netstead.note[<i>]` line in the card's `notes` |
 
@@ -159,9 +159,11 @@ skip it (`true`).
 - **A query selection** keeps the query's own `ignore_missing`, which is `true` (network_wrangler's default) when
   the query has none. The plugin applies it now too: a resolved id the network no longer has is skipped and listed,
   instead of refusing the change.
-- **Deletions** are always written by id with `ignore_missing: false`, even when the selection came from a query.
-- **Reading a card**, a selector without `ignore_missing` reads as `true`. A deletion's flag is dropped, and the
-  deletion is written back with `false`. The offline edit log's ids read as `false`.
+- **Deletions** are written by id (the links the selection resolved to). Picked links get `ignore_missing: false`;
+  links a query selected keep the query's flag, so with `true` a resolved link that is gone is skipped and listed,
+  as for a property change. A deletion's nodes always get `false`.
+- **Reading a card**, a selector without `ignore_missing` reads as `true`. A deletion keeps its links' flag; its
+  nodes' flag is dropped and written back as `false`. The offline edit log's ids read as `false`.
 
 ## From Python
 
