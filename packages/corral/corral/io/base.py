@@ -22,6 +22,8 @@ Design notes for adapter implementers:
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -220,6 +222,48 @@ class FormatAdapter(Protocol):
         ...
 
 
+DescriptorFactory = Callable[[str], dict[str, Any]]
+"""Builds a package's ``datapackage.json`` descriptor for a member format.
+
+Passed to :meth:`PackageWriter.write_package`. The argument is the format of
+the files the adapter writes (``"csv"`` for the members of a csv zip); the
+result describes ``<table>.<format>`` resources with inlined schemas. The
+caller owns the spec, the adapter owns whether and where a descriptor goes.
+"""
+
+
+@runtime_checkable
+class PackageWriter(Protocol):
+    """Optional extension of :class:`FormatAdapter`: write a whole package at once.
+
+    How a multi-table package lands on disk (a directory of files, one
+    multi-table file, a zip) is the adapter's decision. An adapter that
+    implements ``write_package`` makes it; one that does not gets the
+    default of :func:`corral.io.write_package` (one ``dest / <table>``
+    location per table through ``write``).
+    """
+
+    def write_package(
+        self,
+        tables: Mapping[str, TableExpr],
+        dest: Path,
+        engine: Engine,
+        *,
+        describe: DescriptorFactory,
+    ) -> None:
+        """Write every table in ``tables`` to the new location ``dest``.
+
+        Args:
+            tables: ``{table name: expression}``, in package order.
+            dest: Where the package goes. Nothing exists there yet:
+                ``Package.write`` stages the write and swaps it into place.
+            engine: The engine performing the writes.
+            describe: Builds the ``datapackage.json`` descriptor for a
+                member format; call it only if the layout carries one.
+        """
+        ...
+
+
 # ---------------------------------------------------------------------------
 # Exception hierarchy
 # ---------------------------------------------------------------------------
@@ -271,11 +315,13 @@ class DuplicateAdapterError(FormatError):
 
 __all__ = [
     "AdapterNotAvailableError",
+    "DescriptorFactory",
     "DuplicateAdapterError",
     "FormatAdapter",
     "FormatError",
     "FormatNotDetected",
     "InvalidAdapterError",
+    "PackageWriter",
     "ResourceListing",
     "ResourceRef",
     "SourceRef",

@@ -197,6 +197,14 @@ place:
 - **`Engine.write(expr, dest, fmt)` is symmetric** — a 3-line
   convenience over `corral.io.get_adapter(fmt).write`.
 
+- **Adapters own package layout too.** `Package.write` stages the
+  write and hands every table to `corral.io.write_package`, which calls
+  the adapter's optional `write_package` (the `PackageWriter`
+  protocol): csv / parquet write a directory plus `datapackage.json`,
+  duckdb one multi-table file, zipcsv one zip. An adapter without it
+  gets one `dest/<table>` location per table. `Package.write` has no
+  per-format branches.
+
 This means a new format (xlsx, geoparquet, …) is added by writing one
 `FormatAdapter` plus a `read_<format>` primitive on the DuckDB engine —
 no central dispatch needs editing.

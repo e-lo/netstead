@@ -22,6 +22,15 @@ This file is for the **corral** package only. `netstead` (which depends on corra
 
 ### Changed
 
+- **Adapters decide how a package lands on disk.** `Package.write` no
+  longer branches per format: it stages the write and calls the new
+  `corral.io.write_package`, which uses the adapter's optional
+  `write_package(tables, dest, engine, *, describe)` (protocol
+  `corral.io.PackageWriter`). The csv, parquet, duckdb and zipcsv adapters
+  implement it with the same layouts as before; an adapter without it gets
+  one `dest/<table>` location per table. Zip writes now go through the same
+  staging and swap as every other format, so replacing an existing
+  directory with a zip is no longer a delete-then-rename.
 - **`register_adapter` refuses collisions.** Registering a different adapter
   class under a taken name, or claiming an extension or URL scheme another
   adapter owns, now raises `DuplicateAdapterError` (a `FormatError`) instead

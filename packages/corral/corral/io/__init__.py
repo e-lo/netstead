@@ -32,22 +32,29 @@ from __future__ import annotations
 import logging
 import re
 from pathlib import Path
-from typing import Final
+from typing import TYPE_CHECKING, Any, Final
 from urllib.parse import urlparse
 
 from ._paths import normalize_to_str
 from .base import (
     AdapterNotAvailableError,
+    DescriptorFactory,
     DuplicateAdapterError,
     FormatAdapter,
     FormatError,
     FormatNotDetected,
     InvalidAdapterError,
+    PackageWriter,
     ResourceListing,
     ResourceRef,
     SourceRef,
 )
 from .errors import WriteUnsupportedForSchemeError
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from collections.abc import Mapping
+
+    from corral.engines.base import Engine
 
 _logger: Final = logging.getLogger(__name__)
 
@@ -429,13 +436,53 @@ def dispatch(source: SourceRef, *, format: str | None = None) -> FormatAdapter:
     )
 
 
+# ---------------------------------------------------------------------------
+# Whole-package writes
+# ---------------------------------------------------------------------------
+
+
+def write_package(
+    adapter: FormatAdapter,
+    tables: Mapping[str, Any],
+    dest: Path,
+    engine: Engine,
+    *,
+    describe: DescriptorFactory,
+) -> None:
+    """Write a multi-table package to ``dest`` in ``adapter``'s layout.
+
+    The layout is the adapter's decision: an adapter implementing
+    :class:`PackageWriter` lays the package out itself (csv / parquet: a
+    directory with a ``datapackage.json``; duckdb: one multi-table file;
+    zipcsv: one zip). Any other adapter gets one ``dest / <table>``
+    location per table through its ``write``, and raises there if that
+    layout doesn't fit. A new format slots in by implementing
+    ``write_package``; nothing central needs editing.
+
+    Args:
+        adapter: The adapter for the target format.
+        tables: ``{table name: expression}``, in package order.
+        dest: A location that does not exist yet (callers stage the write).
+        engine: The engine performing the writes.
+        describe: Builds the ``datapackage.json`` descriptor for a member
+            format, for layouts that carry one.
+    """
+    if isinstance(adapter, PackageWriter):
+        adapter.write_package(tables, dest, engine, describe=describe)
+        return
+    for name, expr in tables.items():
+        adapter.write(expr, dest / name, engine=engine)
+
+
 __all__ = [
     "AdapterNotAvailableError",
+    "DescriptorFactory",
     "DuplicateAdapterError",
     "FormatAdapter",
     "FormatError",
     "FormatNotDetected",
     "InvalidAdapterError",
+    "PackageWriter",
     "ResourceListing",
     "ResourceRef",
     "SourceRef",
@@ -444,6 +491,7 @@ __all__ = [
     "get_adapter",
     "list_adapters",
     "register_adapter",
+    "write_package",
 ]
 
 

@@ -58,7 +58,10 @@ from corral.io._paths import normalize_to_str
 from corral.io.base import ResourceListing, ResourceRef, SourceRef
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
+    from collections.abc import Mapping
+
     from corral.engines.base import Engine, TableExpr
+    from corral.io.base import DescriptorFactory
     from corral.spec.model import Schema
 
 
@@ -361,6 +364,22 @@ class DuckdbAdapter:
             )
         path_str = _coerce_path(dest)
         engine.write_duckdb_table(expr, path_str, table=table, **kwargs)
+
+    def write_package(
+        self,
+        tables: Mapping[str, TableExpr],
+        dest: Path,
+        engine: Engine,
+        *,
+        describe: DescriptorFactory,
+    ) -> None:
+        """Write one duckdb file at ``dest`` holding a table per entry of ``tables``.
+
+        No ``datapackage.json``: the file is the whole package (``describe``
+        is not called).
+        """
+        for name, expr in tables.items():
+            self.write(expr, dest, engine, table=name)
 
 
 # ---------------------------------------------------------------------------

@@ -57,6 +57,7 @@ after extracting the chosen member.
 from __future__ import annotations
 
 import contextlib
+import json
 import logging
 import tempfile
 import zipfile
@@ -68,6 +69,7 @@ import fsspec
 
 from corral.engines.errors import InvalidEngineCallError
 from corral.io import _scheme_of, register_adapter
+from corral.io._package import DESCRIPTOR_NAME
 from corral.io._paths import normalize_to_str
 from corral.io.base import ResourceListing, ResourceRef, SourceRef
 from corral.io.credentials import resolve_credentials
@@ -76,12 +78,13 @@ from corral.io.errors import WriteUnsupportedForSchemeError
 _logger: Final = logging.getLogger(__name__)
 
 #: The data-package descriptor member a csv zip may carry (Package.write writes one).
-_DESCRIPTOR_MEMBER: Final = "datapackage.json"
+_DESCRIPTOR_MEMBER: Final = DESCRIPTOR_NAME
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
-    from collections.abc import Iterator
+    from collections.abc import Iterator, Mapping
 
     from corral.engines.base import Engine, TableExpr
+    from corral.io.base import DescriptorFactory
     from corral.spec.model import Schema
 
 
@@ -419,6 +422,36 @@ class ZipCsvAdapter:
             engine.write_csv(expr, tmp_csv, **kwargs)
             with zipfile.ZipFile(dest_str, mode="w", compression=zipfile.ZIP_DEFLATED) as z:
                 z.write(tmp_csv, arcname=inner_name)
+
+    def write_package(
+        self,
+        tables: Mapping[str, TableExpr],
+        dest: Path,
+        engine: Engine,
+        *,
+        describe: DescriptorFactory,
+    ) -> None:
+        """Write one zip at ``dest``: a flat ``<table>.csv`` member per table plus a ``datapackage.json``.
+
+        The same shape :meth:`scan` reads back. Each table is encoded to a
+        csv in a scratch directory beside ``dest``, added to the archive and
+        deleted, so at most one uncompressed csv is on disk at a time. The
+        descriptor describes the members, so it is built for ``"csv"``.
+        """
+        from corral.io import get_adapter
+
+        csv_adapter = get_adapter("csv")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        with (
+            tempfile.TemporaryDirectory(prefix=f".{dest.name}.", dir=dest.parent) as scratch_dir,
+            zipfile.ZipFile(dest, mode="w", compression=zipfile.ZIP_DEFLATED) as zf,
+        ):
+            for name, expr in tables.items():
+                member = Path(scratch_dir) / f"{name}.csv"
+                csv_adapter.write(expr, member, engine=engine)
+                zf.write(member, arcname=member.name)
+                member.unlink()
+            zf.writestr(_DESCRIPTOR_MEMBER, json.dumps(describe("csv"), indent=2))
 
 
 # ---------------------------------------------------------------------------

@@ -46,11 +46,15 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
 
 from corral.io import _scheme_of, register_adapter
+from corral.io._package import write_flat_package
 from corral.io._paths import normalize_to_path, normalize_to_str
 from corral.io.base import ResourceListing, ResourceRef, SourceRef
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
+    from collections.abc import Mapping
+
     from corral.engines.base import Engine, TableExpr
+    from corral.io.base import DescriptorFactory
     from corral.spec.model import Schema
 
 
@@ -388,6 +392,17 @@ class ParquetAdapter:
         # Single-file: defer to the engine's parquet primitive.
         dest_path = _as_path(dest)
         engine.write_parquet(expr, str(dest_path), **kwargs)
+
+    def write_package(
+        self,
+        tables: Mapping[str, TableExpr],
+        dest: Path,
+        engine: Engine,
+        *,
+        describe: DescriptorFactory,
+    ) -> None:
+        """Write a directory: one ``<table>.parquet`` per table plus a ``datapackage.json``."""
+        write_flat_package(self, tables, dest, engine, describe=describe)
 
     def _write_partitioned(
         self,
