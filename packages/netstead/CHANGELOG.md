@@ -16,6 +16,12 @@ This file is for the **netstead** package only. The underlying generic engine `c
   fails if an inlined schema drifts from `spec/0.97/`;
   `build_leavenworth.py --descriptor-only` regenerates the descriptor and
   zip without an OpenStreetMap fetch. (#127)
+- **Validation and network HTML reports no longer show "API KEY REQUIRED" tiles when
+  zoomed in.** CARTO now watermarks its raster basemap without an API key, and a key
+  cannot be added: the report is a static, shareable file, so the key would ship inside
+  it. The default `tile_provider` is now `"esri"`, the same keyless Esri light-grey
+  canvas the Workbench offers (upscaled past its native zoom 16); `"openstreetmap"`
+  remains the alternative and `"carto-positron"` is gone.
 - **The `netstead` CLI starts without the `[nl]` extra.** `netstead.select.emit`
   imported `jsonschema` at module level and the CLI imports the `select` command
   group eagerly, so on a `netstead[clean,graph]` install every command, including
