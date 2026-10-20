@@ -78,7 +78,7 @@ def _coerce_path(source: SourceRef) -> str:
         duckdb://rel/path.duckdb    → "rel/path.duckdb"
 
     Dict sources are not accepted here: the dispatcher does not feed
-    dicts to adapters (the dispatcher's ``_normalize_path_str`` rejects
+    dicts to adapters (``dispatch``'s own ``normalize_to_str`` call rejects
     them upstream), and our own read()/write() build the dict-form
     source themselves before passing to the engine.
     """

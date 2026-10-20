@@ -101,7 +101,7 @@ def register_adapter(adapter: FormatAdapter) -> None:
         ...     get_adapter("doctest-register") is fake
         ... finally:
         ...     _ = _io._REGISTRY.pop("doctest-register", None)
-        ...     _io._purge_bindings_for("doctest-register")
+        ...     _ = _io._BY_EXT.pop("doctestfmt", None)
         True
     """
     if not isinstance(adapter, FormatAdapter):
@@ -114,26 +114,19 @@ def register_adapter(adapter: FormatAdapter) -> None:
 
     name = adapter.name
 
-    # If overwriting, scrub the previous adapter's ext/scheme bindings so we
-    # don't leave dangling pointers to a deregistered name.
+    # If overwriting, scrub the previous adapter's ext/scheme bindings: the new
+    # adapter may claim fewer extensions, and a stale binding would route those
+    # sources to it anyway.
     if name in _REGISTRY:
-        _purge_bindings_for(name)
+        for bindings in (_BY_EXT, _BY_SCHEME):
+            for key in [key for key, owner in bindings.items() if owner == name]:
+                del bindings[key]
 
     _REGISTRY[name] = adapter
     for ext in adapter.extensions:
         _BY_EXT[ext.lower().lstrip(".")] = name
     for scheme in adapter.schemes:
         _BY_SCHEME[scheme.lower()] = name
-
-
-def _purge_bindings_for(name: str) -> None:
-    """Remove ext/scheme bindings that point at ``name``."""
-    for ext, owner in list(_BY_EXT.items()):
-        if owner == name:
-            del _BY_EXT[ext]
-    for scheme, owner in list(_BY_SCHEME.items()):
-        if owner == name:
-            del _BY_SCHEME[scheme]
 
 
 def get_adapter(name: str) -> FormatAdapter:
@@ -181,7 +174,6 @@ def get_adapter(name: str) -> FormatAdapter:
         ...     get_adapter("doctest-get") is fake
         ... finally:
         ...     _ = _io._REGISTRY.pop("doctest-get", None)
-        ...     _io._purge_bindings_for("doctest-get")
         True
     """
     try:
@@ -218,7 +210,6 @@ def list_adapters() -> list[str]:
         ...     "doctest-list" in list_adapters()
         ... finally:
         ...     _ = _io._REGISTRY.pop("doctest-list", None)
-        ...     _io._purge_bindings_for("doctest-list")
         True
     """
     return list(_REGISTRY)
@@ -251,24 +242,6 @@ def _reset_registry() -> None:
 # ---------------------------------------------------------------------------
 # Dispatch
 # ---------------------------------------------------------------------------
-
-
-def _normalize_path_str(source: SourceRef) -> str:
-    """Coerce ``source`` to a string for URL/extension parsing.
-
-    Thin dispatcher-side wrapper over :func:`corral.io._paths.normalize_to_str`
-    — the same helper every FormatAdapter uses, so the dispatcher and its
-    delegates can't drift apart on what counts as a valid path-shaped
-    source.
-
-    Raises:
-        UnsupportedSourceError: If ``source`` is a ``dict`` (caller must
-            pass an explicit ``format=`` so :func:`dispatch` skips
-            sniffing) or an otherwise-unsupported type. The exception
-            inherits from ``TypeError`` so existing
-            ``pytest.raises(TypeError)`` patterns still match.
-    """
-    return normalize_to_str(source, adapter="dispatch")
 
 
 def _scheme_of(source_str: str) -> str | None:
@@ -351,7 +324,7 @@ def dispatch(source: SourceRef, *, format: str | None = None) -> FormatAdapter:
         ...     dispatch("data/example.doctestfmt") is fake
         ... finally:
         ...     _ = _io._REGISTRY.pop("doctest-dispatch", None)
-        ...     _io._purge_bindings_for("doctest-dispatch")
+        ...     _ = _io._BY_EXT.pop("doctestfmt", None)
         True
 
         An explicit ``format=`` short-circuits all sniffing. The
@@ -363,14 +336,17 @@ def dispatch(source: SourceRef, *, format: str | None = None) -> FormatAdapter:
         ...     dispatch("anything-at-all", format="doctest-dispatch").name
         ... finally:
         ...     _ = _io._REGISTRY.pop("doctest-dispatch", None)
-        ...     _io._purge_bindings_for("doctest-dispatch")
+        ...     _ = _io._BY_EXT.pop("doctestfmt", None)
         'doctest-dispatch'
     """
     # 1. Explicit format wins.
     if format is not None:
         return get_adapter(format)
 
-    source_str = _normalize_path_str(source)
+    # The same coercion every adapter uses, so the dispatcher and its delegates
+    # agree on what a path-shaped source is. A ``dict`` source raises
+    # UnsupportedSourceError (a TypeError): pass ``format=`` to skip sniffing.
+    source_str = normalize_to_str(source, adapter="dispatch")
 
     # 2. URL scheme match.
     scheme = _scheme_of(source_str)
