@@ -54,8 +54,8 @@ class PendingEdit:
 class EditLedger:
     """One network's pending edits (newest last) and the live check over every key they touched."""
 
-    def __init__(self) -> None:
-        """Start empty."""
+    def __init__(self, issued: int = 0) -> None:
+        """Start empty; the first entry's ``seq`` is ``issued + 1`` (a rolled-back ledger's count, never reused)."""
         self.entries: list[PendingEdit] = []
         self.check = CheckResult()
         self.diverged = False  # an undo reverted a saved edit: the open network differs from the saved copy
@@ -66,7 +66,16 @@ class EditLedger:
         #: (compared by identity). A reverse in place keeps the version but swaps the expression, so this
         #: catches what the version check cannot.
         self.exprs: dict[str, Any] = {}
-        self._seq = 0
+        self._seq = issued
+
+    @property
+    def issued(self) -> int:
+        """The newest ``seq`` handed out (``0``: none). Seqs only grow: an entry's ``seq`` is its stable id."""
+        return self._seq
+
+    def reserve(self, issued: int) -> None:
+        """Never hand out a ``seq`` up to ``issued`` again (a rolled-back Action's edits had them)."""
+        self._seq = max(self._seq, issued)
 
     def copy(self) -> EditLedger:
         """A snapshot (entries copied one level down), for the session's rollback of a failed Action."""

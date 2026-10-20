@@ -119,7 +119,7 @@ function noteText(st) {
   }
   const sends = (st.sends || []).length ? st.sends.join("; ") : "nothing beyond your question";
   const compact = st.compact ? ` It is offered a compact tool set (${(st.tools || []).length} tools: ` +
-    "the read-only ones that apply now, plus edit, delete and undo; assistant.compact_tools)." : "";
+    "the read-only ones that apply now, plus edit, delete, undo and plugin edits marked compact; assistant.compact_tools)." : "";
   return `${st.provider}${st.model ? ` (${st.model})` : ""}${st.local ? ", on this machine," : ""} receives: ${sends}.` +
     compact;
 }

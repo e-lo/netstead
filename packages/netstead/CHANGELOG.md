@@ -71,6 +71,24 @@ This file is for the **netstead** package only. The underlying generic engine `c
   credentials (fsspec storage options) to `Package.from_source`, as the
   [Read from S3](https://e-lo.github.io/netstead/corral/cookbook/read-from-s3/) cookbook describes.
 
+- **Plugin Host API 1.6** (the cards plugin's follow-ups):
+  - `host.mutate` raises `ActionError` ("the edit failed: ...") when storage
+    refuses an edit (corral's `EditingError`, an Arrow, ibis or DuckDB error),
+    so a plugin's failed edit reads as a refusal instead of "internal error".
+    `host.undo` does the same for a failed reverse.
+  - Stable edit ids: `host.mutate` returns a `Mutation` (exported), still the
+    list of `EditResult`s, carrying the pending edit's `seq`.
+    `host.pending_edits(net_id)` lists a network's pending edits (`seq`,
+    `source`, `note`, `version`, `rows`, `saved`), and `host.undo()`'s `seq`
+    names the edit it reversed. A seq is never reused on an open network, even
+    after a rolled-back Action spent it (the ledger used to hand it out again).
+  - `host.on_rollback(fn)`: a handler registers a callback that core calls when
+    its Action is rolled back, including after it succeeded inside an Action
+    that failed later, so the plugin can put back its own state and files.
+  - `compact: ClassVar[bool] = True` on a `mutates` Action offers it in the
+    assistant's compact tool set (a local model's). Core's everyday edits
+    (`edit_cells`, `delete_rows`, `undo_edit`) now carry the flag, in place of
+    a hard-coded list; what core offers is unchanged.
 - **Plugin Host API 1.5:** `ActionError` and `NotSupportedYet` are exported from
   `netstead.workbench.plugins`, so a plugin handler can refuse with a message the
   user sees (anything else it raises is still an internal error).

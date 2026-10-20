@@ -19,7 +19,7 @@ from __future__ import annotations
 import math
 import numbers
 from collections import defaultdict
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -37,7 +37,7 @@ from .types import (
     incomplete,
 )
 
-__all__ = ["KEYS", "Applied", "Mark", "apply_change", "describe", "few", "mark_after", "rows_by_key"]
+__all__ = ["KEYS", "Applied", "Mark", "apply_change", "describe", "few", "rows_by_key"]
 
 #: The key column of each table a roadway change edits (GMNS names), from the mapping file's selectors.
 KEYS = {table: load_mapping().selector(table)[0] for table in ("link", "node")}
@@ -45,27 +45,18 @@ KEYS = {table: load_mapping().selector(table)[0] for table in ("link", "node")}
 
 @dataclass(frozen=True)
 class Mark:
-    """What one ``host.mutate`` (or ``host.undo``) left on a network: its lineage line, version and ledger note.
+    """One ``host.mutate`` of a change: the pending edit's ``seq`` (its stable id) and its ledger note.
 
-    ``index`` is the line's position in the network's lineage. Core only appends to a lineage, except that a failed
-    Action's rollback cuts off the lines it added (and sets the version back), so a mark whose line is gone, or whose
-    version is newer than the network's, describes a change the network no longer has.
+    The network holds the change while the seq is among its pending edits (``host.pending_edits``): ``host.undo``
+    and a failed Action's rollback take it out, and core never hands the seq out again on that network.
     """
 
-    index: int
-    line: str
-    version: int
+    seq: int | None  # ``None`` only for a mutation with no edits, which no change makes (it never holds)
     note: str
 
-    def holds(self, lineage: Sequence[str], version: int) -> bool:
-        """Whether the network (its ``lineage`` and ``version`` now) still has this change."""
-        return self.index < len(lineage) and lineage[self.index] == self.line and version >= self.version
-
-
-def mark_after(host: Host, net_id: str, note: str) -> Mark:
-    """The mark the ``host.mutate`` or ``host.undo`` with ledger note ``note`` just left on ``net_id``."""
-    h = host.network(net_id)
-    return Mark(len(h.lineage) - 1, h.lineage[-1], h.version, note)
+    def holds(self, pending: Collection[int]) -> bool:
+        """Whether the network, whose pending edits have the seqs ``pending``, still has this mutation."""
+        return self.seq in pending
 
 
 @dataclass
@@ -205,8 +196,7 @@ def _mutate(host: Host, net_id: str, version: int, plans: list[EditPlan], note: 
     if any(p.version != version for p in plans):
         raise CardError(f"{net_id} changed while the change was being planned; apply it again")
     edits = [e for p in plans for e in p.edits]
-    host.mutate(net_id, edits, note=note, expected_version=version)
-    return mark_after(host, net_id, note)
+    return Mark(host.mutate(net_id, edits, note=note, expected_version=version).seq, note)
 
 
 def _same(current: Any, existing: Any) -> bool:

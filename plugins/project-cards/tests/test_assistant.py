@@ -101,14 +101,17 @@ def test_approving_a_card_change_drafted_on_the_preview_is_stale_once_the_base_m
     assert NET not in session.state()["plugins"]["project_cards"]["drafts"]
 
 
-@pytest.mark.parametrize(("mode", "offered"), [("auto", False), ("off", True)])
-def test_a_local_model_gets_no_cards_tools_while_tools_are_compact(make_session, mode, offered):
-    # Core's compact tool set ("auto" on a local endpoint) keeps only edit_cells, delete_rows and undo_edit among the
-    # drafted tools, so every project_cards.* Action is dropped. The cookbook should tell local-model users to set
-    # assistant.compact_tools to "off" to draft cards (a later task).
+COMPACT = {"add_change", "undo_change", "preview", "close_preview"}
+EVERY = COMPACT | {"commit", "import"}
+
+
+@pytest.mark.parametrize(("mode", "offered"), [("auto", COMPACT), ("off", EVERY)])
+def test_a_local_model_gets_the_everyday_cards_tools_while_tools_are_compact(make_session, mode, offered):
+    # Core's compact tool set ("auto" on a local endpoint) drafts only the Actions marked ``compact``: the cards
+    # Actions that need no file path. Committing and importing (a path) need assistant.compact_tools = "off".
     provider = Scripted(reply(text="ok"))
     session = make_session(provider=provider, overrides={"assistant.plugins": ["project_cards"]})
     session.dispatch({"type": "set_setting", "key": "assistant.compact_tools", "value": mode})
     session.assistant.plan("hello")
     names = {t.name for t in provider.requests[0].tools}
-    assert any(n.startswith("project_cards__") for n in names) == offered
+    assert {n.removeprefix("project_cards__") for n in names if n.startswith("project_cards__")} == offered
