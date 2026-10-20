@@ -96,8 +96,9 @@ Records on a branch go here, then move to the tables above when they merge.
 
 - **No product-level PRD.** #98 was closed in favour of this index plus architecture.md §1. If a
   roadmap to GA and past it is wanted, add it here as `YYYY-MM-DD-netstead-prd.md`.
-- **Workbench LAN exposure:** `netstead app --host 0.0.0.0` with an empty `io.allowed_roots` lets
-  anyone on the network browse the home directory. Documented, not blocked; consider refusing a
-  non-loopback host without explicit roots.
+- ~~**Workbench LAN exposure:** `netstead app --host 0.0.0.0` with an empty `io.allowed_roots` lets
+  anyone on the network browse the home directory.~~ Closed: the CLI now refuses a non-loopback host
+  until `io.allowed_roots` is set explicitly (`chore/alpha-hygiene`). Still open: the Workbench has no
+  authentication, so an exposed bind with explicit roots exposes those folders.
 - **Quality-rule backlog** from pre-v1 issues: partially overlapping segments (#5) and unique
   natural-key combinations such as `link_id` + `time_day` (#7).

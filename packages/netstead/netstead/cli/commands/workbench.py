@@ -8,9 +8,12 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import typer
+
+if TYPE_CHECKING:
+    from netstead.config import Settings
 
 __all__ = ["register", "run_workbench"]
 
@@ -56,6 +59,7 @@ def run_workbench(
         # Sources named on the command line are trusted: allow exactly those paths for this session.
         # Widen the roots *before* building the one Session, so plugins are discovered and loaded once.
         settings = load_settings(overrides=overrides).settings
+        _refuse_public_bind_without_roots(settings)
         extra = [p for p in trusted if not is_allowed(p, settings)]
         if extra:
             overrides["io.allowed_roots"] = [str(r) for r in allowed_roots(settings)] + extra
@@ -84,6 +88,32 @@ def run_workbench(
     opened = ", ".join(session.registry.ids()) or "none (open one from the header)"
     typer.echo(f"Netstead Workbench on http://{app_settings.host}:{app_settings.port}  (networks: {opened})")
     workbench.serve(session)
+
+
+def _refuse_public_bind_without_roots(settings: Settings) -> None:
+    """Exit 2 when the bind host is not loopback and ``io.allowed_roots`` was never set.
+
+    An empty ``io.allowed_roots`` means the home folder, and the Workbench has no authentication, so a
+    non-loopback bind with the default would let anyone on the network browse it. Sources named on the
+    command line don't count: ``settings`` is read before the CLI widens the roots for them.
+    """
+    from netstead.workbench.server import is_loopback_host
+
+    host = settings.app.host
+    if is_loopback_host(host) or settings.io.allowed_roots:
+        return
+    typer.echo(
+        f"error: refusing to bind to {host!r} while io.allowed_roots is unset. Unset means your home folder, "
+        "and the Workbench has no authentication, so anyone on the network could browse it. List the folders "
+        "to share first, in ./netstead.toml or your user config.toml:\n"
+        "\n"
+        "    [io]\n"
+        '    allowed_roots = ["/data/networks"]\n'
+        "\n"
+        "or for one run: NETSTEAD_IO__ALLOWED_ROOTS='[\"/data/networks\"]' netstead app --host ...",
+        err=True,
+    )
+    raise typer.Exit(2)
 
 
 def register(app: typer.Typer) -> None:

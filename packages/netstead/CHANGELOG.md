@@ -6,6 +6,15 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ## [Unreleased]
 
+### Security
+
+- **`netstead app` refuses to expose your home folder.** A non-loopback host
+  (`--host 0.0.0.0`, `NETSTEAD_APP__HOST` or a config file) with an empty
+  `io.allowed_roots` (which means the home folder) now exits with code 2 and
+  explains how to set the roots. Before, anyone on the network could browse the
+  home folder through the Workbench file browser. Sources named on the command
+  line are still allowed for the session but don't satisfy the check.
+
 ### Fixed
 
 - **The `netstead` CLI starts without the `[nl]` extra.** `netstead.select.emit`

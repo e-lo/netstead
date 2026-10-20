@@ -57,12 +57,37 @@ def test_select_serve_is_an_alias(served, rdu_source):
     assert result.exit_code == 0 and served[0].registry.ids() == ["rdu-i40"]
 
 
-def test_app_warns_on_public_bind(served):
+def test_app_warns_on_public_bind(served, monkeypatch, tmp_path):
+    monkeypatch.setenv("NETSTEAD_IO__ALLOWED_ROOTS", json.dumps([str(tmp_path)]))
     result = runner.invoke(app, ["app", "--host", "0.0.0.0"])
     assert result.exit_code == 0, result.output
     assert "0.0.0.0" in result.output
     assert "no authentication" in result.output
     assert "session" in result.output  # names the source layer that set app.host
+
+
+def test_app_refuses_public_bind_without_explicit_allowed_roots(served, monkeypatch):
+    """Empty ``io.allowed_roots`` means the home folder; serving that to the LAN is refused, with the fix."""
+    monkeypatch.delenv("NETSTEAD_IO__ALLOWED_ROOTS", raising=False)
+    result = runner.invoke(app, ["app", "--host", "0.0.0.0"])
+    assert result.exit_code == 2, result.output
+    assert served == []
+    assert "0.0.0.0" in result.output and "io.allowed_roots" in result.output
+    assert "NETSTEAD_IO__ALLOWED_ROOTS" in result.output and "netstead.toml" in result.output
+
+
+def test_app_refuses_public_bind_set_in_config_without_allowed_roots(served, monkeypatch):
+    monkeypatch.delenv("NETSTEAD_IO__ALLOWED_ROOTS", raising=False)
+    monkeypatch.setenv("NETSTEAD_APP__HOST", "0.0.0.0")
+    result = runner.invoke(app, ["app"])
+    assert result.exit_code == 2 and "io.allowed_roots" in result.output and served == []
+
+
+def test_cli_sources_do_not_count_as_explicit_roots_for_a_public_bind(served, monkeypatch, rdu_source):
+    """Sources named on the command line widen the roots for the session, but the home default still applies."""
+    monkeypatch.delenv("NETSTEAD_IO__ALLOWED_ROOTS", raising=False)
+    result = runner.invoke(app, ["app", rdu_source, "--host", "0.0.0.0"])
+    assert result.exit_code == 2 and "io.allowed_roots" in result.output and served == []
 
 
 def test_app_loopback_bind_has_no_warning(served):
