@@ -57,6 +57,16 @@ def test_spec_version_ordering():
     assert SpecVersion(0, 97, 0) == SpecVersion.from_str("0.97")
 
 
+def test_spec_version_is_an_ordered_dataclass():
+    """Ordering comes from ``@dataclass(order=True)``, not hand-written dunders (#118)."""
+    assert SpecVersion.__dataclass_params__.order  # type: ignore[attr-defined]
+    versions = [SpecVersion(1, 0), SpecVersion(0, 97, 1), SpecVersion(0, 96), SpecVersion(0, 97)]
+    assert sorted(versions) == [SpecVersion(0, 96), SpecVersion(0, 97), SpecVersion(0, 97, 1), SpecVersion(1, 0)]
+    assert SpecVersion(0, 97) <= SpecVersion(0, 97, 0) <= SpecVersion(0, 97)
+    with pytest.raises(TypeError):
+        _ = SpecVersion(0, 97) < (0, 98, 0)  # type: ignore[operator]
+
+
 def test_spec_version_compatibility():
     assert compatible(SpecVersion(0, 97, 0), SpecVersion(0, 97, 5))
     assert not compatible(SpecVersion(0, 96, 0), SpecVersion(0, 97, 0))

@@ -43,6 +43,14 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   resource paths rewritten, schemas inlined), so `Package.from_source` on
   the written directory auto-discovers the spec again.
 
+### Changed
+
+- **`SpecVersion` is a plain ordered frozen dataclass.** Its ordering now
+  comes from `@dataclass(frozen=True, order=True)` instead of four
+  hand-written comparison methods. Behaviour is unchanged: versions still
+  order by `(major, minor, patch)`, and comparing with a non-`SpecVersion`
+  still raises `TypeError`. (#118)
+
 ## [1.0.0-beta.2] — TBD
 
 First release under the **corral** name (renamed from `datagrove` on
