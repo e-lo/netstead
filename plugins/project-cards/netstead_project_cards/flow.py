@@ -151,7 +151,9 @@ def complete_change(
     if isinstance(change, RoadwayDeletion):
         if change.links or change.nodes:
             raise CardError("give the links to delete or use a selection, not both")
-        return change.model_copy(update={"links": selection.target_ids()}), warnings
+        # A pick's links fail loudly when one is gone; a query's follow its ignore_missing, as a property change does.
+        update = {"links": selection.target_ids(), "ignore_missing": selection.ignore_missing}
+        return change.model_copy(update=update), warnings
     if not isinstance(change, RoadwayPropertyChange) or change.facility is not None:
         raise CardError("give a facility or use a selection, not both")
     return change.model_copy(update={"facility": selection}), warnings

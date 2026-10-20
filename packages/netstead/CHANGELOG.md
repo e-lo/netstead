@@ -21,6 +21,19 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Fixed
 
+- **The offline report's "Fix locally" edit log is a schema-valid ProjectCard.**
+  `netstead.map.edits.dump_edit_log` and the browser download (`buildYaml` in
+  `map_component.js`) put the facility under `links` / `nodes` with
+  `ignore_missing: false` (the ids were clicked), and move each change's reason,
+  issue id and edit id from a per-change `notes` (which the schema forbids) to a
+  `netstead.note[<i>]: ...` line of the card's `notes`, the convention the
+  project-cards plugin reads. Both writers fold control characters and line
+  breaks in a note the same way. `load_edit_log` / `apply_edits` read both the
+  new shape and logs written before it, split a note back into reason, issue id
+  and edit id (so a dump → load → dump round trip writes the same file), and
+  yield no edits for a selector that is not ids alone (ids narrowed by another
+  key, or a `from` / `to` segment). netstead core still does not depend on
+  `projectcard`; the tests validate with it when it is installed.
 - **Validation and network HTML reports no longer show "API KEY REQUIRED" tiles when
   zoomed in.** CARTO now watermarks its raster basemap without an API key, and a key
   cannot be added: the report is a static, shareable file, so the key would ship inside
