@@ -20,4 +20,4 @@ Generic recipes — apply to any Frictionless package, not just GMNS. For GMNS-s
 
 ## Contributing a recipe
 
-A recipe is `kind: howto` per the [Page Style Guide](../_page-style-guide.md). One-liner trigger, a runnable example with **prose before the code**, step-by-step, accordion-style variations, pitfalls, see-also.
+A recipe is `kind: howto` per the [Page Style Guide](https://github.com/e-lo/netstead/blob/main/packages/corral/docs/_page-style-guide.md) (a contributor page in the repo, not on this site). One-liner trigger, a runnable example with **prose before the code**, step-by-step, accordion-style variations, pitfalls, see-also.

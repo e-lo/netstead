@@ -316,8 +316,9 @@ def package_to_md(package: DataPackage) -> str:
     lines.append("| Resource | Required | Path | Description |")
     lines.append("| --- | --- | --- | --- |")
     for r in package.resources:
-        anchor = r.name.replace("_", "-")
-        name_cell = f"[`{r.name}`](#{anchor})"
+        # schemas_to_md renders each resource as ``## <name>``, and the
+        # toc slug keeps underscores, so the anchor is the name verbatim.
+        name_cell = f"[`{r.name}`](#{r.name})"
         required_cell = "yes" if r.required else ""
         path_cell = _format_path(r.path)
         desc = _escape_cell(_short_description(r.description or ""))

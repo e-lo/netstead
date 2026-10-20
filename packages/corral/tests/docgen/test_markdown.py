@@ -167,6 +167,23 @@ def test_package_to_md_emits_overview():
     assert "link" in md
 
 
+def test_package_to_md_resource_links_match_the_schema_headings(spec_097_dir: Path):
+    """The overview table's in-page links must hit the ``## <name>`` anchors.
+
+    Python-Markdown's toc slug keeps underscores (``## link_tod`` ->
+    ``#link_tod``). The table used to hyphenate the name, so every
+    resource with an underscore in its name (16 of GMNS 0.97's 25) linked
+    to an anchor that does not exist: mkdocs logged "there is no such
+    anchor on this page" for each on three pages.
+    """
+    pkg = load_package(spec_097_dir / "datapackage.json")
+    overview = package_to_md(pkg)
+    schemas = schemas_to_md(pkg)
+    assert "## link_tod" in schemas
+    assert "[`link_tod`](#link_tod)" in overview
+    assert "(#link-tod)" not in overview
+
+
 # ---------------------------------------------------------------------------
 # Snapshot tests against vendored GMNS 0.97
 # ---------------------------------------------------------------------------
