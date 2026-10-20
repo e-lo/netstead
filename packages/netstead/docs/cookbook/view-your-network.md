@@ -89,7 +89,7 @@ RemoteControl plugin).
 
 ??? note "Different base map"
     ```python
-    render_network_html(net, tile_provider="carto-positron")
+    render_network_html(net, tile_provider="openstreetmap")  # default is "esri", a keyless light grey
     ```
 
 ??? note "Embed in a Jupyter notebook"

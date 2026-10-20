@@ -74,8 +74,10 @@ class NetworkMap:
         title: Used as ``<title>`` and ``<h1>`` text in
             :meth:`to_html`; ignored by :meth:`body_fragment` (the
             embed has no title — the host page provides one).
-        tile_provider: ``"carto-positron"`` (default — muted grey) or
-            ``"openstreetmap"``.
+        tile_provider: ``"esri"`` (default — Esri's keyless light-grey
+            canvas, the Workbench's ``viz.basemap = "esri"``) or
+            ``"openstreetmap"``. Keyless providers only: the report is a
+            static file, so a tile key would ship inside it.
         osm_editor: ``"id"`` or ``"josm"`` — which editor "Edit in OSM"
             popup links point to. No-op for non-OSM-sourced networks.
         height: CSS height for the map ``<div>``. Inline-styled so a
@@ -112,7 +114,7 @@ class NetworkMap:
         *,
         issues: list[Issue] | None = None,
         title: str | None = None,
-        tile_provider: str = "carto-positron",
+        tile_provider: str = "esri",
         osm_editor: str = "id",
         height: str = "480px",
         uid: str | None = None,
