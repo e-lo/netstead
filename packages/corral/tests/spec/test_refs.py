@@ -86,3 +86,42 @@ def test_cross_file_cycle_raises_from_load_package(tmp_path: Path):
     )
     with pytest.raises(SpecLoadError, match=r"Circular \$ref"):
         load_package(descriptor)
+
+
+@pytest.mark.parametrize(
+    ("b_path", "ref_to_b", "ref_to_a"),
+    [
+        ("b.json", "./b.json#/y", "./a.json#/x"),
+        ("sub/b.json", "sub/b.json#/y", "../a.json#/x"),
+    ],
+    ids=["dot-slash", "parent-dir"],
+)
+def test_cross_file_cycle_is_caught_however_the_path_is_spelled(
+    tmp_path: Path, b_path: str, ref_to_b: str, ref_to_a: str
+):
+    """``./`` and ``../`` spellings of the same file must not hide a cycle."""
+    (tmp_path / "sub").mkdir()
+    a = _write(
+        tmp_path / "a.json",
+        {"fields": [{"name": "k", "type": "string", "constraints": {"$ref": ref_to_b}}], "x": {"$ref": ref_to_b}},
+    )
+    _write(tmp_path / b_path, {"y": {"$ref": ref_to_a}})
+    with pytest.raises(SpecLoadError, match=r"Circular \$ref"):
+        load_schema(a)
+
+
+def test_root_document_is_keyed_by_its_path(tmp_path: Path):
+    """A cycle back into the root file is caught on its first repeat, naming the real file."""
+    schema = _write(
+        tmp_path / "a.json",
+        {
+            "fields": [{"name": "k", "type": "string", "constraints": {"$ref": "#/defs/x"}}],
+            "defs": {"x": {"$ref": "./a.json#/defs/x"}},
+        },
+    )
+    with pytest.raises(SpecLoadError) as exc_info:
+        load_schema(schema)
+    message = str(exc_info.value)
+    assert "<root>" not in message
+    chain = message.split(": ")[-1].split(" -> ")
+    assert chain == [f"{schema}#/defs/x", f"{schema}#/defs/x"]

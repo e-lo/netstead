@@ -19,7 +19,7 @@ import logging
 import os
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import fsspec
 from pydantic import ValidationError
@@ -86,14 +86,19 @@ def _read_json(source: str | Path) -> tuple[Any, str]:
 
 
 def _join(base: str, relative: str) -> str:
-    """Join a base URI/path with a relative reference."""
+    """Join a base URI/path with a relative reference, in canonical form.
+
+    The result names one file one way: local paths are made absolute and
+    ``.``/``..`` segments are collapsed, URLs are joined with
+    :func:`urllib.parse.urljoin`. ``$ref`` cycle detection and the
+    document cache key on this, so ``./a.json`` and ``sub/../a.json``
+    must come out identical.
+    """
     if _is_url(relative):
         return relative
     if _is_url(base):
-        if base.endswith("/"):
-            return base + relative
-        return base + "/" + relative
-    return os.path.join(base, relative)
+        return urljoin(base if base.endswith("/") else base + "/", relative)
+    return os.path.abspath(os.path.join(os.path.expanduser(base), os.path.expanduser(relative)))
 
 
 # ---------------------------------------------------------------------------
@@ -147,7 +152,7 @@ def _resolve_refs(
     base: str,
     cache: dict[str, Any],
     self_doc: Any,
-    doc_key: str = "<root>",
+    doc_key: str = "<dict>",
     chain: tuple[str, ...] = (),
 ) -> Any:
     """Recursively resolve ``$ref`` references in ``obj``.
@@ -335,8 +340,9 @@ def load_schema(
     if not isinstance(doc, dict):
         raise SpecLoadError(f"Schema in {label} must be a JSON object, got {type(doc).__name__}")
 
+    root_key = "<dict>" if isinstance(source, dict) else _join(".", str(source))
     try:
-        resolved = _resolve_refs(doc, base=resolved_base, cache=cache, self_doc=doc)
+        resolved = _resolve_refs(doc, base=resolved_base, cache=cache, self_doc=doc, doc_key=root_key)
     except SpecLoadError as e:
         raise SpecLoadError(f"Failed resolving references in {label}: {e}") from e
 
@@ -445,12 +451,21 @@ def load_package(source: str | Path | dict[str, Any]) -> DataPackage:
             except SpecLoadError as e:
                 rname = resource.get("name", f"<index {idx}>")
                 raise SpecLoadError(f"{label}: failed to load schema for resource {rname!r}: {e}") from e
-            resolved_schema = _resolve_refs(schema_doc, base=schema_base, cache=cache, self_doc=schema_doc)
+            resolved_schema = _resolve_refs(
+                schema_doc, base=schema_base, cache=cache, self_doc=schema_doc, doc_key=schema_path
+            )
             if isinstance(resolved_schema, dict):
                 _inline_shared_categories(resolved_schema)
             resource["schema"] = resolved_schema
         elif isinstance(schema_ref, dict):
-            resolved_schema = _resolve_refs(schema_ref, base=base, cache=cache, self_doc=schema_ref)
+            descriptor_key = label if isinstance(source, dict) else _join(".", str(source))
+            resolved_schema = _resolve_refs(
+                schema_ref,
+                base=base,
+                cache=cache,
+                self_doc=schema_ref,
+                doc_key=f"{descriptor_key}#/resources/{idx}/schema",
+            )
             if isinstance(resolved_schema, dict):
                 _inline_shared_categories(resolved_schema)
             resource["schema"] = resolved_schema

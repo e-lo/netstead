@@ -47,7 +47,8 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   raw `$ref` and no `enum`. The loader now follows chained refs to the end
   (refs inside an external file resolve against that file) and raises
   `SpecLoadError("Circular $ref ...")`, naming the chain, when a ref leads
-  back to itself. (#122)
+  back to itself, however the file paths along the way are spelled
+  (`./a.json`, `sub/../a.json`). (#122)
 - **A package loaded without any spec now says so.** `Package.from_source`
   on a source with no `spec=` and no `datapackage.json` used to synthesise
   an empty spec silently, so `validate()` could pass with nothing checked.
