@@ -232,7 +232,12 @@ class Resource(_Base):
 
     Attributes:
         name: Resource name (unique within the package).
-        path: Relative file path or list of paths.
+        path: Relative file path, or a list of paths for a resource
+            split across files (Frictionless allows both). Descriptive
+            only: the loader carries either form through unchanged and
+            never opens it, and :meth:`corral.dataset.Package.from_source`
+            matches tables to resources by name, not by ``path``. Code
+            that reads ``path`` must handle the list form.
         table_schema: A schema reference string or an inline
             :class:`Schema`. JSON alias: ``"schema"``.
         type: Resource type hint (e.g. ``"table"``).
@@ -269,6 +274,9 @@ class Resource(_Base):
     # ``Resource(schema=...)`` and ``resource.table_schema`` (or
     # ``model_dump(by_alias=True)`` to round-trip to the original key).
     name: str
+    # Kept as Frictionless's str-or-list: narrowing to str would reject
+    # valid partitioned-resource descriptors, and no loader code joins or
+    # opens this value (see the docstring).
     path: str | list[str] | None = None
     table_schema: str | Schema | None = PydField(default=None, alias="schema")
     type: str | None = None

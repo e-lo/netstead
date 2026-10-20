@@ -14,6 +14,7 @@ from corral.spec import (
     Resource,
     Schema,
     SharedCategory,
+    load_package,
 )
 
 
@@ -192,6 +193,13 @@ def test_missing_values_default_is_not_shared_between_instances():
     a, b = Schema(fields=[]), Schema(fields=[])
     a.missing_values.append("NA")
     assert b.missing_values == [""]
+
+
+@pytest.mark.parametrize("path", ["link.csv", ["link-1.csv", "link-2.csv"]])
+def test_resource_path_loads_as_string_or_list(path):
+    """Frictionless allows a list of paths; the loader carries either form through (#124)."""
+    pkg = load_package({"resources": [{"name": "link", "path": path, "schema": {"fields": []}}]})
+    assert pkg.resources[0].path == path
 
 
 def test_collection_defaults_are_iterable_without_none_check():

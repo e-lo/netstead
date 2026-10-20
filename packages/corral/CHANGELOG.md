@@ -63,6 +63,11 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   `foreign_keys`; an explicit `missingValues: []` (no nulls at all) is kept
   as `[]`. Written descriptors now include `"missingValues": [""]` for such
   schemas. (#119, #120)
+- **`Resource.path` keeps its `str | list[str]` type, now documented.** The
+  docstring states that `path` is descriptive: the loader carries a string
+  or a list through unchanged, and `Package.from_source` matches tables to
+  resources by name, so code that reads `path` must handle the list form.
+  A regression test pins both forms. (#124)
 
 ## [1.0.0-beta.2] — TBD
 
