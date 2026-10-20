@@ -72,6 +72,17 @@ Run corral's **generic** validation pipeline (structural + schema + foreign-key 
   "summary": {"error": 0, "warning": 9, "info": 1, "data_quality": 0, "is_clean": false},
   "issues": [
     {
+      "severity": "info",
+      "category": "structural",
+      "code": "structural.spec_missing",
+      "message": "package source '...': no spec was given and none was found beside the source, so no table was checked against a schema",
+      "table": null,
+      "column": null,
+      "row": null,
+      "fix_hint": "Pass spec= to Package.from_source. Only a datapackage.json inside a source directory is discovered automatically; one inside a zip, next to a single file, or at a remote prefix is not.",
+      "extra": {}
+    },
+    {
       "severity": "warning",
       "category": "structural",
       "code": "structural.unexpected_resource",
@@ -86,7 +97,7 @@ Run corral's **generic** validation pipeline (structural + schema + foreign-key 
 }
 ```
 
-`severity` is one of `error`, `warning`, `info`; `category` is one of `schema`, `structural`, `foreign_key`, `sync_state`, `data_quality`. `summary.is_clean` is `true` only when `issues` is empty.
+`severity` is one of `error`, `warning`, `info`; `category` is one of `schema`, `structural`, `foreign_key`, `sync_state`, `data_quality`. `summary.is_clean` is `true` when there are no `error` or `warning` issues; `info` issues do not affect it. The example above shows the `spec_missing` info and the first of the nine warnings.
 
 **Example**
 
