@@ -373,8 +373,8 @@ def commit(host: Host, action: Commit) -> dict:
 - Rollback runs newest first, in one stack with core's own undo records: when your callback runs, the network
   changes made after you registered it are already undone, and the ones made before it are not yet.
 - It runs under the session lock. Put back your own state and files there, and call no `Host` method:
-  `host.mutate`, `host.derive`, `host.undo` and `host.on_rollback` raise `RuntimeError("... cannot be called from a
-  rollback callback")`.
+  `host.mutate`, `host.derive`, `host.undo`, `host.dispatch` and `host.on_rollback` raise `RuntimeError("... cannot
+  be called from a rollback callback")`.
 - Lock order is the session lock, then your plugin's own lock. Take your lock inside the callback if you need it,
   and never call `Host` while holding your own lock: a handler holds the session lock and then takes yours, so the
   other order can deadlock.

@@ -35,7 +35,7 @@ from .card import DraftCard
 from .lower import Applied, Mark, Pending, describe
 from .types import CHANGE_TYPES, ROADWAY_TYPES, NetworkChange
 
-__all__ = ["CardsState", "Draft", "Entry", "Preview", "slug"]
+__all__ = ["CardsState", "Draft", "Entry", "Preview", "Undone", "slug"]
 
 
 def slug(text: str) -> str:
@@ -63,6 +63,18 @@ class Entry:
         return any(m.back(pending) for m in self.marks)
 
 
+@dataclass(frozen=True)
+class Undone:
+    """A change ``project_cards.undo_change`` took out of the draft, and the drafts' generation its undo was given."""
+
+    entry: Entry
+    popped: int  # ``CardsState.generation`` after this undo
+
+    def back(self, pending: Pending) -> bool:
+        """Whether its undo was rolled back, by ``pending`` (a read from before the undo lists its edits)."""
+        return self.popped <= pending.generation and self.entry.back(pending)
+
+
 @dataclass
 class Draft:
     """A network's draft card, its changes (``entries``, in step with ``card.changes``) and the changes undone.
@@ -77,7 +89,7 @@ class Draft:
     handle: weakref.ref[Any]
     card: DraftCard = field(default_factory=DraftCard)
     entries: list[Entry] = field(default_factory=list)
-    undone: list[Entry] = field(default_factory=list)
+    undone: list[Undone] = field(default_factory=list)
 
     def reconcile(self, pending: Pending) -> None:
         """Make the draft describe the network: put back changes whose undo was rolled back, drop changes that were.
@@ -85,11 +97,11 @@ class Draft:
         ``pending`` is this plugin's pending edits on the network, read at one moment. Core never reuses a seq, so an
         undone change whose edits are pending again had its undo rolled back; one whose edits stay gone was undone, or
         was itself rolled back with its undo, and never comes back. A change whose edits are newer than the read
-        (``pending.issued``) is left as it is. Undos are taken newest first, so putting the changes back newest first
-        restores the draft's order.
+        (``pending.issued``) is left as it is, and so is an undo newer than the read (``pending.generation``). Undos are
+        taken newest first, so putting the changes back newest first restores the draft's order.
         """
         back = [u for u in reversed(self.undone) if u.back(pending)]
-        kept = [e for e in [*self.entries, *back] if e.holds(pending)]
+        kept = [e for e in [*self.entries, *(u.entry for u in back)] if e.holds(pending)]
         if back or len(kept) != len(self.entries):
             self.entries = kept
             self.undone = [u for u in self.undone if not any(u is b for b in back)]
@@ -150,6 +162,7 @@ class CardsState:
         self.committed: list[dict[str, Any]] = []
         self._preview: Preview | None = None
         self._undoing: set[str] = set()  # networks whose draft's last change is being undone right now
+        self._generation = 0  # undos so far (:meth:`pop`): a pending-edits read is trusted only for undos before it
 
     def preview(self) -> Preview | None:
         """The open preview (``None`` when there is none); a frozen record, safe to read outside the lock."""
@@ -235,6 +248,11 @@ class CardsState:
             d.card = d.card.model_copy(update={"changes": [e.change for e in d.entries]})
             return len(d.entries)
 
+    def generation(self) -> int:
+        """How many undos the drafts have had: take it before reading the pending edits (``flow.pending_seqs``)."""
+        with self._lock:
+            return self._generation
+
     def pop(self, net_id: str, entry: Entry) -> int:
         """Take ``entry`` (the draft's last change, which the caller has undone) out; return the change count."""
         with self._lock:
@@ -242,7 +260,8 @@ class CardsState:
             if not d.entries or d.entries[-1] is not entry:
                 raise RuntimeError(f"{net_id}'s draft changed while its last change was being undone")
             d.entries.pop()
-            d.undone.append(entry)
+            self._generation += 1
+            d.undone.append(Undone(entry, self._generation))
             d.card = d.card.model_copy(update={"changes": [e.change for e in d.entries]})
             return len(d.entries)
 
