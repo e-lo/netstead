@@ -202,19 +202,66 @@ def test_dump_edit_log_writes_a_schema_valid_projectcard(tmp_path):
 
 
 def test_edit_reasons_round_trip_through_the_card_notes(tmp_path):
-    """A multi-line reason is folded onto its one ``netstead.note[<i>]`` line and reads back as the reason."""
+    """A multi-line reason folds onto one ``netstead.note[<i>]`` line; reason, issue id and edit id read back."""
     path = tmp_path / "edits.yaml"
     dump_edit_log(_sample_log(), path)
     loaded = load_edit_log(path)
-    assert [e.reason for e in loaded.edits] == [
-        "schema.required: free_speed missing · issue_id=i0 · edit_id=e1",
-        "edit_id=e2",
+    assert [(e.id, e.reason, e.issue_id) for e in loaded.edits] == [
+        ("e1", "schema.required: free_speed missing", "i0"),
+        ("e2", None, None),
     ]
     assert loaded.source == "./tiny" and loaded.client == "netstead.map"
     assert [(e.table, e.pk, e.from_value, e.to_value) for e in loaded.edits] == [
         ("link", {"link_id": 42}, 40, 25),
         ("node", {"node_id": 7}, None, 47.6022),
     ]
+
+
+def test_dump_load_dump_is_stable(tmp_path):
+    """Loading a log and dumping it again writes the same file: ids and issue ids are not folded into the reason."""
+    first, second = tmp_path / "a.yaml", tmp_path / "b.yaml"
+    log = _sample_log()
+    log.edits.append(
+        Edit(id="e3", kind="fix", table="link", pk={"link_id": 1}, column="name", to_value="Rue Él", reason="accents")
+    )
+    dump_edit_log(log, first)
+    dump_edit_log(load_edit_log(first), second)
+    assert second.read_text(encoding="utf-8") == first.read_text(encoding="utf-8")
+    assert "Rue Él" in first.read_text(encoding="utf-8")  # allow_unicode: written as is, not escaped
+
+
+def test_a_reason_that_looks_like_an_id_suffix_only_at_the_end_is_parsed(tmp_path):
+    path = tmp_path / "edits.yaml"
+    path.write_text(
+        "project: p\n"
+        "notes: 'netstead.note[0]: see edit_id=x · then · issue_id=i9 · edit_id=e7'\n"
+        "changes:\n"
+        "  - roadway_property_change:\n"
+        "      facility: {links: {model_link_id: [5], ignore_missing: false}}\n"
+        "      property_changes: {lanes: {set: 2}}\n"
+    )
+    (edit,) = load_edit_log(path).edits
+    assert (edit.id, edit.reason, edit.issue_id) == ("e7", "see edit_id=x · then", "i9")
+
+
+@pytest.mark.parametrize(
+    "facility",
+    [
+        {"links": {"model_link_id": [1, 2], "lanes": 2, "ignore_missing": True}},  # ids narrowed by another key
+        {"nodes": {"model_node_id": [1], "osm_node_id": "9", "ignore_missing": True}},
+        {"links": {"model_link_id": [1, 2], "ignore_missing": True}, "from": {"model_node_id": 1}},  # a segment
+        {"links": {"model_link_id": [1, 2], "ignore_missing": True}, "to": {"model_node_id": 3}},
+    ],
+)
+def test_load_edit_log_skips_an_id_selector_that_is_not_only_ids(tmp_path, facility):
+    """Only a selector of ids alone is a list of cells to edit; anything narrower yields no edits rather than all."""
+    import yaml
+
+    path = tmp_path / "narrow.yaml"
+    card = {"project": "p", "changes": [{"roadway_property_change": {"facility": facility, "property_changes": {}}}]}
+    card["changes"][0]["roadway_property_change"]["property_changes"] = {"lanes": {"set": 3}}
+    path.write_text(yaml.safe_dump(card))
+    assert load_edit_log(path).edits == []
 
 
 def test_load_edit_log_still_reads_the_old_shape(tmp_path):
@@ -244,7 +291,7 @@ def test_load_edit_log_still_reads_the_old_shape(tmp_path):
         47.5,
         47.6,
     )
-    assert edit.reason == "moved · edit_id=e1"
+    assert (edit.reason, edit.id) == ("moved", "e1")
     assert log.source == "./tiny"
 
 
@@ -282,6 +329,8 @@ def test_the_browser_writer_emits_the_same_shape(tmp_path, run_node):
         },
         {"id": "e2", "pk": {"node_id": 7}, "column": "y_coord", "from_value": None, "to_value": 47.6022},
         {"id": "e3", "pk": {"other": 1}, "column": "x", "to_value": 1},  # no facility key: skipped
+        # NEL, a C0 separator, a BOM, a NUL and a C1 control: each would break the line or the YAML; all fold.
+        {"id": "e4", "pk": {"link_id": 3}, "column": "lanes", "to_value": 2, "reason": "a\x85b\x1cc﻿d\x00e\x9ff"},
     ]
     script = tmp_path / "probe.js"
     script.write_text(
@@ -292,20 +341,33 @@ def test_the_browser_writer_emits_the_same_shape(tmp_path, run_node):
     assert proc.returncode == 0, proc.stderr
     card = yaml.safe_load(proc.stdout)
 
-    first, second = (c["roadway_property_change"] for c in card["changes"])
+    first, second, _ = (c["roadway_property_change"] for c in card["changes"])
     assert first == {
         "facility": {"links": {"model_link_id": [42], "ignore_missing": False}},
         "property_changes": {"free_speed": {"existing": 40, "set": 25}},
     }
     assert second["facility"] == {"nodes": {"model_node_id": [7], "ignore_missing": False}}
-    lines = card["notes"].splitlines()
-    assert "netstead.note[0]: schema.required: it's missing · issue_id=i0 · edit_id=e1" in lines
-    assert "netstead.note[1]: edit_id=e2" in lines
+    browser_notes = [line for line in card["notes"].splitlines() if line.startswith("netstead.note")]
+    assert browser_notes == [
+        "netstead.note[0]: schema.required: it's missing · issue_id=i0 · edit_id=e1",
+        "netstead.note[1]: edit_id=e2",
+        "netstead.note[2]: a b c d e f · edit_id=e4",
+    ]
+
+    # The Python writer folds the same characters the same way.
+    py_path = tmp_path / "python.yaml"
+    dump_edit_log(EditLog(edits=[Edit(kind="fix", table="link", **e) for e in edits]), py_path)
+    py_notes = yaml.safe_load(py_path.read_text(encoding="utf-8"))["notes"].splitlines()
+    assert py_notes == browser_notes
 
     path = tmp_path / "browser.yaml"
-    path.write_text(proc.stdout)
+    path.write_text(proc.stdout, encoding="utf-8")
     loaded = load_edit_log(path)
-    assert [(e.pk, e.to_value) for e in loaded.edits] == [({"link_id": 42}, 25), ({"node_id": 7}, 47.6022)]
+    assert [(e.pk, e.to_value) for e in loaded.edits] == [
+        ({"link_id": 42}, 25),
+        ({"node_id": 7}, 47.6022),
+        ({"link_id": 3}, 2),
+    ]
     assert loaded.client == "netstead.map (browser)"
 
     projectcard = pytest.importorskip("projectcard")

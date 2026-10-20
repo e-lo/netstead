@@ -185,9 +185,10 @@ class RoadwayDeletion(_Model):
     ``project_cards.add_change`` takes them from a selection.
 
     ``ignore_missing`` is the ``links`` selector's: ``True`` skips a link id the network does not have (listed as
-    skipped), ``False`` refuses the change. It is ``False`` for links given by id or picked, and a query selection's
-    own flag for the links that query resolved to. Nodes are always aimed at specific records, so a missing node
-    always refuses the change (and the card writes ``ignore_missing: false`` for them).
+    skipped), ``False`` refuses the change. ``False`` is the default; ``project_cards.add_change`` sets it ``False``
+    for a picked selection and takes the query's own flag for a query selection, and import reads it from the card's
+    ``links``. Nodes are always aimed at specific records, so a missing node always refuses the change (and the card
+    writes ``ignore_missing: false`` for them).
     """
 
     type: Literal["roadway_deletion"] = "roadway_deletion"

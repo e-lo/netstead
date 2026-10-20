@@ -80,7 +80,7 @@ changes:
       facility:
         links:
           model_link_id: [42]
-          ignore_missing: false     # a clicked id: fail loudly when link 42 is gone
+          ignore_missing: false     # a clicked id (see below for what a missing link 42 does)
       property_changes:
         free_speed:
           existing: 40              # netstead "from" — drift check on apply
@@ -92,7 +92,10 @@ ProjectCard; you can pipe it into network-wrangler's own tooling or
 import it with the [project cards plugin](workbench-project-cards.md).
 GMNS `link_id` maps to `model_link_id` under the facility's `links`
 (`node_id` to `model_node_id` under `nodes`), with
-`ignore_missing: false` because the ids were clicked. Per-cell values
+`ignore_missing: false` because the ids were clicked. When a listed
+link is gone, network-wrangler and the project cards plugin refuse the
+change; netstead's own `apply_edits` skips that edit and reports it in
+`result.skipped` (see [Pitfalls](#pitfalls)). Per-cell values
 live under `property_changes.<column>.set` with an optional `existing`
 drift check. A change cannot carry its own notes, so each fix's
 reason, issue id and edit id are one `netstead.note[<i>]:` line of the
@@ -157,8 +160,10 @@ reason) rather than silently clobbering a concurrent change. Omit
 - **Edits identify rows by PK, not row index.** That's deliberate — row
   index isn't stable across reloads. If your edit log targets
   `facility: {links: {model_link_id: [42], ignore_missing: false}}` and link_id 42 no longer exists in the
-  destination network, the applier skips that edit with
-  `pk {'link_id': 42} not found in 'link'`.
+  destination network, `apply_edits` skips that edit and reports it in
+  `result.skipped` as `pk {'link_id': 42} not found in 'link'` (whatever
+  `ignore_missing` says). network-wrangler and the project cards plugin
+  follow `ignore_missing: false` and refuse the change instead.
 - **Drift checks compare values pre-cast.** When the source column is a
   number, the editor coerces the new value to a number too. When in
   doubt, look at the YAML — `existing: 40` vs `existing: '40'` matter for

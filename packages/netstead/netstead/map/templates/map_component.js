@@ -582,9 +582,13 @@
         }
         changes += "          set: " + yamlScalar(e.to_value) + "\n";
         const bits = [];
-        if (e.reason) bits.push(String(e.reason).split(/\s+/).filter(Boolean).join(" "));
-        if (e.issue_id) bits.push("issue_id=" + e.issue_id);
-        if (e.id) bits.push("edit_id=" + e.id);
+        for (const bit of [
+          e.reason ? foldLine(e.reason) : "",
+          e.issue_id ? foldLine("issue_id=" + e.issue_id) : "",
+          e.id ? foldLine("edit_id=" + e.id) : "",
+        ]) {
+          if (bit) bits.push(bit);
+        }
         if (bits.length) noteLines.push("netstead.note[" + n + "]: " + bits.join(" · "));
         n += 1;
       });
@@ -607,6 +611,15 @@
         return s;
       }
       return "'" + s.replace(/'/g, "''") + "'";
+    }
+    function foldLine(v) {
+      // One line of the card's notes block: control characters (C0, C1 — NEL included — and U+FEFF) and runs of
+      // whitespace become single spaces, as netstead.map.edits._fold does.
+      return String(v)
+        .replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f﻿]/g, " ")
+        .split(/\s+/)
+        .filter(Boolean)
+        .join(" ");
     }
     function downloadYaml() {
       const yaml = buildYaml();

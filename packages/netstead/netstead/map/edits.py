@@ -68,6 +68,10 @@ _FACILITY_KEY_TO_SELECTOR = {"model_link_id": "links", "model_node_id": "nodes"}
 # A change cannot carry its own notes (``additionalProperties: false``), so each change's note is one line of the
 # card's top-level notes: ``netstead.note[<i>]: <note>``, the convention the project-cards plugin reads too.
 _CHANGE_NOTE = re.compile(r"^netstead\.note\[(\d+)\]: (.*)$")
+_NOTE_SEP = " · "
+# Characters a one-line note cannot hold (they break the line or the YAML): C0 and C1 controls other than tab and
+# newline (which are whitespace anyway), and the byte-order mark.
+_CONTROL = re.compile("[\x00-\x08\x0b-\x1f\x7f-\x9f﻿]")
 
 
 # ---------------------------------------------------------------------------
@@ -239,50 +243,94 @@ def _edits_from_roadway_property_change(rpc: dict[str, Any], *, seq: int, note: 
 
     Reads both facility shapes: the schema's ``{links: {model_link_id: [...], ignore_missing: ...}}`` (and
     ``nodes`` / ``model_node_id``), and the ``{model_link_id: [...]}`` that logs written before it carry. A
-    selection by anything other than ids (a ``name`` query, ...) yields no edits. ``note`` is the change's
-    ``netstead.note[<i>]`` line; an older log's per-change ``notes`` stands in when there is none.
+    selection by anything other than ids alone (a ``name`` query, ids narrowed by another key such as
+    ``lanes``, a ``from`` / ``to`` segment) yields no edits. ``note`` is the change's ``netstead.note[<i>]``
+    line; an older log's per-change ``notes`` stands in when there is none. Its trailing ``issue_id=...``
+    and ``edit_id=...`` parts become the edit's ``issue_id`` and (when the change is one cell) its ``id``.
     """
     facility = rpc.get("facility") or {}
     property_changes = rpc.get("property_changes") or {}
     if note is None and isinstance(rpc.get("notes"), str):
         note = rpc["notes"]
+    reason, issue_id, edit_id = _split_note(note)
 
-    # Facility selector — first supported key wins. GMNS tables have at
-    # most one primary-key column so this is unambiguous.
-    fac_key: str | None = None
-    ids: list[Any] = []
-    for candidate, selector_key in (("model_link_id", "links"), ("model_node_id", "nodes")):
-        selector = facility.get(selector_key)
-        holder = selector if isinstance(selector, dict) and candidate in selector else facility
-        if candidate in holder:
-            fac_key = candidate
-            raw = holder[candidate]
-            ids = list(raw) if isinstance(raw, list) else [raw]
-            break
-    if fac_key is None or not ids:
+    ids_of = _facility_ids(facility)
+    if ids_of is None:
         return []
+    fac_key, ids = ids_of
     table, pk_col = _FACILITY_KEY_TO_TABLE_PK[fac_key]
 
-    out: list[Edit] = []
-    for fid in ids:
-        for j, (column, change_spec) in enumerate(property_changes.items()):
-            if not isinstance(change_spec, dict) or "set" not in change_spec:
-                continue
-            out.append(
-                Edit(
-                    id=f"c{seq}f{fid}p{j}",
-                    kind="fix",
-                    table=table,
-                    pk={pk_col: fid},
-                    column=column,
-                    from_value=change_spec.get("existing"),
-                    to_value=change_spec["set"],
-                    reason=note,
-                    issue_id=None,
-                    timestamp=None,
-                )
-            )
-    return out
+    cells = [
+        (fid, j, column, spec)
+        for fid in ids
+        for j, (column, spec) in enumerate(property_changes.items())
+        if isinstance(spec, dict) and "set" in spec
+    ]
+    return [
+        Edit(
+            id=edit_id if edit_id and len(cells) == 1 else f"c{seq}f{fid}p{j}",
+            kind="fix",
+            table=table,
+            pk={pk_col: fid},
+            column=column,
+            from_value=spec.get("existing"),
+            to_value=spec["set"],
+            reason=reason,
+            issue_id=issue_id,
+            timestamp=None,
+        )
+        for fid, j, column, spec in cells
+    ]
+
+
+def _facility_ids(facility: dict[str, Any]) -> tuple[str, list[Any]] | None:
+    """``(facility key, ids)`` when the facility selects records by id alone; ``None`` otherwise.
+
+    The schema's form needs the selector to hold only the id key and ``ignore_missing`` (the plugin's
+    ``card.py`` reads ids the same way); the old top-level form is the id key on the facility itself.
+    A ``from`` / ``to`` makes it a segment, which is not a list of cells.
+    """
+    if not isinstance(facility, dict) or "from" in facility or "to" in facility:
+        return None
+    # First supported key wins. GMNS tables have at most one primary-key column so this is unambiguous.
+    for fac_key, selector_key in _FACILITY_KEY_TO_SELECTOR.items():
+        selector = facility.get(selector_key)
+        if isinstance(selector, dict) and fac_key in selector:
+            if set(selector) - {fac_key, "ignore_missing"}:
+                return None
+            raw = selector[fac_key]
+        elif fac_key in facility:
+            raw = facility[fac_key]
+        else:
+            continue
+        ids = list(raw) if isinstance(raw, list) else [raw]
+        return (fac_key, ids) if ids else None
+    return None
+
+
+def _fold(text: str) -> str:
+    """``text`` on one line: control characters (C0, C1, U+FEFF) and runs of whitespace become single spaces.
+
+    The browser writer (``buildYaml`` in ``map_component.js``) folds the same characters the same way.
+    """
+    return " ".join(_CONTROL.sub(" ", text).split())
+
+
+def _split_note(note: str | None) -> tuple[str | None, str | None, str | None]:
+    """``(reason, issue_id, edit_id)`` from a note :func:`dump_edit_log` wrote as ``reason · issue_id=… · edit_id=…``.
+
+    Only trailing parts are taken (``edit_id`` last, ``issue_id`` before it), so a reason that mentions
+    ``edit_id=`` elsewhere stays whole.
+    """
+    if not note:
+        return None, None, None
+    parts = note.split(_NOTE_SEP)
+    found: dict[str, str] = {}
+    for key in ("edit_id", "issue_id"):
+        if parts and parts[-1].startswith(f"{key}="):
+            found[key] = parts.pop()[len(key) + 1 :]
+    reason = _NOTE_SEP.join(parts) or None
+    return reason, found.get("issue_id"), found.get("edit_id")
 
 
 def _change_notes(notes: str) -> dict[int, str]:
@@ -355,15 +403,17 @@ def dump_edit_log(log: EditLog, path: str | Path) -> None:
         prop_change["set"] = e.to_value
 
         # Per-change note — reason + issue_id + edit id, if any — as one line of the card's notes.
-        note_bits: list[str] = []
-        if e.reason:
-            note_bits.append(" ".join(e.reason.split()))
-        if e.issue_id:
-            note_bits.append(f"issue_id={e.issue_id}")
-        if e.id:
-            note_bits.append(f"edit_id={e.id}")
+        note_bits = [
+            bit
+            for bit in (
+                _fold(e.reason or ""),
+                _fold(f"issue_id={e.issue_id}") if e.issue_id else "",
+                _fold(f"edit_id={e.id}") if e.id else "",
+            )
+            if bit
+        ]
         if note_bits:
-            change_note_lines.append(f"netstead.note[{len(changes)}]: {' · '.join(note_bits)}")
+            change_note_lines.append(f"netstead.note[{len(changes)}]: {_NOTE_SEP.join(note_bits)}")
 
         # Clicked ids: a fix aimed at a specific record fails loudly when that record is gone.
         selector = {fac_key: [fac_id], "ignore_missing": False}
@@ -394,7 +444,8 @@ def dump_edit_log(log: EditLog, path: str | Path) -> None:
 
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(yaml.safe_dump(body, default_flow_style=False, sort_keys=False))
+    text = yaml.safe_dump(body, default_flow_style=False, sort_keys=False, allow_unicode=True)
+    target.write_text(text, encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
