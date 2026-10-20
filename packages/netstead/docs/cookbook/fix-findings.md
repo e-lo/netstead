@@ -74,25 +74,31 @@ tags: [netstead, edit-log]
 notes: |
   created_at: 2026-06-30T19:00:00.000Z
   client: netstead.map (browser)
+  netstead.note[0]: schema.required: free_speed missing · issue_id=i0 · edit_id=el7f9c3a
 changes:
   - roadway_property_change:
       facility:
-        model_link_id: [42]
+        links:
+          model_link_id: [42]
+          ignore_missing: false     # a clicked id: fail loudly when link 42 is gone
       property_changes:
         free_speed:
-          existing: null            # netstead "from" — drift check on apply
+          existing: 40              # netstead "from" — drift check on apply
           set: 25                   # netstead "to"
-      notes: 'schema.required: free_speed missing · issue_id=i0 · edit_id=el7f9c3a'
 ```
 
-**Interop with network-wrangler.** The file is a real ProjectCard; you
-can pipe it into network-wrangler's own tooling. GMNS `link_id` maps to
-`model_link_id` in the facility selector; per-cell values live under
-`property_changes.<column>.set` with an optional `existing` drift
-check. Node property changes emit with the same shape via
-`model_node_id` — that's a netstead extension since standard
-ProjectCard doesn't have a first-class node-property-change type;
-network-wrangler may accept or reject depending on its version.
+**Interop with network-wrangler.** The file is a schema-valid
+ProjectCard; you can pipe it into network-wrangler's own tooling or
+import it with the [project cards plugin](workbench-project-cards.md).
+GMNS `link_id` maps to `model_link_id` under the facility's `links`
+(`node_id` to `model_node_id` under `nodes`), with
+`ignore_missing: false` because the ids were clicked. Per-cell values
+live under `property_changes.<column>.set` with an optional `existing`
+drift check. A change cannot carry its own notes, so each fix's
+reason, issue id and edit id are one `netstead.note[<i>]:` line of the
+card's `notes`, where `<i>` is the change's position in `changes`.
+`load_edit_log` still reads logs written before this shape (ids at the
+top of the facility, a `notes` on each change).
 
 `existing:` is the value the browser-side editor *thought* was there
 when you proposed the fix. `apply_edits` uses it for a drift check —
@@ -150,7 +156,7 @@ reason) rather than silently clobbering a concurrent change. Omit
   Download YAML before closing the tab if you want to keep the work.
 - **Edits identify rows by PK, not row index.** That's deliberate — row
   index isn't stable across reloads. If your edit log targets
-  `facility: {model_link_id: [42]}` and link_id 42 no longer exists in the
+  `facility: {links: {model_link_id: [42], ignore_missing: false}}` and link_id 42 no longer exists in the
   destination network, the applier skips that edit with
   `pk {'link_id': 42} not found in 'link'`.
 - **Drift checks compare values pre-cast.** When the source column is a

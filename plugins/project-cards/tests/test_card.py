@@ -126,11 +126,33 @@ def test_the_offline_reports_edit_log_imports(tmp_path):
         ]
     )
     dump_edit_log(log, path)
-    (change,) = read_card_file(path).changes
-    assert change.facility == Selection(ids=[7]) and change.property_changes["lanes"] == PropertyChange(
-        existing=1, set=2
-    )
+    assert card_problems(yaml.safe_load(path.read_text(encoding="utf-8"))) == []  # schema-valid since 2026-10-20
+    card = read_card_file(path)
+    (change,) = card.changes
+    assert change.facility == Selection(ids=[7], ignore_missing=False)
+    assert change.property_changes["lanes"] == PropertyChange(existing=1, set=2)
     assert "too few" in change.note and "edit_id=e1" in change.note
+    assert "netstead.note" not in (card.notes or "")
+
+
+def test_an_old_edit_log_still_imports(tmp_path):
+    """Logs written before the schema-valid writer: facility ids at the top level and a per-change ``notes``."""
+    path = tmp_path / "old.yaml"
+    path.write_text(
+        "project: netstead edits\n"
+        "changes:\n"
+        "- roadway_property_change:\n"
+        "    facility: {model_link_id: [7]}\n"
+        "    property_changes: {lanes: {existing: 1, set: 2}}\n"
+        "    notes: 'too few · edit_id=e1'\n"
+        "- roadway_property_change:\n"
+        "    facility: {model_node_id: 3}\n"
+        "    property_changes: {y_coord: {set: 47.6}}\n",
+        encoding="utf-8",
+    )
+    links, nodes = read_card_file(path).changes
+    assert links.facility == Selection(ids=[7]) and links.note == "too few · edit_id=e1"
+    assert nodes.facility == Selection(table="node", ids=[3]) and nodes.note is None
 
 
 def test_an_edit_log_that_clears_a_cell_is_refused(tmp_path):

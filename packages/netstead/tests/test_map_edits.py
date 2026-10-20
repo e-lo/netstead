@@ -9,6 +9,12 @@ reordering.
 
 from __future__ import annotations
 
+import copy
+import json
+import re
+from pathlib import Path
+
+import netstead.map
 import pandas as pd
 import pytest
 from corral.engines.ibis_engine import IbisEngine
@@ -142,18 +148,168 @@ def test_dump_edit_log_emits_projectcard_shape(tmp_path):
     assert isinstance(data.get("changes"), list) and len(data["changes"]) == 2
 
     first = data["changes"][0]["roadway_property_change"]
-    assert first["facility"] == {"model_link_id": [42]}
+    # Clicked ids: a fix aimed at a specific link fails loudly when that link is gone.
+    assert first["facility"] == {"links": {"model_link_id": [42], "ignore_missing": False}}
     assert first["property_changes"]["free_speed"]["existing"] == 40
     assert first["property_changes"]["free_speed"]["set"] == 25
-    assert "schema.required" in first["notes"]
-    assert "issue_id=i0" in first["notes"]
+    # A change cannot carry its own notes; they ride on the card's notes as netstead.note[<i>].
+    assert "notes" not in first
+    assert "netstead.note[0]: schema.required: free_speed missing · issue_id=i0 · edit_id=e1" in data["notes"]
 
     second = data["changes"][1]["roadway_property_change"]
-    assert second["facility"] == {"model_node_id": [7]}
+    assert second["facility"] == {"nodes": {"model_node_id": [7], "ignore_missing": False}}
     # from_value=None → no drift key emitted (empty `existing` would be
     # ambiguous with "existing null" for a real column default).
     assert "existing" not in second["property_changes"]["y_coord"]
     assert second["property_changes"]["y_coord"]["set"] == 47.6022
+
+
+def _sample_log() -> EditLog:
+    return EditLog(
+        source="./tiny",
+        spec_version="0.97",
+        created_at="2026-10-20T00:00:00+00:00",
+        client="netstead.map",
+        edits=[
+            Edit(
+                id="e1",
+                kind="fix",
+                table="link",
+                pk={"link_id": 42},
+                column="free_speed",
+                from_value=40,
+                to_value=25,
+                reason="schema.required:\n  free_speed missing",
+                issue_id="i0",
+            ),
+            Edit(id="e2", kind="fix", table="node", pk={"node_id": 7}, column="y_coord", to_value=47.6022),
+        ],
+    )
+
+
+def test_dump_edit_log_writes_a_schema_valid_projectcard(tmp_path):
+    """The file passes projectcard's own validator, without schema defaults filled in.
+
+    netstead core does not depend on ``projectcard``; the project-cards plugin does, and the workspace installs it.
+    """
+    import yaml
+
+    projectcard = pytest.importorskip("projectcard")
+    path = tmp_path / "edits.yaml"
+    dump_edit_log(_sample_log(), path)
+    card = yaml.safe_load(path.read_text())
+    projectcard.validate_card(copy.deepcopy(card), parse_defaults=False)
+
+
+def test_edit_reasons_round_trip_through_the_card_notes(tmp_path):
+    """A multi-line reason is folded onto its one ``netstead.note[<i>]`` line and reads back as the reason."""
+    path = tmp_path / "edits.yaml"
+    dump_edit_log(_sample_log(), path)
+    loaded = load_edit_log(path)
+    assert [e.reason for e in loaded.edits] == [
+        "schema.required: free_speed missing · issue_id=i0 · edit_id=e1",
+        "edit_id=e2",
+    ]
+    assert loaded.source == "./tiny" and loaded.client == "netstead.map"
+    assert [(e.table, e.pk, e.from_value, e.to_value) for e in loaded.edits] == [
+        ("link", {"link_id": 42}, 40, 25),
+        ("node", {"node_id": 7}, None, 47.6022),
+    ]
+
+
+def test_load_edit_log_still_reads_the_old_shape(tmp_path):
+    """Logs written before the schema-valid writer (facility ids at the top, per-change notes) still replay."""
+    path = tmp_path / "old.yaml"
+    path.write_text(
+        "project: netstead edits\n"
+        "tags: [netstead, edit-log]\n"
+        "notes: |\n"
+        "  source: ./tiny\n"
+        "changes:\n"
+        "  - roadway_property_change:\n"
+        "      facility:\n"
+        "        model_node_id: [7]\n"
+        "      property_changes:\n"
+        "        y_coord:\n"
+        "          existing: 47.5\n"
+        "          set: 47.6\n"
+        "      notes: 'moved · edit_id=e1'\n"
+    )
+    log = load_edit_log(path)
+    (edit,) = log.edits
+    assert (edit.table, edit.pk, edit.column, edit.from_value, edit.to_value) == (
+        "node",
+        {"node_id": 7},
+        "y_coord",
+        47.5,
+        47.6,
+    )
+    assert edit.reason == "moved · edit_id=e1"
+    assert log.source == "./tiny"
+
+
+def test_load_edit_log_skips_a_query_facility(tmp_path):
+    """A card selecting links by a query (name, ref, ...) is not a cell edit: it is skipped, not misread."""
+    path = tmp_path / "query.yaml"
+    path.write_text(
+        "project: q\n"
+        "changes:\n"
+        "  - roadway_property_change:\n"
+        "      facility:\n"
+        "        links: {name: [Main Street], ignore_missing: true}\n"
+        "      property_changes:\n"
+        "        lanes: {set: 2}\n"
+    )
+    assert load_edit_log(path).edits == []
+
+
+def test_the_browser_writer_emits_the_same_shape(tmp_path, run_node):
+    """The offline report's "Fix locally" download (``buildYaml`` in map_component.js) writes the same card."""
+    import yaml
+
+    source = (Path(netstead.map.__file__).parent / "templates" / "map_component.js").read_text()
+    funcs = re.search(r"^ *function buildYaml\(\) \{.*?(?=^ *function downloadYaml\(\))", source, re.S | re.M)
+    assert funcs, "buildYaml/yamlScalar not found in map_component.js"
+    edits = [
+        {
+            "id": "e1",
+            "pk": {"link_id": 42},
+            "column": "free_speed",
+            "from_value": 40,
+            "to_value": 25,
+            "reason": "schema.required: it's\nmissing",
+            "issue_id": "i0",
+        },
+        {"id": "e2", "pk": {"node_id": 7}, "column": "y_coord", "from_value": None, "to_value": 47.6022},
+        {"id": "e3", "pk": {"other": 1}, "column": "x", "to_value": 1},  # no facility key: skipped
+    ]
+    script = tmp_path / "probe.js"
+    script.write_text(
+        f"function loadEditLog() {{ return {json.dumps(edits)}; }}\n"
+        f"{funcs.group(0)}\nprocess.stdout.write(buildYaml());\n"
+    )
+    proc = run_node([str(script)])
+    assert proc.returncode == 0, proc.stderr
+    card = yaml.safe_load(proc.stdout)
+
+    first, second = (c["roadway_property_change"] for c in card["changes"])
+    assert first == {
+        "facility": {"links": {"model_link_id": [42], "ignore_missing": False}},
+        "property_changes": {"free_speed": {"existing": 40, "set": 25}},
+    }
+    assert second["facility"] == {"nodes": {"model_node_id": [7], "ignore_missing": False}}
+    lines = card["notes"].splitlines()
+    assert "netstead.note[0]: schema.required: it's missing · issue_id=i0 · edit_id=e1" in lines
+    assert "netstead.note[1]: edit_id=e2" in lines
+
+    path = tmp_path / "browser.yaml"
+    path.write_text(proc.stdout)
+    loaded = load_edit_log(path)
+    assert [(e.pk, e.to_value) for e in loaded.edits] == [({"link_id": 42}, 25), ({"node_id": 7}, 47.6022)]
+    assert loaded.client == "netstead.map (browser)"
+
+    projectcard = pytest.importorskip("projectcard")
+    projectcard.validate_card(copy.deepcopy(card), parse_defaults=False)
 
 
 def test_load_edit_log_rejects_non_projectcard_shape(tmp_path):

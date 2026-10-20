@@ -5,6 +5,12 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
 
 ## [Unreleased]
 
+### Changed
+
+- **Importing the offline report's edit log.** netstead now writes it as a schema-valid card (picked ids with
+  `ignore_missing: false`, notes as `netstead.note[<i>]` lines), which import reads as an ordinary card. The tolerant
+  reading of the old shape (ids at the top of the facility, a per-change `notes`) stays, for logs written before.
+
 ### Added
 
 - The Workbench UI (`static/main.js`, with the rules in `cardmodel.js` and the flow in `controller.js`):

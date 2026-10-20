@@ -100,10 +100,11 @@ Under **Import a card**, give the path of a card or edit log, then press **Impor
 one fails, none are applied, and the message names the one that failed ("change 2 of 2: …"). An empty draft takes
 the card's project, tags, dependencies and notes.
 
-Import reads YAML and JSON cards. It also reads the edit log that the offline validation report's "Fix locally"
-editor downloads (see [Triage and fix findings](fix-findings.md)), although that file is not a schema-valid
-ProjectCard: its facility holds `model_link_id` at the top level, and its changes carry their own `notes`. Each of
-those notes becomes the change's note, and is written into the card's notes on commit.
+Import reads YAML and JSON cards. The edit log that the offline validation report's "Fix locally" editor downloads
+(see [Triage and fix findings](fix-findings.md)) is one: each fix is a picked id with `ignore_missing: false`, and its
+`netstead.note[<i>]` line becomes the change's note. Edit logs written before netstead 2026-10-20 are not
+schema-valid (the facility holds `model_link_id` at the top level, and each change carries its own `notes`); import
+still reads them, and each of those notes becomes the change's note, written into the card's notes on commit.
 
 Import refuses:
 

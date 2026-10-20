@@ -8,6 +8,16 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Fixed
 
+- **The offline report's "Fix locally" edit log is a schema-valid ProjectCard.**
+  `netstead.map.edits.dump_edit_log` and the browser download (`buildYaml` in
+  `map_component.js`) put the facility under `links` / `nodes` with
+  `ignore_missing: false` (the ids were clicked), and move each change's reason,
+  issue id and edit id from a per-change `notes` (which the schema forbids) to a
+  `netstead.note[<i>]: ...` line of the card's `notes`, the convention the
+  project-cards plugin reads. `load_edit_log` / `apply_edits` read both the new
+  shape and logs written before it. netstead core still does not depend on
+  `projectcard`; the tests validate with it when it is installed.
+
 - **The `netstead` CLI starts without the `[nl]` extra.** `netstead.select.emit`
   imported `jsonschema` at module level and the CLI imports the `select` command
   group eagerly, so on a `netstead[clean,graph]` install every command, including

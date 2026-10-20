@@ -4,8 +4,9 @@
 ``from_node_id`` -> ``A``, ...). A change cannot carry extra fields in the ProjectCard schema, so netstead's
 provenance travels in the card-level ``notes``, one ``netstead.<what>[<i>]: <value>`` line per item: ``resolved``
 (the link ids a query selection resolved to) and ``note`` (why change ``i`` was made). :func:`read_card_file` reads
-them back. It also reads the offline validation report's edit log (``netstead.map.edits.dump_edit_log``), whose
-facility puts ``model_link_id`` at the top level and whose changes carry their own ``notes``.
+them back. The offline validation report's edit log (``netstead.map.edits.dump_edit_log``) writes the same
+``netstead.note[<i>]`` lines and is an ordinary card; edit logs written before netstead 2026-10-20 put
+``model_link_id`` at the top of the facility and give each change its own ``notes``, and are read tolerantly.
 
 Files are read with ``projectcard.read_card`` (YAML or JSON, its key normalisation and schema defaults; its TOML reader
 is broken in 0.3.3, so a ``.toml`` card is refused) and
@@ -145,8 +146,8 @@ class DraftCard(BaseModel):
 def read_card_file(path: str | Path, mapping: FieldMap | None = None) -> DraftCard:
     """Read a ProjectCard file (YAML or JSON) or an offline-report edit log as a :class:`DraftCard`.
 
-    ``projectcard.read_card(validate=False)`` reads it (an edit log is not schema-valid) and fills schema defaults: a
-    selector without ``ignore_missing`` reads as ``true``, Wrangler's default.
+    ``projectcard.read_card(validate=False)`` reads it (an older edit log is not schema-valid) and fills schema
+    defaults: a selector without ``ignore_missing`` reads as ``true``, Wrangler's default.
 
     Raises:
         FileNotFoundError: there is no file at ``path``.
@@ -326,7 +327,7 @@ def _selector_ids(selector: Any, table: str, m: FieldMap, where: str) -> list[An
 
 
 def _selection(facility: Mapping[str, Any], m: FieldMap, resolved: list[Any] | None) -> Selection:
-    for table in ("link", "node"):  # the offline report's edit log: {model_link_id: [...]} at the top level
+    for table in ("link", "node"):  # an older edit log: {model_link_id: [...]} at the top level
         _, key = m.selector(table)
         if key in facility:
             return Selection(table=table, ids=_as_list(facility[key]))
@@ -394,7 +395,7 @@ def _change(kind: str, body: Any, m: FieldMap, resolved: list[Any] | None, note:
     if kind not in CHANGE_TYPES:
         raise CardError(f"unknown change type {kind!r}")
     body = {} if body is None else _mapping(body, kind)
-    if note is None and isinstance(body.get("notes"), str):  # the offline report's per-change notes
+    if note is None and isinstance(body.get("notes"), str):  # an older edit log's per-change notes
         note = body["notes"]
     if kind == "roadway_property_change":
         sel = _selection(_mapping(body.get("facility") or {}, "facility"), m, resolved)

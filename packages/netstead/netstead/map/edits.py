@@ -17,10 +17,9 @@ Design intent:
   mutation. The YAML log is the boundary.
 * **ProjectCard-compatible on disk.** Each session serialises to a
   single ProjectCard with a top-level ``changes`` array. Each per-cell
-  fix becomes one ``roadway_property_change`` entry. The file is
-  consumable by network-wrangler; extension fields (e.g. node
-  property changes via ``model_node_id``) are permitted and netstead
-  parses them faithfully on round-trip.
+  fix becomes one ``roadway_property_change`` entry. The file passes
+  projectcard's schema; :func:`load_edit_log` also reads logs written
+  before it did (facility ids at the top, per-change ``notes``).
 
 The default applier runs through the pandas engine — i.e. the returned
 ``ApplyResult.net`` always backs its mutated tables with
@@ -30,6 +29,7 @@ lazy expressions aren't mutated in place; that's a future concern.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -62,6 +62,12 @@ _FACILITY_KEY_TO_TABLE_PK = {
     "model_link_id": ("link", "link_id"),
     "model_node_id": ("node", "node_id"),
 }
+# ProjectCard facility selector key → the facility block it sits under.
+_FACILITY_KEY_TO_SELECTOR = {"model_link_id": "links", "model_node_id": "nodes"}
+
+# A change cannot carry its own notes (``additionalProperties: false``), so each change's note is one line of the
+# card's top-level notes: ``netstead.note[<i>]: <note>``, the convention the project-cards plugin reads too.
+_CHANGE_NOTE = re.compile(r"^netstead\.note\[(\d+)\]: (.*)$")
 
 
 # ---------------------------------------------------------------------------
@@ -203,15 +209,16 @@ def load_edit_log(path: str | Path) -> EditLog:
     else:
         raise ValueError("ProjectCard has no 'changes' array and no top-level 'roadway_property_change'")
 
+    notes = data.get("notes") or ""
+    change_notes = _change_notes(notes)
     edits: list[Edit] = []
     for i, change in enumerate(raw_changes):
         rpc = change.get("roadway_property_change") if isinstance(change, dict) else None
         if not isinstance(rpc, dict):
             continue  # skip change types we don't handle (e.g. roadway_addition)
-        edits.extend(_edits_from_roadway_property_change(rpc, seq=i))
+        edits.extend(_edits_from_roadway_property_change(rpc, seq=i, note=change_notes.get(i)))
 
     # Metadata round-trip out of the top-level notes block.
-    notes = data.get("notes") or ""
     return EditLog(
         schema_version=_SCHEMA_VERSION,
         source=_notes_lookup(notes, "source"),
@@ -222,26 +229,34 @@ def load_edit_log(path: str | Path) -> EditLog:
     )
 
 
-def _edits_from_roadway_property_change(rpc: dict[str, Any], *, seq: int) -> list[Edit]:
+def _edits_from_roadway_property_change(rpc: dict[str, Any], *, seq: int, note: str | None = None) -> list[Edit]:
     """Expand one ``roadway_property_change`` into one Edit per changed cell.
 
     A single roadway_property_change may target multiple facilities
     (facility ids list) and multiple properties. We fan it out to
     per-``(pk, column)`` :class:`Edit` records so ``apply_edits``
     stays cell-scoped.
+
+    Reads both facility shapes: the schema's ``{links: {model_link_id: [...], ignore_missing: ...}}`` (and
+    ``nodes`` / ``model_node_id``), and the ``{model_link_id: [...]}`` that logs written before it carry. A
+    selection by anything other than ids (a ``name`` query, ...) yields no edits. ``note`` is the change's
+    ``netstead.note[<i>]`` line; an older log's per-change ``notes`` stands in when there is none.
     """
     facility = rpc.get("facility") or {}
     property_changes = rpc.get("property_changes") or {}
-    change_notes = rpc.get("notes")
+    if note is None and isinstance(rpc.get("notes"), str):
+        note = rpc["notes"]
 
     # Facility selector — first supported key wins. GMNS tables have at
     # most one primary-key column so this is unambiguous.
     fac_key: str | None = None
     ids: list[Any] = []
-    for candidate in ("model_link_id", "model_node_id"):
-        if candidate in facility:
+    for candidate, selector_key in (("model_link_id", "links"), ("model_node_id", "nodes")):
+        selector = facility.get(selector_key)
+        holder = selector if isinstance(selector, dict) and candidate in selector else facility
+        if candidate in holder:
             fac_key = candidate
-            raw = facility[candidate]
+            raw = holder[candidate]
             ids = list(raw) if isinstance(raw, list) else [raw]
             break
     if fac_key is None or not ids:
@@ -262,11 +277,23 @@ def _edits_from_roadway_property_change(rpc: dict[str, Any], *, seq: int) -> lis
                     column=column,
                     from_value=change_spec.get("existing"),
                     to_value=change_spec["set"],
-                    reason=change_notes if isinstance(change_notes, str) else None,
+                    reason=note,
                     issue_id=None,
                     timestamp=None,
                 )
             )
+    return out
+
+
+def _change_notes(notes: str) -> dict[int, str]:
+    """``{i: note}`` from the ``netstead.note[<i>]: <note>`` lines of a card's top-level notes."""
+    if not isinstance(notes, str):
+        return {}
+    out: dict[int, str] = {}
+    for line in notes.splitlines():
+        match = _CHANGE_NOTE.match(line.strip())
+        if match:
+            out[int(match[1])] = match[2]
     return out
 
 
@@ -285,18 +312,16 @@ def _notes_lookup(notes: str, key: str) -> str | None:
 def dump_edit_log(log: EditLog, path: str | Path) -> None:
     """Write an edit log as a network-wrangler ProjectCard YAML file.
 
-    Emits a single project card with a top-level ``changes`` array.
-    Each :class:`Edit` becomes one ``roadway_property_change`` — the
-    facility selector uses ``model_link_id`` / ``model_node_id`` per
-    network-wrangler convention. netstead-specific metadata (source,
-    spec_version, issue_id, edit id, timestamp) rides on the card's
-    top-level ``notes`` block and the per-change ``notes`` field so it
-    round-trips without breaking ProjectCard consumers.
-
-    Node property changes aren't a first-class ProjectCard change type;
-    we emit them with the same shape via ``model_node_id`` as an
-    extension so netstead round-trips faithfully. network-wrangler may
-    accept or reject them depending on its version.
+    Emits a single schema-valid project card with a top-level ``changes``
+    array. Each :class:`Edit` becomes one ``roadway_property_change``
+    whose facility is ``links: {model_link_id: [id], ignore_missing: false}``
+    (or ``nodes`` / ``model_node_id`` for a node edit): the ids were
+    clicked, so the card fails loudly when one is gone. netstead-specific
+    metadata (source, spec_version, created_at, client) rides on the
+    card's top-level ``notes`` as ``key: value`` lines, and each change's
+    reason, issue_id and edit id as one ``netstead.note[<i>]: ...`` line
+    (a change cannot carry its own ``notes``), the convention the
+    project-cards plugin reads.
     """
     try:
         import yaml
@@ -306,6 +331,7 @@ def dump_edit_log(log: EditLog, path: str | Path) -> None:
         ) from e
 
     changes: list[dict[str, Any]] = []
+    change_note_lines: list[str] = []
     for e in log.edits:
         # Only "fix" edits emit as roadway_property_change today; future
         # kinds (modification / project_card) would emit as their own
@@ -328,24 +354,27 @@ def dump_edit_log(log: EditLog, path: str | Path) -> None:
             prop_change["existing"] = e.from_value
         prop_change["set"] = e.to_value
 
-        # Per-change note — reason + issue_id + edit id, if any.
+        # Per-change note — reason + issue_id + edit id, if any — as one line of the card's notes.
         note_bits: list[str] = []
         if e.reason:
-            note_bits.append(e.reason)
+            note_bits.append(" ".join(e.reason.split()))
         if e.issue_id:
             note_bits.append(f"issue_id={e.issue_id}")
         if e.id:
             note_bits.append(f"edit_id={e.id}")
-
-        change: dict[str, Any] = {
-            "roadway_property_change": {
-                "facility": {fac_key: [fac_id]},
-                "property_changes": {e.column: prop_change},
-            }
-        }
         if note_bits:
-            change["roadway_property_change"]["notes"] = " · ".join(note_bits)
-        changes.append(change)
+            change_note_lines.append(f"netstead.note[{len(changes)}]: {' · '.join(note_bits)}")
+
+        # Clicked ids: a fix aimed at a specific record fails loudly when that record is gone.
+        selector = {fac_key: [fac_id], "ignore_missing": False}
+        changes.append(
+            {
+                "roadway_property_change": {
+                    "facility": {_FACILITY_KEY_TO_SELECTOR[fac_key]: selector},
+                    "property_changes": {e.column: prop_change},
+                }
+            }
+        )
 
     # Top-level structured notes so metadata survives the round-trip.
     top_notes_lines: list[str] = []
@@ -353,6 +382,7 @@ def dump_edit_log(log: EditLog, path: str | Path) -> None:
         val = getattr(log, key)
         if val is not None:
             top_notes_lines.append(f"{key}: {val}")
+    top_notes_lines.extend(change_note_lines)
 
     body: dict[str, Any] = {
         "project": f"netstead edits {log.created_at or ''}".strip(),
