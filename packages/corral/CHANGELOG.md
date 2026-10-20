@@ -16,6 +16,11 @@ This file is for the **corral** package only. `netstead` (which depends on corra
 - **`dispatch` logs a probe that raises.** The probe chain still skips an
   adapter whose `probe()` raises, but now says so at DEBUG on the
   `corral.io` logger (adapter name and error; URL userinfo is masked).
+- **An unreadable netrc file is reported.** The credentials cascade used to
+  skip a `.netrc` (or `$NETRC`) it could not read, such as one with the
+  wrong permissions, without a word. It still skips it, but logs a warning
+  naming the file and the host. A missing or unparsable netrc is still
+  silent.
 - **Tests run against the stock adapter registry.** A new private
   `corral.io._reset_registry()` restores the five stock adapters and their
   bindings; one autouse fixture in `tests/conftest.py` calls it around every

@@ -258,15 +258,25 @@ def _lookup_keyring(host: str) -> dict:
 def _lookup_netrc(host: str) -> dict:
     """Read ``~/.netrc`` (or ``$NETRC``) for ``host``.
 
-    The stdlib parser raises if the file does not exist or has no entry
-    for the host; we coerce those to "no credentials" rather than
-    propagating, because the cascade's contract is "never raise on
-    missing".
+    A missing or unparsable file means "no credentials" rather than an
+    error, because the cascade's contract is "never raise on missing". A
+    file that exists but cannot be read (permissions, a directory) is
+    skipped too, but with a warning naming the file: the user put it there
+    and will want to know why it is ignored. The parse error's text is not
+    logged; it can quote the file's tokens.
     """
     netrc_path = os.environ.get("NETRC")
     try:
         rc = netrc.netrc(netrc_path) if netrc_path else netrc.netrc()
-    except (FileNotFoundError, netrc.NetrcParseError, OSError):
+    except (FileNotFoundError, netrc.NetrcParseError):
+        return {}
+    except OSError as exc:
+        _logger.warning(
+            "Could not read netrc file %s (%s); skipping the netrc layer for host=%s",
+            netrc_path or "~/.netrc",
+            exc.strerror or type(exc).__name__,
+            host,
+        )
         return {}
 
     auth = rc.authenticators(host)
