@@ -33,8 +33,12 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   `corral.io.PackageWriter`). The csv, parquet, duckdb and zipcsv adapters
   implement it with the same layouts as before; an adapter without it gets
   one `dest/<table>` location per table. Zip writes now go through the same
-  staging and swap as every other format, so replacing an existing
-  directory with a zip is no longer a delete-then-rename.
+  staging and swap as every other format. Overwriting a file with a file
+  (a zip, or a duckdb file, which was not atomic before) is a single
+  atomic rename, so `dest` never goes missing. When a directory is
+  involved on either side, the old `dest` is still moved aside first and
+  put back if the final rename fails; for a zip replacing a directory,
+  that replaces the old delete-then-rename.
 - **`register_adapter` refuses collisions.** Registering a different adapter
   class under a taken name, or claiming an extension or URL scheme another
   adapter owns, now raises `DuplicateAdapterError` (a `FormatError`) instead

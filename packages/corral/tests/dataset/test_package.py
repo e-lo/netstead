@@ -8,6 +8,7 @@ scope, write, and validate surfaces.
 
 from __future__ import annotations
 
+import os
 import shutil
 import warnings
 from pathlib import Path
@@ -403,6 +404,42 @@ def test_package_write_zip_overwrite(tmp_path: Path) -> None:
         pkg.write(dest)
     pkg.write(dest, overwrite=True)
     assert Package.from_source(dest, engine=IbisEngine(), spec=_gmns_datapackage())["node"].count() > 0
+
+
+@pytest.mark.parametrize("filename", ["out.zip", "out.duckdb"])
+def test_package_overwrite_of_a_file_is_one_atomic_rename(tmp_path: Path, monkeypatch, filename: str) -> None:
+    """Replacing a file ``dest`` with a file never leaves ``dest`` missing: one ``os.replace``, no move aside."""
+    from corral.dataset import package as package_mod
+
+    pkg = Package.from_source(leavenworth.csv_dir(), engine=IbisEngine(), spec=_gmns_datapackage(), tables=["node"])
+    dest = tmp_path / filename
+    pkg.write(dest)
+
+    renames: list[tuple[str, str, bool]] = []
+    real_replace = os.replace
+
+    def recording_replace(src, dst):
+        renames.append((Path(src).name, str(dst), dest.exists()))
+        return real_replace(src, dst)
+
+    monkeypatch.setattr(package_mod.os, "replace", recording_replace)
+    pkg.write(dest, overwrite=True)
+
+    assert renames == [(filename, str(dest), True)], "dest must exist up to the single rename that replaces it"
+    assert Package.from_source(dest, engine=IbisEngine(), spec=_gmns_datapackage())["node"].count() > 0
+
+
+def test_package_zip_overwrite_replaces_a_directory(tmp_path: Path) -> None:
+    """A file cannot be renamed over a directory, so that case still moves the old ``dest`` aside first."""
+    pkg = Package.from_source(leavenworth.csv_dir(), engine=IbisEngine(), spec=_gmns_datapackage(), tables=["node"])
+    dest = tmp_path / "out.zip"
+    dest.mkdir()
+    (dest / "stale.txt").write_text("old")
+
+    pkg.write(dest, format="zip", overwrite=True)
+
+    assert dest.is_file()
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["out.zip"]
 
 
 def test_package_write_on_dirty_emits_warning(tmp_path: Path) -> None:
