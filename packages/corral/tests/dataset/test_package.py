@@ -206,6 +206,44 @@ def test_package_validate_skip_individual_passes() -> None:
     assert (full_codes - full_schema_codes) <= skipped_codes
 
 
+def test_validate_flags_a_source_with_no_spec(caplog: pytest.LogCaptureFixture) -> None:
+    """No ``spec=`` and no ``datapackage.json``: say so, rather than pass silently (#143)."""
+    from corral.fixtures import sample
+
+    with caplog.at_level("INFO", logger="corral.dataset.package"):
+        pkg = Package.from_source(sample.csv_dir(), engine=IbisEngine())
+    assert pkg.spec_missing
+    assert any("datapackage.json" in r.getMessage() for r in caplog.records)
+
+    issues = [i for i in pkg.validate().issues if i.code == "structural.spec_missing"]
+    assert len(issues) == 1
+    assert issues[0].severity.name == "INFO"
+    assert "datapackage.json" in issues[0].message
+    assert "structural.spec_missing" not in {i.code for i in pkg.validate(structural=False).issues}
+
+
+def test_spec_missing_survives_scope() -> None:
+    from corral.fixtures import sample
+
+    pkg = Package.from_source(sample.csv_dir(), engine=IbisEngine())
+    assert pkg.scope(tables=["book"]).spec_missing
+
+
+@pytest.mark.parametrize("how", ["explicit", "discovered"])
+def test_validate_does_not_flag_a_package_with_a_spec(how: str, tmp_path: Path) -> None:
+    from corral.fixtures import sample
+
+    if how == "explicit":
+        pkg = Package.from_source(sample.csv_dir(), engine=IbisEngine(), spec=sample.DATAPACKAGE)
+    else:
+        src = tmp_path / "csv"
+        shutil.copytree(sample.csv_dir(), src)
+        shutil.copy(sample.DATAPACKAGE, src / "datapackage.json")
+        pkg = Package.from_source(src, engine=IbisEngine())
+    assert not pkg.spec_missing
+    assert "structural.spec_missing" not in {i.code for i in pkg.validate().issues}
+
+
 # ---------------------------------------------------------------------------
 # Scope (table + column subset)
 # ---------------------------------------------------------------------------

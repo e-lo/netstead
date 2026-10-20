@@ -48,6 +48,12 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   (refs inside an external file resolve against that file) and raises
   `SpecLoadError("Circular $ref ...")`, naming the chain, when a ref leads
   back to itself. (#122)
+- **A package loaded without any spec now says so.** `Package.from_source`
+  on a source with no `spec=` and no `datapackage.json` used to synthesise
+  an empty spec silently, so `validate()` could pass with nothing checked.
+  It now logs this at INFO, sets the new `Package.spec_missing` flag (kept
+  by `scope()`), and `validate()` adds one INFO issue,
+  `structural.spec_missing`, with a fix hint. (#143)
 
 ### Changed
 
