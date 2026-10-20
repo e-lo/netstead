@@ -573,6 +573,27 @@ class Engine(Protocol):
         """
         ...
 
+    def to_arrow(self, expr: TableExpr) -> pa.Table:
+        """Materialize ``expr`` and return it as a :class:`pyarrow.Table`.
+
+        Arrow is the zero-copy interchange format between duckdb, polars
+        and pyarrow, so this is the converter to reach for when the
+        result feeds another Arrow consumer (a parquet writer, a
+        validation issue table, :meth:`from_arrow` on another engine).
+        Unlike :meth:`to_pandas` there is no dtype post-processing: the
+        Arrow types the engine produces are returned as they are, so
+        ``to_arrow(from_arrow(t))`` equals ``t``.
+
+        Examples:
+            >>> import pyarrow as pa
+            >>> from corral.engines.ibis_engine import IbisEngine
+            >>> e = IbisEngine()
+            >>> tbl = pa.table({"a": [1, 2], "b": ["x", None]})
+            >>> e.to_arrow(e.from_arrow(tbl)).equals(tbl)
+            True
+        """
+        ...
+
     def write(self, expr: TableExpr, dest: SourceRef, fmt: str, **kwargs: Any) -> None:
         """Write ``expr`` to ``dest`` in format ``fmt``.
 
