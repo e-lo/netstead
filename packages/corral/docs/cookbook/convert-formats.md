@@ -32,7 +32,7 @@ Expected:
 }
 ```
 
-Without `--json` the same six fields render as a rich table on stdout. `./leavenworth.parquet` is a directory with one Parquet file per table (`link.parquet`, `node.parquet`, …) and no `datapackage.json`.
+Without `--json` the same six fields render as a rich table on stdout. `./leavenworth.parquet` is a directory with one Parquet file per table (`link.parquet`, `node.parquet`, …) plus a `datapackage.json` with the schemas inlined.
 
 ## Step-by-step
 
@@ -78,7 +78,7 @@ with tempfile.TemporaryDirectory() as d:
 
 ### 3. (Optional) Keep the schema with the data
 
-Parquet, CSV and DuckDB outputs carry the data only — no `datapackage.json` is written next to them. If the source had a manifest, keep it (or the `spec=` you loaded with) and pass it again when you reload the converted copy. This also matters for all-null columns: without a schema an entirely-empty CSV column comes back as a string column, whereas with `spec=` it is cast to the declared type (the case behind [#163](https://github.com/e-lo/netstead/issues/163)).
+Parquet and CSV directories and zips carry a `datapackage.json` with the schemas inlined; reloading a directory finds it without `spec=`. A zip's descriptor is inside the archive and is not read automatically yet, so pass `spec=` for a zip. DuckDB output carries the data only: keep the source manifest (or the `spec=` you loaded with) and pass it again when you reload a `.duckdb` copy. This also matters for all-null columns: without a schema an entirely-empty CSV column comes back as a string column, whereas with `spec=` it is cast to the declared type (the case behind [#163](https://github.com/e-lo/netstead/issues/163)).
 
 ### 4. Verify the round-trip
 

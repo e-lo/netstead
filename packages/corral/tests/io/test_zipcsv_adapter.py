@@ -428,3 +428,34 @@ def test_scan_matches_descriptor_resources_by_name_when_paths_differ() -> None:
     node_schema = refs["node"].table_schema
     assert node_schema is not None
     assert "node_id" in [f.name for f in node_schema.fields]
+
+
+def _zip_members(path: Path, members: dict[str, str], descriptor: dict) -> Path:
+    import json
+
+    with zipfile.ZipFile(path, "w") as z:
+        for name, body in members.items():
+            z.writestr(name, body)
+        z.writestr("datapackage.json", json.dumps(descriptor))
+    return path
+
+
+def _node_descriptor(path: str) -> dict:
+    schema = {"fields": [{"name": "node_id", "type": "integer"}]}
+    return {"name": "p", "resources": [{"name": "node", "path": path, "schema": schema}]}
+
+
+def test_name_fallback_skips_a_resource_already_matched_by_path(tmp_path: Path) -> None:
+    """A resource whose path names a member must not also claim a stray member with its name as stem."""
+    members = {"data/node.csv": "node_id\n1\n", "node.csv": "x\n1\n"}
+    zp = _zip_members(tmp_path / "p.zip", members, _node_descriptor("data/node.csv"))
+    refs = {r.member: r for r in ZipCsvAdapter().scan(zp)}
+    assert refs["data/node.csv"].table_schema is not None
+    assert refs["node.csv"].table_schema is None
+
+
+def test_name_fallback_skips_an_ambiguous_stem(tmp_path: Path) -> None:
+    """``2023/node.csv`` and ``2024/node.csv`` share the stem; neither gets the ``node`` schema by name."""
+    members = {"2023/node.csv": "node_id\n1\n", "2024/node.csv": "node_id\n2\n"}
+    zp = _zip_members(tmp_path / "p.zip", members, _node_descriptor("csv/node.csv"))
+    assert all(r.table_schema is None for r in ZipCsvAdapter().scan(zp))

@@ -61,6 +61,7 @@ import json
 import logging
 import tempfile
 import zipfile
+from collections import Counter
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final
 from urllib.parse import urlparse
@@ -482,9 +483,11 @@ def _open_zip(path_str: str, storage_options: dict | None = None) -> Iterator[zi
 def _inline_schemas(z: zipfile.ZipFile) -> dict[str, Schema]:
     """Map member name to schema, from the zip's own ``datapackage.json``.
 
-    A resource matches the member its ``path`` names; failing that, the
-    member whose stem is the resource's name (a descriptor shared with a
-    csv directory says ``csv/node.csv`` for the zip's flat ``node.csv``).
+    A resource matches the member its ``path`` names. A resource whose
+    path names no member falls back to the one member whose stem is the
+    resource's name (a descriptor shared with a csv directory says
+    ``csv/node.csv`` for the zip's flat ``node.csv``); if several members
+    share that stem (``2023/node.csv``, ``2024/node.csv``) none is chosen.
     Only schemas written inline count: a schema given by reference (a URL
     or a path outside the zip) is not fetched during a scan. A missing or
     unreadable descriptor yields no schemas rather than failing the scan,
@@ -499,18 +502,22 @@ def _inline_schemas(z: zipfile.ZipFile) -> dict[str, Schema]:
     except ValueError as exc:  # malformed JSON or a descriptor the model rejects
         _logger.debug("ignoring unreadable %s in zip: %s", _DESCRIPTOR_MEMBER, exc)
         return {}
-    by_path: dict[str, Schema] = {}
-    by_name: dict[str, Schema] = {}
-    for resource in package.resources:
-        if isinstance(resource.table_schema, Schema):
-            by_name[resource.name] = resource.table_schema
-            if isinstance(resource.path, str):
-                by_path[resource.path] = resource.table_schema
+    members = z.namelist()
     schemas: dict[str, Schema] = {}
-    for member in z.namelist():
-        schema = by_path.get(member) or by_name.get(Path(member).stem)
-        if schema is not None:
-            schemas[member] = schema
+    unmatched: dict[str, Schema] = {}  # resource name -> schema, for resources whose path names no member
+    for resource in package.resources:
+        if not isinstance(resource.table_schema, Schema):
+            continue
+        if isinstance(resource.path, str) and resource.path in members:
+            schemas[resource.path] = resource.table_schema
+        else:
+            unmatched[resource.name] = resource.table_schema
+    free = [m for m in members if m not in schemas]
+    stems = Counter(Path(m).stem for m in free)
+    for member in free:
+        stem = Path(member).stem
+        if stem in unmatched and stems[stem] == 1:
+            schemas[member] = unmatched[stem]
     return schemas
 
 

@@ -235,3 +235,22 @@ def test_probe_exception_log_drops_a_presigned_query(caplog) -> None:
         dispatch("magic://host/x?X-Amz-Signature=abc123")
 
     assert "abc123" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("text", "secrets", "kept"),
+    [
+        ("cannot open s3://u:pa?ss@host/x", ["pa?ss", "ss@", "u:pa"], "s3://***@host/x"),
+        ("cannot open s3://u:pa?ss@host/x?sig=abc", ["pa?ss", "abc"], "s3://***@host/x?***"),
+        ("cannot open 's3://u:secret@host/x'", ["secret"], "'s3://***@host/x'"),
+        ('cannot open "https://h/f.csv?sig=abc"', ["abc"], '"https://h/f.csv?***"'),
+    ],
+)
+def test_probe_log_redaction_question_marks_and_quotes(text, secrets, kept) -> None:
+    """A ``?`` inside a password is userinfo, not a query; a closing quote stays outside the redaction."""
+    from corral.io import _redact_urls
+
+    redacted = _redact_urls(text)
+    for secret in secrets:
+        assert secret not in redacted
+    assert kept in redacted

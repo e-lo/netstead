@@ -70,13 +70,18 @@ def _redact_url(url: str) -> str:
     first ``/``: a password may itself contain ``@`` or an unescaped ``/``,
     and over-masking a path that holds an ``@`` is the safe failure. A
     query string can carry credentials too (a presigned
-    ``X-Amz-Signature=...``), so it is replaced by ``***``.
+    ``X-Amz-Signature=...``), so it is replaced by ``***``. The userinfo
+    is masked first, so a ``?`` inside a password is not mistaken for the
+    start of a query. A closing quote the URL was written inside (an
+    exception message's ``'...'``) stays outside the redaction.
     """
-    scheme, _, rest = url.partition("://")
-    rest, query_mark, _ = rest.partition("?")
+    stripped = url.rstrip("'\"")
+    closing = url[len(stripped) :]
+    scheme, _, rest = stripped.partition("://")
     if "@" in rest:
         rest = "***@" + rest.rpartition("@")[2]
-    return f"{scheme}://{rest}" + ("?***" if query_mark else "")
+    rest, query_mark, _ = rest.partition("?")
+    return f"{scheme}://{rest}" + ("?***" if query_mark else "") + closing
 
 
 def _redact_urls(text: str) -> str:
