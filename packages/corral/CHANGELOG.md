@@ -46,7 +46,7 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   silent.
 - **Tests run against the stock adapter registry.** A new private
   `corral.io._reset_registry()` restores the five stock adapters and their
-  bindings; one autouse fixture in `tests/conftest.py` calls it around every
+  bindings; one autouse fixture in `tests/io/conftest.py` calls it around every io
   test, replacing the per-file re-registration workarounds.
 
 ### Fixed

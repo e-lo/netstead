@@ -24,7 +24,7 @@ adapters (csv, parquet, duckdb, zipcsv, remote). Each adapter module
 calls ``register_adapter`` at import time; importing ``corral.io``
 imports all five. Tests that need an empty registry can call
 ``_clear_registry()``; ``_reset_registry()`` puts the stock adapters back
-(``packages/corral/tests/conftest.py`` does so around every test).
+(``packages/corral/tests/io/conftest.py`` does so around every io test).
 """
 
 from __future__ import annotations
