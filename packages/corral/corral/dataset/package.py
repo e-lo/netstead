@@ -709,9 +709,11 @@ class Package:
         file), each :class:`Table` writes to a per-table location under
         ``dest``. The exact layout matches the read-side scan so a
         round-trip via :meth:`from_source` returns the same logical
-        package. A zip (``.zip`` / ``.csv.zip``, or ``format="zip"``)
-        holds one flat ``<table>.csv`` member per table plus a
-        ``datapackage.json`` with inlined schemas.
+        package. A parquet or csv directory also gets a
+        ``datapackage.json`` with inlined schemas, so a directory source
+        rewritten over itself keeps its descriptor. A zip (``.zip`` /
+        ``.csv.zip``, or ``format="zip"``) holds one flat ``<table>.csv``
+        member per table plus the same ``datapackage.json``.
 
         Every format is staged beside ``dest`` and swapped into place
         once the write is complete. The tables are lazy expressions
@@ -1279,7 +1281,10 @@ def _write_package_tables(pkg: Package, dest: Path, target_format: str) -> None:
 
     The layout depends on the format:
 
-    * parquet / csv: a directory with one ``<table>.<ext>`` file per table;
+    * parquet / csv: a directory with one ``<table>.<ext>`` file per table
+      plus a ``datapackage.json`` describing them (see
+      :func:`_package_descriptor`), so a directory source that carried its
+      own descriptor keeps one when written back over itself;
     * duckdb: a single multi-table file, one table per :attr:`Package.tables` entry;
     * anything else: one ``dest / <table>`` location per table through the
       resolved adapter, which raises if the layout doesn't fit. This is the
@@ -1290,6 +1295,8 @@ def _write_package_tables(pkg: Package, dest: Path, target_format: str) -> None:
         adapter = get_adapter(target_format)
         for name, table in pkg.tables.items():
             adapter.write(table.expr, dest / f"{name}.{target_format}", engine=pkg.engine)
+        descriptor = _package_descriptor(pkg.spec, pkg.tables, format=target_format)
+        (dest / "datapackage.json").write_text(json.dumps(descriptor, indent=2))
     elif target_format == "duckdb":
         adapter = get_adapter("duckdb")
         for name, table in pkg.tables.items():
@@ -1323,7 +1330,7 @@ def _write_zipcsv_package(pkg: Package, dest: Path) -> None:
     """Write ``pkg`` as a CSV-in-zip data package at ``dest``, atomically.
 
     Layout: one flat ``<table>.csv`` member per table plus a
-    ``datapackage.json`` (see :func:`_csv_package_descriptor`) — the same
+    ``datapackage.json`` (see :func:`_package_descriptor`) — the same
     shape :class:`~corral.io.zipcsv_adapter.ZipCsvAdapter` scans back.
 
     Each table is encoded by the csv adapter into a staging directory
@@ -1347,29 +1354,39 @@ def _write_zipcsv_package(pkg: Package, dest: Path) -> None:
                 csv_adapter.write(table.expr, member, engine=pkg.engine)
                 zf.write(member, arcname=member.name)
                 member.unlink()
-            descriptor = _csv_package_descriptor(pkg.spec, pkg.tables)
+            descriptor = _package_descriptor(pkg.spec, pkg.tables, format="csv")
             zf.writestr("datapackage.json", json.dumps(descriptor, indent=2))
         if dest.is_dir():
             shutil.rmtree(dest)
         os.replace(staged_zip, dest)
 
 
-def _csv_package_descriptor(spec: DataPackage, table_names: Iterable[str]) -> dict[str, Any]:
-    """Build a ``datapackage.json`` for flat ``<table>.csv`` resources.
+#: Per-format resource properties written into a flat-layout descriptor.
+_FLAT_RESOURCE_PROPS: dict[str, dict[str, str]] = {
+    "csv": {"format": "csv", "mediatype": "text/csv", "encoding": "utf-8"},
+    "parquet": {"format": "parquet", "mediatype": "application/vnd.apache.parquet"},
+}
+
+
+def _package_descriptor(spec: DataPackage, table_names: Iterable[str], *, format: str) -> dict[str, Any]:
+    """Build a ``datapackage.json`` for flat ``<table>.<format>`` resources.
 
     Package-level metadata and each resource's own properties are carried
     over from ``spec``; ``path`` / ``format`` / ``mediatype`` / ``encoding``
-    are rewritten for the archive layout. Resolved schemas are inlined so
-    the archive is self-describing — a relative schema path from the
-    source package would dangle inside the zip, so it is dropped instead.
+    are rewritten for the flat layout (a csv or parquet directory, or the
+    members of a csv zip). Resolved schemas are inlined so the result is
+    self-describing — a relative schema path from the source package would
+    dangle next to the written files, so it is dropped instead.
     """
+    props = _FLAT_RESOURCE_PROPS[format]
     descriptor = spec.model_dump(mode="json", by_alias=True, exclude_none=True, exclude={"resources"})
     originals = {r.name: r for r in spec.resources}
     resources: list[dict[str, Any]] = []
     for name in table_names:
         original = originals.get(name)
         entry = original.model_dump(mode="json", by_alias=True, exclude_none=True) if original else {"name": name}
-        entry.update(path=f"{name}.csv", format="csv", mediatype="text/csv", encoding="utf-8")
+        entry.pop("encoding", None)
+        entry.update(path=f"{name}.{format}", **props)
         schema = _schema_for(spec, name)
         if schema is not None:
             entry["schema"] = schema.model_dump(mode="json", by_alias=True, exclude_none=True)

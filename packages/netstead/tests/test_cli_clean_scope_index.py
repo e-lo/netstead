@@ -108,7 +108,8 @@ def test_clean_in_place_keeps_every_table_and_the_source_format(tmp_path: Path):
     files_before = sorted(path.name for path in src.iterdir())
     result = runner.invoke(app, ["clean", "remove-orphans", "--json", str(src)])
     assert result.exit_code == 0, result.stdout
-    assert sorted(path.name for path in src.iterdir()) == files_before
+    # The write adds a datapackage.json describing the tables it wrote.
+    assert sorted(path.name for path in src.iterdir()) == sorted([*files_before, "datapackage.json"])
     from netstead import Network
 
     net = Network.from_source(src, engine=IbisEngine())
