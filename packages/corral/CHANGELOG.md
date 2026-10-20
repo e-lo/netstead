@@ -13,6 +13,12 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   `ZipCsvAdapter.scan` fills it from inline schemas in the zip's own
   `datapackage.json` (what `Package.write` produces); a schema given by
   reference is not fetched. Other adapters leave it `None`.
+- **`corral.dataset.infer_write_format(dest, format=None)`**: the format
+  `Package.write` will use for `dest` (explicit `format` wins, `"zip"` means
+  `"zipcsv"`, else the extension, else parquet). `corral convert` and
+  `netstead.Network.write` now call it instead of keeping their own copies,
+  which fixes the `convert` summary reporting `"unknown"` for a `.zip`
+  destination and `"zip"` for `--format zip`.
 
 ### Changed
 

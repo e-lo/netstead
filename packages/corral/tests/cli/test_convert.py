@@ -127,3 +127,19 @@ def test_convert_rejects_unknown_engine(app, tmp_path: Path):
     combined = (result.stderr or "") + (result.stdout or "") + str(result.exception or "")
     assert "bogus" in combined
     assert "ibis" in combined or "pandas" in combined or "polars" in combined
+
+
+@pytest.mark.parametrize(
+    ("dest_name", "flags", "expected"),
+    [
+        ("net.zip", [], "zipcsv"),  # the old CLI mirror said "unknown" for a plain .zip
+        ("net.csv.zip", [], "zipcsv"),
+        ("bundle", ["--format", "zip"], "zipcsv"),  # the alias resolves, as in Package.write
+    ],
+)
+def test_convert_summary_reports_the_format_package_write_used(app, tmp_path: Path, dest_name, flags, expected):
+    """#169: the summary uses Package.write's own inference, so the two cannot drift."""
+    dest = tmp_path / dest_name
+    result = runner.invoke(app, ["convert", "--json", *flags, str(leavenworth.csv_dir()), str(dest)])
+    assert result.exit_code == 0, result.stderr
+    assert json.loads(result.stdout)["format"] == expected

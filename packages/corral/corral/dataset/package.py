@@ -794,7 +794,7 @@ class Package:
                 f"Package.write: writing to a {scheme}:// URL is not supported; write to a local path instead"
             )
         dest_path = Path(dest)
-        target_format = _resolve_write_format(dest_path, format)
+        target_format = infer_write_format(dest_path, format)
 
         # 3. Overwrite guard. The existing ``dest`` stays in place until
         #    the staged write is complete (see step 4): the tables may
@@ -1276,18 +1276,6 @@ def _schema_for(spec: DataPackage, table_name: str) -> Schema | None:
     return None
 
 
-def _resolve_write_format(dest: Path, format: str | None) -> str:
-    """Return the canonical write-format name for :meth:`Package.write`.
-
-    An explicit ``format`` wins (``"zip"`` is an alias for the
-    ``"zipcsv"`` adapter, matching the user-facing ``--format zip``);
-    otherwise the format is inferred from ``dest``.
-    """
-    if format is None:
-        return _infer_write_format(dest)
-    return "zipcsv" if format == "zip" else format
-
-
 def _write_package_tables(pkg: Package, dest: Path, target_format: str) -> None:
     """Write every table of ``pkg`` to ``dest`` in ``target_format``.
 
@@ -1409,21 +1397,43 @@ def _package_descriptor(spec: DataPackage, table_names: Iterable[str], *, format
     return descriptor
 
 
-def _infer_write_format(dest: Path) -> str:
-    """Infer a write format from ``dest``.
+def infer_write_format(dest: str | Path, format: str | None = None) -> str:
+    """Return the format :meth:`Package.write` uses for ``dest``.
+
+    Public so callers that report or branch on the format (the CLI's
+    ``convert`` summary, ``netstead.Network.write``) ask the writer
+    instead of re-implementing its rules.
 
     Order:
-        1. Extension match (``.parquet``, ``.csv``, ``.duckdb``,
+        1. An explicit ``format`` wins; ``"zip"`` is an alias for the
+           ``"zipcsv"`` adapter (the user-facing ``--format zip``).
+        2. Extension match (``.parquet``, ``.csv``, ``.duckdb``,
            ``.csv.zip`` / ``.zip``).
-        2. No extension at all → default to ``"parquet"`` (the
-           recommended persistent layout per architecture §6.1) so the
-           common "give me a directory" call site keeps working.
-        3. Unknown extension → raise :class:`FormatNotDetected` rather
-           than silently coercing to parquet; the user almost certainly
-           meant a specific format and a silent default would hide the
-           bug.
+        3. No extension at all → ``"parquet"`` (the recommended persistent
+           layout per architecture §6.1), so the common "give me a
+           directory" call keeps working.
+        4. Unknown extension → :class:`FormatNotDetected` rather than a
+           silent parquet default that would hide a typo.
+
+    Args:
+        dest: The write destination.
+        format: The ``format=`` the caller passed to :meth:`Package.write`, if any.
+
+    Returns:
+        An adapter name: ``"parquet"``, ``"csv"``, ``"duckdb"``, ``"zipcsv"``,
+        or the explicit ``format``.
+
+    Raises:
+        FormatNotDetected: If ``format`` is ``None`` and the extension is unknown.
+
+    Examples:
+        >>> from corral.dataset import infer_write_format
+        >>> infer_write_format("net.csv.zip"), infer_write_format("out"), infer_write_format("x", "zip")
+        ('zipcsv', 'parquet', 'zipcsv')
     """
-    name = dest.name.lower()
+    if format is not None:
+        return "zipcsv" if format == "zip" else format
+    name = Path(dest).name.lower()
     if name.endswith(".duckdb"):
         return "duckdb"
     if name.endswith(".zip"):
@@ -1432,7 +1442,6 @@ def _infer_write_format(dest: Path) -> str:
         return "parquet"
     if name.endswith(".csv"):
         return "csv"
-    # No extension at all → directory-ish; default to parquet per §6.1.
     if "." not in name:
         return "parquet"
     raise FormatNotDetected(

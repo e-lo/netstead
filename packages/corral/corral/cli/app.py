@@ -25,7 +25,7 @@ from typing import Any
 
 import typer
 
-from corral.dataset import Package
+from corral.dataset import Package, infer_write_format
 from corral.operations import ApprovalRequired
 
 from .prompts import run_with_approval
@@ -133,9 +133,8 @@ def build_app() -> typer.Typer:
             console.print("[yellow]conversion declined — exiting 1.[/yellow]")
             raise typer.Exit(code=1) from None
 
-        # Resolve the effective format for the summary — mirror the
-        # inference Package.write just did so callers can read it back.
-        effective_format = fmt or _infer_format_for_summary(dest)
+        # The format Package.write just used, from the writer's own rules.
+        effective_format = infer_write_format(dest, fmt)
         total_rows = 0
         for table in package.tables.values():
             try:
@@ -171,32 +170,6 @@ def _resolve_engine_or_exit(name: str | None) -> Any:
         return resolve_engine(name)
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
-
-
-def _infer_format_for_summary(dest: Path) -> str:
-    """Best-effort format name for the convert summary dict.
-
-    Mirrors :func:`corral.dataset.package._infer_write_format` so the
-    summary shows the same format ``Package.write`` actually used. We
-    re-implement the dispatch here (rather than importing the private
-    helper) to keep the CLI → dataset edge clean; the rules are short
-    and identical to the writer's: extension wins, no-extension
-    defaults to parquet, unknown extension falls back to ``"unknown"``
-    in the summary (the write itself would have raised before we got
-    here).
-    """
-    name = dest.name.lower()
-    if name.endswith(".duckdb"):
-        return "duckdb"
-    if name.endswith(".csv.zip"):
-        return "zipcsv"
-    if name.endswith(".parquet"):
-        return "parquet"
-    if name.endswith(".csv"):
-        return "csv"
-    if "." not in name:
-        return "parquet"
-    return "unknown"
 
 
 def _table_summary(package: Package) -> list[dict]:

@@ -656,3 +656,36 @@ def test_looks_remote_agrees_with_dispatch_scheme(path: str, expected: bool) -> 
 
     assert _looks_remote(path) is expected
     assert _looks_remote(path) is (_scheme_of(path) in REMOTE_SCHEMES)
+
+
+# ---------------------------------------------------------------------------
+# infer_write_format (#169)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("dest", "fmt", "expected"),
+    [
+        ("net.duckdb", None, "duckdb"),
+        ("net.zip", None, "zipcsv"),
+        ("net.csv.zip", None, "zipcsv"),
+        ("net.parquet", None, "parquet"),
+        ("net.csv", None, "csv"),
+        ("net", None, "parquet"),
+        ("net.parquet", "csv", "csv"),
+        ("net", "zip", "zipcsv"),
+    ],
+)
+def test_infer_write_format(dest: str, fmt: str | None, expected: str) -> None:
+    from corral.dataset import infer_write_format
+
+    assert infer_write_format(dest, fmt) == expected
+    assert infer_write_format(Path(dest), format=fmt) == expected
+
+
+def test_infer_write_format_rejects_an_unknown_extension() -> None:
+    from corral.dataset import infer_write_format
+    from corral.io import FormatNotDetected
+
+    with pytest.raises(FormatNotDetected, match="format="):
+        infer_write_format("net.xlsx")
