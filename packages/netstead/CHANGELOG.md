@@ -37,7 +37,7 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 - **`Network.from_source(url, credentials=...)`** forwards explicit cloud
   credentials (fsspec storage options) to `Package.from_source`, as the
-  [Read from S3](../corral/docs/cookbook/read-from-s3.md) cookbook describes.
+  [Read from S3](https://e-lo.github.io/netstead/corral/cookbook/read-from-s3/) cookbook describes.
 
 - **Plugin Host API 1.5:** `ActionError` and `NotSupportedYet` are exported from
   `netstead.workbench.plugins`, so a plugin handler can refuse with a message the
