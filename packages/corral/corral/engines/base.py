@@ -159,7 +159,11 @@ class Engine(Protocol):
             **kwargs: Forwarded verbatim to the underlying library reader.
                 Names follow the library, not a normalized vocabulary —
                 e.g. polars wants ``separator=``, pandas wants ``sep=``,
-                duckdb wants ``delim=``.
+                duckdb wants ``delim=``. One key is the engine's own:
+                ``storage_options`` (fsspec options for a URL source, as
+                forwarded by ``RemoteAdapter``) must be consumed by the
+                engine and used to open the URL, never passed to the
+                library reader.
         """
         ...
 
@@ -182,7 +186,8 @@ class Engine(Protocol):
             source: Path to a ``.parquet`` file or partitioned directory.
             schema: Optional Frictionless schema, applied after read.
             hive_partitioning: Enable Hive-style partition discovery.
-            **kwargs: Forwarded to the underlying reader.
+            **kwargs: Forwarded to the underlying reader, except
+                ``storage_options`` — see :meth:`read_csv`.
         """
         ...
 

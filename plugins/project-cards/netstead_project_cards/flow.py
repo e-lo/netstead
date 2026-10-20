@@ -1,4 +1,4 @@
-"""Steps the Action handlers share (and the routes the next release adds will): network, facility, card, errors."""
+"""Steps the Action handlers and the routes share: network, facility, card, errors."""
 
 from __future__ import annotations
 

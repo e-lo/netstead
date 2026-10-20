@@ -5,8 +5,8 @@ handlers, after every Host call they make has succeeded: a failing handler's net
 Workbench, and this state must not have moved. A handler nested in another Action can succeed and still be rolled
 back when its parent fails, which core does not tell the plugin; so each draft change records the marks its
 mutations left (:class:`~netstead_project_cards.lower.Mark`), and every handler and ``state()`` first reconciles the
-draft with its network (:meth:`CardsState.sync`). It has its own lock, so that ``state()`` (and the routes the next
-release adds) can read it outside the session lock.
+draft with its network (:meth:`CardsState.sync`). It has its own lock, so that ``state()`` and the routes
+(:mod:`~netstead_project_cards.routes`) can read it outside the session lock.
 
 The open preview (:class:`Preview`) is checked the same way, by handle: it stands for its base only while both
 networks are the ones it was made on.

@@ -7,6 +7,23 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
 
 ### Added
 
+- The Workbench UI (`static/main.js`, with the rules in `cardmodel.js` and the flow in `controller.js`):
+  - **New change ▸ Property change / Deletion** on the selection's right-click and **Selection actions ▾** menus and
+    in the command palette; **New change ▸ Addition** in the palette; the transit types in the palette, answering
+    "not yet supported".
+  - A **Card** dock panel: a form prefilled from the selection (each column titled with its current value when the
+    selected links agree, which the card records as `existing`), **Preview**, **Add to card**, **Cancel**, the
+    draft's changes with **Undo last change**, and **Import**. Its tab carries the count of uncommitted changes as a
+    dirty badge. A form read from the selection says when the selection has changed since, and waits for
+    **Reload form** before it previews or adds anything; an addition's node form is checked only when it has a
+    `node_id`.
+  - A commit dialog that lists the live edit warnings (committing with any needs **Commit anyway**), says why a card
+    `projectcard` rejects can't be committed, and shows the card's YAML.
+  - **Undo the draft card's last change** in the command palette.
+- Routes for the panel, both read-only: `GET /api/plugins/project_cards/form` (the targets, each column with its
+  current value, and the options for a change type on the shared or a saved selection) and
+  `GET /api/plugins/project_cards/commit-check` (the live edit warnings, the schema problems and the draft as YAML).
+- A cookbook page, "Author ProjectCards in the Workbench" (`packages/netstead/docs/cookbook/workbench-project-cards.md`).
 - Recorded Actions for authoring a card in the Workbench, each replayable with "Copy as Python" and offered to the
   natural-language assistant (opt in with `assistant.plugins`), which drafts them for the user to approve:
   - `project_cards.add_change`: apply one roadway change (property change, deletion or addition) to a network
@@ -31,5 +48,5 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
   `DraftCard` (write a card dict or YAML in Wrangler names through the maintained GMNS ↔ Wrangler mapping, and read
   one back), `read_card_file` (YAML or JSON cards, and the offline report's edit log), `card_problems`
   (`projectcard`'s own validator) and `apply_change` (plan a roadway change with core's edit planner and apply it
-  through the Workbench `Host`). The plugin registers with the Workbench but contributes no actions or UI yet; those
-  arrive in the following releases.
+  through the Workbench `Host`).
+- Requires netstead with plugin Host API 1.5 and `projectcard>=0.3.3,<0.4`.
