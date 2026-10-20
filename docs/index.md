@@ -1,6 +1,7 @@
 ---
 title: Netstead + corral
 audience: both
+kind: concept
 hide:
   - navigation
   - toc
@@ -28,7 +29,7 @@ This repo holds **two PyPI packages with separate utility and separate audiences
 
     ---
 
-    GMNS-specific toolkit on top of corral. Adds the `Network` class, the vendored GMNS spec (0.95 / 0.96 / 0.97), network-aware scope operations, the data-quality rule pack, optional editing tools with rollback, and an optional self-hosted HTTP server + MCP server.
+    GMNS-specific toolkit on top of corral. Adds the `Network` class, the vendored GMNS spec (0.95 / 0.96 / 0.97), network-aware scope operations, the data-quality rule pack, optional editing tools with rollback, building networks from OpenStreetMap or Overture (`netstead build`), natural-language selection, a browser Workbench (`netstead app`) with linked map and tables, and an optional self-hosted HTTP server + MCP server.
 
     Pick netstead if you're working with **transportation networks** — DOT / MPO planning, travel-demand modeling, GTFS ↔ GMNS interop, OSM-derived routing graphs.
 

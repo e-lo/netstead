@@ -31,10 +31,13 @@ jobs:
       - name: Install packages + docs toolchain
         run: uv sync --all-packages --all-extras --group docs
       - name: Build sites
+        # --strict turns every mkdocs / plugin warning (broken link or
+        # anchor, missing docstring type, unresolved cross-reference) into
+        # a failed build, so a warning fails the PR instead of shipping.
         run: |
-          uv run mkdocs build -f mkdocs.yml -d site
-          uv run mkdocs build -f packages/netstead/mkdocs.yml -d "$PWD/site/netstead"
-          uv run mkdocs build -f packages/corral/mkdocs.yml -d "$PWD/site/corral"
+          uv run mkdocs build --strict -f mkdocs.yml -d site
+          uv run mkdocs build --strict -f packages/netstead/mkdocs.yml -d "$PWD/site/netstead"
+          uv run mkdocs build --strict -f packages/corral/mkdocs.yml -d "$PWD/site/corral"
       - name: Deploy to gh-pages
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: peaceiris/actions-gh-pages@v4

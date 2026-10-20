@@ -126,6 +126,12 @@ Paths are relative to the repo root. `T=packages/netstead/tests`, `D=packages/co
 
 A domain run skips the doctests in the source modules. The default run includes them.
 
+The three docs contract suites (every documented Python block runs and its `Expected:` output is compared, every documented CLI flag exists and every documented `--json` example prints the JSON the page shows, every documented `netstead.X` / `corral.X` symbol resolves) are marked `slow`, so run them by name with `-m ""`:
+
+```bash
+uv run --all-extras pytest packages/netstead/tests/test_documented_python_contract.py packages/netstead/tests/test_documented_cli_contract.py packages/netstead/tests/test_documented_api_contract.py -m "" -q
+```
+
 ### Checking NL selection accuracy after prompt changes
 
 The tests check the parser's plumbing, not how well a real model reads requests. After you change the selection prompt, the tool schema, or the assistant guide (`netstead/llm/context`), run the eval script by hand against a local model:

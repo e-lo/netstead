@@ -1,7 +1,8 @@
 ---
 title: corral
 audience: users
-summary: Generic Frictionless data-package engine — lazy ibis with DuckDB, with pandas + polars on demand. Reads CSV / Parquet / DuckDB / zip-CSV from local paths and URLs with a credentials cascade. Composable validation, scope, editing, HTTP and MCP primitives.
+kind: concept
+summary: Generic Frictionless data-package engine — lazy ibis with DuckDB; pandas / polars / Arrow in and out. Reads CSV / Parquet / DuckDB / zip-CSV from local paths and URLs with a credentials cascade. Composable validation, scope, editing, HTTP and MCP primitives.
 ---
 
 # corral
@@ -24,13 +25,13 @@ pkg = Package.from_source("./mydata.csv.zip")                   # zipped CSV bun
 
 **Lazy evaluation at regional scale.** Tables aren't materialised until you ask. `pkg.tables["link"].filter(...).count()` pushes the count to DuckDB; only the integer comes back to Python.
 
-**Engine choice without API rewrite.** The same `Package.from_source(...).validate()` works against ibis (default), pandas, or polars. Switch via `engine=` per call.
+**One compute engine, any dataframe format.** DuckDB (driven through ibis) does all the work. Results come out as pandas, polars or Arrow via `Table.to_pandas()` / `.to_polars()` / `.collect()`, and in-memory frames go in via `from_arrow()`. See the [engine + formats concept](concepts/engines.md).
 
 **Validation as a single report.** `pkg.validate()` returns one `ValidationReport` covering structural, schema, foreign-key, and sync-state checks. Severity-graded; rendered as rich console, JSON, or interactive HTML.
 
 **Composable editing with rollback.** Open a `Session`, apply one or many edits, commit or roll back atomically. Persisted log as a sidecar parquet file.
 
-**Generic surfaces** — CLI, FastAPI HTTP server, and MCP server — all reusable for any domain-specific spec that builds on corral (netstead being the canonical example).
+**Generic surfaces** — CLI, FastAPI HTTP primitives (`corral.api`), and MCP server primitives (`corral.mcp`) — all reusable for any domain-specific spec that builds on corral (netstead being the canonical example). `corral.api` imports FastAPI but `dbcorral` declares no FastAPI dependency: `pip install fastapi pydantic-settings` (or install `netstead[server]`) before using it.
 
 ## Use cases — when to install dbcorral directly
 
@@ -58,7 +59,7 @@ pkg = Package.from_source("./mydata.csv.zip")                   # zipped CSV bun
 
     ---
 
-    You want the generic primitives (engine ABC, FormatAdapter registry, ValidationReport, Session, FastAPI helpers) to compose into a domain-specific package. netstead is the worked example.
+    You want the generic primitives (`Engine` protocol, FormatAdapter registry, ValidationReport, Session, FastAPI helpers) to compose into a domain-specific package. netstead is the worked example.
 
 </div>
 
@@ -66,11 +67,11 @@ pkg = Package.from_source("./mydata.csv.zip")                   # zipped CSV bun
 
 **It's small and focused.** Generic data-package primitives only — no domain semantics. Easy to reason about, easy to extend.
 
-**Backend-agnostic.** ibis for SQL pushdown by default, pandas for compatibility, polars for fast in-memory. Add a backend by implementing the `Engine` protocol; no API rewrite.
+**DuckDB-backed, dataframe-friendly.** Every table is a lazy ibis expression pushed down to DuckDB; pandas / polars / Arrow sit at the edges as input and output formats, never as compute backends. The `Engine` protocol describes that single engine's surface (`read_csv`, `read_parquet`, `from_arrow`, `to_pandas`, …).
 
 **Production-grade defaults.** Bearer-token auth on the HTTP server by default. Warn-loudly on misconfiguration (e.g. `auth=none` + non-localhost bind). Cost-model gating on long operations with explicit approval semantics.
 
-**Extension points are first-class.** `register_adapter` for new formats. `register_engine` for new backends. `register_rule` for quality rules. `extra_router_factory` for HTTP extensions. Same pattern across the surface.
+**Extension points are first-class.** `register_adapter` for new storage formats. `register_rule` for quality rules. `extra_router_factory` for HTTP extensions. Same pattern across the surface.
 
 ## Install
 
@@ -110,15 +111,15 @@ Pick the tool you already use — these all produce the same install:
 
 ### Optional extras
 
-The default install ships the ibis + DuckDB engine and Frictionless loader. Extras let you opt in to specific engines, cloud backends, and the AI surface:
+The default install ships the ibis + DuckDB engine and Frictionless loader. Extras let you opt in to dataframe output formats, cloud backends, and the AI surface:
 
 | Extra | Pulls in | When you need it |
 |---|---|---|
-| `polars` | `polars>=1.0` | Use the polars engine for in-memory speed (see [engines decision guide](concepts/engines.md)) |
-| `pandas` | `pandas>=2.2` | Use the pandas engine for DataFrame ergonomics |
+| `polars` | `polars>=1.0` | Get results as polars DataFrames via `Table.to_polars()` — output only; DuckDB still does the compute (see [engine + formats](concepts/engines.md)) |
+| `pandas` | `pandas>=2.2` | Get results as pandas DataFrames via `Table.to_pandas()` — output only |
 | `s3` / `gcs` / `azure` | corresponding fsspec adapter | Read from cloud-storage URLs |
 | `keyring` | `keyring>=24` | Resolve credentials from the system keychain |
-| `mcp` | `mcp>=1.0` | Run `corral mcp serve` for Claude Desktop / Code |
+| `mcp` | `mcp>=1.0` | Build an MCP server with `corral.mcp.build_server()`; the runnable server is `netstead mcp serve` |
 
 Install with the same syntax (uv shown — substitute your tool):
 
@@ -127,7 +128,7 @@ uv add 'dbcorral[polars,s3,keyring]'   # combine with commas
 ```
 
 !!! tip "zsh users: quote the brackets"
-    On **zsh** (the default shell on macOS), `[` and `]` are glob characters. Running `uv add dbcorral[polars]` unquoted gives `zsh: no matches found: corral[polars]`. Always wrap the extras in quotes (`'corral[polars]'` or `"corral[polars]"`), or run `setopt no_nomatch` once per session to disable the check. bash users don't hit this.
+    On **zsh** (the default shell on macOS), `[` and `]` are glob characters. Running `uv add dbcorral[polars]` unquoted gives `zsh: no matches found: dbcorral[polars]`. Always wrap the extras in quotes (`'dbcorral[polars]'` or `"dbcorral[polars]"`), or run `setopt no_nomatch` once per session to disable the check. bash users don't hit this.
 
 ## Where to go next
 

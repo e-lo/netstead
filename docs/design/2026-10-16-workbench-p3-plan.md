@@ -1,7 +1,6 @@
 # Workbench P3 (Selection verification + NL assistant) Implementation Plan
 
-Status: **accepted** (decisions recorded 2026-10-16); **P3a implemented** (#226); **P3b implemented** (branch
-`feat/workbench-p3b`, PR pending) · Date: 2026-10-16 · Owner: Elizabeth Sall
+Status: **accepted** (decisions recorded 2026-10-16); **P3a implemented** (#226); **P3b implemented** (#227) · Date: 2026-10-16 · Owner: Elizabeth Sall
 
 > **P3a as built (2026-10-16).** Where the code differs from the snippets below:
 > - **Stale pins** (review I-1): the fallback payload of Decision 1 carries `stale_pins`, and a save keeps it. An

@@ -149,6 +149,9 @@ docs/ai/api-index.json
 packages/*/docs/llms.txt
 packages/*/docs/llms-full.txt
 packages/*/docs/ai/api-index.json
+# netstead reference pages generated from the code by packages/netstead/main.py
+packages/netstead/docs/reference/cli.md
+packages/netstead/docs/reference/workbench-http-api.md
 
 # CLI run artifacts at repo root (netstead validate --html, netstead build out/)
 /report.html

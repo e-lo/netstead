@@ -18,22 +18,23 @@ Optimising for one without the other produces docs that are either pretty-but-op
 
 ## Where a page lives
 
-The site has **three top-level subtrees**:
+Each package has its own docs tree, built as its own site:
 
-* `docs/corral/` — generic Frictionless engine; audience = developers / researchers using any tabular package.
-* `docs/netstead/` — GMNS-specific toolkit; audience = transportation modelers / MPO + DOT staff / GTFS-interop researchers.
-* `docs/shared/` — concepts / architecture / development docs that apply to both.
+* `packages/corral/docs/` — generic Frictionless engine; audience = developers / researchers using any tabular package. Architecture and development docs for the monorepo as a whole live here too.
+* `packages/netstead/docs/` — GMNS-specific toolkit; audience = transportation modelers / MPO + DOT staff / GTFS-interop researchers.
+* `docs/design/` — design records (PRDs, plans). Not published.
 
-A new page goes in `corral/` if it makes sense without knowing GMNS. In `netstead/` if it references `Network` / `link` / `node`. In `shared/` if it's design-level or applies to both.
+A new page goes in `packages/corral/docs/` if it makes sense without knowing GMNS. In `packages/netstead/docs/` if it references `Network` / `link` / `node`. A design record goes in `docs/design/`.
 
 ## Frontmatter — required on every page
 
-Every `.md` page starts with YAML frontmatter. Three required keys, two optional:
+Every `.md` page starts with YAML frontmatter. Four required keys, two optional:
 
 ```yaml
 ---
 title: Quickstart                      # required — H1-equivalent
 audience: users | contributors | both  # required
+kind: concept | howto | reference | tutorial  # required — picks the section template below
 summary: One sentence (≤120 chars). What this page is for.
 ai_index: true                         # optional, default true. Set false to omit from llms.txt nav.
 stability: stable | beta | experimental  # optional — public API pages only
@@ -91,7 +92,7 @@ Four page kinds. Each has a fixed section order so an agent that learned the tem
 
 ✅ Right:
 
-> Load the bundled Leavenworth fixture through the default ibis + duckdb engine. The result is a lazy `Network` — nothing materialises until you ask.
+> Load the bundled Leavenworth fixture through the DuckDB engine (via ibis). The result is a lazy `Network` — nothing materialises until you ask.
 >
 > ```python
 > from netstead import Network
@@ -102,7 +103,7 @@ Four page kinds. Each has a fixed section order so an agent that learned the tem
 > Expected:
 >
 > ```text
-> 0.97: 214 links, 75 nodes
+> 0.97: 339 links, 121 nodes
 > ```
 
 ❌ Wrong:
@@ -117,7 +118,7 @@ Four page kinds. Each has a fixed section order so an agent that learned the tem
 ## Code blocks — language fence + runnable
 
 * **Always tag the language**: ` ```python `, ` ```bash `, ` ```json `, ` ```yaml `, ` ```toml `, ` ```shell-session `. Plain ` ```text ` only for non-language output where syntax color is meaningless.
-* **Runnable**: every Python block in `cookbook/`, `howto/`, `tutorial/`, and `reference/` examples must run as-is against the bundled Leavenworth fixture or a clearly-marked synthetic. A doctest pass over the docs catches drift.
+* **Runnable**: every Python block in `cookbook/`, `howto/`, `tutorial/`, and `reference/` examples must run as-is against the bundled Leavenworth fixture or a clearly-marked synthetic. A contract test (`packages/netstead/tests/test_documented_python_contract.py`) executes every ```python fence in both docs trees and the READMEs — column-0 and indented (inside accordions / tabs) alike — in a per-page namespace, and fails if one raises. When a block is followed by `Expected:` and a ```text / ```json fence, the block's printed output is compared with it: trailing whitespace is ignored, a documented line ending in `...` is a prefix match, and the documented block may stop early (show only the first lines). Write `...` where a value varies (timings, temp paths). Put `<!-- doctest: skip -->` on the line before a fence that needs credentials, network, Ollama, a running server, or files that don't exist; the marker may be indented and may carry a reason (`<!-- doctest: skip — needs S3 credentials -->`). Blockquoted fences and the migration guide are never executed. The CLI contract test (`test_documented_cli_contract.py`) checks every documented flag exists and, for a ```bash fence holding a single `netstead …` / `corral …` command with `--json` followed by `Expected:` and a ```json fence, runs the command and compares the parsed JSON — write `"..."` for a value that varies. There is no `>>>`-style doctest.
 * **Copy button** is automatic via Material's `content.code.copy` feature. Don't worry about it — just write clean code.
 * **Annotations** (numbered markers expanding to inline notes) are great for "why is this line written this way" without breaking the prose flow:
 <!-- doctest: skip -->
@@ -126,7 +127,7 @@ Four page kinds. Each has a fixed section order so an agent that learned the tem
   net = Network.from_source(path)  # (1)!
   ```
 
-  1. Default is `IbisEngine`. Switch to pandas when you need eager evaluation or DataFrame ergonomics.
+  1. Tables stay lazy in DuckDB. Call `.to_pandas()` (or `.to_polars()`) on a table when downstream code needs a DataFrame.
 
 ## Common variations — use accordions, not tables
 
@@ -145,10 +146,10 @@ The previous version of this guide said "use a table". That was wrong — reader
     net = Network.from_source("s3://bucket/network/")
     ```
 
-??? note "Override the engine to pandas"
+??? note "Materialise a table as a pandas DataFrame"
 <!-- doctest: skip -->
     ```python
-    net = Network.from_source(path)
+    links_df = net.links.to_pandas()
     ```
 ```
 
@@ -159,8 +160,8 @@ The previous version of this guide said "use a table". That was wrong — reader
 For pages where the output *is* visual (a card-rendered `_repr_html_`, an HTML validation report, a map embed, a before/after geometry diff), include a screenshot. Don't just describe it.
 
 ```markdown
-![Validation report card for the Leavenworth fixture](../assets/screenshots/leavenworth-validation.png){ .screenshot }
-*Validation report card. Zero ERRORs (Leavenworth is clean), a handful of data-quality WARNINGs from the residential-speed rule.*
+![Validation report card for the Leavenworth fixture](assets/screenshots/leavenworth-validation.png){ .screenshot }
+*Validation report card. No ERRORs; one `fk.unverifiable` WARNING (`node.zone_id`, no `zone` table) and 16 INFO findings for optional tables the fixture doesn't ship.*
 ```
 
 The `{ .screenshot }` class applies a subtle border + shadow. `mkdocs-glightbox` adds click-to-zoom automatically.
@@ -249,7 +250,7 @@ Cleaner than parenthetical "(see X)":
 ```markdown
 The default engine is ibis with the DuckDB backend.[^1]
 
-[^1]: See [architecture §6.1](architecture.md#61-engine--io) for the design rationale.
+[^1]: See [architecture §6.1](https://e-lo.github.io/netstead/corral/architecture/#61-engine-io) for the design rationale.
 ```
 
 ## Stable anchors
@@ -273,7 +274,7 @@ This is the most important rule for agent-efficient docs — an agent following 
 ## Voice
 
 * Active, present tense: "The validator emits an Issue", not "An Issue will be emitted".
-* Direct: "Pass `engine='polars'` to switch backends", not "It is possible to switch backends".
+* Direct: "Call `.to_pandas()` to materialise a table", not "It is possible to materialise a table".
 * No "we" / "you" tug-of-war: pick one per page kind. `concept` + `reference` → impersonal. `howto` + `tutorial` → "you".
 
 ## Length
@@ -299,5 +300,5 @@ When you change a page header or rename a section, those artifacts regenerate ne
 
 ## See also
 
-* `docs/shared/architecture.md` — single source of truth for the v1.0 design. Pages reference it; they don't duplicate it.
-* `skills/README.md` — Claude Code Skills installed via git URL. Each skill links back into this docs site for its long-form reference.
+* `packages/corral/docs/architecture.md` — single source of truth for the v1.0 design. Pages reference it; they don't duplicate it.
+* `skills/README.md` — Claude Code Skills, copied into a project's `.claude/skills/`. Each skill links back into this docs site for its long-form reference.

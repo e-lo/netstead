@@ -13,7 +13,7 @@ You want to load + validate + (optionally) spatially scope a Frictionless data p
 
 ## Quick example
 
-The fastest way to confirm `corral` is wired up is to load a real Frictionless package, run the four-pass validator, and print a one-line summary. The example below uses the bundled Leavenworth GMNS fixture as a stand-in for "any Frictionless package" — the API is identical regardless of spec.
+The fastest way to confirm `corral` is wired up is to load a real Frictionless package, run the four-pass validator, and print a one-line summary. The example below uses corral's own bundled sample fixture (three tables — `author`, `venue`, `book` — with two foreign keys and a WKT geometry column) as a stand-in for "any Frictionless package" — the API is identical regardless of spec.
 
 ```bash
 pip install dbcorral
@@ -23,9 +23,9 @@ Then in Python:
 
 ```python
 from corral import Package
-from netstead.fixtures import leavenworth  # any Frictionless dir works here
+from corral.fixtures import sample  # any Frictionless dir works here
 
-pkg = Package.from_source(leavenworth.csv_dir(), spec=leavenworth.spec_path())
+pkg = Package.from_source(sample.csv_dir(), spec=sample.DATAPACKAGE)
 report = pkg.validate()
 print(f"{len(pkg.tables)} tables, {len(report.issues)} validation issues")
 ```
@@ -33,10 +33,10 @@ print(f"{len(pkg.tables)} tables, {len(report.issues)} validation issues")
 Expected:
 
 ```text
-25 tables, 0 validation issues
+3 tables, 0 validation issues
 ```
 
-You just loaded a Frictionless data package through the default ibis + DuckDB engine, then ran the structural / schema / FK / sync-state validator in a single call. Nothing was eagerly materialised — `pkg.tables["link"]` is still a lazy expression.
+You just loaded a Frictionless data package through the ibis + DuckDB engine, then ran the structural / schema / FK / sync-state validator in a single call. Nothing was eagerly materialised — `pkg.tables["book"]` is still a lazy expression.
 
 ## Step-by-step
 
@@ -68,11 +68,11 @@ The default install ships everything for the four-pass validator below. Pick you
     pipx install dbcorral
     ```
 
-Optional extras (`polars` / `pandas` / `s3` / `gcs` / `azure` / `keyring` / `mcp`) opt in to alternative engines, cloud backends, and the AI surface — see the [install guide](index.md#optional-extras) for the full list.
+Optional extras (`polars` / `pandas` / `s3` / `gcs` / `azure` / `keyring` / `mcp`) opt in to dataframe output formats (`Table.to_polars()` / `.to_pandas()`), cloud backends, and the AI surface — DuckDB is the only compute engine either way. See the [install guide](index.md#optional-extras) for the full list.
 
 ### 2. Load a Frictionless package
 
-`Package.from_source` accepts a local path, an `s3://` / `https://` / `duckdb://` URL, or a directory of CSV / Parquet / DuckDB / zip-CSV files. The example below loads the bundled Leavenworth fixture, which is a CSV directory. Because a CSV-only directory doesn't carry a `datapackage.json` manifest, pass `spec=` explicitly to tell `corral` which schema to validate against.
+`Package.from_source` accepts a local path, an `s3://` / `https://` / `duckdb://` URL, or a directory of CSV / Parquet / DuckDB / zip-CSV files. The example below loads the Leavenworth GMNS fixture (a CSV directory that ships with `netstead` — `pip install netstead` to follow along, or keep using `corral.fixtures.sample`). Because a CSV-only directory doesn't carry a `datapackage.json` manifest, pass `spec=` explicitly to tell `corral` which schema to validate against.
 
 ```python
 from corral import Package
@@ -89,7 +89,7 @@ You should see something like:
 <!-- doctest: skip -->
 ```python
 >>> pkg
-<Package: 9 tables, source=.../leavenworth/csv>
+Package(source='.../leavenworth/csv', tables=9)
 ```
 
 Substitute any other Frictionless package — your own spec, a GTFS feed converted to a Frictionless package, or a cloud-hosted parquet partition — and the rest of the steps below are identical.
@@ -116,7 +116,7 @@ with tempfile.TemporaryDirectory() as d:
 
 ### 4. Scope to a spatial subset
 
-If your package has a geometry column (any WKT or WKB), `corral.dataset.view.from_bbox` returns a lazy view filtered to features inside a bounding box. The example below scopes the Leavenworth `geometry` table (which carries the inline WKT) to a small bbox around the historic core.
+If your package has a geometry column (WKT or WKB), `corral.dataset.view.from_bbox` returns a lazy `Table` filtered to features that intersect a bounding box. The example below scopes the Leavenworth `geometry` table (which carries the inline WKT) to a small bbox around the historic core. A table with no geometry column passes through unfiltered — Leavenworth's `link` table, for example, carries only a `geometry_id`.
 
 ```python
 from corral.dataset.view import from_bbox
@@ -126,11 +126,17 @@ scoped_geom = from_bbox(geometry, -120.665, 47.594, -120.655, 47.600)
 print(f"scoped: {scoped_geom.count()} geometries in bbox")
 ```
 
-The filter pushes down to DuckDB — only the matching rows are read.
+Expected:
+
+```text
+scoped: 118 geometries in bbox
+```
+
+The filter runs inside DuckDB's spatial extension (`ST_Intersects`) — only the matching rows are read.
 
 ### 5. Write the package out
 
-`pkg.write(dest)` round-trips the package to a new location. The output format is inferred from the extension: `.parquet` for a Parquet directory, `.duckdb` for a single-file DuckDB, or a directory for CSV.
+`pkg.write(dest)` round-trips the package to a new location. The output format is inferred from the extension (case-insensitively): `.parquet` — or no extension at all — for a Parquet directory with one GeoParquet file per table, `.csv` for a CSV directory, `.duckdb` for a single-file DuckDB database, and `.zip` for zipped CSV. Writing onto an existing destination raises `FileExistsError` unless you pass `overwrite=True`.
 
 ```python
 import tempfile, pathlib
@@ -138,26 +144,29 @@ with tempfile.TemporaryDirectory() as d:
     pkg.write(pathlib.Path(d) / "out.parquet")
 ```
 
-The `datapackage.json` manifest is regenerated alongside the data, so the written-out package is itself a valid Frictionless package.
+Parquet, CSV and DuckDB outputs carry the data only — no `datapackage.json` or sibling schema files are written, so pass the same `spec=` when you load them back. The zip output is the exception: it inlines a `datapackage.json` (schemas included) next to the per-table CSVs.
 
 ## Common variations
 
 Each accordion below is one alternative to the defaults used above. The first (most common) is expanded; the rest are collapsed — open the one that matches your situation.
 
-???+ note "Switch the backend engine to pandas or polars"
-    Default is `IbisEngine` (lazy, DuckDB-backed). Switch to pandas for eager DataFrame ergonomics, or polars when you want fast in-memory analytics.
+???+ note "Get results as pandas or polars"
+    DuckDB is the only compute engine; pandas and polars are output formats. Materialise any `Table` to the frame type the next step wants (needs the `pandas` / `polars` extra respectively).
 
+    <!-- doctest: skip -->
     ```python
-
-    pkg = Package.from_source(path, spec=spec)
+    df = pkg.tables["book"].to_pandas()    # pandas.DataFrame, nullable dtypes
+    pl_df = pkg.tables["book"].to_polars() # polars.DataFrame
     ```
 
 ??? note "Read from S3 with credentials"
-    Credentials resolve via a cascade: keyword arg → `CORRAL_CRED_<host>_TOKEN` env var → OS keyring → `.netrc`. No code changes needed if the environment is set up.
+    Credentials resolve via a cascade: `credentials=` keyword arg → `CORRAL_CRED_<HOST>_TOKEN` env var (or `CORRAL_CRED_<HOST>_KEY` + `_SECRET` for S3-style keys) → OS keyring → `.netrc`. No code changes needed if the environment is set up. Cloud drivers come from the `s3` / `gcs` / `azure` extras.
 
+    <!-- doctest: skip -->
     ```python
     pkg = Package.from_source(
-        "s3://bucket/path/datapackage.json",
+        "s3://bucket/path/",
+        credentials={"key": "AKIA…", "secret": "…"},  # optional — omit to use the cascade
     )
     ```
 
@@ -166,18 +175,19 @@ Each accordion below is one alternative to the defaults used above. The first (m
 
     ```python
     pkg = Package.from_source(
-        path,
-        spec=spec,
-        tables=["link", "node", "geometry"],
+        sample.csv_dir(),
+        spec=sample.DATAPACKAGE,
+        tables=["author", "book"],
     )
     ```
 
 ??? note "Pass the spec from a URL or another package"
     `spec=` accepts a local path, a URL, or an already-loaded `Spec` object. Useful for sharing a spec across many sibling datasets.
 
+    <!-- doctest: skip — placeholder URL; fetching a spec needs network access -->
     ```python
     pkg = Package.from_source(
-        path,
+        sample.csv_dir(),
         spec="https://example.org/specs/my-spec/datapackage.json",
     )
     ```
@@ -185,8 +195,8 @@ Each accordion below is one alternative to the defaults used above. The first (m
 ## Pitfalls
 
 * **No `datapackage.json` in your directory → pass `spec=` explicitly.** CSV-only fixtures and ad-hoc directories don't carry a manifest, so `corral` can't infer the schema. Point `spec=` at the canonical `datapackage.json` for your data. See [Frictionless data packages](concepts/frictionless.md) for the spec-vs-data distinction.
-* **Credential cascade order matters.** Per-call `credentials=` always wins; otherwise `CORRAL_CRED_<host>_TOKEN` env var, then OS keyring, then `.netrc`. If you've stashed a token in two places, the higher-priority one is the one that gets used.
-* **Lazy by default.** Tables are lazy ibis expressions over DuckDB — nothing materialises until you call `.to_pandas()` / `.to_polars()` / `.count()`. Push predicates down and only pull the rows you need into Python.
+* **Credential cascade order matters.** Per-call `credentials=` always wins; otherwise the `CORRAL_CRED_<HOST>_TOKEN` env var (or `CORRAL_CRED_<HOST>_KEY` + `CORRAL_CRED_<HOST>_SECRET`), then OS keyring, then `.netrc`. If you've stashed a token in two places, the higher-priority one is the one that gets used.
+* **Lazy by default.** Tables are lazy ibis expressions over DuckDB — nothing materialises until you call `.to_pandas()` / `.to_polars()` / `.count()`. Push predicates down and only pull the rows you need into Python. `.to_pandas()` and `.to_polars()` need the `pandas` / `polars` extras.
 
 ## See also
 

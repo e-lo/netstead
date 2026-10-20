@@ -1,12 +1,16 @@
 ---
 title: netstead
 audience: users
-summary: Python toolkit for the General Modeling Network Specification — load, validate, scope, edit GMNS networks at regional scale, with CLI / notebook / HTTP / MCP surfaces. Built on corral.
+kind: concept
+summary: Python toolkit for the General Modeling Network Specification — build, load, validate, scope, edit and explore GMNS networks at regional scale, with CLI / notebook / browser Workbench / HTTP / MCP surfaces. Built on corral.
 ---
 
 # netstead
 
 A Python toolkit for the [General Modeling Network Specification (GMNS)](https://github.com/zephyr-data-specs/GMNS) — the Zephyr Foundation's open standard for routable transportation networks. Built on top of [corral](https://e-lo.github.io/netstead/corral/).
+
+![Sixty-second walkthrough: open, select, validate, fix, replay](assets/screenshots/workbench-walkthrough.gif){ .screenshot }
+*The browser Workbench in a minute: open a network, select by name, validate, fix a finding, replay it all as Python. Start with [Quickstart: the Workbench](quickstart-workbench.md).*
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/e-lo/netstead/blob/main/packages/netstead/docs/notebooks/quickstart.ipynb) — five-cell quickstart in the browser. Load a real GMNS network from a URL, validate it, and view findings on an interactive map. No install needed.
 
@@ -29,9 +33,15 @@ net = Network.from_source("./network.duckdb")              # single duckdb
 
 **Network-aware scope** at regional scale. BFS-induced subgraph from seed nodes, Dijkstra-bounded network buffer, spatial-buffer from any link or point, connected-component, zone filter. Chainable, with FK pushdown to every related table (TOD overrides, lane detail, signal control).
 
-**Editing with atomic rollback.** `with Session(net) as s: simplify_geometry(net, s); merge_close_nodes(net, s)` — commit on clean exit, roll back on exception. Persisted log as a sidecar parquet so you can replay later.
+**Editing with atomic rollback.** `with Session(net) as s: simplify_geometry(net, s); merge_close_nodes(net, s)` — commit on clean exit, roll back on exception. Pass `log_path=` to persist the edit log as a sidecar file you can replay later.
 
-**Surfaces for every workflow.** CLI for shells and scripts, notebook `_repr_html_` for Jupyter, FastAPI HTTP server for self-hosting, MCP server for Claude Desktop / Claude Code, every command supports `--json`.
+**Building networks from open data.** `netstead build --source osm` (or `--source overture`) turns a place name, bbox, or point + buffer into a validated GMNS node + link network — no import code, no manual tag mapping.
+
+**Exploring in a browser Workbench.** `netstead app` opens a local app with a linked map and tables, validation with proposed fixes, selection verification, and a natural-language assistant that drafts actions for you to approve.
+
+**Natural-language selection.** `netstead select` resolves a plain-English description ("residential links north of the river") to GMNS link / node ids, through Anthropic, OpenAI, Gemini, or a local Ollama model (the `[nl]` extra).
+
+**Surfaces for every workflow.** CLI for shells and scripts, notebook `_repr_html_` for Jupyter, the browser Workbench for interactive exploration, FastAPI HTTP server for self-hosting, MCP server for Claude Desktop / Claude Code; every data command supports `--json`.
 
 ## Use cases — when to install netstead
 
@@ -81,83 +91,49 @@ net = Network.from_source("./network.duckdb")              # single duckdb
 
 **Regional scale on a laptop.** Lazy ibis + DuckDB by default. A 200k-node network reads in seconds and validates in tens of seconds. Spatial and graph indexes built on demand, cached to sidecar parquet, content-hash keyed for auto-invalidation.
 
-**Three usage modes target the same data.** CLI, notebook, programmatic — choose by ergonomics, not capability.
+**Four usage modes target the same data.** CLI, notebook, programmatic, browser Workbench — choose by ergonomics, not capability.
 
-**AI-first by design.** Every CLI command supports `--json` for tool-call loops. `llms.txt` + `llms-full.txt` + `ai/api-index.json` regenerate on every docs build. Optional MCP server (`netstead mcp serve`) for Claude Desktop / Claude Code. Five Claude Code Skills shipped in-repo.
+**AI-first by design.** Every data command supports `--json` for tool-call loops. `llms.txt` + `llms-full.txt` + `ai/api-index.json` regenerate on every docs build. Optional MCP server (`netstead mcp serve`) for Claude Desktop / Claude Code. Six Claude Code Skills shipped in-repo.
 
-**No vendor lock-in.** Pure Python under Apache 2.0. Engines, formats, quality rules, scope ops all behind protocols you can implement yourself.
+**No vendor lock-in.** Pure Python under Apache 2.0. Formats, quality rules, scope ops all behind protocols you can implement yourself.
 
 ## Install
 
-Pick the tool you already use — these all produce the same install:
-
-=== "uv (recommended)"
-
-    ```bash
-    uv add netstead
-    ```
-
-    Fastest. Works inside a `uv`-managed project and writes to your `pyproject.toml` + `uv.lock`.
-
-=== "uv pip"
-
-    ```bash
-    uv pip install netstead
-    ```
-
-    Drop-in `pip` replacement. Use this in a plain `venv` without a project file.
-
-=== "pip"
-
-    ```bash
-    pip install netstead
-    ```
-
-    Classic. Works anywhere Python does.
-
-=== "pipx"
-
-    ```bash
-    pipx install netstead
-    ```
-
-    Isolated env for the `netstead` CLI only — your project env stays untouched.
-
-`corral` comes along automatically — you don't install both.
-
-### Optional extras
-
-Pick by what you need:
-
-| Extra | Pulls in | When you need it |
-|---|---|---|
-| `clean` | `shapely` + `geopandas` + `igraph` + `pyproj` | Network editing (simplify, merge, snap) + connectivity ops |
-| `server` | `fastapi` + `uvicorn` + `pydantic-settings` | Self-hostable HTTP server |
-| `mcp` | `mcp>=1.0` | Run `netstead mcp serve` for Claude Desktop / Code |
-| `notebook` | `ipywidgets` + `anywidget` | Interactive scope-builder widget *(the basic `_repr_html_` for `Network` / `ValidationReport` / `EditResult` works without this)* |
-| `all` | every extra above | Single-flag full install |
-
-Install with the same syntax (uv shown — substitute your tool):
+Requires Python 3.11+. One command installs `netstead` with every optional extra (`corral` comes along automatically):
 
 ```bash
-uv add 'netstead[clean,server]'       # combine with commas
-uv add 'netstead[all]'                # everything
+uv add 'netstead[all]'
 ```
 
-!!! tip "zsh users: quote the brackets"
-    On **zsh** (the default shell on macOS), `[` and `]` are glob characters. Running `uv add netstead[all]` unquoted gives `zsh: no matches found: netstead[all]`. Always wrap the extras in quotes (`'netstead[all]'` or `"netstead[all]"`), or run `setopt no_nomatch` once per session to disable the check. bash users don't hit this.
+The four install tools (uv, uv pip, pip, pipx), the full table of extras and what each pulls in, `netstead doctor`, and the first-run errors are all on one page: [Install and troubleshoot](install.md). zsh users: [quote the brackets](install.md#zsh-quote-the-brackets).
 
 ## Where to go next
 
 <div class="grid cards" markdown>
 
--   :material-rocket-launch:{ .lg .middle } &nbsp;**Quickstart**
+-   :material-monitor-dashboard:{ .lg .middle } &nbsp;**Quickstart: the Workbench**
+
+    ---
+
+    Open the bundled Leavenworth network in the browser — select, validate, fix, replay as Python, save a copy. Ten minutes, no code.
+
+    [:octicons-arrow-right-24: Start in the browser](quickstart-workbench.md)
+
+-   :material-rocket-launch:{ .lg .middle } &nbsp;**Quickstart: Python**
 
     ---
 
     Install, load the bundled Leavenworth fixture, run validation in five minutes.
 
-    [:octicons-arrow-right-24: Get started](quickstart.md)
+    [:octicons-arrow-right-24: Start in Python](quickstart.md)
+
+-   :material-download:{ .lg .middle } &nbsp;**Install and troubleshoot**
+
+    ---
+
+    Python version, the four install tools, every extra, `netstead doctor`, and the first-run errors with their fixes.
+
+    [:octicons-arrow-right-24: Install](install.md)
 
 -   :material-book-open-variant:{ .lg .middle } &nbsp;**What is GMNS?**
 
@@ -171,7 +147,7 @@ uv add 'netstead[all]'                # everything
 
     ---
 
-    See the bundled Leavenworth network rendered as a map, validated, quality-checked, edited, and scoped — all in one notebook session.
+    The Workbench explained screen by screen — what a GMNS network looks like on the map, what an ambiguous selection means, what the validation severities and the edit log tell you.
 
     [:octicons-arrow-right-24: Visual tour](visual-tour.md)
 
@@ -182,6 +158,22 @@ uv add 'netstead[all]'                # everything
     Task-oriented recipes — read from S3, scope, edit with rollback, self-host, AI-drive.
 
     [:octicons-arrow-right-24: Browse recipes](cookbook/index.md)
+
+-   :material-application-cog-outline:{ .lg .middle } &nbsp;**Workbench in full**
+
+    ---
+
+    Every panel and command — linked map and tables, validation with fixes, selection verification, the natural-language assistant, settings.
+
+    [:octicons-arrow-right-24: Explore in the Workbench](cookbook/workbench.md)
+
+-   :material-compare-horizontal:{ .lg .middle } &nbsp;**The Workbench and other tools**
+
+    ---
+
+    How the Workbench differs from GeoLibre, QGIS, ArcGIS and the GMNS modelling tools, and how to use them together.
+
+    [:octicons-arrow-right-24: Compare tools](workbench-and-other-tools.md)
 
 -   :material-api:{ .lg .middle } &nbsp;**API reference**
 

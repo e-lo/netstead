@@ -9,7 +9,7 @@ summary: Join GMNS tables across foreign keys, inspect results without going thr
 
 ## When to use this
 
-You want to *ask questions that span tables* ("which lanes sit on links faster than 45 mph?") and *make targeted edits* ("set every residential link to 25 mph") — the bread-and-butter of network analysis and the kind of thing [Network Wrangler](https://github.com/wsp-sag/network_wrangler) does. This page covers both: querying across foreign keys, looking at results without materialising a DataFrame you don't need, and editing rows with an undo log.
+You want to *ask questions that span tables* ("which lanes sit on links faster than 45 mph?") and *make targeted edits* ("set every residential link to 25 mph") — the bread-and-butter of network analysis and the kind of thing [Network Wrangler](https://github.com/network-wrangler/network_wrangler) does. This page covers both: querying across foreign keys, looking at results without materialising a DataFrame you don't need, and editing rows with an undo log.
 
 ## Quick example
 
@@ -190,6 +190,7 @@ A `Session(net, log_path="edits.parquet")` persists the audit log to disk alongs
     Chain joins to reach a grandparent table — e.g. lanes on links that depart a 4-way stop.
 
     ```python
+    node = net.tables["node"].expr
     stop4 = node.filter(node.ctrl_type == "stop_4_way")
     links_at_stop4 = link.join(stop4, link.from_node_id == stop4.node_id).select("link_id")
     lane.join(links_at_stop4, lane.link_id == links_at_stop4.link_id).count().execute()

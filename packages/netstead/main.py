@@ -12,7 +12,13 @@ Three responsibilities:
    ``ai/api-index.json`` per architecture §6.9 (netstead package only;
    the corral site emits its own from its own ``main.py``).
 3. **File inclusion helper** — :func:`include_file` for embedding
-   repo-root files (README, CONTRIBUTING, etc.) with link rewriting.
+   repo-root files (README, CONTRIBUTING, CHANGELOG, etc.) with link
+   rewriting.
+4. **Generated reference pages** — ``reference/cli.md`` from the live
+   typer command tree and ``reference/workbench-http-api.md`` from the
+   Workbench FastAPI app's OpenAPI document, written into the docs tree
+   before the AI artifacts so ``llms-full.txt`` carries them too. Both
+   are gitignored; the hand-written intros live in this file.
 
 Per the docs v3 split: each package has its own self-contained docs
 site with its own macros file. The shared logic was previously in a
@@ -30,9 +36,12 @@ from pathlib import Path
 from typing import Any
 
 from corral.docgen import (
+    RouteGroup,
+    click_to_md,
     generate_api_index_json,
     generate_llms_full_txt,
     generate_llms_txt,
+    openapi_to_md,
     package_to_md,
     schemas_to_md,
 )
@@ -59,9 +68,19 @@ FIND_REPLACE: dict[str, str] = {
     "contributors.md)": "https://github.com/e-lo/netstead/blob/main/CONTRIBUTORS.md)",
     # The architecture lives on the corral site; netstead pages cross-link.
     "architecture.md)": "https://e-lo.github.io/netstead/corral/architecture/)",
+    # Relative links inside packages/netstead/CHANGELOG.md (included on
+    # changelog.md), resolved from the docs root or sent to GitHub.
+    "(../corral/CHANGELOG.md)": "(https://github.com/e-lo/netstead/blob/main/packages/corral/CHANGELOG.md)",
+    "(docs/migration/v0.3-to-v1.0.md)": "(migration/v0.3-to-v1.0.md)",
+    "(netstead/fixtures/leavenworth/README.md)": (
+        "(https://github.com/e-lo/netstead/blob/main/packages/netstead/netstead/fixtures/leavenworth/README.md)"
+    ),
+    "(../../skills/)": "(https://github.com/e-lo/netstead/tree/main/skills/)",
 }
 
-_md_heading_re = {n: re.compile(rf"(#{{{n}}}\s)(.*)") for n in range(1, 6)}
+# Anchored to the line start so "## x" is not also matched as an H1 (the
+# unanchored form shifted every included heading several levels).
+_md_heading_re = {n: re.compile(rf"^(#{{{n}}}\s)(.*)", re.MULTILINE) for n in range(1, 6)}
 
 # Static fallback nav matching packages/netstead/mkdocs.yml. The
 # live-nav extractor below prefers env.conf["nav"] and only falls
@@ -86,6 +105,11 @@ _DEFAULT_NAV: list[dict] = [
                 "href": "visual-tour.md",
                 "description": "Leavenworth rendered as map + validation + edit + scope.",
             },
+            {
+                "title": "Changelog",
+                "href": "changelog.md",
+                "description": "Every notable change to the netstead package, by release.",
+            },
         ],
     },
     {
@@ -105,6 +129,16 @@ _DEFAULT_NAV: list[dict] = [
                 "title": "API",
                 "href": "reference/api.md",
                 "description": "Public netstead API symbols (Network, scope, clean, quality).",
+            },
+            {
+                "title": "CLI",
+                "href": "reference/cli.md",
+                "description": "Every netstead command with its arguments and options.",
+            },
+            {
+                "title": "Workbench HTTP API",
+                "href": "reference/workbench-http-api.md",
+                "description": "Every route of the Workbench server, from its OpenAPI document.",
             },
             {
                 "title": "Schema",
@@ -145,6 +179,255 @@ _DEFAULT_NAV: list[dict] = [
 _PACKAGES_FOR_API_INDEX = ["netstead"]
 
 SITE_URL = "https://e-lo.github.io/netstead/netstead"
+
+# ---------------------------------------------------------------------------
+# Generated reference pages (CLI + Workbench HTTP API)
+# ---------------------------------------------------------------------------
+#
+# The generated bodies sit inside {% raw %} blocks so the macros plugin
+# never tries to parse a brace that came from a help string or a route
+# path. The intros are hand-written here (not in a docs/_*.md include)
+# so the generated file is self-contained for llms-full.txt.
+
+_CLI_PAGE = """\
+---
+title: CLI reference
+audience: both
+kind: reference
+summary: Every netstead command and sub-command with its arguments and options, generated from the CLI at build time.
+---
+
+# CLI reference
+
+## Summary
+
+`netstead` is the command-line front door to the library: inspect, validate, convert, build, scope,
+clean and benchmark GMNS networks, and start the HTTP, MCP and Workbench servers. The command tree
+below is generated from the live typer app (`netstead.cli.app`) on every docs build, so it cannot
+drift from the installed version; `netstead --help` and `netstead <command> --help` print the same
+text in the terminal.
+
+Three conventions apply across the tree:
+
+- **`--json`.** Every data command accepts `--json` and then writes exactly one JSON document to
+  stdout, so the result pipes into `jq` or straight into an agent. The index table marks which
+  commands take it.
+- **`netstead doctor`** is an *install* doctor: Python version, optional extras, vendored spec
+  versions, and whether the bundled Leavenworth fixture loads. To diagnose a network, use
+  `netstead validate` (spec, schema and foreign-key checks) or `netstead quality` (data-quality rules).
+- **Optional extras.** Commands that need an extra (`server`, `mcp`, `clean`, `osm`, `reports`, ...)
+  are always listed in `--help`. When the extra is missing they exit with code 1 and one line on
+  stderr, `netstead.<module> requires the [<extra>] extra: pip install 'netstead[<extra>]'`, which
+  names the extra to install; `netstead doctor` shows which extras are present.
+
+## Commands
+
+{% raw %}
+{commands}
+{% endraw %}
+
+## Examples
+
+Check the install, then summarise and validate a network. `--json` turns the summary into one
+JSON document; `--html` writes the interactive validation report next to the terminal output.
+
+```bash
+netstead doctor
+netstead info ./my-network --json
+netstead validate ./my-network --html report.html
+```
+
+## See also
+
+- [API reference](api.md) — the Python surface the commands wrap.
+- [Settings reference](settings.md) — `netstead.toml` keys the CLI and Workbench read.
+- [Run the bench](../cookbook/run-bench.md), [Self-host the HTTP server](../cookbook/serve-http.md),
+  [Wire up the MCP server](../cookbook/serve-mcp.md).
+- [MCP tools](../ai/mcp-tools.md) — the same operations exposed to AI agents.
+"""
+
+_HTTP_PAGE = """\
+---
+title: Workbench HTTP API reference
+audience: both
+kind: reference
+summary: Every route the Workbench server exposes, grouped by area, generated from its OpenAPI document at build time.
+---
+
+# Workbench HTTP API reference
+
+## Summary
+
+`netstead app` serves one Workbench `Session` as a local web app. The browser front end is only a
+client of the routes below; anything it does, a script can do with `curl` or an HTTP library. The
+route list is generated on every docs build from the FastAPI app's OpenAPI document
+(`build_app(session).openapi()`), so it cannot drift from the code; a running server serves the same
+document at `/openapi.json` and interactive docs at `/docs`.
+
+Every state change goes through one route, `POST /api/actions`, whose body is one Action (a JSON
+object discriminated on its `type`). The Action schemas are on the
+[Workbench Actions](workbench-actions.md) page; `GET /api/actions` returns the JSON schema of every
+Action the running session accepts, plugin Actions included. Reads are plain `GET`s and never
+recorded in the history.
+
+### Events (`GET /api/events`)
+
+The stream is Server-Sent Events (`text/event-stream`). It opens with a `state` event carrying the
+full session snapshot (the same payload as `GET /api/state`) and then carries every event the
+session publishes, each frame named by its `type`:
+
+- `state` — a fresh snapshot after any change (open, close, selection, settings, edits).
+- `history` — one recorded Action, in the shape `GET /api/history` lists.
+- `job` — a background job's snapshot at each stage change (open, build, validate, save and Ollama
+  pulls run as jobs; `POST /api/actions` answers `202` with the job and the outcome arrives here).
+- `llm` — provider and key status after a key is set or removed or a model pulled.
+- `navigate` — a map navigation request raised by a `Navigate` Action.
+
+A `: keepalive` comment is sent after 15 seconds of silence so proxies keep the connection open;
+`?max_events=N` closes the stream after `N` events, for scripts and tests.
+
+### Local-bind guards
+
+On the default loopback bind the server answers `400` to any request whose `Host` header is not
+`localhost`, `127.0.0.1` or `[::1]`, and `403` to any state-changing request that names a foreign
+`Origin` or arrives `Sec-Fetch-Site: cross-site`; see
+[Explore in the Workbench](../cookbook/workbench.md#quick-start) for what that means when you
+expose the app.
+
+### Plugin routes
+
+Each installed plugin's router is mounted under `/api/plugins/<id>/` and its static files under
+`/plugins/<id>/`. Those routes depend on what is installed, so they are not listed here;
+`GET /api/plugins` names the installed plugins and their state.
+
+## Routes
+
+{% raw %}
+{routes}
+{% endraw %}
+
+## Examples
+
+Read the session state, apply a no-argument Action, and watch one event from the stream. The
+server must be running (`netstead app`) on its default port.
+
+```bash
+curl http://127.0.0.1:8850/api/state
+curl -X POST http://127.0.0.1:8850/api/actions \\
+  -H 'Content-Type: application/json' -d '{"type": "clear_selection"}'
+curl -N 'http://127.0.0.1:8850/api/events?max_events=1'
+```
+
+## See also
+
+- [Workbench Actions](workbench-actions.md) — the Action schemas `POST /api/actions` accepts.
+- [Explore in the Workbench](../cookbook/workbench.md) — the app this API serves.
+- [Write a Workbench plugin](../cookbook/workbench-plugins.md) — adding routes under `/api/plugins/<id>/`.
+- [Settings reference](settings.md) — `app.host`, `app.port` and `io.allowed_roots`.
+"""
+
+_HTTP_MISSING_SERVER_NOTE = """\
+!!! warning "Route list not generated"
+
+    The `server` extra (FastAPI) was not installed when this site was built, so the route list is
+    missing from this page. Install it with `pip install 'netstead[server]'` and rebuild the docs.
+"""
+
+
+def _is_network_data_route(path: str) -> bool:
+    return path.startswith("/api/n/") and not _is_validation_route(path)
+
+
+def _is_validation_route(path: str) -> bool:
+    return path.startswith("/api/n/") and path.endswith(
+        ("/issues", "/issues/markers", "/report.html", "/edits", "/delete-plan")
+    )
+
+
+_SESSION_ROUTES = {"/api/state", "/api/config", "/api/settings", "/api/history", "/api/actions", "/api/events"}
+_IO_ROUTES = {"/api/fs/list", "/api/check-url", "/api/geocode", "/api/estimate"}
+
+_HTTP_GROUPS: list[RouteGroup] = [
+    RouteGroup(
+        "Session",
+        "The session as a whole: its state, settings, history and the Action bus.",
+        lambda path, _: path in _SESSION_ROUTES,
+    ),
+    RouteGroup(
+        "Jobs",
+        "Background jobs started by job Actions (open, build, validate, save) and by Ollama pulls.",
+        lambda path, _: path.startswith("/api/jobs"),
+    ),
+    RouteGroup(
+        "Files, URLs and build estimates",
+        "What the **Open / Import** dialog calls: folders inside `io.allowed_roots`, remote GMNS URLs, "
+        "place search, and sizing a `build_network` request before approving it.",
+        lambda path, _: path in _IO_ROUTES,
+    ),
+    RouteGroup(
+        "Network data",
+        "Per open network. `{net_id}` is the id `GET /api/state` lists for the network; `{component}` is "
+        "the component within it (`roadway` for the GMNS tables).",
+        lambda path, _: _is_network_data_route(path),
+    ),
+    RouteGroup(
+        "Validation and edits",
+        "The last validation run's issues and report, and the pending-edit ledger.",
+        lambda path, _: _is_validation_route(path),
+    ),
+    RouteGroup("Selection", "", lambda path, _: path.startswith("/api/selection")),
+    RouteGroup(
+        "Assistant",
+        "The natural-language assistant: ask, then approve or reject the draft it proposes.",
+        lambda path, _: path.startswith("/api/assistant"),
+    ),
+    RouteGroup(
+        "Language models",
+        "Provider status, model lists and write-only keys. Key writes are refused on a non-loopback bind.",
+        lambda path, _: path.startswith("/api/llm"),
+    ),
+    RouteGroup("Plugins", "", lambda path, _: path.startswith("/api/plugins")),
+]
+
+
+def _render_cli_reference() -> str:
+    """The CLI page: hand-written intro + the generated command tree."""
+    from netstead.cli.app import app
+    from typer.main import get_command
+
+    commands = click_to_md(get_command(app), prog="netstead", heading_level=3)
+    return _CLI_PAGE.replace("{commands}", commands.rstrip())
+
+
+def _render_http_reference() -> str:
+    """The HTTP page: hand-written intro + routes from the live OpenAPI document.
+
+    Degrades to a visible warning (instead of failing the build) when the
+    ``server`` extra is missing, since ``build_app`` needs FastAPI.
+    """
+    try:
+        from netstead.workbench import Session, build_app
+
+        spec = build_app(Session()).openapi()
+    except ImportError as exc:
+        logger.warning("Workbench HTTP API reference: route list skipped (%s)", exc)
+        routes = _HTTP_MISSING_SERVER_NOTE
+    else:
+        routes = openapi_to_md(
+            spec,
+            groups=_HTTP_GROUPS,
+            heading_level=3,
+            skip=lambda path, _: path == "/" or path.startswith(("/static", "/plugins/")),
+        )
+    return _HTTP_PAGE.replace("{routes}", routes.rstrip())
+
+
+def _write_reference_pages(docs_dir: Path) -> None:
+    """Write ``reference/cli.md`` and ``reference/workbench-http-api.md`` into ``docs_dir``."""
+    ref_dir = docs_dir / "reference"
+    ref_dir.mkdir(exist_ok=True)
+    (ref_dir / "cli.md").write_text(_render_cli_reference(), encoding="utf-8")
+    (ref_dir / "workbench-http-api.md").write_text(_render_http_reference(), encoding="utf-8")
 
 
 def _extract_live_nav(env_conf: dict) -> list[dict] | None:
@@ -264,6 +547,10 @@ def define_env(env: Any) -> None:
     env_conf = getattr(env, "conf", {}) if hasattr(env, "conf") else {}
     site_url = (env_conf.get("site_url") if isinstance(env_conf, dict) else None) or SITE_URL
     nav = _extract_live_nav(env_conf) or _DEFAULT_NAV
+    # Reference pages first: llms-full.txt reads page bodies from disk, so
+    # they must exist before the AI artifacts are written. A failure here
+    # is a real docs bug and should fail the build (no try/except).
+    _write_reference_pages(docs_dir)
     try:
         _write_ai_artifacts(docs_dir, nav, site_url)
     except Exception as exc:

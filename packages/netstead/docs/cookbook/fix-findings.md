@@ -53,9 +53,11 @@ print(result.summary())                # "12 applied, 2 skipped"
 for s in result.skipped:               # inspect anything that didn't apply
     print(s.edit.id, "→", s.reason)
 
-# Save either way — Network.write() takes a destination path.
-result.net.write("./my-net", overwrite=True)   # overwrite the source
-result.net.write("./my-net-v2")                # write to a new directory
+# Save either way — Network.write() takes a destination path. The format is
+# inferred from the extension; a bare directory name writes Parquet, so pass
+# format="csv" when you want to keep a CSV package.
+result.net.write("./my-net", format="csv", overwrite=True)   # overwrite the CSV source
+result.net.write("./my-net-v2")                              # new directory, Parquet
 ```
 
 ## The edit log shape
@@ -107,14 +109,34 @@ reason) rather than silently clobbering a concurrent change. Omit
 
 ??? note "Replay against a newer version of the same network"
     The vendor sent you v2 of the network. Run `apply_edits(v2_net, log)`
-    — every edit whose PK still exists and whose `from:` still matches
+    — every edit whose PK still exists and whose `existing:` still matches
     applies cleanly. Anything that drifted shows up in `result.skipped`
     with a precise reason.
 
 ??? note "Bulk fixes from Python"
     `Edit` is a plain dataclass — build a `list[Edit]` programmatically
-    for "every residential link with free_speed > 25 should be set to
-    25" and apply with the same `apply_edits` path. No browser needed.
+    ("every residential link with free_speed > 25 should be set to 25"),
+    wrap it in an `EditLog`, and apply with the same `apply_edits` path.
+    No browser needed. `pk` is a dict of primary-key columns, `to_value`
+    the new cell value; `from_value` is optional and turns on the drift check.
+
+    ```python
+    import netstead
+    from netstead.fixtures import leavenworth
+    from netstead.map.edits import Edit, EditLog, apply_edits
+
+    net = netstead.read(leavenworth.csv_dir())
+    links = net.links.to_pandas()
+    too_fast = links[(links.facility_type == "residential") & (links.free_speed > 25)].link_id
+
+    edits = [
+        Edit(id=f"cap-{lid}", kind="fix", table="link", pk={"link_id": int(lid)},
+             column="free_speed", to_value=25.0, reason="residential cap")
+        for lid in too_fast
+    ]
+    result = apply_edits(net, EditLog(edits=edits))
+    print(result.summary())   # "271 applied, 0 skipped" on Leavenworth
+    ```
 
 ??? note "Clear the log mid-session"
     The browser persists edits in `sessionStorage`. A page refresh
@@ -127,13 +149,15 @@ reason) rather than silently clobbering a concurrent change. Omit
   so opening the report in a different tab gives you a fresh log. Always
   Download YAML before closing the tab if you want to keep the work.
 - **Edits identify rows by PK, not row index.** That's deliberate — row
-  index isn't stable across reloads. If your edit log carries
-  `pk: { link_id: 42 }` and link_id 42 no longer exists in the
-  destination network, the applier skips with `pk not found`.
+  index isn't stable across reloads. If your edit log targets
+  `facility: {model_link_id: [42]}` and link_id 42 no longer exists in the
+  destination network, the applier skips that edit with
+  `pk {'link_id': 42} not found in 'link'`.
 - **Drift checks compare values pre-cast.** When the source column is a
   number, the editor coerces the new value to a number too. When in
-  doubt, look at the YAML — `from: 40` vs `from: '40'` matter for
-  the strict drift check.
+  doubt, look at the YAML — `existing: 40` vs `existing: '40'` matter for
+  the strict drift check (only null and NaN are treated as the same
+  "missing" value).
 
 ## See also
 

@@ -19,10 +19,10 @@ Validate the bundled Leavenworth fixture from the shell. Add `--json` to any `ne
 netstead validate --json packages/netstead/netstead/fixtures/leavenworth/csv
 ```
 
-Expected — Leavenworth is clean of ERRORs and WARNINGs, so the issue list contains only INFO entries (optional tables not present):
+Expected — the command exits 0 because Leavenworth has no ERRORs. The issue list holds 16 INFO entries (`structural.missing_optional_resource`, one per optional GMNS table the fixture doesn't ship) plus one WARNING, `fk.unverifiable`: `node.zone_id` declares a foreign key into a `zone` table that isn't in the package, so the FK can't be checked:
 
 ```json
-{"header": "validation report: ...", "issues": [{"severity": "info", ...}]}
+{"header": "validation report: ...", "issues": [{"severity": "info", "code": "structural.missing_optional_resource", ...}, {"severity": "warning", "code": "fk.unverifiable", ...}]}
 ```
 
 The same call from Python returns a `ValidationReport` dataclass:
@@ -36,10 +36,18 @@ report = net.validate()
 print(f"is_clean={report.is_clean}  issues={len(report.issues)}")
 ```
 
+Expected:
+
+```text
+is_clean=False  issues=17
+```
+
+`is_clean` is `False` here only because of the `fk.unverifiable` WARNING; `report.has_errors` is `False`.
+
 The CLI exits non-zero if any ERROR-severity finding fires, so it drops straight into a CI gate.
 
 ![Validation report card for the Leavenworth fixture](../assets/screenshots/leavenworth-validation-report.png){ .screenshot }
-*Validation report card. Zero ERRORs (Leavenworth is clean); a handful of DATA_QUALITY warnings from the residential-speed rule.*
+*Validation report card. Zero ERRORs; 16 INFO findings for the optional tables the fixture doesn't ship, and one `fk.unverifiable` WARNING because there is no `zone` table to resolve `node.zone_id` against. Data-quality rules are a separate pass (`netstead quality`) and don't appear here.*
 
 ## Step-by-step
 
@@ -62,11 +70,11 @@ netstead validate <source> --html report.html    # standalone HTML report
 
 ### 2. Read the report shape
 
-`ValidationReport` is a dataclass with three fields you'll touch:
+`ValidationReport` is a dataclass with five fields and properties you'll touch:
 
 | Field / property | Type | Description |
 |---|---|---|
-| `report.is_clean` | `bool` | `True` iff zero issues of any severity fired. |
+| `report.is_clean` | `bool` | `True` iff no ERROR **and** no WARNING fired. INFO findings don't break it. |
 | `report.has_errors` | `bool` | `True` iff ≥1 ERROR-severity issue fired. CI gates usually want `if report.has_errors:`. |
 | `report.has_warnings` | `bool` | `True` iff ≥1 WARNING-severity issue fired. |
 | `report.spec_version` | `str` | The GMNS spec version the validator ran against. |
@@ -86,6 +94,7 @@ class Issue:
     column: str | None      # column, if applicable
     row: int | None         # row index, if applicable
     fix_hint: str | None    # what to do about it
+    extra: dict             # adapter-specific payload (FK target, coordinates, ...)
 ```
 
 ### 3. Filter by severity
@@ -125,10 +134,12 @@ Stable identifier strings let you script around specific findings without parsin
 | `schema.required` | SCHEMA | ERROR | A required column is missing or null on a row. |
 | `schema.enum` | SCHEMA | ERROR | A column value isn't in the spec-defined enum set. |
 | `schema.type` | SCHEMA | ERROR | A value doesn't parse as the declared type. |
-| `structural.missing_table` | STRUCTURAL | ERROR | A required table (`link`, `node`) isn't in the package. |
+| `structural.missing_required_resource` | STRUCTURAL | ERROR | A required table (`link`, `node`) isn't in the package. |
+| `structural.missing_optional_resource` | STRUCTURAL | INFO | An optional spec table isn't in the package. Leavenworth reports 16 of these. |
 | `structural.missing_file` | STRUCTURAL | ERROR | A table is declared in the package descriptor but the file isn't there. |
 | `fk.missing_target` | FOREIGN_KEY | ERROR | FK points at a row that doesn't exist in the parent table. |
-| `fk.dangling_child` | FOREIGN_KEY | WARNING | Parent row has no children (often benign). |
+| `fk.null_in_required_fk` | FOREIGN_KEY | ERROR | A required FK column is null on a row. |
+| `fk.unverifiable` | FOREIGN_KEY | WARNING | The FK's target table isn't in the package, so it can't be checked (Leavenworth: `node.zone_id` → `zone`). |
 | `sync.fk_stale` | SYNC_STATE | ERROR | An edit invalidated an FK and no `recompute` ran. |
 | `quality.high_speed_residential` | DATA_QUALITY | WARNING | Residential link with speed limit above the configured threshold. |
 
@@ -164,7 +175,7 @@ Stable identifier strings let you script around specific findings without parsin
     Or programmatically:
 
     ```python
-    from netstead.reports import render_validation_html
+    from netstead.map import render_validation_html
     open("report.html", "w").write(render_validation_html(net, report))
     ```
 
@@ -207,9 +218,6 @@ Stable identifier strings let you script around specific findings without parsin
     ```python
     report  # renders an HTML summary in Jupyter
     ```
-
-??? note "Server response"
-    The HTTP server returns JSON by default and HTML when the request sets `Accept: text/html`. See [serve-http](serve-http.md).
 
 ## Pitfalls
 

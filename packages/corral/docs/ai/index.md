@@ -50,31 +50,31 @@ The two variants serve different agent loops:
 
 ## 2. `ai/api-index.json` — public-API surface
 
-[`ai/api-index.json`](api-index.json) is a structured snapshot of every public symbol in `corral` + `corral.reports`. The netstead docs site emits its own `ai/api-index.json` covering `netstead`. Schema:
+[`ai/api-index.json`](api-index.json) is a structured snapshot of every name exported through `__all__` by the `corral` and `corral.reports` packages. The netstead docs site emits its own `ai/api-index.json` covering `netstead`. Shape (`packages` is a dict keyed by package name):
 
 ```json
 {
   "schema_version": "1",
-  "packages": [
-    {
-      "name": "corral",
-      "version": "0.1.0",
+  "generated_at": "2026-10-19T00:00:00+00:00",
+  "packages": {
+    "corral": {
+      "version": "1.0.0b2",
       "symbols": [
         {
-          "kind": "function | class | method",
-          "qualname": "corral.dataset.Package.from_source",
-          "signature": "(source, *, engine=None, spec=None, tables=None)",
-          "stability": "stable | beta | experimental",
-          "summary": "first line of docstring",
-          "anchor": "https://e-lo.github.io/netstead/reference/api/#corral.dataset.Package.from_source"
+          "name": "read",
+          "kind": "function | class | module | constant",
+          "module": "corral",
+          "signature": "read(source: 'str | Path', *, format: 'str | None' = None, ...)",
+          "docstring": "full docstring text",
+          "stability": "stable | beta | experimental"
         }
       ]
     }
-  ]
+  }
 }
 ```
 
-Built by `corral.docgen.llms.generate_api_index_json`. Refreshes each build.
+Built by `corral.docgen.llms.generate_api_index_json` at `mkdocs build` time — it is not checked into the repo. Refreshes each build.
 
 ### Use it from an agent
 
@@ -123,7 +123,7 @@ These compose well inside CI scripts and one-liner agent prompts (`subprocess.ru
 
 ## 3. Claude Code Skills (`skills/` in the repo)
 
-Five skills shipped in-repo, installed via git URL:
+Six skills shipped in-repo, installed via git URL:
 
 ```shell-session
 $ claude code skill add https://github.com/e-lo/netstead#path=skills/gmns-validate
@@ -133,6 +133,7 @@ $ claude code skill add https://github.com/e-lo/netstead#path=skills/gmns-valida
 |---|---|
 | [`corral-validate`](https://github.com/e-lo/netstead/blob/main/skills/corral-validate/SKILL.md) | User has a Frictionless data package and wants to validate it. |
 | [`gmns-author`](https://github.com/e-lo/netstead/blob/main/skills/gmns-author/SKILL.md) | User wants to construct a GMNS network from scratch. |
+| [`gmns-build`](https://github.com/e-lo/netstead/blob/main/skills/gmns-build/SKILL.md) | User wants to build a GMNS network from OpenStreetMap (place / bbox / point + buffer). |
 | [`gmns-validate`](https://github.com/e-lo/netstead/blob/main/skills/gmns-validate/SKILL.md) | User wants to understand a GMNS validation / quality report. |
 | [`gmns-convert`](https://github.com/e-lo/netstead/blob/main/skills/gmns-convert/SKILL.md) | User wants to convert GMNS data between formats. |
 | [`gmns-clean`](https://github.com/e-lo/netstead/blob/main/skills/gmns-clean/SKILL.md) | User wants to edit / clean a network with rollback. |

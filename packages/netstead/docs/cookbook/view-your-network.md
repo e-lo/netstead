@@ -21,24 +21,30 @@ quality, graph topology, custom) as overlays — or none at all.
 
 ## Quick example
 
+Render the bundled Leavenworth fixture to a single HTML file. The renderer lives in `netstead.map`; nothing is overlaid because no issues are passed:
+
 ```python
 from netstead import Network
-from netstead.reports import render_network_html
+from netstead.fixtures import leavenworth
+from netstead.map import render_network_html
 
-net = Network.from_source("./my-network")
-open("net.html", "w").write(render_network_html(net, title="My network"))
+net = Network.from_source(leavenworth.csv_dir())
+open("net.html", "w").write(render_network_html(net, title="Leavenworth"))
 ```
 
 Open `net.html` in any browser. You'll see the link geometry as a thin
 underlay on a Leaflet base map. No overlay markers because no issues were
 passed.
 
-## Overlaying validation findings
+## Step-by-step
+
+### 1. Overlay validation findings
+
+`render_validation_html` takes the network and a `ValidationReport` and composes the map with the findings table — it is what `netstead validate --html` writes:
 
 ```python
-from netstead.reports import render_validation_html
+from netstead.map import render_validation_html
 
-net = Network.from_source("./my-network")
 report = net.validate()
 open("net.html", "w").write(render_validation_html(net, report))
 ```
@@ -47,7 +53,7 @@ Each finding becomes a clickable marker, colour-coded by severity. Cross-cutting
 findings (no row, no coords) appear in an "Unlocated findings" sidebar — still
 clickable for the row-sync.
 
-## Overlaying anything else
+### 2. Overlay anything else
 
 The renderer accepts a flat `list[Issue]`, so any `Issue` source plugs in
 without renderer changes:
@@ -68,10 +74,9 @@ open("net.html", "w").write(render_network_html(net, custom))
 ```
 
 GMNS-specific data-quality rules (`netstead.quality.*`) already produce
-`Issue` objects in this shape; graph-topology checks (`netstead.graph.*`)
-do too.
+`Issue` objects in this shape, so `run_quality(net).issues` drops straight in.
 
-## OpenStreetMap deep links
+### 3. OpenStreetMap deep links
 
 When the network has `osm_way_id` (and optionally `osm_node_id`) columns —
 as produced by `netstead build`, the OSM importer — each marker's popup
@@ -80,7 +85,7 @@ carries an "Edit in OSM" link straight to the iD editor at
 target the desktop JOSM editor instead (via its localhost
 RemoteControl plugin).
 
-## Variations
+## Common variations
 
 ??? note "Different base map"
     ```python
@@ -95,16 +100,26 @@ RemoteControl plugin).
     ```
 
 ??? note "From the CLI"
+    `netstead validate --html` writes this same page with the findings overlaid:
+
     ```bash
     netstead validate <source> --html report.html  # findings overlay
     ```
-    There is currently no `netstead view` CLI — for a no-findings network
-    map, call the Python function directly. (Tracked as a follow-up.)
+
+    For *interactive* viewing — linked map and table, validation, editing —
+    open the network in the Workbench instead; this renderer is for a
+    self-contained, offline HTML file you can send to someone:
+
+    ```bash
+    netstead app <source>
+    ```
+
+    See [Explore in the Workbench](workbench.md).
 
 ## Pitfalls
 
 * **Requires the `[reports]` extra.** `pip install 'netstead[reports]'`
-  (pulls in `jinja2` and `openpyxl`). Leaflet itself is vendored —
+  (pulls in `jinja2`, `openpyxl` and `pyyaml`). Leaflet itself is vendored —
   no internet required when the report is opened.
 * **No marker clustering yet.** Past a few thousand findings the Leaflet
   canvas slows down. Filter the issue list before passing it in.

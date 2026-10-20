@@ -1,0 +1,21 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "workbench-leavenworth",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": [
+        "run",
+        "--all-extras",
+        "netstead",
+        "app",
+        "packages/netstead/netstead/fixtures/leavenworth/csv",
+        "--provider",
+        "stub",
+        "--port",
+        "8850"
+      ],
+      "port": 8850
+    }
+  ]
+}

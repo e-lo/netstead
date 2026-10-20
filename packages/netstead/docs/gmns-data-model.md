@@ -1,3 +1,9 @@
+---
+title: GMNS data model
+audience: both
+kind: reference
+summary: Entity-relationship view of the GMNS tables — which tables reference which, and whether each relationship is required or optional.
+---
 
 # General Architecture of GMNS
 

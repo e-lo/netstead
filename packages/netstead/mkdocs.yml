@@ -65,6 +65,16 @@ plugins:
       type: date
       fallback_to_build_date: true
       enable_git_follow: false
+      # A page that is not committed yet has no git log. `strict: false`
+      # logs that at INFO rather than WARNING (which `mkdocs build
+      # --strict` would turn into a failed build). Sequential processing
+      # computes a page's first and last timestamps back to back, so an
+      # uncommitted page gets one fallback timestamp for both instead of
+      # two pool runs seconds apart ("First revision timestamp is older
+      # than last revision timestamp"). In CI every page is tracked, so
+      # neither path is taken there.
+      strict: false
+      enable_parallel_processing: false
   - mkdocstrings:
       handlers:
         python:
@@ -77,16 +87,22 @@ plugins:
             merge_init_into_class: true
   - macros                              # for the netstead spec macros (local_frictionless_spec, etc.)
   - mermaid2:
+      # The library is loaded by the plugin (only on pages with a diagram)
+      # rather than via `extra_javascript`, which the plugin deprecates.
+      version: 9.4.3
+      javascript: https://unpkg.com/mermaid@9.4.3/dist/mermaid.min.js
       arguments:
         theme: |
             ^(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light'
         securityLevel: 'loose'
   - htmlproofer:
+      # External URLs are not validated: github.com answers CI runners
+      # with 429 and some hosts block bots with 403, which would fail the
+      # strict build on network weather rather than on the docs. Internal
+      # links and anchors are still checked.
+      validate_external_urls: false
       raise_error_excludes:
         404: ['*']
-
-extra_javascript:
-  - https://unpkg.com/mermaid@9.4.3/dist/mermaid.min.js
 
 extra_css:
   - assets/stylesheets/extra.css
@@ -135,32 +151,50 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Quickstart: quickstart.md
+  - "Quickstart: Python": quickstart.md
+  - "Quickstart: Workbench": quickstart-workbench.md
+  - Install and troubleshoot: install.md
   - What is GMNS?: what-is-gmns.md
   - Visual tour: visual-tour.md
+  - Python tour: python-tour.md
+  - The Workbench and other tools: workbench-and-other-tools.md
+  - Status and roadmap: roadmap.md
+  - Changelog: changelog.md
   - Cookbook:
       - cookbook/index.md
-      - Validate a network: cookbook/validate-network.md
-      - Build from OpenStreetMap: cookbook/build-from-osm.md
-      - View a network on a map: cookbook/view-your-network.md
-      - Explore in the Workbench: cookbook/workbench.md
-      - Write a Workbench plugin: cookbook/workbench-plugins.md
-      - Local language models (Ollama): cookbook/local-llm-ollama.md
-      - Triage and fix findings: cookbook/fix-findings.md
-      - Query and update linked tables: cookbook/query-and-update.md
-      - Customise quality rules: cookbook/customise-quality.md
-      - Scope from seed nodes: cookbook/scope-from-nodes.md
-      - Edit with rollback: cookbook/edit-with-rollback.md
-      - Run the bench: cookbook/run-bench.md
-      - Self-host the HTTP server: cookbook/serve-http.md
-      - Wire up the MCP server: cookbook/serve-mcp.md
+      - Validate and fix:
+          - Validate a network: cookbook/validate-network.md
+          - Customise quality rules: cookbook/customise-quality.md
+          - Triage and fix findings: cookbook/fix-findings.md
+      - Build and scope:
+          - Build from OpenStreetMap or Overture: cookbook/build-from-osm.md
+          - Scope from seed nodes: cookbook/scope-from-nodes.md
+      - Query and edit:
+          - Query and update linked tables: cookbook/query-and-update.md
+          - Edit with rollback: cookbook/edit-with-rollback.md
+      - Workbench:
+          - Explore in the Workbench: cookbook/workbench.md
+          - Write a Workbench plugin: cookbook/workbench-plugins.md
+          - Local language models (Ollama): cookbook/local-llm-ollama.md
+      - Maps and reports:
+          - View a network on a map: cookbook/view-your-network.md
+      - Serve and automate:
+          - Self-host the HTTP server: cookbook/serve-http.md
+          - Wire up the MCP server: cookbook/serve-mcp.md
+          - Run the bench: cookbook/run-bench.md
   - Reference:
       - API: reference/api.md
+      - CLI: reference/cli.md
       - Schema: reference/spec.md
+      - GMNS development branch: spec-versions/development.md
+      - GMNS local spec (0.97): spec-versions/local.md
       - Table of tables: reference/table-of-tables.md
       - Glossary: reference/glossary.md
+      - Settings: reference/settings.md
+      - Workbench Actions: reference/workbench-actions.md
+      - Workbench HTTP API: reference/workbench-http-api.md
+      - MCP tools: ai/mcp-tools.md
+      - GMNS data model: gmns-data-model.md
   - Migration v0.3 → v1.0: migration/v0.3-to-v1.0.md
-  - MCP tools reference: ai/mcp-tools.md
-  - GMNS data model: gmns-data-model.md
   - "« Netstead umbrella": https://e-lo.github.io/netstead/
   - "corral site »": https://e-lo.github.io/netstead/corral/

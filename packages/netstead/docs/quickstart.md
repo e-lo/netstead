@@ -1,11 +1,13 @@
 ---
-title: Quickstart
+title: "Quickstart: Python"
 audience: users
 kind: howto
-summary: Install, load the bundled Leavenworth fixture, run validation + quality + scope in five minutes.
+summary: Install, load the bundled Leavenworth fixture, run validation + quality + scope from Python in five minutes.
 ---
 
-# Quickstart
+# Quickstart: Python
+
+Prefer a browser? → [Quickstart: the Workbench](quickstart-workbench.md) does the same work with no code.
 
 ## When to use this
 
@@ -16,7 +18,7 @@ You're new to `netstead` and want to see what it does on a real GMNS network bef
 The fastest way to confirm `netstead` is wired up correctly is to install it, load the bundled Leavenworth, WA fixture, and print a one-line summary. The whole sequence runs in under thirty seconds on a cold cache.
 
 ```bash
-pip install 'netstead[clean]'
+pip install 'netstead[clean,graph]'
 ```
 
 Then in Python:
@@ -41,37 +43,17 @@ You just loaded the bundled Leavenworth network through the default ibis + DuckD
 
 ### 1. Install
 
-The bare `netstead` install is enough for read-only validation. Add `[clean]` to unlock the geometry + connectivity ops the rest of this guide uses (brings in `shapely` + `igraph` + `pyproj`).
+The bare `netstead` install is enough for read-only validation. Add `[clean,graph]` to unlock the ops the rest of this guide uses: `[clean]` brings in `shapely` + `geopandas` + `pyproj` for the geometry edits; `[graph]` brings in `scipy` (+ `numpy` + `pandas`) for the scope graph, connected components, and the data-quality rule pack.
 
-=== "uv (recommended)"
+```bash
+uv add 'netstead[clean,graph]'
+```
 
-    ```bash
-    uv add 'netstead[clean]'
-    ```
-
-=== "uv pip"
-
-    ```bash
-    uv pip install 'netstead[clean]'
-    ```
-
-=== "pip"
-
-    ```bash
-    pip install 'netstead[clean]'
-    ```
-
-=== "pipx"
-
-    ```bash
-    pipx install 'netstead[clean]'
-    ```
-
-`corral` comes along as a transitive dependency — you don't install both packages. For the full list of extras (`server`, `mcp`, `notebook`, `all`) see the [install guide](index.md#optional-extras).
+`corral` comes along as a transitive dependency — you don't install both packages. For the other install tools (uv pip, pip, pipx), the full list of extras and what each pulls in, `netstead doctor`, and the zsh bracket-quoting rule, see [Install and troubleshoot](install.md).
 
 ### 2. Load the bundled fixture
 
-The fixture is a small real network (Leavenworth, WA — roughly 600 m of OSM-derived street grid) bundled inside the `netstead` wheel, so the example below runs without any download. `Network.from_source` accepts the same surface as `corral.Package.from_source`: local paths, URLs (`s3://`, `https://`, `duckdb://`), or directories of CSV / Parquet / DuckDB / zip-CSV.
+The fixture is a small real network (Leavenworth, WA — an OSM-derived street grid roughly 2 km across) bundled inside the `netstead` wheel, so the example below runs without any download. `Network.from_source` accepts the same surface as `corral.Package.from_source`: local paths, URLs (`s3://`, `https://`, `duckdb://`), or directories of CSV / Parquet / DuckDB / zip-CSV.
 
 ```python
 from netstead import Network
@@ -92,16 +74,14 @@ Expected:
 0.97: 339 links, 121 nodes
 ```
 
-In a Jupyter notebook, evaluating `net` on its own renders an HTML summary card with the spec version, table counts, and a thumbnail map.
+In a Jupyter notebook, evaluating `net` on its own renders an HTML summary card with the spec version, per-table row counts, and a preview of the first rows.
 
-#### Outputs
-
-![Network summary card for the Leavenworth fixture](assets/screenshots/leavenworth-network-card.png){ .screenshot }
-*Network summary card (`net._repr_html_()` rendered in a notebook). Shows spec version, table inventory with row counts, and a thumbnail of the link geometry.*
+![Network summary card](assets/screenshots/leavenworth-network-card.png){ .screenshot }
+*Network summary card (net._repr_html_() in a notebook) — spec version, table inventory with row counts, first-rows preview*
 
 ### 3. Validate against the spec
 
-Validation runs four passes in a single call: **structural** (required tables and files), **schema** (per-field types and constraints), **foreign-key** (cross-table integrity), and **sync-state** (have any FKs gone stale since a previous edit?). The Leavenworth fixture is clean by construction, so you should see zero ERROR-severity findings.
+Validation runs four passes in a single call: **structural** (required tables and files), **schema** (per-field types and constraints), **foreign-key** (cross-table integrity), and **sync-state** (have any FKs gone stale since a previous edit?). The Leavenworth fixture has no ERRORs, but it is not spotless: expect 16 INFO findings (`structural.missing_optional_resource`, one per optional GMNS table the fixture doesn't ship) and 1 WARNING (`fk.unverifiable`: `node.zone_id` can't be checked because there is no `zone` table). That WARNING is why `report.is_clean` is `False` — `is_clean` means no ERRORs *and* no WARNINGs.
 
 ```python
 report = net.validate()
@@ -110,14 +90,12 @@ print(f"issues: {len(report.issues)} ({report.spec_version})")
 
 In a notebook, `report` on its own renders an HTML card grouped by severity.
 
-#### Outputs
-
-![Validation report card for the Leavenworth fixture](assets/screenshots/leavenworth-validation-report.png){ .screenshot }
-*Validation report card (`report._repr_html_()` rendered in a notebook). Zero ERRORs since Leavenworth is clean; a few DATA_QUALITY warnings from the residential-speed rule.*
+![Validation report card](assets/screenshots/leavenworth-validation-report.png){ .screenshot }
+*Validation report card (report._repr_html_() in a notebook) — 0 ERRORs, 1 WARNING fk.unverifiable, 16 INFO structural.missing_optional_resource*
 
 ### 4. Run data-quality checks
 
-The data-quality rule pack covers things the spec is silent on but every real network gets wrong sooner or later — high-speed-residential, lane-count mismatch, sharp-angle bends, near-duplicate nodes, disconnected components, implausible v/c ratios, missing critical fields. Findings come back as WARNING or INFO by default.
+The data-quality rule pack covers things the spec is silent on but every real network gets wrong sooner or later — high-speed-residential, lane-count mismatch, sharp-angle bends, near-duplicate nodes, disconnected components, implausible v/c ratios, missing critical fields. Findings come back as WARNING or INFO by default and carry `category=DATA_QUALITY`. The rule pack needs the `[graph]` extra. On Leavenworth, `quality.high_speed_residential` fires on 271 residential links whose `free_speed` is 40 — above the default 35 mph threshold.
 
 ```python
 from corral.quality import run_quality
@@ -127,10 +105,8 @@ for issue in qreport.issues[:5]:
     print(f"  {issue.severity.value:9} {issue.code:35} {issue.message[:60]}")
 ```
 
-#### Outputs
-
-![Quality report card for the Leavenworth fixture](assets/screenshots/leavenworth-quality-report.png){ .screenshot }
-*Quality report card (`qreport._repr_html_()` rendered in a notebook). Severity-grouped findings — Leavenworth's tertiary streets with 25-30 mph posted speeds trip the `quality.high_speed_residential` rule when configured with a low threshold.*
+![Quality report card](assets/screenshots/leavenworth-quality-report.png){ .screenshot }
+*Quality report card (qreport._repr_html_() in a notebook) — 271 WARNING quality.high_speed_residential findings on residential links with free_speed=40 at the default 35 mph threshold*
 
 ### 5. Scope to a subgraph
 
@@ -144,12 +120,14 @@ scoped = from_node(net, 1, network_buffer="200m").apply()
 print(f"scoped: {scoped.links.count()} links, {scoped.nodes.count()} nodes")
 ```
 
-That's a 200-metre Dijkstra-bounded buffer around node 1.
+That's a 200-metre Dijkstra-bounded buffer around node 1. Expected:
 
-#### Outputs
+```text
+scoped: 8 links, 5 nodes
+```
 
-![Scoped subgraph rendered next to the full Leavenworth network](assets/screenshots/leavenworth-scoped-map.png){ .screenshot }
-*Scope visualisation. The 200 m network-distance buffer around node 1 (highlighted green) over the full Leavenworth network (grey context). Spatially nearby links that are only reachable via long detours fall outside the buffer.*
+![Scoped subgraph](assets/screenshots/leavenworth-scoped-map.png){ .screenshot }
+*Scoped subgraph (200 m network buffer around node 1, green) over the full Leavenworth network (grey context)*
 
 ### 6. Or run the same thing from the CLI
 
@@ -161,6 +139,8 @@ netstead validate packages/netstead/netstead/fixtures/leavenworth/csv
 netstead quality packages/netstead/netstead/fixtures/leavenworth/csv
 netstead scope from-node packages/netstead/netstead/fixtures/leavenworth/csv 1 --network-buffer 200m
 ```
+
+`quality` and `scope` need the `[graph]` extra; `info` and `validate` run on the bare install.
 
 By default `netstead` prints colorized tables and panels for humans. Add `--json` and you get a single machine-readable JSON document on stdout instead — useful for scripting, CI checks, or feeding the output to an AI agent.
 
@@ -176,26 +156,27 @@ Each accordion below is one alternative to the defaults used above. The first (m
     The vendored versions are 0.95, 0.96, and 0.97; default is 0.97. Networks load against the version they were written against — no silent upgrades.
 
     ```python
-    net = Network.from_source(path, spec_version="0.96")
+    net = Network.from_source(leavenworth.csv_dir(), spec_version="0.96")
     ```
 
-??? note "Switch the backend engine to pandas"
-    Default is `IbisEngine` (lazy, DuckDB-backed). Switch to pandas when you need eager evaluation or DataFrame ergonomics for downstream code.
+??? note "Get a pandas (or polars) frame"
+    DuckDB (via ibis) is the only compute engine, and every table stays lazy until you ask. When downstream code wants a DataFrame, materialise just that table with `.to_pandas()` or `.to_polars()`.
 
     ```python
-
-    net = Network.from_source(path)
+    links_df = net.links.to_pandas()
     ```
 
 ??? note "Read from S3 with credentials"
     Credentials resolve via a cascade: keyword arg → `CORRAL_CRED_<host>_TOKEN` env var → OS keyring → `.netrc`. No code changes if your environment is already set up.
+<!-- doctest: skip -->
 
     ```python
     net = Network.from_source("s3://bucket/network/")
     ```
 
 ??? note "Write the scoped network out"
-    The output format follows the file extension — `.parquet`, `.duckdb`, or a directory for CSV.
+    The output format follows the destination: an extension-less path or `.parquet` writes a directory of GeoParquet files (one per table); `.csv` writes a CSV directory; `.duckdb` writes a single DuckDB file; `.zip` writes zipped CSV.
+<!-- doctest: skip -->
 
     ```python
     scoped.write("./scoped.parquet")
@@ -219,13 +200,14 @@ Each accordion below is one alternative to the defaults used above. The first (m
 
 ## Pitfalls
 
-* **Auto-build of the graph index on large networks.** The first `from_node` or `connected_component` call on a network larger than ~50k nodes silently builds the igraph adjacency. Pre-build with `net.build_indexes(graph=True)` if you want to control the timing, or set `NETSTEAD_AUTO_INDEX_THRESHOLD` to raise the silent-build bar.
+* **Auto-build of the graph index on large networks.** The first `from_node` or `connected_component` call on a network larger than 50k nodes builds the scipy `GMNSGraph` adjacency on the spot and logs an INFO notice. Pre-build with `net.build_indexes(graph=True)` if you want to control the timing, or set `NETSTEAD_AUTO_INDEX_THRESHOLD` to raise the auto-build bar.
 * **Duplicate-near-nodes default threshold is tight** (`epsilon_units=1e-5`). Networks in WGS84 degrees barely trigger it; networks in projected meters need an explicit threshold via `RuleConfig`.
-* **Editing requires a `Session`.** Don't mutate tables directly — open `with corral.editing.Session(net) as s:` and pass `s` into the `netstead.clean.*` ops. The cookbook recipe walking through this is being filled in this wave.
+* **Editing requires a `Session`.** Don't mutate tables directly — open `with corral.editing.Session(net) as s:` and pass `s` into the `netstead.clean.*` ops. See [Edit a network with atomic rollback](cookbook/edit-with-rollback.md).
 
 ## See also
 
 * [Cookbook](cookbook/index.md) — task-oriented recipes for the common workflows.
-* [Visual tour](visual-tour.md) — see every step above rendered as maps, cards, and diffs in a notebook.
+* [Python tour (notebook)](python-tour.md) — see every step above rendered as maps, cards, and diffs in a notebook.
+* [Visual tour](visual-tour.md) — the same network in the browser Workbench, screen by screen.
 * [API reference](reference/api.md) — every symbol you saw above.
 * [Architecture](https://e-lo.github.io/netstead/corral/architecture/) — design rationale for the defaults.

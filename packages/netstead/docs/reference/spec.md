@@ -1,6 +1,15 @@
+---
+title: Schema reference
+audience: both
+kind: reference
+summary: Field-level GMNS schema — every table and column of the official spec's master branch, rendered at build time (vendored 0.97 when offline).
+---
+
 # Official GMNS Specification
 
 The GMNS specification is managed in the following Github repo: <https://github.com/zephyr-data-specs/GMNS>
+
+This page renders the upstream `master` branch of that repository at docs build time: the macro fetches `Specification_md/datapackage.json` from GitHub and tabulates each resource and its schema. When the fetch fails (offline build, GitHub unreachable) it logs a warning and falls back to the vendored 0.97 spec at `packages/netstead/netstead/spec/0.97/`, so the tables below may be the vendored copy rather than the live branch.
 
 | **GMNS Version** | **Description** |
 | ----- | ----- |

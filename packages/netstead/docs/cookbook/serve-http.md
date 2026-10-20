@@ -9,7 +9,7 @@ summary: Run the FastAPI server with bearer-token auth, configure packages, and 
 
 ## When to use this
 
-You want HTTP access to your GMNS networks — for dashboards, non-Python consumers, or a small team sharing a single curated set of packages. The server is read-only and stateless.
+You want HTTP access to your GMNS networks — for dashboards, non-Python consumers, or a small team sharing a single curated set of packages. The server is read-only: it serves metadata, the resolved spec, validation reports and quality reports, never edits.
 
 ## Quick example
 
@@ -20,8 +20,8 @@ Write a minimal config that binds localhost on port 8000, requires a bearer toke
 bind: 127.0.0.1
 port: 8000
 auth:
-  mode: bearer
-  token_hash: "$argon2id$v=19$..."   # generate via generate_dev_token
+  kind: bearer
+  token: "paste-the-output-of-generate_dev_token-here"
 packages:
   - id: leavenworth
     source: packages/netstead/netstead/fixtures/leavenworth/csv
@@ -44,32 +44,31 @@ INFO:     Uvicorn running on http://127.0.0.1:8000
 
 ### 1. Install the `[server]` extra
 
-Brings in FastAPI + uvicorn + the auth dependencies:
+`[server]` brings in FastAPI, uvicorn and pydantic-settings. Add `[graph]` as well if you want `/networks/{id}/quality` — the GMNS rule pack's connectivity rule needs scipy:
 
 ```bash
-pip install 'netstead[server]'
+pip install 'netstead[server,graph]'
 ```
 
 ### 2. Generate a dev token
 
-The dev-token helper prints both the raw token (which clients use) and the Argon2 hash (which the server stores). The raw token is never persisted server-side:
+`generate_dev_token()` returns one URL-safe random string (`secrets.token_urlsafe(32)`). The same string goes into the config and into every client's `Authorization` header — the server stores it as given, it does not hash it:
 
 ```bash
 python -c "from corral.api import generate_dev_token; print(generate_dev_token())"
 ```
 
-Expected:
+Expected (yours will differ):
 
 ```text
-token:     7yK3-...-Q9p
-token_hash: $argon2id$v=19$m=65536,t=3,p=4$...
+D--IvW8W34gDhwRQC2D9ro9mhSEfPXsPX8XnBV8UUaU
 ```
 
-Save the raw `token` somewhere safe; paste `token_hash` into your config.
+Paste it into `auth.token` in your config and keep it with the same care as any other shared secret.
 
 ### 3. Write a config YAML
 
-A config declares network bind, auth mode, and one entry per exposed package. Sources accept any path or URL that `Network.from_source` accepts:
+A config is one `ServerSettings` document (`corral.api.config`): `bind`, `port`, an `auth` block and a `packages` list. Each package has a URL-safe `id`, a `source` that `Network.from_source` accepts, and an optional `description` echoed by `/networks`. There are no per-package engine or spec-version keys and no logging section — the spec version is detected from the data, and logging is uvicorn's:
 
 ```yaml
 # server.yaml
@@ -77,23 +76,22 @@ bind: 127.0.0.1      # 0.0.0.0 to accept off-host requests (see pitfalls)
 port: 8000
 
 auth:
-  mode: bearer       # or "none" — see pitfalls
-  token_hash: "$argon2id$v=19$..."
+  kind: bearer       # or "none" — see pitfalls
+  token: "paste-the-output-of-generate_dev_token-here"
 
 packages:
   - id: leavenworth
     source: packages/netstead/netstead/fixtures/leavenworth/csv
+    description: Bundled Leavenworth, WA fixture (GMNS 0.97)
   - id: regional
     source: s3://my-bucket/regional/datapackage.json
-    # optional: spec_version, engine, credentials cascade
-
-logging:
-  level: INFO
 ```
+
+JSON works too (`--config server.json`). YAML parsing uses `pyyaml`, which `uvicorn[standard]` (part of the `[server]` extra) already installs.
 
 ### 4. Run it + verify
 
-Start the server, then hit `/health` (the unauthenticated liveness probe) to confirm it's up:
+Start the server, then hit `/health` (the unauthenticated liveness probe) to confirm it's up. `--bind` / `--port` override the config for a one-off run:
 
 ```bash
 netstead server run --config server.yaml
@@ -106,28 +104,40 @@ curl http://127.0.0.1:8000/health
 Expected:
 
 ```json
-{"status": "ok", "version": "1.0.0"}
+{"status": "ok"}
 ```
 
 ### 5. Make authenticated requests
 
-Pass the raw token from step 2 as a bearer header. The server returns JSON by default and HTML when the request sets `Accept: text/html`:
+Pass the token from step 2 as a bearer header. Every response is JSON, whatever `Accept` header the client sends. `/networks` is the cheap listing — it echoes the config without loading anything:
 
 ```bash
-TOKEN="7yK3-...-Q9p"
+TOKEN="paste-the-output-of-generate_dev_token-here"
 curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8000/networks
 ```
 
 Expected:
 
 ```json
-[{"id": "leavenworth", "spec_version": "0.97", "link_count": 339, ...}]
+[{"id": "leavenworth", "source": "packages/netstead/netstead/fixtures/leavenworth/csv", "description": "Bundled Leavenworth, WA fixture (GMNS 0.97)"}]
 ```
 
-Run quality checks with a POST:
+Counts and the spec version are on the per-network endpoint, which loads the package on first access:
 
 ```bash
-curl -H "Authorization: Bearer $TOKEN" \
+curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8000/networks/leavenworth
+```
+
+Expected:
+
+```json
+{"id": "leavenworth", "name": "gmns", "spec_version": "0.97", "engine": "IbisEngine", "links": 339, "nodes": 121, "table_count": 9, "tables": ["geometry", "lane", "link", "link_tod", "node", "signal_controller", "time_set_definitions", "use_definition", "use_group"]}
+```
+
+Quality checks are a `POST` (a `GET` returns `405 Method Not Allowed`). The body is the same `ValidationReport.to_dict()` shape the CLI's `--json` emits:
+
+```bash
+curl -X POST -H "Authorization: Bearer $TOKEN" \
      http://127.0.0.1:8000/networks/leavenworth/quality
 ```
 
@@ -135,14 +145,14 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 | Endpoint | Returns |
 |---|---|
-| `GET /health` | liveness probe (no auth) |
-| `GET /packages` | configured packages |
-| `GET /packages/{id}` | one package's metadata |
-| `GET /packages/{id}/spec` | Frictionless spec JSON |
-| `POST /packages/{id}/validate` | full validation report |
-| `GET /networks` | GMNS networks only |
-| `GET /networks/{id}` | GMNS metadata + counts |
-| `POST /networks/{id}/quality` | runs the GMNS rule pack |
+| `GET /health` | `{"status": "ok"}` (no auth) |
+| `GET /packages` | `[{id, source, description}]` — configured packages, nothing loaded |
+| `GET /packages/{id}` | `{id, name, engine, table_count, tables: [{name, rows, columns}]}` |
+| `GET /packages/{id}/spec` | resolved Frictionless `datapackage.json` |
+| `POST /packages/{id}/validate` | full validation report (`ValidationReport.to_dict()`); packages are loaded as `Network`s, so this is GMNS validation with `spec_version` set |
+| `GET /networks` | same listing as `/packages` |
+| `GET /networks/{id}` | `{id, name, spec_version, engine, links, nodes, table_count, tables}` |
+| `POST /networks/{id}/quality` | the GMNS rule pack as a validation report (needs `[graph]`) |
 
 Interactive OpenAPI at `http://127.0.0.1:8000/docs`.
 
@@ -153,7 +163,7 @@ Interactive OpenAPI at `http://127.0.0.1:8000/docs`.
 
     ```yaml
     bind: 127.0.0.1
-    auth: { mode: bearer, token_hash: "$argon2id$..." }
+    auth: { kind: bearer, token: "..." }
     ```
 
 ??? note "Off-host access (LAN, etc.)"
@@ -161,7 +171,7 @@ Interactive OpenAPI at `http://127.0.0.1:8000/docs`.
 
     ```yaml
     bind: 0.0.0.0
-    auth: { mode: bearer, token_hash: "$argon2id$..." }
+    auth: { kind: bearer, token: "..." }
     ```
 
 ??? note "Behind nginx / Caddy"
@@ -172,23 +182,15 @@ Interactive OpenAPI at `http://127.0.0.1:8000/docs`.
     port: 8000
     ```
 
-??? note "Multiple tokens (one per client)"
-    Use the plural `token_hashes:` form; clients still pass a single bearer header.
-
-    ```yaml
-    auth:
-      mode: bearer
-      token_hashes:
-        - "$argon2id$...client-a..."
-        - "$argon2id$...client-b..."
-    ```
+??? note "One token per client"
+    The config holds exactly one `auth.token`. To give each client its own credential, run one server process (and config) per client, or put an authenticating reverse proxy in front and let it hold the per-client secrets.
 
 ??? note "Disable auth (dev only)"
-    Server refuses to start unless bound to localhost.
+    The server still starts on a public bind with `kind: none` — it only logs a warning (see pitfalls) — so pair this with a localhost bind.
 
     ```yaml
     bind: 127.0.0.1
-    auth: { mode: none }
+    auth: { kind: none }
     ```
 
 ??? note "Docker"
@@ -206,20 +208,21 @@ Interactive OpenAPI at `http://127.0.0.1:8000/docs`.
 
     ```dockerfile
     FROM python:3.12-slim
-    RUN pip install 'netstead[server]'
+    RUN pip install 'netstead[server,graph]'
     COPY server.yaml /etc/netstead/server.yaml
     CMD ["netstead", "server", "run", "--config", "/etc/netstead/server.yaml"]
     ```
 
 ## Pitfalls
 
-* **`auth: none` + non-localhost bind is a security footgun.** The server logs a loud `SECURITY WARNING` at startup and refuses to start unless you also set `auth.allow_unauthenticated_remote: true` in the config — don't.
-* **Bearer tokens are compared via constant-time HMAC** against the stored Argon2 hash. Don't compare raw tokens elsewhere in your stack.
-* **Stateless server, lazy engine.** Each request loads the package fresh through the lazy ibis engine. Big networks may want a connection pool / cache layer in front; the server doesn't ship one.
-* **No write endpoints.** The HTTP server is read-only by design. For editing, use the Python API + `Session`, or wait for the deferred write surface.
+* **`auth.kind: none` + non-localhost bind is a security footgun.** The server logs a `corral.api: auth.kind='none' with bind='0.0.0.0' exposes the server with NO authentication` warning at startup and then runs anyway — there is no refuse-to-start guard and no override key. Treat the warning as a stop sign.
+* **Bearer mode needs a token.** `kind: bearer` without `auth.token` fails at app build time (`AuthSettings(kind='bearer') requires token to be set`), so a misconfigured server never silently lets requests through.
+* **Tokens are compared in constant time, as plaintext.** The server holds the token string from the config and checks the incoming `Authorization: Bearer …` header against it with `hmac.compare_digest`. There is no hashing — protect the config file as you would the token itself.
+* **Packages are cached after first load.** The `PackageRegistry` loads each package through `Network.from_source` the first time its id is requested and keeps it for the life of the process. Edit the files on disk, or the config, and you need to restart the server to see the change.
+* **No write endpoints.** The HTTP server is read-only by design. For editing, use the Python API + `Session`, or the Workbench.
 
 ## See also
 
 * [Wire the MCP server to Claude Code / Claude Desktop](serve-mcp.md) — same data, stdio transport.
 * [MCP tools reference](../ai/mcp-tools.md) — what the MCP surface exposes.
-* [API reference](../reference/api.md) — `corral.api.generate_dev_token`, server config schema.
+* [corral API reference](https://e-lo.github.io/netstead/corral/reference/api/) — `corral.api.ServerSettings`, `AuthSettings`, `PackageRef`, `generate_dev_token`, `load_settings`.
