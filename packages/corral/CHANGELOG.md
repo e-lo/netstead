@@ -8,6 +8,57 @@ This file is for the **corral** package only. `netstead` (which depends on corra
 
 ### Added
 
+- **`ResourceRef.table_schema`** (JSON key `schema`): the resource's schema
+  when a scan already knows it, so consumers need not reopen the source.
+  `ZipCsvAdapter.scan` fills it from inline schemas in the zip's own
+  `datapackage.json` (what `Package.write` produces); a schema given by
+  reference is not fetched. Other adapters leave it `None`.
+- **`corral.dataset.infer_write_format(dest, format=None)`**: the format
+  `Package.write` will use for `dest` (explicit `format` wins, `"zip"` means
+  `"zipcsv"`, else the extension, else parquet). `corral convert` and
+  `netstead.Network.write` now call it instead of keeping their own copies,
+  which fixes the `convert` summary reporting `"unknown"` for a `.zip`
+  destination and `"zip"` for `--format zip`.
+
+### Changed
+
+- **Adapters decide how a package lands on disk.** `Package.write` no
+  longer branches per format: it stages the write and calls the new
+  `corral.io.write_package`, which uses the adapter's optional
+  `write_package(tables, dest, engine, *, describe)` (protocol
+  `corral.io.PackageWriter`). The csv, parquet, duckdb and zipcsv adapters
+  implement it with the same layouts as before; an adapter without it gets
+  one `dest/<table>` location per table. Zip writes now go through the same
+  staging and swap as every other format, so replacing an existing
+  directory with a zip is no longer a delete-then-rename.
+- **`register_adapter` refuses collisions.** Registering a different adapter
+  class under a taken name, or claiming an extension or URL scheme another
+  adapter owns, now raises `DuplicateAdapterError` (a `FormatError`) instead
+  of silently overwriting. Pass `replace=True` to override on purpose.
+  Re-registering the same class still just replaces the instance.
+- **`dispatch` logs a probe that raises.** The probe chain still skips an
+  adapter whose `probe()` raises, but now says so at DEBUG on the
+  `corral.io` logger (adapter name and error; URL userinfo is masked).
+- **An unreadable netrc file is reported.** The credentials cascade used to
+  skip a `.netrc` (or `$NETRC`) it could not read, such as one with the
+  wrong permissions, without a word. It still skips it, but logs a warning
+  naming the file and the host. A missing or unparsable netrc is still
+  silent.
+- **Tests run against the stock adapter registry.** A new private
+  `corral.io._reset_registry()` restores the five stock adapters and their
+  bindings; one autouse fixture in `tests/io/conftest.py` calls it around every io
+  test, replacing the per-file re-registration workarounds.
+
+### Fixed
+
+- **Partitioned parquet writes stream.** `ParquetAdapter.write(...,
+  partition_by=[...])` collected the whole table through pandas before
+  writing, which runs out of memory on a regional network. It now streams
+  the expression's Arrow record batches into pyarrow's dataset writer.
+- **`DUCKDB://` URLs open the right file.** Dispatch and `probe` treat the
+  `duckdb://` scheme case-insensitively, but the adapter stripped only the
+  lowercase spelling, so `DUCKDB:///abs/x.duckdb` was handed to duckdb as a
+  literal path. The scheme is now stripped with `urlparse`.
 - **`Engine.to_arrow(expr)` (#116).** The protocol gains an Arrow
   converter beside `to_pandas` / `to_polars`; `IbisEngine.to_arrow` runs
   `to_pyarrow` with no pandas hop, so `to_arrow(from_arrow(t))` equals `t`.

@@ -22,17 +22,18 @@ Design notes for adapter implementers:
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
+from corral.spec.model import Schema
 from corral.types import SourceRef
 
 if TYPE_CHECKING:
-    # These live in sibling modules that may import from io/. Type-only
-    # imports break the circular dependency.
+    # engines imports from io/. A type-only import breaks the cycle.
     from corral.engines.base import Engine, TableExpr  # pragma: no cover
-    from corral.spec.model import Schema  # pragma: no cover
 
 
 # ---------------------------------------------------------------------------
@@ -71,6 +72,13 @@ class ResourceRef(BaseModel):
         member: The selector to pass as ``table=`` to
             ``container_adapter``. When set, ``path`` is exactly
             ``f"{container}::{member}"``.
+        table_schema: The resource's schema, when the adapter already
+            knows it from the source itself (a zip's own
+            ``datapackage.json`` with inline schemas), so a consumer need
+            not reopen the source to find it. ``None`` means "not known
+            from the scan", not "no schema". Spelled ``schema`` in JSON
+            and accepted under either name, like
+            :attr:`corral.spec.model.Resource.table_schema`.
     """
 
     name: str = Field(..., description="Logical resource name (table name).")
@@ -78,6 +86,9 @@ class ResourceRef(BaseModel):
     format: str = Field(..., description="Short adapter identifier.")
     container_adapter: str | None = Field(default=None, description="Adapter owning the container, if any.")
     member: str | None = Field(default=None, description="Member selector within the container, if any.")
+    table_schema: Schema | None = Field(
+        default=None, alias="schema", description="Schema known from the source itself, if any."
+    )
 
     @property
     def container(self) -> str | None:
@@ -86,7 +97,7 @@ class ResourceRef(BaseModel):
             return None
         return self.path.removesuffix(f"::{self.member}")
 
-    model_config = {"frozen": True}
+    model_config = ConfigDict(frozen=True, populate_by_name=True)
 
 
 ResourceListing = list[ResourceRef]
@@ -211,6 +222,48 @@ class FormatAdapter(Protocol):
         ...
 
 
+DescriptorFactory = Callable[[str], dict[str, Any]]
+"""Builds a package's ``datapackage.json`` descriptor for a member format.
+
+Passed to :meth:`PackageWriter.write_package`. The argument is the format of
+the files the adapter writes (``"csv"`` for the members of a csv zip); the
+result describes ``<table>.<format>`` resources with inlined schemas. The
+caller owns the spec, the adapter owns whether and where a descriptor goes.
+"""
+
+
+@runtime_checkable
+class PackageWriter(Protocol):
+    """Optional extension of :class:`FormatAdapter`: write a whole package at once.
+
+    How a multi-table package lands on disk (a directory of files, one
+    multi-table file, a zip) is the adapter's decision. An adapter that
+    implements ``write_package`` makes it; one that does not gets the
+    default of :func:`corral.io.write_package` (one ``dest / <table>``
+    location per table through ``write``).
+    """
+
+    def write_package(
+        self,
+        tables: Mapping[str, TableExpr],
+        dest: Path,
+        engine: Engine,
+        *,
+        describe: DescriptorFactory,
+    ) -> None:
+        """Write every table in ``tables`` to the new location ``dest``.
+
+        Args:
+            tables: ``{table name: expression}``, in package order.
+            dest: Where the package goes. Nothing exists there yet:
+                ``Package.write`` stages the write and swaps it into place.
+            engine: The engine performing the writes.
+            describe: Builds the ``datapackage.json`` descriptor for a
+                member format; call it only if the layout carries one.
+        """
+        ...
+
+
 # ---------------------------------------------------------------------------
 # Exception hierarchy
 # ---------------------------------------------------------------------------
@@ -251,12 +304,24 @@ class InvalidAdapterError(FormatError):
     """
 
 
+class DuplicateAdapterError(FormatError):
+    """A registration would displace an adapter that is already registered.
+
+    Raised by ``register_adapter`` when a different adapter class already
+    holds the name, or another adapter owns one of the extensions or URL
+    schemes. Pass ``replace=True`` to override deliberately.
+    """
+
+
 __all__ = [
     "AdapterNotAvailableError",
+    "DescriptorFactory",
+    "DuplicateAdapterError",
     "FormatAdapter",
     "FormatError",
     "FormatNotDetected",
     "InvalidAdapterError",
+    "PackageWriter",
     "ResourceListing",
     "ResourceRef",
     "SourceRef",

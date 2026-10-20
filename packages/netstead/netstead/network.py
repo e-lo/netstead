@@ -263,12 +263,12 @@ class Network(Package):
         """
         from dataclasses import replace
 
-        from corral.dataset.package import _resolve_write_format
+        from corral.dataset import infer_write_format
 
         from netstead._geometry import decode_geometry_to_wkt
 
         try:
-            target_format = _resolve_write_format(Path(dest), format)
+            target_format = infer_write_format(dest, format)
         except Exception:
             target_format = None  # let Package.write raise the canonical error
         if target_format in {"csv", "zipcsv"}:

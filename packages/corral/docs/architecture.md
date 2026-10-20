@@ -155,6 +155,9 @@ netstead/
 
 - **I/O front door:** `corral.read(source, *, format=None, credentials=None, engine=None, scope=None, spec=None, tables=None)`. `netstead.read(source, *, engine=None, spec_version=None, tables=None)` wraps it with the vendored GMNS spec.
 - **Format detection:** explicit `format=` overrides; else extension sniff (`.parquet`, `.csv`, `.csv.zip`, `.zip`, `.duckdb`); else `FormatAdapter.probe()` chain.
+- **Adapter registration refuses collisions.** `register_adapter` raises `DuplicateAdapterError` when a different adapter class already holds the name, or another adapter owns one of its extensions or URL schemes; `replace=True` overrides on purpose. Re-registering the same class (a module reload) just replaces the instance.
+
+    *Why refuse rather than overwrite?* Adapters from third-party packages (entry-point discovery, when it lands) load in an order nobody controls. Silent overwrite would let that order decide which package reads `.xlsx`; an error at import names both parties.
 - **Defaults:** API/URL downloads default to **DuckDB**; persistent local writes default to a **Parquet directory** — an extension-less or `.parquet` destination gets one GeoParquet file per table (`link.parquet`, `node.parquet`, ...), no `datapackage.json`. Hive partitioning is opt-in via `ParquetAdapter.write(expr, dest, engine, partition_by=[...])`; `Package.write` does not partition by default.
 
     *Why partitioned Parquet for persistent writes?* A single Parquet file works until the network grows past laptop-memory scale, at which point you want partition pruning on bbox / zone scope ops — the dispatcher pushes the predicate down and only reads the relevant partitions. CSV loses dtypes, has no predicate pushdown, isn't splittable, and balloons disk footprint. A single `.duckdb` file is great for downloads but not for modelling tool interop: every GIS tool reads Parquet natively, very few read DuckDB. Partitioned Parquet is the only format that is columnar, splittable, predicate-pushdown-friendly, and readable by every downstream tool a modeller might use.
@@ -193,6 +196,14 @@ place:
   `from_records` / `read_duckdb_table` before delegating.
 - **`Engine.write(expr, dest, fmt)` is symmetric** — a 3-line
   convenience over `corral.io.get_adapter(fmt).write`.
+
+- **Adapters own package layout too.** `Package.write` stages the
+  write and hands every table to `corral.io.write_package`, which calls
+  the adapter's optional `write_package` (the `PackageWriter`
+  protocol): csv / parquet write a directory plus `datapackage.json`,
+  duckdb one multi-table file, zipcsv one zip. An adapter without it
+  gets one `dest/<table>` location per table. `Package.write` has no
+  per-format branches.
 
 This means a new format (xlsx, geoparquet, …) is added by writing one
 `FormatAdapter` plus a `read_<format>` primitive on the DuckDB engine —

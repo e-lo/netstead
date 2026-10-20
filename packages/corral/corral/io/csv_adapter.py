@@ -35,10 +35,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from corral.io import register_adapter
+from corral.io._package import write_flat_package
 from corral.io.base import ResourceListing, ResourceRef, SourceRef
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
+    from collections.abc import Mapping
+
     from corral.engines.base import Engine, TableExpr
+    from corral.io.base import DescriptorFactory
     from corral.spec.model import Schema
 
 
@@ -209,6 +213,17 @@ class CsvAdapter:
     # ------------------------------------------------------------------
     # scan
     # ------------------------------------------------------------------
+
+    def write_package(
+        self,
+        tables: Mapping[str, TableExpr],
+        dest: Path,
+        engine: Engine,
+        *,
+        describe: DescriptorFactory,
+    ) -> None:
+        """Write a directory: one ``<table>.csv`` per table plus a ``datapackage.json``."""
+        write_flat_package(self, tables, dest, engine, describe=describe)
 
     def scan(self, source: SourceRef, engine: Engine | None = None) -> ResourceListing:
         """Enumerate the resources at ``source``.

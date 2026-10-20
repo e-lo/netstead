@@ -127,3 +127,68 @@ def test_probe_exception_treated_as_non_match() -> None:
         assert dispatch("magic://x").name == "fuzzy"
     finally:
         _clear_registry()
+
+
+def test_probe_exception_is_logged_at_debug(caplog) -> None:
+    """A probe that raises is skipped, but the failure is visible at DEBUG for whoever debugs the adapter."""
+    import logging
+
+    _clear_registry()
+
+    class ExplodingAdapter(FuzzyAdapter):
+        name = "boom"
+
+        def probe(self, source):
+            raise RuntimeError("kaboom")
+
+    register_adapter(ExplodingAdapter())
+    register_adapter(FuzzyAdapter())
+
+    with caplog.at_level(logging.DEBUG, logger="corral.io"):
+        assert dispatch("magic://x").name == "fuzzy"
+
+    [record] = [r for r in caplog.records if "boom" in r.getMessage()]
+    assert record.levelno == logging.DEBUG
+    assert "kaboom" in record.getMessage()
+
+
+def test_probe_exception_is_silent_above_debug(caplog) -> None:
+    import logging
+
+    _clear_registry()
+
+    class ExplodingAdapter(FuzzyAdapter):
+        name = "boom"
+
+        def probe(self, source):
+            raise RuntimeError("kaboom")
+
+    register_adapter(ExplodingAdapter())
+    register_adapter(FuzzyAdapter())
+
+    with caplog.at_level(logging.INFO, logger="corral.io"):
+        dispatch("magic://x")
+
+    assert caplog.records == []
+
+
+def test_probe_exception_log_hides_url_userinfo(caplog) -> None:
+    """A probe error that echoes a ``user:secret@`` URL must not put the secret in the log."""
+    import logging
+
+    _clear_registry()
+
+    class LeakyAdapter(FuzzyAdapter):
+        name = "leaky"
+
+        def probe(self, source):
+            raise ValueError(f"cannot open {source}")
+
+    register_adapter(LeakyAdapter())
+    register_adapter(FuzzyAdapter())
+
+    with caplog.at_level(logging.DEBUG, logger="corral.io"):
+        dispatch("magic://alice:hunter2@host/x")
+
+    assert "hunter2" not in caplog.text
+    assert "magic://***@host/x" in caplog.text

@@ -118,28 +118,12 @@ def test_probe_never_raises(adapter: ParquetAdapter) -> None:
 
 def test_self_registers_on_import() -> None:
     """Importing the adapter module registers a parquet adapter globally."""
-    # The module is imported at the top of this file; if the test_registry.py
-    # autouse cleared the registry earlier, force re-registration here. The
-    # canonical pattern is to import the module — re-importing is a no-op.
-    import corral.io.parquet_adapter  # noqa: F401  (reimport for self-register)
-
-    # If registry was cleared by another test, re-register explicitly so
-    # this test asserts the registration behaviour, not test ordering.
-    from corral.io import register_adapter
-
-    if "parquet" not in list_adapters():
-        register_adapter(ParquetAdapter())
-
     assert "parquet" in list_adapters()
     assert get_adapter("parquet").name == "parquet"
 
 
 def test_dispatch_routes_parquet() -> None:
     """``dispatch("foo.parquet")`` resolves to the parquet adapter."""
-    from corral.io import register_adapter
-
-    if "parquet" not in list_adapters():
-        register_adapter(ParquetAdapter())
     assert dispatch("foo.parquet").name == "parquet"
 
 
@@ -330,6 +314,26 @@ def test_write_partitioned_roundtrip(adapter: ParquetAdapter, tmp_path: Path) ->
     # Same logical columns (pyarrow re-injects facility_type from path).
     assert "facility_type" in rt_df.columns
     assert "link_id" in rt_df.columns
+
+
+def test_write_partitioned_streams_without_pandas(adapter: ParquetAdapter, tmp_path: Path, monkeypatch) -> None:
+    """#135: a partitioned write streams Arrow record batches; it never collects the table through pandas."""
+    engine = get_engine("ibis")
+    expr = adapter.read(LEAVENWORTH_LINK_PARQUET, engine)
+    expected_rows = int(expr.count().to_pyarrow().as_py())
+
+    def no_pandas(*_args, **_kwargs):
+        raise AssertionError("partitioned write materialized through pandas")
+
+    monkeypatch.setattr(engine, "to_pandas", no_pandas)
+    monkeypatch.setattr(type(expr), "to_pandas", no_pandas)
+    monkeypatch.setattr(type(expr), "to_pyarrow", no_pandas)  # the whole table at once is just as bad
+
+    dest_dir = tmp_path / "partitioned"
+    adapter.write(expr, dest_dir, engine, partition_by=["facility_type"])
+
+    reread = adapter.read(dest_dir, engine)
+    assert int(reread.count().to_pyarrow_batches().read_all().column(0)[0].as_py()) == expected_rows
 
 
 # ---------------------------------------------------------------------------

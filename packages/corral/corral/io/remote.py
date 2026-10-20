@@ -355,42 +355,27 @@ class RemoteAdapter:
         ad-hoc callers and unit tests that don't want to touch the
         internal dataclass).
 
-        Loop guard: never returns RemoteAdapter itself. If the dispatcher
-        somehow resolves back to ``remote`` (e.g. because a URL scheme
-        match wins over the extension), strip the URL scheme and retry
-        on the plain path. After the retry the result MUST NOT be
-        ``self`` again — if it is, that's a registry bug and we raise
-        :class:`FormatNotDetected` rather than recurse (I5).
+        Constraint: dispatching the URL itself would come straight back
+        here, because this adapter owns the URL schemes. So dispatch once,
+        on the path with ``scheme://netloc`` stripped: with no scheme left
+        to match, only ``format=``, the extension or a probe can answer.
+        If the answer is still this adapter (a URL with no path, or an
+        extension bound to ``remote``), raise rather than recurse.
+
+        Raises:
+            FormatNotDetected: If nothing but this adapter claims the path.
         """
         if isinstance(parsed, str):
             parsed = _parse(parsed)
-        url_str = parsed.raw
-        try:
-            adapter = dispatch(url_str, format=format)
-        except FormatNotDetected:
-            # Retry with the scheme stripped -- the extension is the only
-            # way to recover an inner format for an HTTP URL.
-            if parsed.stripped != url_str:
-                adapter = dispatch(parsed.stripped, format=format)
-            else:
-                raise
-
-        if adapter is self or getattr(adapter, "name", None) == self.name:
-            # URL-scheme dispatch picked us. Strip the scheme and retry
-            # on the bare path so extension dispatch can reach the real
-            # inner adapter.
-            adapter = dispatch(parsed.stripped, format=format)
-            if adapter is self or getattr(adapter, "name", None) == self.name:
-                # Registry is misconfigured (e.g. someone bound an extension
-                # to RemoteAdapter). Fail loudly rather than recurse — the
-                # implicit guard before was fragile (I5).
-                raise FormatNotDetected(
-                    f"RemoteAdapter cannot resolve inner format for {url_str!r} "
-                    "after scheme strip. Check that another adapter is registered "
-                    f"for the URL's extension; registered adapters were not able to "
-                    "claim it."
-                )
-
+        adapter = dispatch(parsed.stripped, format=format)
+        if adapter.name == self.name:
+            # Name the URL without its userinfo: the message may end up in a log.
+            shown = f"{parsed.scheme}://{parsed.host}{parsed.path}"
+            raise FormatNotDetected(
+                f"RemoteAdapter cannot resolve inner format for {shown!r}: "
+                "no other adapter claims its path after the scheme is stripped. "
+                "Pass format= or use a URL whose path ends in a registered extension."
+            )
         return adapter
 
 

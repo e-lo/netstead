@@ -46,11 +46,15 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
 
 from corral.io import _scheme_of, register_adapter
+from corral.io._package import write_flat_package
 from corral.io._paths import normalize_to_path, normalize_to_str
 from corral.io.base import ResourceListing, ResourceRef, SourceRef
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
+    from collections.abc import Mapping
+
     from corral.engines.base import Engine, TableExpr
+    from corral.io.base import DescriptorFactory
     from corral.spec.model import Schema
 
 
@@ -389,6 +393,17 @@ class ParquetAdapter:
         dest_path = _as_path(dest)
         engine.write_parquet(expr, str(dest_path), **kwargs)
 
+    def write_package(
+        self,
+        tables: Mapping[str, TableExpr],
+        dest: Path,
+        engine: Engine,
+        *,
+        describe: DescriptorFactory,
+    ) -> None:
+        """Write a directory: one ``<table>.parquet`` per table plus a ``datapackage.json``."""
+        write_flat_package(self, tables, dest, engine, describe=describe)
+
     def _write_partitioned(
         self,
         expr: TableExpr,
@@ -399,35 +414,33 @@ class ParquetAdapter:
     ) -> None:
         """Write ``expr`` as a Hive-partitioned parquet dataset under ``dest``.
 
-        Implementation note — we hop through pandas → pyarrow rather than
-        let each engine's writer do its own partitioning, because:
-
-        * The polars and pandas engines don't expose partitioned-write at
-          the ``engine.write`` level.
-        * Pyarrow's ``write_to_dataset`` produces Hive layout
-          (``col=value/part-N.parquet``) by default, which is exactly what
-          duckdb auto-detects on read.
+        Streams: the expression's Arrow record batches go straight into
+        pyarrow's dataset writer, so a regional-scale table is never held in
+        memory whole (no pandas, no single ``pa.Table``). Pyarrow produces
+        Hive layout (``col=value/<guid>-N.parquet``), which duckdb
+        auto-detects on read. The engine's own ``write_parquet`` primitive
+        is single-file only.
         """
         # ``pyarrow`` is a required corral dependency (see
         # ``packages/corral/pyproject.toml``). The local import keeps the
         # failure localized to the partitioned-write code path if dependency
         # resolution drifts in a future release.
         import pyarrow as pa
+        import pyarrow.dataset as ds
         import pyarrow.parquet as pq
 
         dest_path = _as_path(dest)
         dest_path.mkdir(parents=True, exist_ok=True)
 
-        # All three engines support to_pandas; pyarrow.Table.from_pandas
-        # is the cheapest cross-engine convergence point. For ibis we
-        # could avoid the pandas round-trip via ``.to_pyarrow()``, but
-        # ``to_pandas`` is the documented cross-engine contract.
-        df = engine.to_pandas(expr)
-        table = pa.Table.from_pandas(df, preserve_index=False)
+        batches = expr.to_pyarrow_batches()
+        # ``write_to_dataset(partition_cols=...)`` derives the partition schema
+        # with ``table.select``, which a batch reader lacks; build the same
+        # Hive partitioning from the reader's schema instead.
+        partition_schema = pa.schema([batches.schema.field(col) for col in partition_by])
         pq.write_to_dataset(
-            table,
+            batches,
             root_path=str(dest_path),
-            partition_cols=list(partition_by),
+            partitioning=ds.partitioning(partition_schema, flavor="hive"),
             **kwargs,
         )
 

@@ -13,13 +13,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from corral.io import list_adapters, register_adapter
 from corral.io.base import ResourceRef
-from corral.io.csv_adapter import CsvAdapter
-from corral.io.duckdb_adapter import DuckdbAdapter
-from corral.io.parquet_adapter import ParquetAdapter
-from corral.io.remote import RemoteAdapter
-from corral.io.zipcsv_adapter import ZipCsvAdapter
 from corral.spec.model import DataPackage, Resource
 from corral.validation import (
     Category,
@@ -28,40 +22,6 @@ from corral.validation import (
     check_structural,
     check_structural_from_source,
 )
-
-# ---------------------------------------------------------------------------
-# Test isolation guard.
-#
-# Several adapter tests (tests/io/test_dispatch.py, tests/io/test_registry.py)
-# use a ``_clear_registry()`` fixture without re-registering the canonical
-# stock adapters. When pytest happens to schedule those before the structural
-# tests, the global IO registry is left empty and our cross-format tests
-# (csv-dir walk, .zip, .duckdb) all report "no format adapter recognises it".
-#
-# Rather than monkeypatch those upstream tests from here, this autouse
-# fixture re-registers the five stock adapters before each test in this
-# module runs, which makes structural tests order-independent. The
-# upstream registry teardown is still wrong-but-localised; fixing it is
-# a separate cleanup task and not in this issue's scope.
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture(autouse=True)
-def _ensure_stock_adapters_registered():
-    """Restore the canonical stock-adapter set before each test runs."""
-    needed = {
-        "csv": CsvAdapter,
-        "duckdb": DuckdbAdapter,
-        "parquet": ParquetAdapter,
-        "remote": RemoteAdapter,
-        "zipcsv": ZipCsvAdapter,
-    }
-    have = set(list_adapters())
-    for name, cls in needed.items():
-        if name not in have:
-            register_adapter(cls())
-    yield
-
 
 # ---------------------------------------------------------------------------
 # Tiny constructor helpers — kept inline rather than in a conftest because

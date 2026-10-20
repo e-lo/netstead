@@ -19,10 +19,9 @@ import fsspec
 import pytest
 from corral.dataset import Package
 from corral.engines import get_engine
-from corral.io import WriteUnsupportedForSchemeError, register_adapter
+from corral.io import WriteUnsupportedForSchemeError
 from corral.io import remote as remote_mod
 from corral.io import zipcsv_adapter as zipcsv_mod
-from corral.io.remote import RemoteAdapter
 from corral.io.zipcsv_adapter import ZipCsvAdapter
 
 
@@ -36,9 +35,7 @@ def _zip_bytes(**members: str) -> bytes:
 
 @pytest.fixture(autouse=True)
 def _adapters_without_ambient_credentials(monkeypatch):
-    """Register the adapters; an empty credential cascade (the real one may consult the OS keyring)."""
-    register_adapter(ZipCsvAdapter())
-    register_adapter(RemoteAdapter())
+    """An empty credential cascade (the real one may consult the OS keyring)."""
     for mod in (zipcsv_mod, remote_mod):
         monkeypatch.setattr(mod, "resolve_credentials", lambda host, explicit=None: dict(explicit or {}))
 

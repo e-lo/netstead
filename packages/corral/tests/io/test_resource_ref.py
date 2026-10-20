@@ -15,6 +15,7 @@ def test_resource_ref_round_trip() -> None:
         "format": "parquet",
         "container_adapter": None,
         "member": None,
+        "table_schema": None,
     }
     parsed = ResourceRef.model_validate(payload)
     assert parsed == ref
@@ -51,3 +52,21 @@ def test_resource_listing_is_list_alias() -> None:
     assert isinstance(listing, list)
     assert len(listing) == 2
     assert all(isinstance(r, ResourceRef) for r in listing)
+
+
+def test_resource_ref_carries_an_optional_schema() -> None:
+    """#117: an adapter that already knows a resource's schema can hand it over; ``schema`` is the alias."""
+    from corral.spec.model import Field, Schema
+
+    schema = Schema(fields=[Field(name="link_id", type="integer")])
+    ref = ResourceRef(name="link", path="x.zip::link.csv", format="csv", schema=schema)
+    assert ref.table_schema == schema
+    assert ResourceRef(name="link", path="x", format="csv", table_schema=schema).table_schema == schema
+
+    parsed = ResourceRef.model_validate_json(ref.model_dump_json())
+    assert parsed == ref
+    assert ref.model_dump(by_alias=True)["schema"]["fields"][0]["name"] == "link_id"
+
+
+def test_resource_ref_schema_defaults_to_none() -> None:
+    assert ResourceRef(name="link", path="x", format="csv").table_schema is None
