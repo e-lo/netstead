@@ -299,6 +299,104 @@ def test_missing_critical_fields_flags_sparse_column():
     assert {i.column for i in flagged} == {"free_speed"}
 
 
+def _tod_network(engine, tod_rows: list[dict], extra: dict[str, Table] | None = None) -> Network:
+    nodes = _node(engine, [{"node_id": 1, "x_coord": 0.0, "y_coord": 0.0}])
+    links = _link(
+        engine,
+        [{"link_id": i, "from_node_id": 1, "to_node_id": 1, "length": 1.0, "directed": True} for i in (1, 2)],
+    )
+    tables = {"link": links, "node": nodes, "link_tod": _table(engine, "link_tod", tod_rows)}
+    tables.update(extra or {})
+    return _network(tables)
+
+
+def test_non_unique_combination_flags_repeated_link_and_time_day():
+    """Two link_tod rows for the same (link_id, time_day) give one issue naming both rows (issue #7)."""
+    engine = _engine()
+    net = _tod_network(
+        engine,
+        [
+            {"link_tod_id": 1, "link_id": 1, "time_day": "1111100_0700_0900"},
+            {"link_tod_id": 2, "link_id": 1, "time_day": "1111100_1600_1800"},  # different window: fine
+            {"link_tod_id": 3, "link_id": 2, "time_day": "1111100_0700_0900"},  # different link: fine
+            {"link_tod_id": 4, "link_id": 1, "time_day": "1111100_0700_0900"},  # repeats row 0
+            {"link_tod_id": 5, "link_id": None, "time_day": "1111100_0700_0900"},  # null key part: skipped
+            {"link_tod_id": 6, "link_id": None, "time_day": "1111100_0700_0900"},
+        ],
+    )
+    report = run_quality(net)
+    flagged = _issues_with_code(report, "quality.non_unique_combination")
+    assert len(flagged) == 1
+    issue = flagged[0]
+    assert issue.severity is Severity.WARNING
+    assert issue.category is Category.DATA_QUALITY
+    assert issue.table == "link_tod"
+    assert issue.row == 0
+    assert issue.extra["columns"] == ["link_id", "time_day"]
+    assert issue.extra["values"] == {"link_id": 1, "time_day": "1111100_0700_0900"}
+    assert issue.extra["rows"] == [0, 3]
+    assert issue.extra["count"] == 2
+    assert "link_id=1" in issue.message
+
+
+def test_non_unique_combination_checks_timeday_id_and_lane_num_by_default():
+    """The defaults also cover (link_id, timeday_id) on link_tod and (link_id, lane_num) on lane."""
+    engine = _engine()
+    lanes = _table(
+        engine,
+        "lane",
+        [
+            {"lane_id": 1, "link_id": 1, "lane_num": 1},
+            {"lane_id": 2, "link_id": 1, "lane_num": 2},
+            {"lane_id": 3, "link_id": 1, "lane_num": 1},  # repeats lane 1's number
+        ],
+    )
+    net = _tod_network(
+        engine,
+        [
+            {"link_tod_id": 1, "link_id": 2, "timeday_id": "am"},
+            {"link_tod_id": 2, "link_id": 2, "timeday_id": "am"},
+        ],
+        extra={"lane": lanes},
+    )
+    flagged = _issues_with_code(run_quality(net), "quality.non_unique_combination")
+    assert sorted((i.table, tuple(i.extra["columns"]), i.row) for i in flagged) == [
+        ("lane", ("link_id", "lane_num"), 0),
+        ("link_tod", ("link_id", "timeday_id"), 0),
+    ]
+
+
+def test_non_unique_combination_combinations_threshold_replaces_the_defaults():
+    """``thresholds["combinations"]`` names the tables and column combinations to check, replacing the defaults."""
+    engine = _engine()
+    net = _tod_network(
+        engine,
+        [
+            {"link_tod_id": 1, "link_id": 1, "time_day": "x", "toll": 1.5},
+            {"link_tod_id": 2, "link_id": 1, "time_day": "x", "toll": 2.5},
+        ],
+    )
+    custom = RuleConfig(
+        thresholds={"combinations": {"link_tod": [["link_id", "toll"]], "link": [["from_node_id", "to_node_id"]]}}
+    )
+    flagged = _issues_with_code(
+        run_quality(net, config={"quality.non_unique_combination": custom}), "quality.non_unique_combination"
+    )
+    # link_tod (link_id, time_day) is no longer checked; link (from, to) repeats on both links.
+    assert [(i.table, i.extra["rows"]) for i in flagged] == [("link", [0, 1])]
+
+
+def test_non_unique_combination_skips_absent_tables_and_columns():
+    """A combination whose table or columns are missing is skipped, not an error."""
+    engine = _engine()
+    net = _tod_network(engine, [{"link_tod_id": 1, "link_id": 1}])  # neither time_day nor timeday_id
+    custom = RuleConfig(
+        thresholds={"combinations": {"link_tod": [["link_id", "time_day"]], "movement_tod": [["mvmt_id"]]}}
+    )
+    report = run_quality(net, config={"quality.non_unique_combination": custom})
+    assert _issues_with_code(report, "quality.non_unique_combination") == []
+
+
 # ---------------------------------------------------------------------------
 # Framework integration: discovery, enable flag, severity override
 # ---------------------------------------------------------------------------
@@ -318,6 +416,7 @@ def test_entry_point_discovers_all_gmns_rules():
         "quality.sharp_angle_bends",
         "quality.implausible_vc",
         "quality.missing_critical_fields",
+        "quality.non_unique_combination",
     }
     assert expected <= codes
 
@@ -390,4 +489,5 @@ def test_full_pack_on_leavenworth():
     assert counts.get("quality.duplicate_near_nodes", 0) == 0
     assert counts.get("quality.implausible_vc", 0) == 0
     assert counts.get("quality.missing_critical_fields", 0) == 0
+    assert counts.get("quality.non_unique_combination", 0) == 0  # lane numbers and link_tod rows are unique
     assert counts.get("quality.high_speed_residential", 0) > 0

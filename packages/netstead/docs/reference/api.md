@@ -76,7 +76,7 @@ Auto-generated from package docstrings via [mkdocstrings](https://mkdocstrings.g
 
 ::: netstead.quality.register_all
 
-The 7 rule classes:
+The rule classes:
 
 ::: netstead.quality.HighSpeedResidentialRule
 ::: netstead.quality.DisconnectedComponentsRule
@@ -85,6 +85,7 @@ The 7 rule classes:
 ::: netstead.quality.SharpAngleBendsRule
 ::: netstead.quality.ImplausibleVcRule
 ::: netstead.quality.MissingCriticalFieldsRule
+::: netstead.quality.NonUniqueCombinationRule
 
 ## Indexes (optional `[clean]` extra)
 

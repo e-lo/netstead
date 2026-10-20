@@ -35,6 +35,14 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Added
 
+- **Quality rule `quality.non_unique_combination`** ([#7](https://github.com/e-lo/netstead/issues/7)).
+  Flags rows that repeat a column combination that should be unique, such as two
+  `link_tod` rows for the same `link_id` and `time_day` (GMNS 0.97 gives the
+  time-of-day tables a surrogate key, so spec validation lets these through). It
+  checks every time-of-day table plus `lane` / `segment_lane` lane numbers by
+  default; the `combinations` threshold replaces that list. One WARNING per
+  repeated combination, with its row positions in `extra["rows"]`. Grouping runs
+  in DuckDB (0.03 s on a 100k-row `link_tod` plus a 200k-row `lane`).
 - **`Network.from_source(url, credentials=...)`** forwards explicit cloud
   credentials (fsspec storage options) to `Package.from_source`, as the
   [Read from S3](https://e-lo.github.io/netstead/corral/cookbook/read-from-s3/) cookbook describes.

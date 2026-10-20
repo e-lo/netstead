@@ -55,12 +55,14 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
     from corral.reports import ValidationReport
 
 __all__ = [
+    "DEFAULT_UNIQUE_COMBINATIONS",
     "DisconnectedComponentsRule",
     "DuplicateNearNodesRule",
     "HighSpeedResidentialRule",
     "ImplausibleVcRule",
     "LaneCountMismatchRule",
     "MissingCriticalFieldsRule",
+    "NonUniqueCombinationRule",
     "SharpAngleBendsRule",
     "register_all",
 ]
@@ -724,6 +726,124 @@ class MissingCriticalFieldsRule:
 
 
 # ---------------------------------------------------------------------------
+# Rule 8 — unique natural-key combinations
+# ---------------------------------------------------------------------------
+
+#: Column combinations GMNS expects to be unique even though each table's primary key is a surrogate id.
+#: A time-of-day table holds one row per record per time window; a lane table one row per lane number per parent.
+DEFAULT_UNIQUE_COMBINATIONS: dict[str, list[list[str]]] = {
+    "link_tod": [["link_id", "time_day"], ["link_id", "timeday_id"]],
+    "lane_tod": [["lane_id", "time_day"], ["lane_id", "timeday_id"]],
+    "segment_tod": [["segment_id", "time_day"], ["segment_id", "timeday_id"]],
+    "segment_lane_tod": [["segment_lane_id", "time_day"], ["segment_lane_id", "timeday_id"]],
+    "movement_tod": [["mvmt_id", "time_day"], ["mvmt_id", "timeday_id"]],
+    "signal_timing_plan": [["controller_id", "time_day"], ["controller_id", "timeday_id"]],
+    "lane": [["link_id", "lane_num"]],
+    "segment_lane": [["segment_id", "lane_num"]],
+}
+
+#: Row positions listed per duplicate group in ``Issue.extra["rows"]``; ``count`` always has the full size.
+_MAX_ROWS_PER_GROUP = 20
+
+
+class NonUniqueCombinationRule:
+    """Flag rows that repeat a combination of columns that should be unique.
+
+    GMNS 0.97 gives the time-of-day tables a surrogate primary key
+    (``link_tod_id``, ...), so two ``link_tod`` rows for the same
+    ``link_id`` and ``time_day`` pass spec validation although they
+    contradict each other. This rule groups each table by its natural
+    key in the engine and reports every combination that occurs more
+    than once.
+
+    Threshold keys:
+
+    * ``combinations`` (default :data:`DEFAULT_UNIQUE_COMBINATIONS`) — a
+      mapping of table name to a list of column combinations, each a list
+      of column names. Setting it **replaces** the defaults, so include
+      every combination you still want checked. A combination whose table
+      or columns are absent is skipped.
+
+    Rows with a null in any of the combination's columns are skipped (a
+    missing value is the schema validator's concern, not a duplicate).
+    Emits one issue per repeated combination: ``row`` is its first row,
+    and ``extra`` carries ``columns``, ``values`` (column → value),
+    ``rows`` (the first 20 row positions) and ``count``. Exact matches
+    only: two ``time_day`` windows that overlap without being equal are
+    not flagged.
+
+    (The code and threshold avoid the word "key": the Workbench refuses
+    setting names ending in ``key``, which it reserves for credentials.)
+    """
+
+    code = "quality.non_unique_combination"
+    description = "Rows repeat a column combination that should be unique (e.g. link_id + time_day in link_tod)."
+    severity = Severity.WARNING
+
+    def applies_to(self, package: Package) -> bool:
+        """Any package with tables: ``run`` resolves the configured combinations against what is present."""
+        return bool(package.tables)
+
+    def run(self, package: Package, report: ValidationReport, rc: RuleConfig | None = None) -> None:
+        """Group each configured table by each key combination; emit one issue per repeated combination."""
+        combos_by_table = (
+            rc.thresholds.get("combinations", DEFAULT_UNIQUE_COMBINATIONS) if rc else DEFAULT_UNIQUE_COMBINATIONS
+        )
+        for table_name, combos in combos_by_table.items():
+            table = package.tables.get(table_name)
+            if table is None:
+                continue
+            present = set(table.columns())
+            for combo in combos:
+                columns = list(combo)
+                if not columns or not set(columns) <= present:
+                    continue
+                for group in _rows(_duplicate_groups(table, columns)):
+                    self._report(report, table_name, columns, group)
+
+    def _report(self, report: ValidationReport, table_name: str, columns: list[str], group: dict[str, Any]) -> None:
+        rows = sorted(group["__quality_rows__"])
+        values = {c: group[c] for c in columns}
+        shown = ", ".join(f"{c}={v!r}" for c, v in values.items())
+        report.add_issue(
+            Issue(
+                severity=self.severity,
+                category=Category.DATA_QUALITY,
+                code=self.code,
+                message=(
+                    f"{table_name}: {group['__quality_count__']} rows share ({shown}); "
+                    f"({', '.join(columns)}) should be unique. Rows: {rows[:_MAX_ROWS_PER_GROUP]}"
+                    f"{' …' if len(rows) > _MAX_ROWS_PER_GROUP else ''}."
+                ),
+                table=table_name,
+                row=rows[0],
+                fix_hint="Merge the rows into one, or correct the key of the row that belongs elsewhere.",
+                extra={
+                    "columns": columns,
+                    "values": values,
+                    "rows": rows[:_MAX_ROWS_PER_GROUP],
+                    "count": group["__quality_count__"],
+                },
+            )
+        )
+
+
+def _duplicate_groups(table: Table, columns: list[str]) -> ir.Table:
+    """Key combinations of ``table`` over ``columns`` that occur more than once, with their row positions."""
+    t = _indexed(table)
+    groups = (
+        t.filter(*[_present(t[c]) for c in columns])
+        .group_by(columns)
+        .aggregate(
+            __quality_count__=ibis._.count(),
+            __quality_first__=ibis._[_ROW].min(),
+            __quality_rows__=ibis._[_ROW].collect(),
+        )
+    )
+    return groups.filter(groups.__quality_count__ > 1).order_by("__quality_first__")
+
+
+# ---------------------------------------------------------------------------
 # Entry-point factory
 # ---------------------------------------------------------------------------
 
@@ -744,6 +864,7 @@ def register_all() -> list[object]:
         SharpAngleBendsRule(),
         ImplausibleVcRule(),
         MissingCriticalFieldsRule(),
+        NonUniqueCombinationRule(),
     ]
     for r in rules:
         register_rule(r)  # type: ignore[arg-type]

@@ -46,7 +46,7 @@ Expected:
 
 ### 1. List the rules currently registered
 
-Inspect the registered rule pack to see codes, defaults, and severities. The GMNS pack ships seven rules out of the box:
+Inspect the registered rule pack to see codes, defaults, and severities. The GMNS pack ships eight rules out of the box:
 
 ```python
 from corral.quality import list_rules, get_rule
@@ -67,8 +67,22 @@ for code in list_rules():
 | `quality.sharp_angle_bends` | `min_angle_degrees` | `30` | WARNING |
 | `quality.implausible_vc` | `vc_max` | `1.5` | WARNING |
 | `quality.missing_critical_fields` | `coverage_min` | `0.90` | INFO |
+| `quality.non_unique_combination` | `combinations` | see below | WARNING |
 
 Two of these are conditional: `quality.disconnected_components` builds the scipy graph index, so `run_quality` needs the `[graph]` extra; `quality.sharp_angle_bends` only applies when the link table carries an inline `geometry` column (Leavenworth keeps geometry in a separate table, so the rule is skipped there).
+
+`quality.non_unique_combination` catches rows that repeat a column combination GMNS expects to be unique even though the table's primary key is a surrogate id: two `link_tod` rows for the same `link_id` and `time_day` pass spec validation but contradict each other. It emits one issue per repeated combination, with the row positions in `extra["rows"]`. By default it checks `(<parent id>, time_day)` and `(<parent id>, timeday_id)` on every time-of-day table (`link_tod`, `lane_tod`, `segment_tod`, `segment_lane_tod`, `movement_tod`, `signal_timing_plan`), plus `(link_id, lane_num)` on `lane` and `(segment_id, lane_num)` on `segment_lane`. Setting `combinations` replaces that list, so name every combination you still want:
+
+```python
+report = run_quality(
+    net,
+    config={
+        "quality.non_unique_combination": RuleConfig(
+            thresholds={"combinations": {"link_tod": [["link_id", "time_day"]], "link": [["osm_way_id", "from_node_id"]]}}
+        )
+    },
+)
+```
 
 ### 2. Override a threshold
 
