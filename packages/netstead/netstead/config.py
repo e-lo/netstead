@@ -26,6 +26,7 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
+from netstead._quality_thresholds import check_rule_thresholds
 from netstead.llm.secrets import origin_of, settings_secret_problem
 from netstead.spec import DEFAULT_SPEC
 
@@ -152,6 +153,14 @@ class ValidationSettings(_Section):
     """Per-rule quality configuration, keyed by rule code (e.g. ``quality.high_speed_residential``)."""
 
     rules: dict[str, RuleSettings] = Field(default_factory=dict)
+
+    @field_validator("rules")
+    @classmethod
+    def _thresholds_have_the_right_shape(cls, rules: dict[str, RuleSettings]) -> dict[str, RuleSettings]:
+        """Reject a threshold the rule would refuse at run time, so one bad value can't break a validation run."""
+        for code, rule in rules.items():
+            check_rule_thresholds(code, rule.thresholds)
+        return rules
 
 
 class SelectSettings(_Section):

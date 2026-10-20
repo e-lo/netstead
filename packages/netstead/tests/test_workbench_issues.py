@@ -8,6 +8,7 @@ from netstead.fixtures import leavenworth
 from netstead.select.parse import StubParser
 from netstead.workbench import Session
 from netstead.workbench.actions import EditCells, RunValidation, SetSetting
+from netstead.workbench.errors import ActionError
 from netstead.workbench.issues import locate_issues, rule_configs
 from pydantic import ValidationError
 
@@ -58,6 +59,32 @@ def test_new_quality_rules_are_known_to_validation_settings(session):
     # Settings key rules by code: a code with no installed rule comes back in unknown_rules.
     rules = {"quality.non_unique_combination": {"enabled": False}, "quality.overlapping_links": {"enabled": False}}
     session.dispatch(SetSetting(key="validation.rules", value=rules))
+    assert session.dispatch(RunValidation())["unknown_rules"] == []
+
+
+@pytest.mark.parametrize(
+    "rules",
+    [
+        {"quality.duplicate_near_nodes": {"thresholds": {"epsilon_units": -1}}},
+        {"quality.duplicate_near_nodes": {"thresholds": {"epsilon_units": "close"}}},
+        {"quality.non_unique_combination": {"thresholds": {"combinations": [["link_id", "time_day"]]}}},
+        {"quality.non_unique_combination": {"thresholds": {"combinations": {"link_tod": "link_id"}}}},
+    ],
+)
+def test_bad_quality_thresholds_are_rejected_when_settings_load(rules):
+    with pytest.raises(ValidationError):
+        ValidationSettings(rules=rules)
+
+
+def test_set_setting_rejects_a_bad_threshold_up_front(session):
+    bad = {"quality.duplicate_near_nodes": {"thresholds": {"epsilon_units": -1}}}
+    with pytest.raises(ActionError, match="epsilon_units"):
+        session.dispatch(SetSetting(key="validation.rules", value=bad))
+    good = {
+        "quality.duplicate_near_nodes": {"thresholds": {"epsilon_units": 0.5}},
+        "quality.non_unique_combination": {"thresholds": {"combinations": {"link_tod": [["link_id", "time_day"]]}}},
+    }
+    session.dispatch(SetSetting(key="validation.rules", value=good))
     assert session.dispatch(RunValidation())["unknown_rules"] == []
 
 

@@ -41,15 +41,24 @@ shape.
 
 from __future__ import annotations
 
+import logging
 import math
 import re
+from collections.abc import Mapping
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
 import ibis
 from corral.quality import RuleConfig, register_rule
 from corral.reports import Category, Issue, Severity
 
+from netstead._quality_thresholds import check_combinations, check_epsilon
+
+_log = logging.getLogger(__name__)
+
 if TYPE_CHECKING:  # pragma: no cover - typing only
+    from collections.abc import Callable
+
     import ibis.expr.types as ir
     from corral.dataset import Package, Table
     from corral.reports import ValidationReport
@@ -100,6 +109,29 @@ def _present(column: ir.Column) -> ir.BooleanValue:
     return column.notnull()
 
 
+def _id_display(expr: ir.Table, column: str) -> Callable[[Any], Any]:
+    """How to show values of id ``column`` of ``expr`` in messages and ``extra``.
+
+    A floating id column that holds only whole numbers (a CSV id column with
+    a blank cell, read as DOUBLE) shows its ids as ints, so a message says
+    ``link_id=1``, not ``1.0``; one fractional id keeps the whole column as
+    floats. NaN shows as ``None``. The check is one aggregate over the whole
+    column, so the answer doesn't depend on which rows a rule happens to flag.
+    """
+    col = expr[column]
+    if not col.type().is_floating():
+        return lambda value: value
+    fractional = expr.filter(_present(col), col % 1.0 != 0.0).count().to_pyarrow().as_py()
+    whole = fractional == 0
+
+    def show(value: Any) -> Any:
+        if value is None or (isinstance(value, float) and math.isnan(value)):
+            return None
+        return int(value) if whole else value
+
+    return show
+
+
 def _rows(expr: ir.Table) -> list[dict[str, Any]]:
     """Execute ``expr`` and return its rows as dicts (only the filtered rows cross into Python)."""
     return expr.to_pyarrow().to_pylist()
@@ -120,6 +152,16 @@ def _threshold(rc: RuleConfig | None, key: str, default: float) -> float:
 # ---------------------------------------------------------------------------
 # Rule 1 — high speed on residential street
 # ---------------------------------------------------------------------------
+
+#: Every character for which ``str.isspace()`` is true: exactly what ``str.strip()`` removes.
+_PY_WHITESPACE = "".join(
+    map(
+        chr,
+        (*range(9, 14), *range(28, 33), 133, 160, 5760, *range(8192, 8203), 8232, 8233, 8239, 8287, 12288),
+    )
+)
+#: :data:`_PY_WHITESPACE` as an RE2 character class (RE2's ``\s`` covers only ASCII ``[\t\n\f\r ]``).
+_WHITESPACE_CLASS = "[" + "".join(f"\\x{{{ord(c):x}}}" for c in _PY_WHITESPACE) + "]"
 
 
 class HighSpeedResidentialRule:
@@ -158,10 +200,12 @@ class HighSpeedResidentialRule:
         """Filter the link table in the engine; emit one issue per offending row."""
         threshold = _threshold(rc, "speed_limit_mph", 35.0)
         link = _indexed(package.tables["link"])
+        show_id = _id_display(link, "link_id")
         ftype = link.facility_type.cast("string")
         speed = link.free_speed.cast("float64")
-        # One anchored regex = strip + case-insensitive set membership, evaluated in the engine.
-        pattern = r"^\s*(?:" + "|".join(sorted(map(re.escape, self._FACILITY_TYPES))) + r")\s*$"
+        # One anchored regex = str.strip() + case-insensitive set membership, evaluated in the engine.
+        names = "|".join(sorted(map(re.escape, self._FACILITY_TYPES)))
+        pattern = f"^{_WHITESPACE_CLASS}*(?:{names}){_WHITESPACE_CLASS}*$"
         offending = (
             link.filter(ftype.notnull(), _present(speed), ftype.lower().re_search(pattern), speed > threshold)
             .select(_ROW, "link_id", "facility_type", "free_speed")
@@ -175,7 +219,7 @@ class HighSpeedResidentialRule:
                     category=Category.DATA_QUALITY,
                     code=self.code,
                     message=(
-                        f"link row {i} (link_id={row['link_id']!r}): "
+                        f"link row {i} (link_id={show_id(row['link_id'])!r}): "
                         f"facility_type={row['facility_type']!r} with free_speed={row['free_speed']} "
                         f"> threshold {threshold}."
                     ),
@@ -291,6 +335,7 @@ class LaneCountMismatchRule:
         lane = package.tables["lane"].expr
         if link.link_id.type().is_string() != lane.link_id.type().is_string():
             return  # A text id never equals a numeric one: no link has lane rows.
+        show_id = _id_display(link, "link_id")
         lane_link, lane_rows = "__quality_lane_link_id__", "__quality_lane_rows__"
         counts = (
             lane.filter(lane.link_id.notnull())
@@ -315,7 +360,7 @@ class LaneCountMismatchRule:
                     category=Category.DATA_QUALITY,
                     code=self.code,
                     message=(
-                        f"link row {i} (link_id={row['link_id']!r}): link.lanes={row['lanes']} "
+                        f"link row {i} (link_id={show_id(row['link_id'])!r}): link.lanes={row['lanes']} "
                         f"but lane table has {row[lane_rows]} rows for this link."
                     ),
                     table="link",
@@ -348,7 +393,9 @@ class DuplicateNearNodesRule:
       mid-latitudes; a hair's breadth for projected coords. **Tune it
       for your CRS.** For projected networks (UTM, state plane) where
       coordinates are meters, ``5.0`` is a reasonable "near-duplicate"
-      threshold. For WGS84 degrees, ``0.0001`` is roughly 10m.
+      threshold. For WGS84 degrees, ``0.0001`` is roughly 10m. ``0``
+      flags only exact duplicates; a negative value raises
+      :class:`ValueError`.
 
     Implementation: a grid self-join in the engine. Each node is hashed
     to an epsilon-sized grid cell and joined against the nodes of the
@@ -370,12 +417,12 @@ class DuplicateNearNodesRule:
 
     def run(self, package: Package, report: ValidationReport, rc: RuleConfig | None = None) -> None:
         """Self-join node points on grid cells; flag every pair within epsilon."""
-        epsilon = _threshold(rc, "epsilon_units", 1e-5)
-        if epsilon < 0:
-            return
+        epsilon = check_epsilon(rc.thresholds.get("epsilon_units", 1e-5) if rc else 1e-5)
+        node_table = package.tables["node"]
+        show_id = _id_display(node_table.expr, "node_id")
         seen_pairs: set[tuple[Any, Any]] = set()
-        for row in _rows(_near_pairs(package.tables["node"], epsilon)):
-            id_i, id_j = row["id_i"], row["id_j"]
+        for row in _rows(_near_pairs(node_table, epsilon)):
+            id_i, id_j = show_id(row["id_i"]), show_id(row["id_j"])
             pair = (id_i, id_j) if str(id_i) < str(id_j) else (id_j, id_i)
             if pair in seen_pairs:
                 continue
@@ -412,7 +459,7 @@ def _near_pairs(node_table: Table, epsilon: float) -> ir.Table:
     node = _indexed(node_table)
     x = node.x_coord.cast("float64")
     y = node.y_coord.cast("float64")
-    pts = node.filter(node.node_id.notnull(), _present(x), _present(y)).select(_ROW, nid=node.node_id, x=x, y=y)
+    pts = node.filter(_present(node.node_id), _present(x), _present(y)).select(_ROW, nid=node.node_id, x=x, y=y)
     if epsilon == 0:
         a, b = pts.view(), pts.view()
         on = [a.x == b.x, a.y == b.y]
@@ -475,7 +522,9 @@ class SharpAngleBendsRule:
         link = _indexed(package.tables["link"])
         with_geometry = link.filter(link.geometry.notnull()).select(_ROW, "link_id", "geometry").order_by(_ROW)
         rows = with_geometry.to_pyarrow()
-        for i, link_id, sharpest in _sharp_lines(rows, min_angle):
+        show_id = _id_display(link, "link_id")
+        for i, raw_id, sharpest in _sharp_lines(rows, min_angle):
+            link_id = show_id(raw_id)
             report.add_issue(
                 Issue(
                     severity=self.severity,
@@ -629,6 +678,7 @@ class ImplausibleVcRule:
         if volume_col not in link_table.columns():
             return  # No volume column — nothing to check.
         link = _indexed(link_table)
+        show_id = _id_display(link, "link_id")
         cap = link.capacity.cast("float64")
         vol = link[volume_col].cast("float64")
         offending = (
@@ -645,7 +695,7 @@ class ImplausibleVcRule:
                     category=Category.DATA_QUALITY,
                     code=self.code,
                     message=(
-                        f"link row {i} (link_id={row['link_id']!r}): "
+                        f"link row {i} (link_id={show_id(row['link_id'])!r}): "
                         f"volume={vol_v} / capacity={cap_v} = {vc:.2f} > threshold {vc_max}."
                     ),
                     table="link",
@@ -733,16 +783,20 @@ class MissingCriticalFieldsRule:
 
 #: Column combinations GMNS expects to be unique even though each table's primary key is a surrogate id.
 #: A time-of-day table holds one row per record per time window; a lane table one row per lane number per parent.
-DEFAULT_UNIQUE_COMBINATIONS: dict[str, list[list[str]]] = {
-    "link_tod": [["link_id", "time_day"], ["link_id", "timeday_id"]],
-    "lane_tod": [["lane_id", "time_day"], ["lane_id", "timeday_id"]],
-    "segment_tod": [["segment_id", "time_day"], ["segment_id", "timeday_id"]],
-    "segment_lane_tod": [["segment_lane_id", "time_day"], ["segment_lane_id", "timeday_id"]],
-    "movement_tod": [["mvmt_id", "time_day"], ["mvmt_id", "timeday_id"]],
-    "signal_timing_plan": [["controller_id", "time_day"], ["controller_id", "timeday_id"]],
-    "lane": [["link_id", "lane_num"]],
-    "segment_lane": [["segment_id", "lane_num"]],
-}
+#: Read-only: copy it (``{t: [list(c) for c in cs] for t, cs in DEFAULT_UNIQUE_COMBINATIONS.items()}``) to extend.
+DEFAULT_UNIQUE_COMBINATIONS: Mapping[str, tuple[tuple[str, ...], ...]] = MappingProxyType(
+    {
+        "link_tod": (("link_id", "time_day"), ("link_id", "timeday_id")),
+        "lane_tod": (("lane_id", "time_day"), ("lane_id", "timeday_id")),
+        "segment_tod": (("segment_id", "time_day"), ("segment_id", "timeday_id")),
+        "segment_lane_tod": (("segment_lane_id", "time_day"), ("segment_lane_id", "timeday_id")),
+        "movement_tod": (("mvmt_id", "time_day"), ("mvmt_id", "timeday_id")),
+        "signal_timing_plan": (("controller_id", "time_day"), ("controller_id", "timeday_id")),
+        "signal_timing_phase": (("timing_plan_id", "signal_phase_num"),),
+        "lane": (("link_id", "lane_num"),),
+        "segment_lane": (("segment_id", "lane_num"),),
+    }
+)
 
 #: Row positions listed per duplicate group in ``Issue.extra["rows"]``; ``count`` always has the full size.
 _MAX_ROWS_PER_GROUP = 20
@@ -763,8 +817,13 @@ class NonUniqueCombinationRule:
     * ``combinations`` (default :data:`DEFAULT_UNIQUE_COMBINATIONS`) — a
       mapping of table name to a list of column combinations, each a list
       of column names. Setting it **replaces** the defaults, so include
-      every combination you still want checked. A combination whose table
-      or columns are absent is skipped.
+      every combination you still want checked. A default combination
+      whose table or columns are absent is skipped silently; a configured
+      one is logged (a ``WARNING`` on the ``netstead.quality.rules``
+      logger), since it is probably a typo. It is not an issue, so
+      ``severity_override`` never escalates it. A value that isn't a
+      mapping of table name to a list of column lists raises
+      :class:`ValueError` (settings reject it when they load).
 
     Rows with a null in any of the combination's columns are skipped (a
     missing value is the schema validator's concern, not a duplicate).
@@ -788,24 +847,41 @@ class NonUniqueCombinationRule:
 
     def run(self, package: Package, report: ValidationReport, rc: RuleConfig | None = None) -> None:
         """Group each configured table by each key combination; emit one issue per repeated combination."""
-        combos_by_table = (
-            rc.thresholds.get("combinations", DEFAULT_UNIQUE_COMBINATIONS) if rc else DEFAULT_UNIQUE_COMBINATIONS
-        )
+        configured = rc is not None and "combinations" in rc.thresholds
+        combos_by_table = check_combinations(rc.thresholds["combinations"]) if configured else _default_combinations()
         for table_name, combos in combos_by_table.items():
             table = package.tables.get(table_name)
-            if table is None:
-                continue
-            present = set(table.columns())
-            for combo in combos:
-                columns = list(combo)
-                if not columns or not set(columns) <= present:
+            present = set(table.columns()) if table is not None else set()
+            for columns in combos:
+                missing = [c for c in columns if c not in present]
+                if table is None or missing:
+                    if configured:
+                        self._log_unchecked(table_name, columns, None if table is None else missing)
                     continue
+                show = {c: _id_display(table.expr, c) if c.endswith("_id") else (lambda v: v) for c in columns}
                 for group in _rows(_duplicate_groups(table, columns)):
-                    self._report(report, table_name, columns, group)
+                    self._report(report, table_name, columns, group, show)
 
-    def _report(self, report: ValidationReport, table_name: str, columns: list[str], group: dict[str, Any]) -> None:
+    def _log_unchecked(self, table_name: str, columns: list[str], missing: list[str] | None) -> None:
+        """Log a configured combination naming a table (``missing=None``) or columns the network lacks.
+
+        A log line, not an issue: ``run_quality`` applies ``severity_override`` to every issue a rule emits, so
+        a "not checked" note would become an ERROR next to the real duplicates whenever CI promotes this rule,
+        and fail every network that lacks an optional table.
+        """
+        what = f"table {table_name!r} is not in the network" if missing is None else f"{table_name} has no {missing}"
+        _log.warning("%s: configured combination (%s) not checked: %s.", self.code, ", ".join(columns), what)
+
+    def _report(
+        self,
+        report: ValidationReport,
+        table_name: str,
+        columns: list[str],
+        group: dict[str, Any],
+        show: dict[str, Callable[[Any], Any]],
+    ) -> None:
         rows = sorted(group["__quality_rows__"])
-        values = {c: group[c] for c in columns}
+        values = {c: show[c](group[c]) for c in columns}
         shown = ", ".join(f"{c}={v!r}" for c, v in values.items())
         report.add_issue(
             Issue(
@@ -828,6 +904,10 @@ class NonUniqueCombinationRule:
                 },
             )
         )
+
+
+def _default_combinations() -> dict[str, list[list[str]]]:
+    return {t: [list(c) for c in combos] for t, combos in DEFAULT_UNIQUE_COMBINATIONS.items()}
 
 
 def _duplicate_groups(table: Table, columns: list[str]) -> ir.Table:
@@ -866,12 +946,23 @@ class OverlappingLinksRule:
     flagged. Emits one issue per pair, on the first link's row, with
     ``extra`` ``link_ids``, ``rows`` and ``overlap_length``.
 
+    **Exact matching only.** The test is GEOS's exact DE-9IM relation with
+    no snapping tolerance: only segments the two shapes share exactly are
+    caught. Two digitisations of the same road a centimetre apart, or with
+    vertices that don't line up on a common segment, are not flagged.
+    ``min_overlap_units`` filters short exact overlaps; it does not widen
+    the match.
+
     Shapes come from inline ``link.geometry`` when set, else from the
-    ``geometry`` table through ``link.geometry_id``; links with neither
-    are skipped. Requires shapely (clean extra). The engine selects just
-    the link ids and shapes; candidate pairs come from an STRtree
-    bounding-box query, are cut down in numpy, and only the survivors get
-    the exact DE-9IM test (about 0.2 s on a 100k-link network).
+    ``geometry`` table through ``link.geometry_id`` (the first row of a
+    repeated ``geometry_id``); links with neither are skipped. Requires
+    shapely (clean extra). The engine selects just the link ids and
+    shapes; candidate pairs come from an STRtree bounding-box query, are
+    cut down in numpy, and only the survivors get the exact DE-9IM test
+    (about 0.2 s on a 100k-link grid). The cost grows with how many
+    bounding boxes overlap with real area, so it can get slow on long or
+    diagonal links whose boxes cover much of the network (long rural
+    links in WGS84, say).
     """
 
     code = "quality.overlapping_links"
@@ -893,7 +984,9 @@ class OverlappingLinksRule:
         if sources is None:
             return
         shapes = _link_shapes(package, *sources)
-        for (row_a, id_a), (row_b, id_b), length in _overlapping_pairs(shapes, min_overlap):
+        show_id = _id_display(package.tables["link"].expr, "link_id")
+        for (row_a, raw_a), (row_b, raw_b), length in _overlapping_pairs(shapes, min_overlap):
+            id_a, id_b = show_id(raw_a), show_id(raw_b)
             report.add_issue(
                 Issue(
                     severity=self.severity,
@@ -937,7 +1030,10 @@ def _link_shapes(package: Package, inline: bool, via_table: bool) -> Any:
     cols: dict[str, Any] = {_ROW: link[_ROW], "link_id": link.link_id}
     cols["inline"] = link.geometry if inline else ibis.null()
     if via_table:
-        geometry = package.tables["geometry"].expr
+        geometry = _indexed(package.tables["geometry"])
+        # A repeated geometry_id would fan a link out into several rows (and pair it with itself): keep the first.
+        first_of_id = geometry[_ROW].min().over(ibis.window(group_by=geometry.geometry_id))
+        geometry = geometry.filter(geometry.geometry_id.notnull(), geometry[_ROW] == first_of_id)
         shapes = geometry.select(__quality_gid__=geometry.geometry_id, __quality_shape__=geometry.geometry)
         joined = link.left_join(shapes, link.geometry_id == shapes.__quality_gid__)
         cols = {_ROW: joined[_ROW], "link_id": joined.link_id}
