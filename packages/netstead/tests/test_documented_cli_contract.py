@@ -442,9 +442,15 @@ def test_documented_cli_json_output_matches(
         pytest.fail(f"Documented Expected JSON in {doc} (fence line {line_no}) does not parse: {exc}\n{documented}")
 
     (tmp_path / "packages").symlink_to(REPO_ROOT / "packages", target_is_directory=True)
+    # The child changes directory itself rather than taking ``cwd=``: with
+    # ``cwd`` set (or ``close_fds`` left on) CPython falls back from
+    # ``posix_spawn`` to ``fork``+``exec``, and a forked child of a
+    # pytest-xdist worker (execnet threads, DuckDB/Arrow/OpenMP loaded)
+    # segfaults on macOS before it reaches ``exec``.
+    code = f"import os; os.chdir({str(tmp_path)!r}); from {package}.cli.app import app; app()"
     proc = subprocess.run(
-        [sys.executable, "-c", f"from {package}.cli.app import app; app()", *argv],
-        cwd=tmp_path,
+        [sys.executable, "-c", code, *argv],
+        close_fds=False,
         capture_output=True,
         text=True,
         timeout=600,
