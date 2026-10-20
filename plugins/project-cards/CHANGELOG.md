@@ -5,6 +5,18 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
 
 ## [Unreleased]
 
+### Changed
+
+- **Importing the offline report's edit log.** netstead now writes it as a schema-valid card (picked ids with
+  `ignore_missing: false`, notes as `netstead.note[<i>]` lines), which import reads as an ordinary card. The tolerant
+  reading of the old shape (ids at the top of the facility, a per-change `notes`) stays, for logs written before.
+- **A deletion made from a query selection honours the query's `ignore_missing`.** `RoadwayDeletion` gains
+  `ignore_missing` (its links'; default `false`). `project_cards.add_change` sets it from the selection: `false` for
+  a pick, the query's own flag (default `true`) for a query. With `true`, a resolved link the network no longer has is
+  skipped and listed instead of refusing the change, and the card writes `links.ignore_missing: true`, so replaying
+  it in network_wrangler does the same. Import keeps a deletion's links flag (it used to drop it); its nodes are still
+  written with `false`.
+
 ### Added
 
 - The Workbench UI (`static/main.js`, with the rules in `cardmodel.js` and the flow in `controller.js`):
@@ -41,8 +53,14 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
     standing for it once it is closed.
 - Approving a drafted card change made while a preview is active is refused as stale when the previewed network
   changed since (core checks a derived copy's base).
-- Local models get no cards tools while `assistant.compact_tools` is compact (`auto` on a local endpoint); set it
-  to `off` to draft cards with one.
+- Local models are offered `add_change`, `undo_change`, `preview` and `close_preview` in the compact tool set
+  (`assistant.compact_tools = "auto"` on a local endpoint): they set `compact` (Host API 1.6). `commit` and `import`
+  (a file path) still need `compact_tools = "off"`.
+- Requires Host API 1.6. Drafts are reconciled against the network's pending edits (`host.pending_edits`, the
+  edit seqs `host.mutate` returns) instead of its lineage.
+- A `project_cards.commit` nested in an Action that fails afterwards is rolled back too (`host.on_rollback`): its
+  file is removed (or the file it replaced restored, with the folders it made), the committed card is forgotten and
+  the draft comes back. A file that can't be put back is logged.
 
 - The library for ProjectCard authoring: the change model (one record per ProjectCard change type, in GMNS names),
   `DraftCard` (write a card dict or YAML in Wrangler names through the maintained GMNS ↔ Wrangler mapping, and read

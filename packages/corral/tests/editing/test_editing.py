@@ -271,6 +271,55 @@ def test_rollback_selector_by_session(tmp_path: Path) -> None:
     assert 200 not in _ids(pkg)
 
 
+def _log_of(results: list[EditResult], path: Path) -> Path:
+    """Persist ``results`` exactly as :class:`Session` does."""
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    from corral.editing.session import _serialize_result
+
+    pq.write_table(pa.Table.from_pylist([_serialize_result(i, r) for i, r in enumerate(results)]), path)
+    return path
+
+
+def test_log_writes_no_session_as_null(tmp_path: Path) -> None:
+    """#147: an edit applied outside a session is logged with a null session_id, not an empty string."""
+    import pyarrow.parquet as pq
+
+    pkg = _make_pkg("ibis")
+    outside = apply_edit(pkg, Edit(op="add_rows", table="t", payload={"rows": [{"id": 9}]}))
+    inside = apply_edit(pkg, Edit(op="add_rows", table="t", payload={"rows": [{"id": 10}]}), session_id="sess-A")
+    log = _log_of([outside, inside], tmp_path / "history.parquet")
+    assert pq.read_table(log).column("session_id").to_pylist() == [None, "sess-A"]
+
+
+def test_rollback_to_an_empty_session_id_is_refused(tmp_path: Path) -> None:
+    """#147: ``to=""`` names no session; it must not quietly match (or skip) the session-less edits."""
+    from corral.editing import RollbackError
+
+    pkg = _make_pkg("ibis")
+    r = apply_edit(pkg, Edit(op="add_rows", table="t", payload={"rows": [{"id": 9}]}))
+    log = _log_of([r], tmp_path / "history.parquet")
+    with pytest.raises(RollbackError, match="session_id"):
+        rollback(pkg, log, to="")
+    assert 9 in _ids(pkg)
+
+
+def test_rollback_reads_a_legacy_empty_session_id_as_none(tmp_path: Path) -> None:
+    """Logs written before #147 stored no session as ``""``; they still inflate to ``session_id=None``."""
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    pkg = _make_pkg("ibis")
+    r = apply_edit(pkg, Edit(op="add_rows", table="t", payload={"rows": [{"id": 9}]}))
+    log = _log_of([r], tmp_path / "history.parquet")
+    legacy = pq.read_table(log).to_pylist()
+    legacy[0]["session_id"] = ""
+    pq.write_table(pa.Table.from_pylist(legacy), log)
+    [reversed_result] = rollback(pkg, log)
+    assert reversed_result.session_id is None
+    assert 9 not in _ids(pkg)
+
+
 # ---------------------------------------------------------------------------
 # DirtyTracker integration
 # ---------------------------------------------------------------------------
@@ -329,6 +378,38 @@ def test_leavenworth_round_trip(tmp_path: Path) -> None:
     rollback(pkg, log)
     assert pkg["link"].count() == starting_link_count
     assert pkg["node"].count() == starting_node_count
+
+
+def test_leavenworth_replace_table_with_an_all_null_column(tmp_path: Path) -> None:
+    """#163: a ``replace_table`` built from row dicts survives Leavenworth's all-null ``node.name``.
+
+    ``netstead clean`` rebuilds a table with ``engine.from_records(rows)``; every ``node.name`` is
+    ``None``, so pyarrow infers a ``null``-typed column that duckdb refuses to ``CREATE TABLE``.
+    The edit, a duckdb write of the result, and rollback must all go through on the default engine.
+    """
+    leavenworth = pytest.importorskip("netstead.fixtures.leavenworth", reason="netstead fixture not installed")
+    import netstead
+
+    spec = Path(netstead.__file__).parent / "spec" / "0.97" / "datapackage.json"
+    engine = IbisEngine()
+    pkg = Package.from_source(leavenworth.csv_dir(), engine=engine, spec=spec, tables=["node"])
+    before = pkg["node"].expr.to_pyarrow()
+    assert before.column("name").null_count == before.num_rows  # the shape this test exists for
+
+    rows = before.to_pylist()
+    log = tmp_path / "history.parquet"
+    with Session(pkg, log_path=log) as s:
+        s.add_edit(Edit(op="replace_table", table="node", payload={"expr": engine.from_records(rows)}))
+    after = pkg["node"].expr.to_pyarrow()
+    assert after.num_rows == before.num_rows
+    assert after.schema.field("name").type == before.schema.field("name").type
+
+    engine.write_duckdb_table(pkg["node"].expr, tmp_path / "out.duckdb", table="node")
+
+    rollback(pkg, log)
+    restored = pkg["node"].expr.to_pyarrow()
+    assert restored.schema == before.schema
+    assert restored.to_pylist() == rows
 
 
 def test_session_no_log_path_skips_persist() -> None:
@@ -614,3 +695,43 @@ def test_add_and_reverse_keep_typed_nulls_in_struct_and_list_columns() -> None:
     assert schema.field("lst").type == pa.list_(pa.int64())
     reverse_edit(pkg, r)
     assert _rows(pkg) == before
+
+
+# ---------------------------------------------------------------------------
+# #145: a long session does not pile up memtables
+# ---------------------------------------------------------------------------
+
+
+def _table_counts(engine: IbisEngine) -> tuple[int, int]:
+    """Tables on ibis's process-wide default backend, and on ``engine``'s own connection."""
+    import gc
+
+    import ibis
+
+    gc.collect()
+    con: Any = engine.con
+    return len(ibis.get_backend().list_tables()), len(con.list_tables())
+
+
+def test_edits_run_on_the_engine_and_register_no_memtables() -> None:
+    """Each edit leaves one snapshot table on the engine and nothing on ibis's default backend.
+
+    Before, every delete/update built an ``ibis.memtable`` of the whole table, which ran on (and stayed
+    registered with) ibis's default backend, outside the engine's lock; ``from_arrow`` left a second one
+    behind on the engine for every edit.
+    """
+    pkg = _make_pkg("ibis", rows=[{"id": i, "v": "a"} for i in range(50)])
+    engine = pkg.tables["t"].engine
+    assert isinstance(engine, IbisEngine)
+    default_before, engine_before = _table_counts(engine)
+    n = 10
+    with Session(pkg) as s:
+        for i in range(n):
+            s.add_edit(
+                Edit(op="update_rows", table="t", payload={"predicate": lambda t, i=i: t.id == i, "set": {"v": "b"}})
+            )
+            s.add_edit(Edit(op="delete_rows", table="t", payload={"predicate": lambda t, i=i: t.id == 25 + i}))
+    default_after, engine_after = _table_counts(engine)
+    assert default_after == default_before
+    assert engine_after - engine_before == 2 * n
+    assert pkg["t"].count() == 50 - n

@@ -323,10 +323,29 @@ class _LedgerMark:
     before: EditLedger | None  # a snapshot (``EditLedger.copy``); ``None``: the network had no ledger
 
     def undo(self, session: Session) -> None:
+        # The rolled-back edits' seqs stay spent: a plugin may hold one, and must never find a later edit under it.
+        current = session.edits.get(self.net_id)
+        issued = current.issued if current is not None else 0
         if self.before is None:
             session.edits.pop(self.net_id, None)
+            session._issued[self.net_id] = max(session._issued.get(self.net_id, 0), issued)
         else:
+            self.before.reserve(issued)
             session.edits[self.net_id] = self.before
+
+
+@dataclass
+class _PluginRollback:
+    """Undo record for a plugin's ``host.on_rollback(fn)`` inside an Action: ``fn`` puts the plugin's own state back."""
+
+    plugin_id: str
+    fn: Callable[[], None]
+
+    def undo(self, session: Session) -> None:
+        try:
+            self.fn()
+        except Exception:  # boundary: a plugin's callback must not stop core putting its own state back
+            logger.exception("plugin %s: its rollback callback failed", self.plugin_id)
 
 
 class Session:
@@ -379,6 +398,8 @@ class Session:
         self.style: dict[str, Any] = copy.deepcopy(DEFAULT_STYLE)
         self.history: list[HistoryEntry] = []
         self.edits: dict[str, EditLedger] = {}  # net_id -> its pending edits
+        #: net_id -> the newest edit seq a rolled-back Action spent with its ledger: a new ledger starts after it.
+        self._issued: dict[str, int] = {}
         self.issues: dict[str, IssueSet] = {}  # net_id -> its last validation
         self._injected_parser = parser
         self._parser = parser
@@ -392,8 +413,9 @@ class Session:
         #: Actions whose handlers are running (more than one: nested ``host.dispatch``). Only the thread
         #: holding the lock touches it, so "empty" means "not inside any Action" for that thread.
         self._running: list[_Running] = []
-        #: What ``mutate``/``derive`` changed inside the running Actions, undone if one of them fails.
-        self._undo: list[_Mutated | _Derived | _LedgerMark] = []
+        #: What ``mutate``/``derive`` changed inside the running Actions (and the plugins' ``on_rollback``
+        #: callbacks), undone newest first if one of them fails.
+        self._undo: list[_Mutated | _Derived | _LedgerMark | _PluginRollback] = []
         #: The Actions this session understands: the core ones, plus any its plugins register.
         self.actions = ActionRegistry()
         #: ``type`` -> handler run under the lock. Core handlers are this class's ``_do_<type>`` methods
@@ -762,7 +784,8 @@ class Session:
         Restores the tables, version, lineage and sync stamps of each mutated network, unregisters
         the networks it derived, and puts back the active network, selection, style, saved selections and
         filters. A plugin's
-        own state (its closure, files it wrote) is the plugin's to keep consistent.
+        own state (its closure, files it wrote) is the plugin's to put back: the callbacks it registered with
+        ``host.on_rollback`` run in their place on the undo stack.
         """
         while len(self._undo) > running.undo_mark:
             self._undo.pop().undo(self)
@@ -1099,8 +1122,26 @@ class Session:
         if self._running:
             self._undo.append(_LedgerMark(net_id, ledger.copy() if ledger is not None else None))
         if ledger is None:
-            ledger = self.edits[net_id] = EditLedger()
+            ledger = self.edits[net_id] = EditLedger(self._issued.get(net_id, 0))
         return ledger
+
+    def pending_edits(self, net_id: str | None) -> list[dict[str, Any]]:
+        """Each pending edit's view on a network, oldest first (``seq`` is its stable id); ``[]`` before any edit."""
+        with self._lock:
+            ledger = self.edits.get(self._handle(net_id).id)
+            return [e.view() for e in ledger.entries] if ledger else []
+
+    def on_rollback(self, plugin_id: str, fn: Callable[[], None]) -> None:
+        """Call ``fn()`` if the running Action (or one it is nested in) fails: plugin ``plugin_id`` puts its state back.
+
+        It goes on the undo stack, so it runs in its place in the rollback, newest first: the network changes made
+        after it are already undone. It is dropped once the outermost Action succeeds. A failing ``fn`` is logged and
+        the rollback goes on. Raises ``RuntimeError`` outside an Action handler, where nothing rolls back.
+        """
+        with self._lock:
+            if not self._running:
+                raise RuntimeError(f"{plugin_id}: host.on_rollback works only inside an Action handler")
+            self._undo.append(_PluginRollback(plugin_id, fn))
 
     def _source(self, origin: str | None) -> str:
         """Who a mutation belongs to: its plugin, a core Action (``"workbench"``), or Python outside any Action."""

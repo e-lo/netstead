@@ -1,9 +1,12 @@
 """Internal: dispatch one :class:`Edit` against a :class:`Package`.
 
-Ibis-first per architecture §6.1: op handlers route the payload
-through ibis (``filter`` / ``ifelse`` / ``anti_join``) and materialise
-via pyarrow so the module stays pandas-free. Sample capture is bounded
-at :data:`SAMPLE_CAP` rows.
+Ibis-first per architecture §6.1: op handlers take the table's own
+engine expression and route the payload through ibis (``filter`` /
+``ifelse`` / ``anti_join``), so the work runs on the engine's connection
+(under its lock) rather than on an ``ibis.memtable`` copy of the whole
+table, one per op, registered with ibis's process-wide default backend
+(#145). Results materialise via pyarrow so the module stays
+pandas-free. Sample capture is bounded at :data:`SAMPLE_CAP` rows.
 
 The dispatch tables :data:`APPLY_OPS` + :data:`REVERSE_OPS` are the
 sole extension seam — a new op only adds to those two dicts.
@@ -35,6 +38,11 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 def _sample(arrow: pa.Table, *, cap: int = SAMPLE_CAP) -> list[dict]:
     """Materialise up to ``cap`` rows of ``arrow`` as a list of row dicts."""
     return arrow.slice(0, cap).to_pylist()
+
+
+def _sample_expr(expr: ibis.Table, *, cap: int = SAMPLE_CAP) -> list[dict]:
+    """Up to ``cap`` rows of ``expr`` as row dicts, fetching only those rows."""
+    return expr.head(cap).to_pyarrow().to_pylist()
 
 
 def _arrow_of(expr: TableExpr) -> pa.Table:
@@ -151,11 +159,12 @@ def _rows_like(rows: list[dict], current: pa.Table, engine: Engine) -> pa.Table:
 # ---------------------------------------------------------------------------
 
 
-def _apply_add_rows(current: pa.Table, edit: Edit, engine: Engine) -> tuple[pa.Table, Any, dict]:
-    """Append ``payload['rows']`` to ``current``; rollback blob records the verbatim added rows."""
+def _apply_add_rows(current_expr: ibis.Table, edit: Edit, engine: Engine) -> tuple[pa.Table, Any, dict]:
+    """Append ``payload['rows']`` to the table; rollback blob records the verbatim added rows."""
     rows = _require(edit.payload, "rows", edit.op)
     if not isinstance(rows, list):
         raise InvalidPayload(f"Edit op 'add_rows' payload['rows'] must be a list; got {type(rows).__name__}")
+    current = current_expr.to_pyarrow()
     if not rows:
         return current, {"added_rows": []}, {"rows_added": 0, "rows_removed": 0, "rows_changed": 0}
 
@@ -168,15 +177,15 @@ def _apply_add_rows(current: pa.Table, edit: Edit, engine: Engine) -> tuple[pa.T
     )
 
 
-def _apply_delete_rows(current: pa.Table, edit: Edit, engine: Engine) -> tuple[pa.Table, Any, dict]:
+def _apply_delete_rows(ibis_current: ibis.Table, edit: Edit, engine: Engine) -> tuple[pa.Table, Any, dict]:
     """Remove rows matching ``payload['predicate']``; rollback blob carries the removed rows."""
     predicate = _require(edit.payload, "predicate", edit.op)
     if not callable(predicate):
         raise InvalidPayload("Edit op 'delete_rows' payload['predicate'] must be callable(ibis.Table) -> BooleanColumn")
 
-    ibis_current = ibis.memtable(current)
-    deleted_arrow = ibis_current.filter(predicate(ibis_current)).to_pyarrow()
-    kept_arrow = ibis_current.filter(~predicate(ibis_current)).to_pyarrow()
+    cond: Any = predicate(ibis_current)  # an ibis BooleanColumn, per the payload contract
+    deleted_arrow = ibis_current.filter(cond).to_pyarrow()
+    kept_arrow = ibis_current.filter(~cond).to_pyarrow()
     return (
         kept_arrow,
         {"deleted_rows": deleted_arrow.to_pylist()},
@@ -184,7 +193,7 @@ def _apply_delete_rows(current: pa.Table, edit: Edit, engine: Engine) -> tuple[p
     )
 
 
-def _apply_update_rows(current: pa.Table, edit: Edit, engine: Engine) -> tuple[pa.Table, Any, dict]:
+def _apply_update_rows(ibis_current: ibis.Table, edit: Edit, engine: Engine) -> tuple[pa.Table, Any, dict]:
     """Update matched rows via ``payload['predicate']`` + ``set``; blob stores prior values."""
     predicate = _require(edit.payload, "predicate", edit.op)
     changes: dict = _require(edit.payload, "set", edit.op)
@@ -193,8 +202,7 @@ def _apply_update_rows(current: pa.Table, edit: Edit, engine: Engine) -> tuple[p
     if not isinstance(changes, dict) or not changes:
         raise InvalidPayload("Edit op 'update_rows' payload['set'] must be a non-empty dict")
 
-    ibis_current = ibis.memtable(current)
-    cond = predicate(ibis_current)
+    cond: Any = predicate(ibis_current)  # an ibis BooleanColumn, per the payload contract
     matched_arrow = ibis_current.filter(cond).to_pyarrow()
     mutated = ibis_current.mutate(
         **{col: cond.ifelse(ibis.literal(val), ibis_current[col]) for col, val in changes.items()}
@@ -207,9 +215,10 @@ def _apply_update_rows(current: pa.Table, edit: Edit, engine: Engine) -> tuple[p
     )
 
 
-def _apply_replace_table(current: pa.Table, edit: Edit, engine: Engine) -> tuple[pa.Table, Any, dict]:
+def _apply_replace_table(current_expr: ibis.Table, edit: Edit, engine: Engine) -> tuple[pa.Table, Any, dict]:
     """Replace the whole table with ``payload['expr']``; blob carries the prior rows."""
     new_arrow = _arrow_of(_require(edit.payload, "expr", edit.op))
+    current = current_expr.to_pyarrow()
     return (
         new_arrow,
         {"prior_rows": current.to_pylist()},
@@ -342,11 +351,11 @@ def apply_edit(package: Package, edit: Edit, *, session_id: str | None = None) -
 
     table = package.tables[edit.table]
     engine = table.engine
-    current_arrow = _arrow_of(table.expr)
-    before_sample = _sample(current_arrow)
+    current = to_ibis(table.expr)  # the engine's own expression, not a memtable copy per op (#145)
+    before_sample = _sample_expr(current)
     pre_edit_dirty = table.dirty
 
-    new_arrow, rollback_data, counts = handler(current_arrow, edit, engine)
+    new_arrow, rollback_data, counts = handler(current, edit, engine)
     # Stash the pre-edit dirty flag inside the rollback blob so
     # reverse_edit can restore it (else a rolled-back edit on a
     # previously-clean table leaves it spuriously dirty).

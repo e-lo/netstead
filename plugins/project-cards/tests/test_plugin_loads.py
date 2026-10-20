@@ -14,9 +14,9 @@ def test_the_entry_point_names_the_factory():
     assert ep.value == "netstead_project_cards:plugin" and ep.load() is plugin
 
 
-def test_the_plugin_needs_host_api_1_5_and_runs_on_this_one():
+def test_the_plugin_needs_host_api_1_6_and_runs_on_this_one():
     built = plugin()
-    assert (built.id, built.requires_api, built.version) == ("project_cards", "1.5", netstead_project_cards.__version__)
+    assert (built.id, built.requires_api, built.version) == ("project_cards", "1.6", netstead_project_cards.__version__)
     assert api_compatible(built.requires_api, HOST_API)
 
 

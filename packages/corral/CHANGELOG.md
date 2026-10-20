@@ -6,7 +6,53 @@ This file is for the **corral** package only. `netstead` (which depends on corra
 
 ## [Unreleased]
 
+### Added
+
+- **`Engine.to_arrow(expr)` (#116).** The protocol gains an Arrow
+  converter beside `to_pandas` / `to_polars`; `IbisEngine.to_arrow` runs
+  `to_pyarrow` with no pandas hop, so `to_arrow(from_arrow(t))` equals `t`.
+  A third-party engine must now implement it to pass `register_engine`.
+
 ### Fixed
+
+- **DuckDB writes no longer pull the whole table into memory (#128).**
+  `IbisEngine.write_duckdb_table` materialised the expression as an Arrow
+  table and re-created it on a second connection. It now ATTACHes the
+  destination file to the expression's own connection and creates the
+  table there, so duckdb streams the rows and the write stays lazy at
+  regional scale; the file is detached afterwards. Writing into the file
+  the engine itself was opened on also works, as does a path containing a
+  quote.
+- **`IbisEngine.close()` no longer hides a failed disconnect (#132).** It
+  wrapped `disconnect()` in `suppress(Exception)`, hiding real failures
+  (an in-flight query, a file-backed database that cannot be released).
+  The error now propagates; `close()` stays idempotent because only the
+  first call disconnects, and disconnecting an already-closed duckdb
+  connection does not raise. `__del__` still never raises.
+- **Long edit sessions no longer pile up memtables (#145).** Every
+  `delete_rows` / `update_rows` built an `ibis.memtable` of the whole
+  table, which ran on (and stayed registered with) ibis's process-wide
+  default backend, outside the engine's lock; and `from_records` /
+  `from_arrow` left a memtable view behind on the engine for every call.
+  Forward edits now run on the table's own engine expression (the "before"
+  sample fetches only its rows), and the engine hands Arrow straight to
+  `create_table`, which drops its staging view. A 20-edit session went
+  from 20 stray default-backend memtables plus 40 engine tables to 0 and 20.
+- **One encoding for "no session" in the rollback log (#147).** The log
+  wrote a missing `session_id` as `""` and read it back as `None`. It now
+  writes null; older logs with `""` still read as `None`.
+  `rollback(to="")`, which named no session, now raises `RollbackError`
+  instead of silently reversing nothing.
+- **`Engine.scan` contract suite (#141).** One test class per invariant on
+  the `scan` docstring (inline `{"data": ...}` through `from_records`,
+  duckdb handles through `read_duckdb_table`, unknown dict shapes raise
+  `UnsupportedSourceError`, `format` / `schema` / `**kwargs` reach the
+  adapter verbatim), parametrised over every registered engine.
+- **`replace_table` on a table with an all-null column (#163).** Already
+  fixed by the engine coercing `null`-typed Arrow columns to `string` before
+  duckdb sees them; now locked in by a regression test that runs the
+  `netstead clean` shape (rebuild Leavenworth `node`, whose `name` is all
+  null, from row dicts) through a session, a duckdb write and rollback.
 
 - **`package_to_md` resource links hit their schema headings.** The overview
   table hyphenated the resource name in its in-page link (`#link-tod`) while

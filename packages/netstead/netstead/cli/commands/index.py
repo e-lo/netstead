@@ -9,6 +9,7 @@ over identical data is a cheap no-op.
 from __future__ import annotations
 
 from pathlib import Path
+from types import ModuleType
 
 import typer
 from corral.cli.render import render_dict
@@ -103,7 +104,7 @@ def register(app: typer.Typer) -> None:
         )
 
 
-def _import_indexes():
+def _import_indexes() -> ModuleType:
     """Resolve :mod:`netstead.indexes` — core module but build needs scipy + shapely at call time.
 
     Routed through :func:`require_extra` so any future packaging change

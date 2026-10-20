@@ -3,11 +3,13 @@
 Each handler does every fallible step (Host calls included) before it touches the draft state: when a handler
 fails, the Workbench rolls back its network changes, and the drafts must still describe the network. A handler
 nested in an Action that fails later is rolled back after it returned; ``target_network`` reconciles the draft with
-the network at the start of every handler, so such a change never reaches an undo or a commit.
+the network's pending edits at the start of every handler, so such a change never reaches an undo or a commit. A
+commit changes no network, so it registers ``host.on_rollback`` to take its file and the draft back.
 """
 
 from __future__ import annotations
 
+import logging
 import weakref
 from typing import Any
 
@@ -26,12 +28,14 @@ from .flow import (
     selection_networks,
     target_network,
 )
-from .lower import Applied, apply_change, describe, mark_after
+from .lower import Applied, apply_change, describe
 from .mapping import FieldMap
 from .state import CardsState, Preview
 from .validate import card_problems
 
 __all__ = ["Handlers"]
+
+logger = logging.getLogger(__name__)
 
 
 class Handlers:
@@ -77,24 +81,23 @@ class Handlers:
 
         ``host.undo`` refuses (``ActionError``) when the network's newest edit is not this plugin's; a refusal part
         way through a two-step change rolls the earlier step back with the Action. Each undone edit must be the
-        mutation the draft recorded (its ledger note and version), so a plugin edit the draft does not hold is
-        refused rather than undone in its place.
+        mutation the draft recorded (its seq), so a plugin edit the draft does not hold is refused rather than undone
+        in its place.
         """
         with as_action_errors():
             net = target_network(host, self.state, action.net_id)
         entry = self.state.last(net)
         if entry is None:
             raise ActionError("nothing to undo: the draft card has no changes (committed cards are not undone)")
-        undo_marks = []
-        for mark in reversed(entry.marks):
-            undone = host.undo(net)
-            if (undone["note"], undone["version"]) != (mark.note, mark.version):
-                raise ActionError(
-                    f"the newest project cards edit on {net} ({undone['note']}) is not the draft's last change "
-                    f"({mark.note}); nothing was undone"
-                )
-            undo_marks.append(mark_after(host, net, f"undo: {mark.note}"))
-        count = self.state.pop(net, entry, undo_marks)
+        with self.state.undoing(net):
+            for mark in reversed(entry.marks):
+                undone = host.undo(net)
+                if undone["seq"] != mark.seq:
+                    raise ActionError(
+                        f"the newest project cards edit on {net} ({undone['note']}) is not the draft's last change "
+                        f"({mark.note}); nothing was undone"
+                    )
+            count = self.state.pop(net, entry)
         host.publish("changed", {"net_id": net, "count": count})
         return {"net_id": net, "undone": describe(entry.change), "count": count}
 
@@ -105,6 +108,8 @@ class Handlers:
         replaced only with ``overwrite``, and a failed write leaves it intact), and is removed (or its previous
         content restored) with the folders the commit made when the catalog refuses the card, so a failed commit
         leaves the disk and the draft as they were. A restore that fails too is named in the catalog's error.
+        When an enclosing Action fails after the commit succeeded, its ``host.on_rollback`` callback does the same
+        (a restore that fails is logged) and puts the draft back.
         """
         with as_action_errors():
             net = target_network(host, self.state, action.net_id)
@@ -145,7 +150,14 @@ class Handlers:
                     raise ActionError(f"{exc}; {note}") from exc
                 exc.add_note(note)
                 raise
-        card_id = self.state.commit(net, card, str(path))
+        card_id, uncommit = self.state.commit(net, card, str(path))
+
+        def roll_back() -> None:
+            if (failed := undo_write(written)) is not None:
+                logger.warning("project_cards: a rolled-back commit's file at %s could not be %s", path, failed)
+            uncommit()
+
+        host.on_rollback(roll_back)
         host.publish("committed", {"net_id": net, "card_id": card_id, "path": str(path)})
         return {
             "card_id": card_id,

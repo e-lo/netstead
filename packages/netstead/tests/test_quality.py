@@ -198,6 +198,104 @@ def test_duplicate_near_nodes_threshold_zero_suppresses():
     assert _issues_with_code(report, "quality.duplicate_near_nodes") == []
 
 
+def _shape_network(engine, shapes: list[str | None], extra_links: dict | None = None) -> Network:
+    """One link per WKT shape (link_id 1..n), all on a single node so only the geometry matters."""
+    nodes = _node(engine, [{"node_id": 1, "x_coord": 0.0, "y_coord": 0.0}])
+    rows = [
+        {"link_id": i, "from_node_id": 1, "to_node_id": 1, "length": 1.0, "directed": True, "geometry": wkt}
+        for i, wkt in enumerate(shapes, start=1)
+    ]
+    return _network({"link": _link(engine, rows), "node": nodes})
+
+
+def _overlaps(report) -> list[tuple[list, float]]:
+    return [
+        (i.extra["link_ids"], i.extra["overlap_length"]) for i in _issues_with_code(report, "quality.overlapping_links")
+    ]
+
+
+def test_overlapping_links_flags_a_shared_stretch():
+    """Two links sharing part of their length are flagged once; touching or crossing links are not (issue #5)."""
+    net = _shape_network(
+        _engine(),
+        [
+            "LINESTRING (0 0, 2 0)",
+            "LINESTRING (1 0, 3 0)",  # shares 1 -> 2 with link 1
+            "LINESTRING (2 0, 2 1)",  # touches links 1 and 2 at a point
+            "LINESTRING (0.5 -1, 0.5 1)",  # crosses link 1
+            "LINESTRING (5 5, 6 6)",
+            None,
+        ],
+    )
+    report = run_quality(net)
+    assert _overlaps(report) == [([1, 2], 1.0)]
+    issue = _issues_with_code(report, "quality.overlapping_links")[0]
+    assert issue.severity is Severity.WARNING
+    assert issue.category is Category.DATA_QUALITY
+    assert (issue.table, issue.column, issue.row) == ("link", "geometry", 0)
+    assert issue.extra["rows"] == [0, 1]
+
+
+def test_overlapping_links_flags_a_link_lying_along_another():
+    """A shorter link running along part of a longer one is an overlap too."""
+    net = _shape_network(_engine(), ["LINESTRING (0 0, 3 0)", "LINESTRING (1 0, 2 0)"])
+    assert _overlaps(run_quality(net)) == [([1, 2], 1.0)]
+
+
+def test_overlapping_links_ignores_identical_shapes():
+    """Reverse-direction twins with the same shape are the normal two-way encoding, not an overlap."""
+    net = _shape_network(_engine(), ["LINESTRING (0 0, 1 0)", "LINESTRING (1 0, 0.5 0, 0 0)"])
+    assert _overlaps(run_quality(net)) == []
+
+
+def test_overlapping_links_min_overlap_threshold():
+    """``min_overlap_units`` ignores shared stretches no longer than it."""
+    net = _shape_network(_engine(), ["LINESTRING (0 0, 2 0)", "LINESTRING (1 0, 3 0)"])
+    config = {"quality.overlapping_links": RuleConfig(thresholds={"min_overlap_units": 1.0})}
+    assert _overlaps(run_quality(net, config=config)) == []
+
+
+def test_overlapping_links_reads_shapes_from_the_geometry_table():
+    """Links without inline geometry take their shape from the geometry table via geometry_id."""
+    engine = _engine()
+    nodes = _node(engine, [{"node_id": 1, "x_coord": 0.0, "y_coord": 0.0}])
+    links = _link(
+        engine,
+        [
+            {"link_id": 10, "from_node_id": 1, "to_node_id": 1, "length": 1.0, "geometry_id": 100},
+            {"link_id": 20, "from_node_id": 1, "to_node_id": 1, "length": 1.0, "geometry_id": 200},
+        ],
+    )
+    geometry = _table(
+        engine,
+        "geometry",
+        [
+            {"geometry_id": 100, "geometry": "LINESTRING (0 0, 2 0)"},
+            {"geometry_id": 200, "geometry": "LINESTRING (0.5 0, 1.5 0, 1.5 1)"},
+        ],
+    )
+    net = _network({"link": links, "node": nodes, "geometry": geometry})
+    assert _overlaps(run_quality(net)) == [([10, 20], 1.0)]
+
+
+def test_duplicate_near_nodes_handles_tiny_epsilon_on_large_coordinates():
+    """A tiny epsilon over projected coordinates must not overflow the grid-cell key (issue #181)."""
+    engine = _engine()
+    nodes = _node(
+        engine,
+        [
+            {"node_id": 1, "x_coord": 6_000_000.0, "y_coord": 2_000_000.0},
+            {"node_id": 2, "x_coord": 6_000_000.0, "y_coord": 2_000_000.0},  # exact duplicate
+            {"node_id": 3, "x_coord": 6_000_001.0, "y_coord": 2_000_000.0},
+        ],
+    )
+    links = _link(engine, [{"link_id": 1, "from_node_id": 1, "to_node_id": 3, "length": 1.0, "directed": False}])
+    net = _network({"link": links, "node": nodes})
+    report = run_quality(net, config={"quality.duplicate_near_nodes": RuleConfig(thresholds={"epsilon_units": 1e-15})})
+    flagged = _issues_with_code(report, "quality.duplicate_near_nodes")
+    assert [i.extra["node_ids"] for i in flagged] == [[1, 2]]
+
+
 def test_sharp_angle_bends_flags_acute_turn():
     """A 3-vertex link with a near-90° bend at the middle gets flagged at default 30°."""
     engine = _engine()
@@ -281,6 +379,104 @@ def test_missing_critical_fields_flags_sparse_column():
     assert {i.column for i in flagged} == {"free_speed"}
 
 
+def _tod_network(engine, tod_rows: list[dict], extra: dict[str, Table] | None = None) -> Network:
+    nodes = _node(engine, [{"node_id": 1, "x_coord": 0.0, "y_coord": 0.0}])
+    links = _link(
+        engine,
+        [{"link_id": i, "from_node_id": 1, "to_node_id": 1, "length": 1.0, "directed": True} for i in (1, 2)],
+    )
+    tables = {"link": links, "node": nodes, "link_tod": _table(engine, "link_tod", tod_rows)}
+    tables.update(extra or {})
+    return _network(tables)
+
+
+def test_non_unique_combination_flags_repeated_link_and_time_day():
+    """Two link_tod rows for the same (link_id, time_day) give one issue naming both rows (issue #7)."""
+    engine = _engine()
+    net = _tod_network(
+        engine,
+        [
+            {"link_tod_id": 1, "link_id": 1, "time_day": "1111100_0700_0900"},
+            {"link_tod_id": 2, "link_id": 1, "time_day": "1111100_1600_1800"},  # different window: fine
+            {"link_tod_id": 3, "link_id": 2, "time_day": "1111100_0700_0900"},  # different link: fine
+            {"link_tod_id": 4, "link_id": 1, "time_day": "1111100_0700_0900"},  # repeats row 0
+            {"link_tod_id": 5, "link_id": None, "time_day": "1111100_0700_0900"},  # null key part: skipped
+            {"link_tod_id": 6, "link_id": None, "time_day": "1111100_0700_0900"},
+        ],
+    )
+    report = run_quality(net)
+    flagged = _issues_with_code(report, "quality.non_unique_combination")
+    assert len(flagged) == 1
+    issue = flagged[0]
+    assert issue.severity is Severity.WARNING
+    assert issue.category is Category.DATA_QUALITY
+    assert issue.table == "link_tod"
+    assert issue.row == 0
+    assert issue.extra["columns"] == ["link_id", "time_day"]
+    assert issue.extra["values"] == {"link_id": 1, "time_day": "1111100_0700_0900"}
+    assert issue.extra["rows"] == [0, 3]
+    assert issue.extra["count"] == 2
+    assert "link_id=1" in issue.message
+
+
+def test_non_unique_combination_checks_timeday_id_and_lane_num_by_default():
+    """The defaults also cover (link_id, timeday_id) on link_tod and (link_id, lane_num) on lane."""
+    engine = _engine()
+    lanes = _table(
+        engine,
+        "lane",
+        [
+            {"lane_id": 1, "link_id": 1, "lane_num": 1},
+            {"lane_id": 2, "link_id": 1, "lane_num": 2},
+            {"lane_id": 3, "link_id": 1, "lane_num": 1},  # repeats lane 1's number
+        ],
+    )
+    net = _tod_network(
+        engine,
+        [
+            {"link_tod_id": 1, "link_id": 2, "timeday_id": "am"},
+            {"link_tod_id": 2, "link_id": 2, "timeday_id": "am"},
+        ],
+        extra={"lane": lanes},
+    )
+    flagged = _issues_with_code(run_quality(net), "quality.non_unique_combination")
+    assert sorted((i.table, tuple(i.extra["columns"]), i.row) for i in flagged) == [
+        ("lane", ("link_id", "lane_num"), 0),
+        ("link_tod", ("link_id", "timeday_id"), 0),
+    ]
+
+
+def test_non_unique_combination_combinations_threshold_replaces_the_defaults():
+    """``thresholds["combinations"]`` names the tables and column combinations to check, replacing the defaults."""
+    engine = _engine()
+    net = _tod_network(
+        engine,
+        [
+            {"link_tod_id": 1, "link_id": 1, "time_day": "x", "toll": 1.5},
+            {"link_tod_id": 2, "link_id": 1, "time_day": "x", "toll": 2.5},
+        ],
+    )
+    custom = RuleConfig(
+        thresholds={"combinations": {"link_tod": [["link_id", "toll"]], "link": [["from_node_id", "to_node_id"]]}}
+    )
+    flagged = _issues_with_code(
+        run_quality(net, config={"quality.non_unique_combination": custom}), "quality.non_unique_combination"
+    )
+    # link_tod (link_id, time_day) is no longer checked; link (from, to) repeats on both links.
+    assert [(i.table, i.extra["rows"]) for i in flagged] == [("link", [0, 1])]
+
+
+def test_non_unique_combination_skips_absent_tables_and_columns():
+    """A combination whose table or columns are missing is skipped, not an error."""
+    engine = _engine()
+    net = _tod_network(engine, [{"link_tod_id": 1, "link_id": 1}])  # neither time_day nor timeday_id
+    custom = RuleConfig(
+        thresholds={"combinations": {"link_tod": [["link_id", "time_day"]], "movement_tod": [["mvmt_id"]]}}
+    )
+    report = run_quality(net, config={"quality.non_unique_combination": custom})
+    assert _issues_with_code(report, "quality.non_unique_combination") == []
+
+
 # ---------------------------------------------------------------------------
 # Framework integration: discovery, enable flag, severity override
 # ---------------------------------------------------------------------------
@@ -300,6 +496,8 @@ def test_entry_point_discovers_all_gmns_rules():
         "quality.sharp_angle_bends",
         "quality.implausible_vc",
         "quality.missing_critical_fields",
+        "quality.non_unique_combination",
+        "quality.overlapping_links",
     }
     assert expected <= codes
 
@@ -372,4 +570,6 @@ def test_full_pack_on_leavenworth():
     assert counts.get("quality.duplicate_near_nodes", 0) == 0
     assert counts.get("quality.implausible_vc", 0) == 0
     assert counts.get("quality.missing_critical_fields", 0) == 0
+    assert counts.get("quality.non_unique_combination", 0) == 0  # lane numbers and link_tod rows are unique
+    assert counts.get("quality.overlapping_links", 0) == 0  # no two links share a stretch of road
     assert counts.get("quality.high_speed_residential", 0) > 0
