@@ -25,7 +25,7 @@ from .._helpers import resolve_engine
 __all__ = ["register"]
 
 
-def _parse_area(place: str | None, bbox: str | None, point: str | None, buffer_m: float):
+def _parse_area(place: str | None, bbox: str | None, point: str | None, buffer_m: float) -> str | tuple[float, ...]:
     """Resolve the mutually-exclusive area options into a build ``area`` argument.
 
     Returns the area value (place string, bbox 4-tuple, or point 2-tuple).
@@ -51,7 +51,7 @@ def _parse_area(place: str | None, bbox: str | None, point: str | None, buffer_m
             return tuple(float(p) for p in parts)
         except ValueError as exc:
             raise typer.BadParameter("--bbox values must be numbers") from exc
-    # point
+    assert point is not None  # exactly one of place / bbox / point, checked above
     parts = [p.strip() for p in point.split(",")]
     if len(parts) != 2:
         raise typer.BadParameter("--point must be 'lat,lon'")

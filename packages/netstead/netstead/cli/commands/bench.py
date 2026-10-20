@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
+from typing import TypeVar
 
 import typer
 from corral.cli.render import render_dict
@@ -10,6 +12,8 @@ from corral.cli.render import render_dict
 from netstead import Network
 
 from .._helpers import resolve_engine
+
+_T = TypeVar("_T")
 
 __all__ = ["register"]
 
@@ -45,7 +49,7 @@ def register(app: typer.Typer) -> None:
 
         timings: list[dict] = []
 
-        def _time(phase: str, fn):
+        def _time(phase: str, fn: Callable[[], _T]) -> _T:
             t0 = time.perf_counter()
             result = fn()
             timings.append({"phase": phase, "seconds": round(time.perf_counter() - t0, 4)})

@@ -13,7 +13,13 @@ from typing import TYPE_CHECKING
 import typer
 
 if TYPE_CHECKING:
+    from types import ModuleType
+
+    from corral.editing import Session
+    from corral.engines import Engine
+
     from netstead import Network
+    from netstead.scope import NetworkScope
 
 __all__ = [
     "list_index_sidecars",
@@ -26,7 +32,7 @@ __all__ = [
 ]
 
 
-def resolve_engine(name: str | None):
+def resolve_engine(name: str | None) -> Engine:
     """Thin CLI wrapper around :func:`corral.engines.resolve_engine`.
 
     Converts the public resolver's :class:`ValueError` (raised on an
@@ -43,7 +49,7 @@ def resolve_engine(name: str | None):
         raise typer.BadParameter(str(exc)) from exc
 
 
-def load_network_and_session_cls(source: Path, engine_name: str | None = None):
+def load_network_and_session_cls(source: Path, engine_name: str | None = None) -> tuple[Network, type[Session]]:
     """Return ``(Network, Session class)``.
 
     :class:`Session` lives in corral, imported here so each ``clean``
@@ -92,7 +98,7 @@ def summarise_results(
     }
 
 
-def summarise_scope(scope) -> dict[str, object]:
+def summarise_scope(scope: NetworkScope) -> dict[str, object]:
     """Render a :class:`NetworkScope` into the CLI's standard summary dict."""
     return {
         "node_count": len(scope.node_ids),
@@ -156,7 +162,7 @@ def list_index_sidecars(source: Path) -> list[Path]:
 
 
 def save_index_sidecar(
-    indexes,
+    indexes: ModuleType,
     source: Path,
     net: Network,
     kind: str,
@@ -167,16 +173,18 @@ def save_index_sidecar(
     """Hash the relevant source table(s), compute the sidecar path, write the index."""
     from corral.validation import hash_table
 
+    engine = net.engine
+    assert engine is not None, "a network read from a source always carries its engine"
     if kind_target == "link":
-        content_hash = hash_table(net.links.expr, net.engine)
+        content_hash = hash_table(net.links.expr, engine)
     else:
         # graph index keys off both links + nodes — combine the digests
         # by hashing the concatenation; only the first 8 chars land in
         # the filename anyway (see cache_path docstring).
         import hashlib
 
-        link_h = hash_table(net.links.expr, net.engine)
-        node_h = hash_table(net.nodes.expr, net.engine)
+        link_h = hash_table(net.links.expr, engine)
+        node_h = hash_table(net.nodes.expr, engine)
         content_hash = hashlib.sha256(f"{link_h}::{node_h}".encode()).hexdigest()
     path = indexes.cache_path(str(source), kind, content_hash)
     indexes.save_cached(path, index_obj)
