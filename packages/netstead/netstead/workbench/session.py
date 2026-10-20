@@ -1440,7 +1440,7 @@ class Session:
                     failed.payload = {"estimate": estimate.to_dict()}
                     raise failed from exc
             finally:
-                engine.close()
+                build.close_quietly(engine)
         output = str(plan.dest)
         try:
             loaded, frames = self._load(output, action.spec_version or settings.io.spec_version)

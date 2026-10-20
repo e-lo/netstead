@@ -21,6 +21,11 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Fixed
 
+- **A Workbench build's engine failing to close no longer hides the result.**
+  Since corral's `IbisEngine.close()` stopped swallowing errors, a failed
+  disconnect in the build job's `finally` (or the estimate's) replaced the
+  build's real error and its estimate payload, or failed a build whose output
+  was already written. `build.close_quietly` now logs it as a warning.
 - **The offline report's "Fix locally" edit log is a schema-valid ProjectCard.**
   `netstead.map.edits.dump_edit_log` and the browser download (`buildYaml` in
   `map_component.js`) put the facility under `links` / `nodes` with

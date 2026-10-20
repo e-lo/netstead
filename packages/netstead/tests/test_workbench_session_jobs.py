@@ -445,6 +445,54 @@ def test_unexpected_build_failure_keeps_its_estimate(make_session, out_dir, monk
     assert list(Path(out_dir).iterdir()) == []
 
 
+def _failing_close(self):
+    raise RuntimeError("simulated: disconnect failed")
+
+
+def test_a_failing_engine_close_does_not_replace_the_build_error(make_session, out_dir, monkeypatch, caplog):
+    """I2 on #245: the build's own error (and its estimate payload) survives an engine that fails to close."""
+    from corral.engines.ibis_engine import IbisEngine
+
+    def buggy_convert(*args, **kwargs):
+        raise RuntimeError("converter bug")
+
+    monkeypatch.setattr(build, "fetch_and_convert", buggy_convert)
+    monkeypatch.setattr(IbisEngine, "close", _failing_close)
+    session = make_session()
+    with pytest.raises(ActionError, match="converter bug"):
+        session.dispatch(
+            BuildNetwork(source="osm", input_file=OSM_FILE, output_dir=out_dir, output_format="parquet", name="tiny")
+        )
+    assert session.history[-1].result["estimate"]["basis"].startswith("osm_file:")
+    assert "disconnect failed" in caplog.text
+
+
+def test_a_failing_engine_close_does_not_fail_a_finished_build(make_session, out_dir, monkeypatch, caplog):
+    from corral.engines.ibis_engine import IbisEngine
+
+    monkeypatch.setattr(IbisEngine, "close", _failing_close)
+    session = make_session()
+    result = session.dispatch(
+        BuildNetwork(source="overture", input_file=OVERTURE_DIR, output_dir=out_dir, output_format="duckdb", name="ovt")
+    )
+    assert Path(result["output"]).is_file()
+    assert "disconnect failed" in caplog.text
+
+
+def test_estimate_survives_its_own_engine_failing_to_close(make_session, out_dir, monkeypatch, caplog):
+    from corral.engines.ibis_engine import IbisEngine
+
+    monkeypatch.setattr(IbisEngine, "close", _failing_close)
+    session = make_session()
+    action = BuildNetwork(
+        source="overture", input_file=OVERTURE_DIR, output_dir=out_dir, output_format="duckdb", name="e"
+    )
+    plan = build.plan_build(action, session.settings)
+    estimate = build.estimate_for(action, plan, session.settings)
+    assert estimate.basis.startswith("overture_file:")
+    assert "disconnect failed" in caplog.text
+
+
 def test_output_outside_roots_rejected(make_session, tmp_path_factory):
     elsewhere = str(tmp_path_factory.mktemp("not-allowed"))
     with pytest.raises(PathNotAllowed):
