@@ -16,10 +16,11 @@ from __future__ import annotations
 
 import importlib
 from types import ModuleType
+from typing import NoReturn
 
 import typer
 
-__all__ = ["require_extra"]
+__all__ = ["missing_extra", "require_extra"]
 
 
 def require_extra(module_name: str, extra_name: str) -> ModuleType:
@@ -47,9 +48,21 @@ def require_extra(module_name: str, extra_name: str) -> ModuleType:
     try:
         return importlib.import_module(module_name)
     except ImportError as e:
-        typer.secho(
-            f"{module_name} requires the [{extra_name}] extra: pip install 'netstead[{extra_name}]' ({e})",
-            fg="red",
-            err=True,
-        )
-        raise typer.Exit(code=1) from None
+        missing_extra(module_name, extra_name, e)
+
+
+def missing_extra(module_name: str, extra_name: str, error: ImportError) -> NoReturn:
+    """Exit the CLI with the install hint for a failed import of a third-party optional dependency.
+
+    For a plain ``import`` in a ``try`` (e.g. ``uvicorn``), where :func:`require_extra`'s
+    importlib indirection buys nothing because no import-linter contract covers the module.
+
+    Raises:
+        typer.Exit: Always, with code 1 after printing the hint to stderr.
+    """
+    typer.secho(
+        f"{module_name} requires the [{extra_name}] extra: pip install 'netstead[{extra_name}]' ({error})",
+        fg="red",
+        err=True,
+    )
+    raise typer.Exit(code=1) from None

@@ -6,6 +6,19 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ## [Unreleased]
 
+### Security
+
+- **`netstead app` refuses to expose your home folder.** A non-loopback host
+  (`--host 0.0.0.0`, `NETSTEAD_APP__HOST` or a config file) with an empty
+  `io.allowed_roots` (which means the home folder) now exits with code 2 and
+  explains how to set the roots. Before, anyone on the network could browse the
+  home folder through the Workbench file browser. Sources named on the command
+  line are still allowed for the session but don't satisfy the check. Loopback
+  spellings the Host-header guard doesn't cover (`127.0.0.2`, `LOCALHOST`,
+  `[::1]`) are refused the same way, with their own message. A blank
+  `io.allowed_roots` entry (`[""]`, which resolved to the current folder) is now
+  a settings error.
+
 ### Fixed
 
 - **Validation and network HTML reports no longer show "API KEY REQUIRED" tiles when

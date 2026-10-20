@@ -1,5 +1,5 @@
 // Context menus: commands for a right-clicked map feature or grid row (plus the selection's), and the "Selection
-// actions" menu in the Details panel. A menu opens only when a command applies, so with none registered the map and
+// actions" menu in the Selection panel. A menu opens only when a command applies, so with none registered the map and
 // the grid behave as before (MapLibre's right-drag; the browser's own menu on a row). WAI-ARIA menu keys.
 import { $, esc } from "./dom.js";
 import { applicable, commandContext, commandLabel, menuSections, runCommand, selectionSections } from "./commands.js";

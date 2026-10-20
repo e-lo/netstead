@@ -59,6 +59,14 @@ def test_env_json_list_and_unrelated_vars_ignored(tmp_path, isolated_env):
     assert loaded.settings.io.allowed_roots == ["/data", "/tmp"]
 
 
+@pytest.mark.parametrize("roots", ['[""]', '["/data", "   "]'])
+def test_blank_allowed_roots_entry_is_rejected(tmp_path, isolated_env, roots):
+    """A blank entry would resolve to the current folder, not mean "unset"; refuse it by name."""
+    env = {**isolated_env, "NETSTEAD_IO__ALLOWED_ROOTS": roots}
+    with pytest.raises(SettingsError, match="blank"):
+        load_settings(project_dir=tmp_path, environ=env)
+
+
 def test_rule_settings_nest_under_validation(tmp_path, isolated_env):
     (tmp_path / "netstead.toml").write_text(
         '[validation.rules.dangling-node]\nenabled = false\nseverity_override = "warning"\n'

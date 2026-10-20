@@ -65,7 +65,7 @@ export function menuSections(commands, context, ctx, onError) {
   return sections;
 }
 
-// The "Selection actions" menu in the Details panel.
+// The "Selection actions" menu in the Selection panel.
 export function selectionSections(commands, ctx, onError) {
   const items = ctx.selectionCount ? applicable(commands, "selection", ctx, onError) : [];
   return items.length ? [{ title: selectionTitle(ctx), items }] : [];
