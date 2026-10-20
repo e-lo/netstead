@@ -35,7 +35,9 @@ export function reloadIssues({ restart = false } = {}) {
 function renderStatus(meta) {
   const id = activeId(), current = Boolean(meta && !meta.stale && id);
   $("iss-status").textContent = statusLine(meta);
-  $("iss-run").textContent = meta && meta.stale ? "Re-run validation" : "Run validation";
+  const run = $("iss-run"), label = meta && meta.stale ? "Re-run validation" : "Run validation";
+  run.dataset.tip = label;
+  run.setAttribute("aria-label", label);
   const report = $("iss-report");
   report.classList.toggle("off", !current);
   report.setAttribute("aria-disabled", String(!current));
@@ -88,7 +90,7 @@ export function renderEditWarnings(edits) {
     `<div class="iss sev-warning" data-w="${k}" tabindex="0"><span class="sev-dot" aria-hidden="true"></span><div class="iss-body">` +
     `<div><b>${esc(w.code)}</b> <span class="diag">${esc(w.table)} ${esc(w.key)}${w.column ? ` · ${esc(w.column)}` : ""}</span></div>` +
     `<div class="iss-msg">${esc(w.message)}</div></div><button class="mini ghost iss-fix">Fix</button></div>`).join("")
-    : '<span class="empty">No edit warnings.</span>';
+    : "";  // the count beside the label says there are none
   for (const row of $("iss-edit").querySelectorAll(".iss")) {
     const w = list[Number(row.dataset.w)], target = { table: w.table, id: w.key, column: w.column, note: w.message };
     const pick = () => { store.set({ fixTarget: target }); focusRecord(w.table, w.key); };

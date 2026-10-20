@@ -82,6 +82,7 @@ from .actions import (
     Navigate,
     OpenNetwork,
     PinAnchor,
+    RedoEdit,
     RunValidation,
     SaveNetwork,
     SaveSelection,
@@ -1095,8 +1096,33 @@ class Session:
                 who = "the Workbench" if last.source == CORE_SOURCE else last.source
                 raise ActionError(f"the last change to {handle.id} was made by {who} ({last.note}); undo it there")
             origin = None if source in (CORE_SOURCE, PYTHON_SOURCE) else source
+            redo = [*ledger.redo, last] if source == CORE_SOURCE else []  # type: ignore[union-attr]  # ``last`` is set
             self.revert(handle.id, last.results, note=f"undo: {last.note}", origin=origin)
+            # ``revert`` snapshotted the ledger (inside an Action) before emptying the stack, so a rollback puts the
+            # old stack back. The Workbench's own undo is redoable; another source's undo clears the stack.
+            self.edits[handle.id].redo = redo
         return last
+
+    def redo_last(self, net_id: str | None) -> PendingEdit:
+        """Re-apply the network's newest undone Workbench edit (:meth:`mutate` of its edits); return the new entry.
+
+        The entry's edits run through :meth:`mutate` with note ``"redo: <its note>"``, so the redo is a pending
+        edit like any other (undoable, recorded, re-checked). Raises :class:`ActionError` ``"nothing to redo"``
+        when no undone edit is waiting: nothing was undone, or the network changed since the undo.
+        """
+        with self._lock:
+            handle = self._handle(net_id)
+            ledger = self.edits.get(handle.id)
+            if ledger is None or not ledger.redo:
+                raise ActionError(f"nothing to redo on {handle.id}")
+            *rest, entry = ledger.redo
+            # ``mutate`` snapshots the ledger (inside an Action) and empties the stack as it adds: a failure leaves
+            # the stack as it was, a rollback restores the snapshot, and on success only the redone entry leaves it.
+            self.mutate(handle.id, [r.edit for r in entry.results], note=f"redo: {entry.note}", recheck=entry.touched)
+            ledger.redo = rest
+            redone = ledger.last()
+            assert redone is not None  # mutate just added it
+        return redone
 
     def edit_check(self, net_id: str | None) -> CheckResult:
         """The live edit warnings on a network now (empty before any edit)."""
@@ -2034,6 +2060,16 @@ class Session:
             "net_id": handle.id,
             "version": handle.version,
             "undone": entry.view(),
+            "open_warnings": len(self.edit_check(handle.id).warnings),
+        }
+
+    def _do_redo_edit(self, action: RedoEdit) -> dict[str, Any]:
+        entry = self.redo_last(action.net_id)
+        handle = self._handle(action.net_id)
+        return {
+            "net_id": handle.id,
+            "version": handle.version,
+            "redone": entry.view(),
             "open_warnings": len(self.edit_check(handle.id).warnings),
         }
 

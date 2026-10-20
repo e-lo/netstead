@@ -68,10 +68,20 @@
              background:rgba(23,26,33,.92); color:var(--ink); border:1px solid var(--edge); border-radius:8px;
              font-size:16px; cursor:pointer; backdrop-filter:blur(3px); }
   .iconbtn.on { background:var(--accent); color:#11151a; border-color:var(--accent); }
-  .iconbtn[data-tip]:hover::after { content:attr(data-tip); position:absolute; top:50%; right:calc(100% + 8px);
+  .iconbtn svg { width:18px; height:18px; display:block; }
+  .iconbtn.off { opacity:.45; pointer-events:none; }
+  /* a pure-CSS tooltip: to the left of the button (the map's corner, the dock, the footer), or below it in the header,
+     where a tooltip above or beside the button would be clipped by the window's edge */
+  [data-tip]:hover::after { content:attr(data-tip); position:absolute; top:50%; right:calc(100% + 8px);
              transform:translateY(-50%); white-space:nowrap; background:#11151a; color:var(--ink);
              border:1px solid var(--edge); padding:4px 8px; border-radius:6px; font-size:12px;
              pointer-events:none; z-index:5; }
+  header [data-tip]:hover::after { top:calc(100% + 6px); right:0; transform:none; }
+  [data-tip] { position:relative; }
+  header .iconbtn, #side .iconbtn, footer .iconbtn { width:30px; height:30px; backdrop-filter:none; background:none; }
+  header .iconbtn:hover, #side .iconbtn:hover, footer .iconbtn:hover { background:#20242e; }
+  .mini [data-icon] { display:inline-flex; vertical-align:-3px; margin-right:5px; }
+  .mini [data-icon] svg { width:14px; height:14px; }
   .panel { position:absolute; top:54px; right:12px; z-index:3; width:224px; padding:12px;
            background:rgba(23,26,33,.95); border:1px solid var(--edge); border-radius:10px; color:var(--ink);
            font-size:12.5px; backdrop-filter:blur(3px); display:none; }
@@ -301,10 +311,10 @@
   #cmdk-list [role="option"].on { background:#20242e; color:var(--accent); }
   #cmdk-list .empty { padding:7px 10px; }
   #cmdk-list ul { list-style:none; margin:0; padding:0; }
-  /* "Commands…" lives in the header's spacer and shows only when the spacer has room for it, so it never makes the
-     header wrap (its layout is unchanged at every width); Ctrl+K still opens the palette when it is hidden. */
+  /* The Commands button lives in the header's spacer and shows only when the spacer has room for it, so it never
+     makes the header wrap (its layout is unchanged at every width); Ctrl+K still opens the palette when it is hidden. */
   #cmd-slot { display:flex; justify-content:flex-end; min-width:0; container-type:inline-size; }
-  @container (max-width: 112px) { #cmd-btn { display:none; } }
+  @container (max-width: 40px) { #cmd-btn { display:none; } }
   @media (max-width: 640px) { #cmd-btn { display:none; } }
   /* ---- schema forms (wb.schemaForm, Action forms) ---- */
   .sf-field { display:grid; grid-template-columns:minmax(110px, 200px) 1fr; gap:4px 10px; align-items:center; padding:5px 0; }

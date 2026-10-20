@@ -1,6 +1,7 @@
 """Unit tests for the workbench's pure (import-free) front-end modules, run under node."""
 
 import json
+import re
 import shutil
 
 import pytest
@@ -779,3 +780,54 @@ def test_settings_switches_save_what_is_on_screen_and_list_only_offerable_action
     ]
     got = node_module("assistmodel.js", ["offerableCore"], f"offerableCore({json.dumps(actions)}).map(a => a.type)")
     assert got == ["style"]
+
+
+# ---------------------------------------------------------------------------- icons.js
+
+
+ICON_NAMES = [
+    "undo", "redo", "gear", "terminal", "code", "save", "folder-open", "play", "download", "check-circle",
+    "alert-triangle", "x-circle", "circle", "filter", "x", "chevron-down", "layers", "crosshair", "grip",
+]  # fmt: skip
+
+
+def test_icon_renders_an_inline_svg_that_is_hidden_from_readers_by_default(node_module):
+    svg = node_module("icons.js", ["icon"], 'icon("undo")')
+    assert svg.startswith("<svg") and svg.endswith("</svg>")
+    assert 'aria-hidden="true"' in svg and 'viewBox="0 0 24 24"' in svg and 'stroke="currentColor"' in svg
+    assert 'width="18"' in svg and 'height="18"' in svg
+    assert 'width="22"' in node_module("icons.js", ["icon"], 'icon("undo", {size: 22})')
+
+
+def test_a_labelled_icon_is_an_image_for_readers(node_module):
+    svg = node_module("icons.js", ["icon"], 'icon("gear", {label: "Settings"})')
+    assert 'role="img"' in svg and 'aria-label="Settings"' in svg and "aria-hidden" not in svg
+
+
+def test_an_unknown_icon_throws(node_module):
+    expr = '(() => { try { icon("nope"); return null; } catch (e) { return e.message; } })()'
+    assert "nope" in node_module("icons.js", ["icon"], expr)
+
+
+def test_the_icon_set_has_every_name_the_workbench_uses(node_module):
+    names = node_module("icons.js", ["ICONS"], "Object.keys(ICONS)")
+    assert set(ICON_NAMES) <= set(names)
+
+
+def test_every_data_icon_in_index_is_in_the_set(node_module):
+    from netstead.workbench.server import STATIC_DIR
+
+    html = (STATIC_DIR / "index.html").read_text()
+    used = set(re.findall(r'data-icon="([\w-]+)"', html))
+    assert used  # the header, dock and footer carry icon buttons
+    assert used <= set(node_module("icons.js", ["ICONS"], "Object.keys(ICONS)"))
+
+
+def test_redo_is_blocked_without_a_redo_stack(node_module):
+    def blocked(state):
+        return node_module("editmodel.js", ["redoBlocked"], f"redoBlocked({state})")
+
+    reason = blocked('{active: "n", edits: {n: {redo_count: 0}}}')
+    assert isinstance(reason, str) and reason
+    assert blocked('{active: "n", edits: {n: {redo_count: 2}}}') is None
+    assert blocked("null") and blocked('{active: "n", edits: {n: {pending: 1}}}')  # no summary, or no redo_count

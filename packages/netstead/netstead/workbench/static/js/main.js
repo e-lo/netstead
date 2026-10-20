@@ -5,7 +5,7 @@ import { getBuffer, getJSON, netPath, subscribe } from "./api.js";
 import { wirePalette } from "./cmdpalette.js";
 import { registerCoreCommands } from "./corecmds.js";
 import { openContextMenu, wireContextMenus } from "./ctxmenu.js";
-import { $, toast } from "./dom.js";
+import { $, mountIcons, toast } from "./dom.js";
 import { registerEditCommands } from "./editcmds.js";
 import { onEditJob, onEditsState, registerEditPanels, renderEdits, wireEdits } from "./edits.js";
 import { rememberRecent, renderHeader, renderRecent, wireHeader } from "./header.js";
@@ -239,6 +239,7 @@ async function boot() {
   // Every plugin-code failure (and core's own, which only toasts) goes to the Plugins section: a passive one (a badge,
   // a layer, a `when`) once per message, a command the user ran every time.
   const { whenError, runError } = commandReporters(reportPluginError);
+  mountIcons();
   registerCoreSlots();
   registerSelectionPanel();
   registerEditPanels();

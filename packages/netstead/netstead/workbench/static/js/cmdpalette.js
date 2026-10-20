@@ -74,7 +74,7 @@ export function wirePalette({ onError, onRunError = onError }) {
   reportRun = onRunError;
   const mac = isMacPlatform(navigator);
   $("cmd-btn").onclick = () => openPalette();
-  $("cmd-btn").title = `Command palette (${mac ? "⌘K" : "Ctrl+K"})`;
+  $("cmd-btn").dataset.tip = `Commands (${mac ? "⌘K" : "Ctrl+K"})`;
   $("cmd-btn").setAttribute("aria-keyshortcuts", mac ? "Meta+K" : "Control+K");
   $("cmdk-input").oninput = refresh;
   $("cmdk-input").onkeydown = e => {

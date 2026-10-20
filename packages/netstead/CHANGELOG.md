@@ -119,6 +119,16 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Added
 
+- **Workbench: Redo, and icon buttons with tooltips.** A new `redo_edit` Action
+  (`RedoEdit`, replayed as `app.do(RedoEdit())`) re-applies the edit the last
+  `undo_edit` took back; the session state's `edits[<net>]` gains `redo_count`,
+  and any other change to the network empties the redo stack. The Edits panel
+  has Undo and Redo icon buttons (a disabled one's tooltip says why); the header's
+  Commands, Settings and Jobs controls, the Issues panel's Run validation and
+  Export report, and the footer's Session as Python are icon buttons with
+  tooltips (inline SVG from `static/js/icons.js`); the model picker's tooltip
+  shows the full model label; the empty "No edit warnings." text is gone (the
+  count says so).
 - **Quality rule `quality.overlapping_links`** ([#5](https://github.com/e-lo/netstead/issues/5)).
   Flags pairs of links whose shapes share a stretch longer than
   `min_overlap_units` (default `0`, in CRS units), such as a link drawn on top of

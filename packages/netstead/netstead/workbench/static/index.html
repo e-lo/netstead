@@ -17,7 +17,7 @@
       <h1>Netstead Workbench</h1>
       <nav id="ws-tabs" role="tablist" aria-label="Workspaces" hidden></nav>
       <select id="net-select" aria-label="Active network"></select>
-      <button id="open-wizard" class="mini">Open / Import…</button>
+      <button id="open-wizard" class="mini"><span data-icon="folder-open"></span>Open / Import…</button>
       <select id="recent" aria-label="Recent networks"></select>
       <div id="viewmode">
         <button data-mode="map" class="on">Map</button>
@@ -25,9 +25,9 @@
         <button data-mode="table">Table</button>
       </div>
       <span id="count"></span>
-      <span class="spacer" id="cmd-slot"><button id="cmd-btn" class="mini ghost" title="Command palette (Ctrl+K, ⌘K on a Mac)" aria-keyshortcuts="Control+K Meta+K">Commands…</button></span>
-      <button id="jobs-btn" class="mini ghost" aria-label="Background jobs">Jobs <span id="jobs-count" class="pcount">0</span></button>
-      <button id="settings-btn" class="mini ghost">Settings…</button>
+      <span class="spacer" id="cmd-slot"><button id="cmd-btn" class="iconbtn" data-icon="terminal" data-tip="Commands (⌘K / Ctrl+K)" aria-label="Commands" aria-keyshortcuts="Control+K Meta+K"></button></span>
+      <button id="jobs-btn" class="mini ghost" data-tip="Background jobs" aria-label="Background jobs"><span data-icon="play"></span><span id="jobs-count" class="pcount">0</span></button>
+      <button id="settings-btn" class="iconbtn" data-icon="gear" data-tip="Settings" aria-label="Settings"></button>
     </div>
     <div class="hrow" id="nl-row">
       <input id="utterance" placeholder='e.g. "I-40 EB between South Miami Boulevard and Airport Boulevard"' aria-label="Selection utterance" />
@@ -149,10 +149,10 @@
     <section class="dock-pane" id="dock-issues" data-panel="issues" role="tabpanel" aria-labelledby="dtab-issues" hidden>
       <div id="iss-fixer"></div>
       <div class="label">Edit warnings <span id="iss-edit-count" class="pcount">0</span></div>
-      <div id="iss-edit"><span class="empty">No edit warnings.</span></div>
+      <div id="iss-edit"></div>
       <div class="label">Validation</div>
-      <div class="row wrap"><button class="mini" id="iss-run">Run validation</button>
-        <a class="btn mini ghost off" id="iss-report" href="#" aria-disabled="true" tabindex="-1">Export report</a></div>
+      <div class="row wrap"><button class="iconbtn" id="iss-run" data-icon="play" data-tip="Run validation" aria-label="Run validation"></button>
+        <a class="iconbtn off" id="iss-report" data-icon="download" data-tip="Export report (HTML)" aria-label="Export report (HTML)" href="#" aria-disabled="true" tabindex="-1"></a></div>
       <div id="iss-status" class="diag" role="status">Not validated yet.</div>
       <div class="iss-filters">
         <select id="iss-sev" aria-label="Severity"></select>
@@ -169,7 +169,8 @@
     <section class="dock-pane" id="dock-edits" data-panel="edits" role="tabpanel" aria-labelledby="dtab-edits" hidden>
       <p class="diag">Every change to this network since it was opened, newest first: your edits, Python's and any
         plugin's. Undo reverses your newest edit. The strip at the bottom is the session history (every action).</p>
-      <div class="row wrap"><button class="mini ghost" id="ed-undo" disabled>Undo last</button>
+      <div class="row wrap"><button class="iconbtn" id="ed-undo" data-icon="undo" data-tip="Undo last edit" aria-label="Undo last edit" disabled></button>
+        <button class="iconbtn" id="ed-redo" data-icon="redo" data-tip="Redo" aria-label="Redo" disabled></button>
         <span class="diag" id="ed-undo-why"></span></div>
       <div id="ed-status" class="diag" role="status"></div>
       <div id="ed-list"><span class="empty">No edits yet.</span></div>
@@ -193,7 +194,7 @@
     <span id="hist-seq">—</span>
     <code id="hist-py">No actions yet.</code>
     <button class="mini ghost" id="hist-copy">Copy</button>
-    <button class="mini ghost" id="hist-all">Session as Python</button>
+    <button class="iconbtn" id="hist-all" data-icon="code" data-tip="Session as Python" aria-label="Session as Python"></button>
   </footer>
 </div>
 <div class="panel" id="hist-panel">

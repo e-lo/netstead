@@ -46,6 +46,7 @@ __all__ = [
     "OpenNetwork",
     "PinAnchor",
     "RecordRef",
+    "RedoEdit",
     "RunValidation",
     "SaveNetwork",
     "SaveSelection",
@@ -426,6 +427,17 @@ class UndoEdit(BaseAction):
     net_id: str | None = None
 
 
+class RedoEdit(BaseAction):
+    """Re-apply the network's newest undone edit (the one ``undo_edit`` took back most recently).
+
+    Any other change to the network since the undo makes it unavailable.
+    """
+
+    type: Literal["redo_edit"] = "redo_edit"
+    mutates: ClassVar[bool] = True
+    net_id: str | None = None
+
+
 class SaveNetwork(BaseAction):
     """Write the open network, with its edits, as a new copy in ``output_dir``. The source is never written to.
 
@@ -559,7 +571,8 @@ Action = Annotated[
     | SaveSelection
     | UseSelection
     | DeleteSelection
-    | Filter,
+    | Filter
+    | RedoEdit,
     Field(discriminator="type"),
 ]
 #: The Actions every session understands, in registry order (``to_python`` imports them from ``netstead.workbench``).
@@ -585,6 +598,7 @@ CORE_ACTIONS: tuple[type[BaseAction], ...] = (
     UseSelection,
     DeleteSelection,
     Filter,
+    RedoEdit,
 )
 
 

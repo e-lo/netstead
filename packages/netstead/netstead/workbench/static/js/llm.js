@@ -185,9 +185,16 @@ async function renderModels(provider, model) {
   }
   box.innerHTML = opts.join("");
   box.disabled = !opts.length;
-  box.title = !model && chosen !== p.default_model
-    ? `Using ${chosen}: the default, ${p.default_model}, is not installed`
-    : "";
+  syncModelTitle(!model && chosen !== p.default_model ? `Using ${chosen}: the default, ${p.default_model}, is not installed` : "");
+}
+
+// The model box is narrow, so its tooltip (and data-full, for tests) carries the chosen option's full label, with
+// `note` after it when there is one.
+function syncModelTitle(note = "") {
+  const box = $("nl-model"), chosen = box.selectedOptions[0];
+  const full = chosen ? chosen.textContent : "";
+  box.dataset.full = full;
+  box.title = [full, note].filter(Boolean).join(" — ");
 }
 
 // The picker changes this session only; "Make default" saves the current choice to the user file.
@@ -561,7 +568,7 @@ function trackHeaderHeight() {
 export function wireLLM() {
   trackHeaderHeight();
   $("nl-provider").onchange = e => onProviderChange(e.target.value);
-  $("nl-model").onchange = e => onModelChange(e.target.value);
+  $("nl-model").onchange = e => { syncModelTitle(); onModelChange(e.target.value); };
   $("nl-default").onclick = () => makeDefault();
   $("nl-manage").onclick = () => openSettings("llm").catch(report);
   $("llm-providers").onclick = e => {

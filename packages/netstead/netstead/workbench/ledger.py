@@ -79,6 +79,9 @@ class EditLedger:
         #: (compared by identity). A reverse in place keeps the version but swaps the expression, so this
         #: catches what the version check cannot.
         self.exprs: dict[str, Any] = {}
+        #: The Workbench's undone edits, newest last: what ``redo_edit`` re-applies. Any other change to the
+        #: network (an add, or a pop that is not the Workbench's own undo) empties it.
+        self.redo: list[PendingEdit] = []
         self._seq = issued
 
     @property
@@ -96,6 +99,7 @@ class EditLedger:
         other.entries = [replace(e) for e in self.entries]
         other.check, other.diverged, other.version, other._seq = self.check, self.diverged, self.version, self._seq
         other.exprs = dict(self.exprs)
+        other.redo = list(self.redo)
         return other
 
     def add(
@@ -107,12 +111,17 @@ class EditLedger:
         touched: dict[str, set[Any]],
         exprs: dict[str, Any],
     ) -> PendingEdit:
-        """Record one applied mutation and return it; ``exprs`` maps each table it changed to its new expression."""
+        """Record one applied mutation and return it; ``exprs`` maps each table it changed to its new expression.
+
+        The redo stack is replaced by an empty one (the old list object is left alone, so a caller re-applying an
+        undone edit can put the rest of it back).
+        """
         self._seq += 1
         entry = PendingEdit(self._seq, source, note, version, list(results), touched)
         self.entries.append(entry)
         self.version = version
         self.exprs.update(exprs)
+        self.redo = []
         return entry
 
     def last(self) -> PendingEdit | None:
@@ -122,13 +131,15 @@ class EditLedger:
     def pop(self, version: int, exprs: dict[str, Any]) -> PendingEdit:
         """Drop the newest entry (after its edits were reverted, leaving the network at ``version``); return it.
 
-        ``exprs`` maps each table the revert changed to its new expression.
+        ``exprs`` maps each table the revert changed to its new expression. The redo stack is replaced by an empty
+        one: the Workbench's own undo pushes the entry back on afterwards.
         """
         entry = self.entries.pop()
         if entry.saved:
             self.diverged = True
         self.version = version
         self.exprs.update(exprs)
+        self.redo = []
         return entry
 
     def unseen_change(self, version: int, exprs: dict[str, Any]) -> bool:
@@ -167,4 +178,5 @@ class EditLedger:
             "truncated": self.check.truncated,
             "check_failed": self.check.failed,
             "last_source": last.source if last else None,
+            "redo_count": len(self.redo),
         }

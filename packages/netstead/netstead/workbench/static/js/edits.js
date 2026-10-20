@@ -3,7 +3,7 @@
 // copy. Notes and table names are data: every one is escaped.
 import { dispatch, getJSON, netPath } from "./api.js";
 import { $, esc, toast } from "./dom.js";
-import { dirtyBadge, editsBadge, pendingLine, savedText, savePrompt, undoBlocked, validatedText } from "./editmodel.js";
+import { dirtyBadge, editsBadge, pendingLine, redoBlocked, savedText, savePrompt, undoBlocked, validatedText } from "./editmodel.js";
 import { createFileBrowser } from "./filebrowser.js";
 import { issuesBadge } from "./issuelist.js";
 import { ALL_WORKSPACES, CORE } from "./slots.js";
@@ -36,12 +36,20 @@ export function onEditsState(server) {
   loadEdits().catch(e => toast(e.message));
 }
 
+// An icon button is enabled, or disabled with the reason as its tooltip.
+function setBlocked(id, reason, tip) {
+  const b = $(id);
+  b.disabled = Boolean(reason);
+  b.dataset.tip = reason || tip;
+}
+
 // The Edits panel: pending edits (newest first), why Undo is unavailable, dirty state and the save controls. The
 // panel's tab badge comes from editsBadge (registered in registerEditPanels).
 export function renderEdits(edits) {
   const e = edits && edits.net_id === activeId() ? edits : null;
   const why = undoBlocked(e);
-  $("ed-undo").disabled = Boolean(why);
+  setBlocked("ed-undo", why, "Undo last edit");
+  setBlocked("ed-redo", redoBlocked(store.get().server), "Redo");
   $("ed-undo-why").textContent = e && e.pending ? why : "";
   const parts = e ? [dirtyBadge(e) || (e.pending ? "Every edit is in a saved copy." : ""),
     e.warnings.length ? `${e.warnings.length} open warning(s): see Issues.` : "",
@@ -105,6 +113,7 @@ function save(folder) {
 
 export function wireEdits() {
   $("ed-undo").onclick = () => dispatch({ type: "undo_edit" }).catch(fail);
+  $("ed-redo").onclick = () => dispatch({ type: "redo_edit" }).catch(fail);
   $("ed-save").onclick = () => {
     if (!$("ed-save-name").value.trim()) { toast("Name the copy first."); $("ed-save-name").focus(); return; }
     const fb = $("ed-save-fb");
