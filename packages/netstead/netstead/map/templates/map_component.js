@@ -29,25 +29,34 @@
   (window.__NETSTEAD_QUEUE__ || []).splice(0).forEach(window.__netsteadAttach);
 
   function attachOne(mapEl, data) {
-    const tileProvider = data.tile_provider || "carto-positron";
+    const tileProvider = data.tile_provider || "esri";
     const markers = Array.isArray(data.markers) ? data.markers : [];
     const layersData = Array.isArray(data.layers) ? data.layers : [];
     const networkBbox = Array.isArray(data.bbox) ? data.bbox : null;
 
+    // Keyless providers only: the report is a static, shareable file, so any tile key would ship
+    // inside it. Esri's light-grey canvas (base + a labels overlay) is the muted default, the same
+    // basemap the Workbench offers as viz.basemap = "esri"; its tiles stop at z16, so Leaflet
+    // upscales them past that rather than showing nothing.
+    const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas";
     const TILE_CONFIG = {
-      openstreetmap: {
-        url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      esri: {
+        layers: [
+          `${ESRI}/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}`,
+          `${ESRI}/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}`,
+        ],
+        attribution: 'Esri, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxNativeZoom: 16,
         maxZoom: 19,
       },
-      "carto-positron": {
-        url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-        attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      openstreetmap: {
+        layers: ["https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"],
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxNativeZoom: 19,
         maxZoom: 19,
       },
     };
-    const tileConfig = TILE_CONFIG[tileProvider] || TILE_CONFIG["carto-positron"];
+    const tileConfig = TILE_CONFIG[tileProvider] || TILE_CONFIG.esri;
     const SEVERITY_COLOR = { error: "#d1242f", warning: "#9a6700", info: "#0969da" };
 
     const targetBounds = computeTargetBounds();
@@ -57,7 +66,13 @@
     } else {
       map.setView([47.5, -120.5], 9);
     }
-    L.tileLayer(tileConfig.url, { attribution: tileConfig.attribution, maxZoom: tileConfig.maxZoom }).addTo(map);
+    tileConfig.layers.forEach((url, i) => {
+      L.tileLayer(url, {
+        attribution: i === 0 ? tileConfig.attribution : "",
+        maxNativeZoom: tileConfig.maxNativeZoom,
+        maxZoom: tileConfig.maxZoom,
+      }).addTo(map);
+    });
 
     // ----- Toggleable layers (links, nodes, ...) ---------------------------
     const layerByName = {};

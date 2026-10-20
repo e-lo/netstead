@@ -35,7 +35,7 @@ def render_network_html(
     issues: list[Issue] | None = None,
     *,
     title: str | None = None,
-    tile_provider: str = "carto-positron",
+    tile_provider: str = "esri",
     osm_editor: str = "id",
 ) -> str:
     """Render a single self-contained HTML map of ``network``.
