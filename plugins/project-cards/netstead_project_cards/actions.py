@@ -2,7 +2,7 @@
 
 Each one changes a network, registers or closes a preview network, or writes a file, so each sets ``mutates``: the
 natural-language assistant drafts them for the user to approve. The ones that need no file path (adding, undoing and
-previewing a change, closing the preview) set ``compact``, so a model on this machine is offered them too.
+previewing a change, closing the preview) set ``assistant_compact``, so a model on this machine is offered them too.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ class _ChangeAction(BaseAction):
     """Fields an Action that applies one change shares (not an Action itself: it has no ``type``)."""
 
     mutates: ClassVar[bool] = True
-    compact: ClassVar[bool] = True
+    assistant_compact: ClassVar[bool] = True
     net_id: str | None = None
     change: NetworkChange
     use_selection: bool = False
@@ -54,7 +54,7 @@ class UndoChange(BaseAction):
 
     type: Literal["project_cards.undo_change"] = "project_cards.undo_change"
     mutates: ClassVar[bool] = True
-    compact: ClassVar[bool] = True
+    assistant_compact: ClassVar[bool] = True
     net_id: str | None = None
 
 
@@ -112,4 +112,4 @@ class ClosePreview(BaseAction):
 
     type: Literal["project_cards.close_preview"] = "project_cards.close_preview"
     mutates: ClassVar[bool] = True  # it closes (unregisters) the preview network
-    compact: ClassVar[bool] = True
+    assistant_compact: ClassVar[bool] = True

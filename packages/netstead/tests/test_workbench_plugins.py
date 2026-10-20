@@ -775,14 +775,13 @@ def test_a_rollback_drops_caches_built_from_the_rolled_back_tables(wrecked):
 
 
 def test_a_failed_mutate_leaves_the_network_and_its_caches_untouched(wrecked):
-    from corral.editing import UnsupportedEditOp
     from corral.validation.sync_state import DirtyTracker
 
     handle = wrecked.registry.get("rdu-i40")
     tracker = handle.roadway.dirty_tracker = DirtyTracker()
     stamp = tracker.stamp_table("link", handle.roadway.links.expr, handle.roadway.links.engine)
     cached = handle.links_df()
-    with pytest.raises(UnsupportedEditOp):
+    with pytest.raises(ActionError, match="the edit failed: UnsupportedEditOp"):
         wrecked.mutate(None, [_delete_all_links(), Edit(op="explode", table="link")], note="bad")
     assert handle.links_df() is cached and len(cached) > 0  # the cache entry is still the valid one
     assert handle.version == 0 and not handle.roadway.links.dirty and tracker.get_table_stamp("link") is stamp
@@ -849,7 +848,7 @@ def make_background(seen: dict[str, Any]) -> WorkbenchPlugin:
     def spawn(host, action: Spawn) -> str:
         def work(ctx) -> int:
             ctx.stage("trim", progress=0.5)
-            (result,) = host.mutate(None, [_delete_all_links()], note="trim in a job")
+            (result,) = host.mutate(None, [_delete_all_links()], note="trim in a job").results
             return result.diff.rows_removed
 
         seen["job"] = host.submit_job("Trim links", work)

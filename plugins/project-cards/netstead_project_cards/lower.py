@@ -19,7 +19,7 @@ from __future__ import annotations
 import math
 import numbers
 from collections import defaultdict
-from collections.abc import Callable, Collection, Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -37,10 +37,27 @@ from .types import (
     incomplete,
 )
 
-__all__ = ["KEYS", "Applied", "Mark", "apply_change", "describe", "few", "rows_by_key"]
+__all__ = ["KEYS", "Applied", "Mark", "Pending", "apply_change", "describe", "few", "rows_by_key"]
 
 #: The key column of each table a roadway change edits (GMNS names), from the mapping file's selectors.
 KEYS = {table: load_mapping().selector(table)[0] for table in ("link", "node")}
+
+
+@dataclass(frozen=True)
+class Pending:
+    """This plugin's pending edits on a network, read at one moment: their ``seqs``, and the newest seq ``issued``.
+
+    Read from ``host.pending_edits`` (one atomic read under the session lock). A seq above ``issued`` belongs to an
+    edit made after the read, which the read says nothing about: the routes reconcile outside the session lock, so a
+    change can land between their read and their reconcile.
+    """
+
+    seqs: frozenset[int]
+    issued: int
+
+    def knows(self, seq: int) -> bool:
+        """Whether this read can speak for the edit with this seq (it was handed out by the time of the read)."""
+        return seq <= self.issued
 
 
 @dataclass(frozen=True)
@@ -48,15 +65,21 @@ class Mark:
     """One ``host.mutate`` of a change: the pending edit's ``seq`` (its stable id) and its ledger note.
 
     The network holds the change while the seq is among its pending edits (``host.pending_edits``): ``host.undo``
-    and a failed Action's rollback take it out, and core never hands the seq out again on that network.
+    and a failed Action's rollback take it out, and core never hands the seq out again for that network id.
     """
 
     seq: int | None  # ``None`` only for a mutation with no edits, which no change makes (it never holds)
     note: str
 
-    def holds(self, pending: Collection[int]) -> bool:
-        """Whether the network, whose pending edits have the seqs ``pending``, still has this mutation."""
-        return self.seq in pending
+    def holds(self, pending: Pending) -> bool:
+        """Whether the network still has this mutation; one newer than the ``pending`` read is taken as held."""
+        if self.seq is None:
+            return False
+        return not pending.knows(self.seq) or self.seq in pending.seqs
+
+    def back(self, pending: Pending) -> bool:
+        """Whether this undone mutation is pending again (its undo was rolled back), as far as ``pending`` knows."""
+        return self.seq is not None and pending.knows(self.seq) and self.seq in pending.seqs
 
 
 @dataclass

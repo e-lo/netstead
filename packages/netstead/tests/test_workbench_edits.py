@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import ClassVar, Literal
 
 import pytest
-from corral.editing import Edit, UnsupportedEditOp
+from corral.editing import Edit
 from netstead import Network
 from netstead.fixtures import leavenworth
 from netstead.select.parse import StubParser
@@ -118,7 +118,7 @@ def test_core_does_not_undo_a_plugins_change(session):
 def test_a_failed_mutation_records_nothing(session):
     h = handle(session)
     good = plan_update(h.roadway, "link", [1], {"lanes": 2}).edits
-    with pytest.raises(UnsupportedEditOp):
+    with pytest.raises(ActionError, match="the edit failed: UnsupportedEditOp"):
         session.mutate("leavenworth", [*good, Edit(op="explode", table="link")], note="bad")
     assert "leavenworth" not in session.edits and h.version == 0 and cell(session, 1, "lanes") == [1]
 

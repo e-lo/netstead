@@ -317,8 +317,8 @@ class AssistantSettings(_Section):
     It uses the selection provider and model (``select.provider`` / ``select.model``) and the same ``llm.quality``
     privacy gates. ``plugins`` lists plugin ids whose Actions it may call (none by default). ``compact_tools`` offers
     a small model fewer tools per question (``auto``: on for a local endpoint): the read-only ones that apply right
-    now, plus edit, delete, undo and the plugin Actions marked ``compact``. It never allows more than ``actions`` /
-    ``plugins`` do.
+    now, plus edit, delete, undo and the plugin Actions marked ``assistant_compact``. It never allows more than
+    ``actions`` / ``plugins`` do.
     """
 
     actions: list[str] = Field(default_factory=lambda: list(DEFAULT_ASSISTANT_ACTIONS))
