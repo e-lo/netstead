@@ -19,6 +19,23 @@ This file is for the **corral** package only. `netstead` (which depends on corra
 
 ### Added
 
+- **`corral.reports.grouping`: grouped structural findings and a resource
+  inventory.** `group_issues(issues)` folds findings that share a structural
+  code and differ only by resource (the sixteen
+  `structural.missing_optional_resource` lines a partial GMNS package
+  produces) into one `IssueGroup` with `table_names` and a one-line
+  `summary()`; everything else stays a group of one. `resource_inventory(package
+  | report, spec)` lists every spec resource with `required`, `present` and
+  `rows`. `severity_summary` and `strip_source_prefix` are the small formatting
+  helpers the renderers share. `IssueGroup`, `group_issues` and
+  `resource_inventory` are exported from `corral.reports`.
+- **`corral validate` reads at a glance.** The rich table now opens with a
+  severity summary line (`0 errors · 1 warning · 16 info`), prints the source
+  once instead of in every message, folds grouped structural findings into one
+  row (`16 tables` / `optional resources absent: …`), and never truncates a
+  code with an ellipsis at a narrow terminal width. `--all` expands the groups.
+  `render_issues` gains `source=` and `all=`; the `--json` document is
+  unchanged.
 - **`ResourceRef.table_schema`** (JSON key `schema`): the resource's schema
   when a scan already knows it, so consumers need not reopen the source.
   `ZipCsvAdapter.scan` fills it from inline schemas in the zip's own

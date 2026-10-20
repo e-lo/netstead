@@ -16,22 +16,29 @@ Public surface
 - :func:`render_rich` — pretty rich-console string.
 - :func:`render_json` — stable JSON snapshot.
 - :func:`render_html` — interactive single-file HTML report.
+- :func:`group_issues` / :class:`IssueGroup` — fold repeated structural
+  findings into one row; :func:`resource_inventory` — which spec
+  resources are present (see :mod:`corral.reports.grouping`).
 
 The legacy ``corral.validation`` import path re-exports the same
 symbols for back-compat — existing code that does
 ``from corral.validation import ValidationReport`` keeps working.
 """
 
+from .grouping import IssueGroup, group_issues, resource_inventory
 from .render import render_html, render_json, render_rich
 from .types import Category, Issue, Severity, ValidationReport, severity_rank
 
 __all__ = [
     "Category",
     "Issue",
+    "IssueGroup",
     "Severity",
     "ValidationReport",
+    "group_issues",
     "render_html",
     "render_json",
     "render_rich",
+    "resource_inventory",
     "severity_rank",
 ]

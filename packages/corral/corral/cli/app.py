@@ -56,6 +56,11 @@ def build_app() -> typer.Typer:
     def validate(
         source: Path = typer.Argument(..., help="Path / URL to a data package (datapackage.json or table directory)."),
         json_out: bool = typer.Option(False, "--json", help="Emit JSON on stdout instead of rich panels."),
+        show_all: bool = typer.Option(
+            False,
+            "--all",
+            help="List every finding on its own row instead of folding repeated structural findings into one.",
+        ),
         yes: bool = typer.Option(
             False, "--yes", "-y", help="Auto-approve any gated ops (alternative to CORRAL_AUTO_APPROVE=1)."
         ),
@@ -65,6 +70,10 @@ def build_app() -> typer.Typer:
         Runs structural + schema + foreign-key + sync-state validators
         and renders the resulting :class:`~corral.reports.ValidationReport`.
         Exit code is non-zero iff any ERROR-severity issue is recorded.
+
+        Structural findings that differ only by resource (one
+        ``structural.missing_optional_resource`` per absent optional
+        table, say) fold into one row; ``--all`` expands them.
         """
         package = Package.from_source(source)
         try:
@@ -72,7 +81,13 @@ def build_app() -> typer.Typer:
         except ApprovalRequired:
             console.print("[yellow]validation declined — exiting 1.[/yellow]")
             raise typer.Exit(code=1) from None
-        render_issues(report.issues, json_out=json_out, header=f"validation report: {source}")
+        render_issues(
+            report.issues,
+            json_out=json_out,
+            header=f"validation report: {source}",
+            source=report.source,
+            all=show_all,
+        )
         # Exit non-zero on hard errors so CI / scripts can branch.
         if any(getattr(i, "severity", None) and i.severity.value == "error" for i in report.issues):
             raise typer.Exit(code=1)

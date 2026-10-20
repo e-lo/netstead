@@ -58,7 +58,16 @@ header.gv-header h1 { margin-bottom: 0.15em; }
   margin: 1.2em 0;
 }
 
-/* Unlocated findings — collapsible */
+/* Resource inventory — which spec tables the package ships. */
+.gv-resources { margin: 0 0 1.2em; }
+.gv-resources summary { font-weight: 600; cursor: pointer; }
+.gv-resource-table { width: auto; margin-top: 0.6em; }
+.gv-resource-table td, .gv-resource-table th { padding: 0.2em 0.9em 0.2em 0; }
+.gv-resource-table .gv-num { text-align: right; font-variant-numeric: tabular-nums; }
+.gv-present-yes { color: var(--gv-color-info); }
+.gv-present-no { color: var(--text-muted); }
+
+/* Unlocated findings — collapsible, closed by default */
 .gv-unlocated { margin: 0 0 1.2em; }
 .gv-unlocated summary { font-weight: 600; cursor: pointer; }
 .gv-unlocated ul { padding-left: 1.2em; margin-top: 0.6em; }
