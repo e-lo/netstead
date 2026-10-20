@@ -168,10 +168,10 @@ class Host:
         succeeds and an Action it is nested in fails later (``host.dispatch``). Rollback runs newest first, so the
         network changes made after ``fn`` was registered are already undone when it runs. It runs once at most, under
         the session lock: restore your own state and files there, but call no ``Host`` method (``mutate``, ``derive``,
-        ``undo`` and ``on_rollback`` raise ``RuntimeError`` from a rollback callback). Lock order is the session lock,
-        then your own: take your lock inside ``fn`` if you need it, and never call ``Host`` while holding your lock.
-        An exception in it is logged and the rollback goes on; a ``BaseException`` is re-raised once the rollback has
-        finished. Raises ``RuntimeError`` outside an Action handler (nothing rolls back there).
+        ``undo``, ``dispatch`` and ``on_rollback`` raise ``RuntimeError`` from a rollback callback). Lock order is the
+        session lock, then your own: take your lock inside ``fn`` if you need it, and never call ``Host`` while holding
+        your lock. An exception in it is logged and the rollback goes on; a ``BaseException`` is re-raised once the
+        rollback has finished. Raises ``RuntimeError`` outside an Action handler (nothing rolls back there).
         """
         self._session.on_rollback(self.plugin_id, fn)
 
@@ -225,7 +225,8 @@ class Host:
 
         From inside a handler it is recorded as nested (``parent_seq``) and rolls back with the handler.
         A job Action (``open_network``, ``build_network``) can't be dispatched from a handler: it would
-        deadlock on the session lock. Use :meth:`submit_job` for slow work.
+        deadlock on the session lock. Use :meth:`submit_job` for slow work. From a rollback callback
+        (:meth:`on_rollback`) it raises ``RuntimeError``: history would record an Action the rollback hides.
         """
         return self._session.dispatch(action)
 

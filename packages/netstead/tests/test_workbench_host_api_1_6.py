@@ -335,7 +335,7 @@ def test_a_callback_raising_base_exception_finishes_the_rollback_then_reraises(t
     assert s._undo == [] and not s._rolling_back
 
 
-@pytest.mark.parametrize("call", ["mutate", "derive", "undo", "on_rollback"])
+@pytest.mark.parametrize("call", ["mutate", "derive", "undo", "on_rollback", "dispatch"])
 def test_host_calls_from_a_rollback_callback_are_refused(tmp_path, isolated_env, caplog, call):
     def misbehave(host) -> None:
         if call == "mutate":
@@ -344,6 +344,8 @@ def test_host_calls_from_a_rollback_callback_are_refused(tmp_path, isolated_env,
             host.derive(None, label="x", note="x")
         elif call == "undo":
             host.undo()
+        elif call == "dispatch":
+            host.dispatch({"type": "set_active_network", "net_id": NET})  # changes nothing, but is recorded
         else:
             host.on_rollback(lambda: None)
 

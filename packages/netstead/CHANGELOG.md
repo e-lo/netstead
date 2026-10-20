@@ -120,7 +120,8 @@ This file is for the **netstead** package only. The underlying generic engine `c
     that failed later, so the plugin can put back its own state and files. A
     callback that raises is logged and the rollback goes on (a
     `BaseException` is re-raised once it has finished); `host.mutate`,
-    `derive`, `undo` and `on_rollback` refuse to run from a callback.
+    `derive`, `undo`, `dispatch` and `on_rollback` refuse to run from a
+    callback.
   - `assistant_compact: ClassVar[bool] = True` on a `mutates` Action offers it
     in the assistant's compact tool set (a local model's), and `GET
     /api/actions` entries carry it. Core's everyday edits (`edit_cells`,

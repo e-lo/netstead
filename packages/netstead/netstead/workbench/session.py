@@ -707,6 +707,8 @@ class Session:
             except Exception as exc:  # boundary: recorded below, under the lock
                 failure = exc
         with self._lock:
+            # From a plugin's rollback callback (``host.dispatch``): history would record an Action the rollback hides.
+            self._refuse_during_rollback("dispatch")
             view = _View(self.active, self.selection, dict(self.style), dict(self.saved), dict(self.filters))
             running = _Running(action, len(self._undo), view, via=None if self._running else via)
             self._running.append(running)
@@ -1185,8 +1187,9 @@ class Session:
         It goes on the undo stack, so it runs in its place in the rollback, newest first: the network changes made
         after it are already undone. It is dropped once the outermost Action succeeds. A failing ``fn`` is logged and
         the rollback goes on (a ``BaseException`` is re-raised once the rollback has finished). ``fn`` may not call
-        back into the session: :meth:`mutate`, :meth:`revert`, :meth:`derive` and this method raise ``RuntimeError``
-        while a rollback runs. Raises ``RuntimeError`` outside an Action handler, where nothing rolls back.
+        back into the session: :meth:`mutate`, :meth:`revert`, :meth:`derive`, :meth:`dispatch_recorded` and this
+        method raise ``RuntimeError`` while a rollback runs. Raises ``RuntimeError`` outside an Action handler, where
+        nothing rolls back.
         """
         with self._lock:
             self._refuse_during_rollback("on_rollback")

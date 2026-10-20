@@ -49,11 +49,14 @@ class Pending:
 
     Read from ``host.pending_edits`` (one atomic read under the session lock). A seq above ``issued`` belongs to an
     edit made after the read, which the read says nothing about: the routes reconcile outside the session lock, so a
-    change can land between their read and their reconcile.
+    change can land between their read and their reconcile. ``generation`` is the drafts' undo count
+    (``CardsState.generation``) taken just before the read: an undo counted after it may have landed after the read,
+    which then still lists the undone edits as pending.
     """
 
     seqs: frozenset[int]
     issued: int
+    generation: int
 
     def knows(self, seq: int) -> bool:
         """Whether this read can speak for the edit with this seq (it was handed out by the time of the read)."""

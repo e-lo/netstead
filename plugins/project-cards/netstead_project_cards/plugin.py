@@ -24,7 +24,7 @@ from .state import CardsState
 
 __all__ = ["REQUIRES_API", "STATIC", "plugin"]
 
-#: The plugin API this plugin is written against (1.6: edit seqs, host.pending_edits, host.on_rollback, compact).
+#: The plugin API this plugin is written against (1.6: edit seqs, pending_edits, on_rollback, assistant_compact).
 REQUIRES_API = "1.6"
 #: The front end: main.js (the entry module), controller.js, cardmodel.js.
 STATIC = Path(__file__).parent / "static"
@@ -44,6 +44,6 @@ def plugin() -> WorkbenchPlugin:
         router=lambda host: build_router(host, state, mapping),
         static_dir=STATIC,
         state=lambda host: state.snapshot(
-            lambda net_id: open_handle(host, net_id), lambda net_id: pending_seqs(host, net_id)
+            lambda net_id: open_handle(host, net_id), lambda net_id: pending_seqs(host, state, net_id)
         ),
     )

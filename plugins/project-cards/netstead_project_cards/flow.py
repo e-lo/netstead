@@ -63,17 +63,20 @@ def open_handle(host: Host, net_id: str) -> Any | None:
         return None
 
 
-def pending_seqs(host: Host, net_id: str) -> Pending:
-    """This plugin's pending edits on the open network ``net_id``, read at one moment.
+def pending_seqs(host: Host, state: CardsState, net_id: str) -> Pending:
+    """This plugin's pending edits on the open network ``net_id``, read at one moment, with the drafts' generation.
 
+    The generation is taken before the read, so an undo counted after it is never mistaken for a rolled-back one.
     When the network is not open (it closed after its handle was read), the read knows of no edit (``issued`` 0), so
     reconciling changes nothing; the draft goes with its handle.
     """
+    generation = state.generation()
     try:
         pending = host.pending_edits(net_id)
     except ActionError:
-        return Pending(frozenset(), 0)
-    return Pending(frozenset(e["seq"] for e in pending.edits if e["source"] == host.plugin_id), pending.issued)
+        return Pending(frozenset(), 0, generation)
+    seqs = frozenset(e["seq"] for e in pending.edits if e["source"] == host.plugin_id)
+    return Pending(seqs, pending.issued, generation)
 
 
 def target_network(host: Host, state: CardsState, net_id: str | None) -> str:
@@ -98,7 +101,7 @@ def target_network(host: Host, state: CardsState, net_id: str | None) -> str:
         handle = base
     if handle is None:
         raise CardError(f"there is no open network {net!r}")
-    state.sync(net, handle, pending_seqs(host, net))
+    state.sync(net, handle, pending_seqs(host, state, net))
     return net
 
 
