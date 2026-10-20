@@ -765,8 +765,11 @@ class IbisEngine:
     def close(self) -> None:
         """Disconnect the backend if we created it.
 
-        Idempotent — safe to call multiple times. Connections passed
-        in by the caller are left alone.
+        Idempotent — safe to call multiple times; only the first call
+        disconnects. A failure to disconnect (a file-backed database
+        that cannot be released, say) propagates, and the engine still
+        counts as closed. Connections passed in by the caller are left
+        alone.
 
         Examples:
             >>> from corral.engines.ibis_engine import IbisEngine
@@ -774,12 +777,10 @@ class IbisEngine:
             >>> engine.close()
             >>> engine.close()  # idempotent
         """
-        if self._owns_con and self.con is not None:
-            with contextlib.suppress(Exception):
-                # Already-closed connections raise; that's fine — close()
-                # is documented as idempotent.
-                self.con.disconnect()
-            self._owns_con = False
+        if not (self._owns_con and self.con is not None):
+            return
+        self._owns_con = False  # first: a disconnect that raises is not retried by the next close()
+        self.con.disconnect()
 
     def __del__(self) -> None:  # pragma: no cover - GC-driven
         """Best-effort connection release on GC; never raise here."""

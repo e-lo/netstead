@@ -23,6 +23,12 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   regional scale; the file is detached afterwards. Writing into the file
   the engine itself was opened on also works, as does a path containing a
   quote.
+- **`IbisEngine.close()` no longer hides a failed disconnect (#132).** It
+  wrapped `disconnect()` in `suppress(Exception)`, hiding real failures
+  (an in-flight query, a file-backed database that cannot be released).
+  The error now propagates; `close()` stays idempotent because only the
+  first call disconnects, and disconnecting an already-closed duckdb
+  connection does not raise. `__del__` still never raises.
 - **`replace_table` on a table with an all-null column (#163).** Already
   fixed by the engine coercing `null`-typed Arrow columns to `string` before
   duckdb sees them; now locked in by a regression test that runs the

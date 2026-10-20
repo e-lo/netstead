@@ -447,6 +447,28 @@ def test_close_is_idempotent():
     e.close()  # second call must not raise
 
 
+def test_close_surfaces_a_failed_disconnect(monkeypatch):
+    """#132: a genuine disconnect failure propagates; the engine still counts as closed afterwards."""
+    e = IbisEngine()
+    real_disconnect = e.con.disconnect
+
+    def _fail() -> None:
+        raise PermissionError("simulated: cannot release the database file")
+
+    monkeypatch.setattr(e.con, "disconnect", _fail)
+    with pytest.raises(PermissionError, match="cannot release"):
+        e.close()
+    e.close()  # not retried: close() stays idempotent
+    real_disconnect()
+
+
+def test_close_after_the_connection_was_disconnected_elsewhere():
+    """Someone else already disconnected the backend: close() must not raise."""
+    e = IbisEngine()
+    e.con.disconnect()
+    e.close()
+
+
 # ---------------------------------------------------------------------------
 # Thread safety: one shared connection, many threads
 # ---------------------------------------------------------------------------
