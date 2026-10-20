@@ -164,11 +164,26 @@ def test_a_stale_pending_read_never_drops_a_change_made_after_it(session, host, 
 
     no_state_reads(session)
     session.dispatch(AddChange(change=lanes(1, 2)))
-    stale = pending_seqs(host, NET)  # the route's read
-    session.dispatch(AddChange(change=lanes(2, 3)))  # lands before the route reconciles
     state = _cards_state(session)
+    stale = pending_seqs(host, state, NET)  # the route's read
+    session.dispatch(AddChange(change=lanes(2, 3)))  # lands before the route reconciles
     state.sync(NET, session.network(NET), stale)
     assert [e.change.facility.ids for e in state._drafts[NET].entries] == [[1], [2]]
+
+
+def test_a_stale_pending_read_never_puts_back_a_change_undone_after_it(session, host, no_state_reads):
+    """A read from before an undo still lists the undone edit as pending: it must not look like a rolled-back undo."""
+    from netstead_project_cards.flow import pending_seqs
+
+    no_state_reads(session)
+    session.dispatch(AddChange(change=lanes(1, 2)))
+    state = _cards_state(session)
+    stale = pending_seqs(host, state, NET)  # the route's read: the change's edit is pending
+    session.dispatch(UndoChange())  # lands before the route reconciles
+    state.sync(NET, session.network(NET), stale)
+    assert state._drafts[NET].entries == [] and len(state._drafts[NET].undone) == 1
+    state.sync(NET, session.network(NET), pending_seqs(host, state, NET))  # a fresh read agrees
+    assert state._drafts[NET].entries == [] and cell(session, 1) == [1]
 
 
 def test_a_nested_commit_whose_parent_fails_removes_the_file_and_restores_the_draft(nested, tmp_path):
@@ -290,5 +305,5 @@ def test_state_reads_the_networks_before_it_takes_its_own_lock(session):
         held.append(state._lock._is_owned())
         return handle if net_id == NET else None
 
-    snapshot = state.snapshot(network, lambda net_id: Pending(frozenset(), 0))
+    snapshot = state.snapshot(network, lambda net_id: Pending(frozenset(), 0, 0))
     assert held and not any(held) and snapshot["preview"] is None

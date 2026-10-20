@@ -29,7 +29,7 @@ net = Network.from_source("./network.duckdb")              # single duckdb
 
 **Validation in one report.** `net.validate()` covers structural (required tables), schema (per-field constraints), foreign-key (cross-table integrity), and sync-state (have FKs gone stale since the last edit?). Severity-graded, rendered as rich console / JSON / interactive HTML.
 
-**Data quality beyond the spec.** Seven rules out of the box — high-speed-on-residential, disconnected components, lane-count mismatch, near-duplicate nodes, sharp-angle bends, implausible v/c ratios, missing critical fields. Plug in your own with a class + entry point.
+**Data quality beyond the spec.** Nine rules out of the box — high-speed-on-residential, disconnected components, lane-count mismatch, near-duplicate nodes, sharp-angle bends, implausible v/c ratios, missing critical fields, overlapping links, and repeated rows that should be unique (e.g. two `link_tod` rows for one link and time window). Plug in your own with a class + entry point.
 
 **Network-aware scope** at regional scale. BFS-induced subgraph from seed nodes, Dijkstra-bounded network buffer, spatial-buffer from any link or point, connected-component, zone filter. Chainable, with FK pushdown to every related table (TOD overrides, lane detail, signal control).
 

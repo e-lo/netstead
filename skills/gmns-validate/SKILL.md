@@ -63,17 +63,32 @@ For *generic* Frictionless validation on non-GMNS data, use the
 - **`quality.lane_count_mismatch`** — `link.lanes` doesn't match the count
   of rows in `lane.csv` for that link. Either the lane table is incomplete
   or `link.lanes` is wrong.
-- **`quality.high_speed_residential`** — `facility_type = "residential"`
-  but `free_speed` > 35 mph (or > 56 kph). Almost always a misclassified
+- **`quality.high_speed_residential`** — `facility_type` is `residential`
+  or `local` but `free_speed` is above `speed_limit_mph` (default 35, in
+  the network's own speed unit). Almost always a misclassified
   facility type. Look at the link's surroundings — it's usually an arterial
   mistagged.
-- **`quality.zero_length_link`** — `length <= 0`. Either a self-loop
-  (`from_node_id == to_node_id`) or a coordinate bug.
-- **`quality.duplicate_link`** — two links share the same
-  `(from_node_id, to_node_id)` pair. Could be legitimate (parallel
-  facilities) or a data-prep artifact.
-- **`quality.stranded_node`** — a node has no incident links. Usually
-  harmless leftover from a clip operation; safe to drop.
+- **`quality.duplicate_near_nodes`** — two nodes within `epsilon_units`
+  (default `1e-5`, in CRS units) of each other. Usually one intersection
+  digitised twice; merge with `netstead.clean.merge_close_nodes`. Tune the
+  threshold for projected networks (metres).
+- **`quality.sharp_angle_bends`** — a link's inline geometry turns sharper
+  than `min_angle_degrees` (default 30°) at an interior vertex. Often a
+  stray vertex or a link that should be split at that point.
+- **`quality.implausible_vc`** — `volume / capacity` above `vc_max`
+  (default 1.5). Only runs when the link table has a volume column.
+- **`quality.missing_critical_fields`** — `length`, `free_speed`,
+  `capacity` or `lanes` is non-null on fewer than `coverage_min` (default
+  90%) of links. INFO: backfill or document why it is sparse.
+- **`quality.overlapping_links`** — two links' shapes share a stretch of
+  road (exact shared segments only). Touching, crossing and two-way twins
+  with the identical shape are not flagged. Usually one link drawn on top
+  of part of another: delete one, or split so each stretch is drawn once.
+- **`quality.non_unique_combination`** — rows repeat a combination that
+  should be unique, such as two `link_tod` rows for the same `link_id` and
+  `time_day`, or two lanes with the same `lane_num` on one link. The
+  issue's `extra["rows"]` lists the clashing rows; merge them or fix the
+  key of the one that belongs elsewhere.
 
 ## Example: walking through a `quality.high_speed_residential` issue
 

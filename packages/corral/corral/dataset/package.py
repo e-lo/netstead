@@ -1309,14 +1309,16 @@ def _schema_for(spec: DataPackage, table_name: str) -> Schema | None:
 
 
 def _swap_into_place(staged: Path, dest: Path, *, aside: Path) -> None:
-    """Rename ``staged`` to ``dest``, first moving anything at ``dest`` to ``aside``.
+    """Rename ``staged`` to ``dest``, replacing whatever is there.
 
-    A directory cannot be renamed over a non-empty directory, so an
-    existing ``dest`` (file or directory) is moved out of the way first.
-    If the final rename then fails, the displaced ``dest`` is put back
+    A file replacing a file (a zip, a duckdb file) is one atomic
+    ``os.replace``: ``dest`` is never missing. A directory cannot be
+    renamed over a non-empty directory (nor a file over a directory, or
+    the reverse), so in those cases the existing ``dest`` is moved to
+    ``aside`` first; if the final rename then fails, it is put back
     before the error propagates.
     """
-    if not os.path.lexists(dest):
+    if not os.path.lexists(dest) or not (staged.is_dir() or dest.is_dir()):
         os.replace(staged, dest)
         return
     os.replace(dest, aside)

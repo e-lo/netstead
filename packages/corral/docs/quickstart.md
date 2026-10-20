@@ -146,7 +146,7 @@ with tempfile.TemporaryDirectory() as d:
     pkg.write(pathlib.Path(d) / "out.parquet")
 ```
 
-Parquet, CSV and DuckDB outputs carry the data only — no `datapackage.json` or sibling schema files are written, so pass the same `spec=` when you load them back. The zip output is the exception: it inlines a `datapackage.json` (schemas included) next to the per-table CSVs.
+Parquet and CSV directories and the zip each carry a `datapackage.json` with the schemas inlined. `Package.from_source` picks it up from a directory on its own; for a zip, pass `spec=` when you load it back (the descriptor travels inside the archive but is not read automatically yet). DuckDB output is data only, so pass the same `spec=` when you reload it.
 
 ## Common variations
 

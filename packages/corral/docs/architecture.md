@@ -158,7 +158,7 @@ netstead/
 - **Adapter registration refuses collisions.** `register_adapter` raises `DuplicateAdapterError` when a different adapter class already holds the name, or another adapter owns one of its extensions or URL schemes; `replace=True` overrides on purpose. Re-registering the same class (a module reload) just replaces the instance.
 
     *Why refuse rather than overwrite?* Adapters from third-party packages (entry-point discovery, when it lands) load in an order nobody controls. Silent overwrite would let that order decide which package reads `.xlsx`; an error at import names both parties.
-- **Defaults:** API/URL downloads default to **DuckDB**; persistent local writes default to a **Parquet directory** — an extension-less or `.parquet` destination gets one GeoParquet file per table (`link.parquet`, `node.parquet`, ...), no `datapackage.json`. Hive partitioning is opt-in via `ParquetAdapter.write(expr, dest, engine, partition_by=[...])`; `Package.write` does not partition by default.
+- **Defaults:** API/URL downloads default to **DuckDB**; persistent local writes default to a **Parquet directory** — an extension-less or `.parquet` destination gets one GeoParquet file per table (`link.parquet`, `node.parquet`, ...) plus a `datapackage.json` with inlined schemas. Hive partitioning is opt-in via `ParquetAdapter.write(expr, dest, engine, partition_by=[...])`; `Package.write` does not partition by default.
 
     *Why partitioned Parquet for persistent writes?* A single Parquet file works until the network grows past laptop-memory scale, at which point you want partition pruning on bbox / zone scope ops — the dispatcher pushes the predicate down and only reads the relevant partitions. CSV loses dtypes, has no predicate pushdown, isn't splittable, and balloons disk footprint. A single `.duckdb` file is great for downloads but not for modelling tool interop: every GIS tool reads Parquet natively, very few read DuckDB. Partitioned Parquet is the only format that is columnar, splittable, predicate-pushdown-friendly, and readable by every downstream tool a modeller might use.
 
@@ -168,11 +168,12 @@ netstead/
 - **Persistent layout today** (what `Package.write("mynet.gmns")` produces):
   ```
   mynet.gmns/
+    datapackage.json
     link.parquet
     node.parquet
     ...
   ```
-  The spec is not written alongside — keep the `datapackage.json` you loaded with and pass it as `spec=` on reload (only the zip output inlines one). A `_netstead_meta.json` sidecar (spec version, write timestamp, dirty flags, per-file content hash) is **planned, not implemented**: nothing writes or reads it yet.
+  The `datapackage.json` inlines each table's resolved schema, so the directory describes itself (a csv directory and a zip carry the same descriptor). A `_netstead_meta.json` sidecar (spec version, write timestamp, dirty flags, per-file content hash) is **planned, not implemented**: nothing writes or reads it yet.
 
 #### Engine ↔ Adapter dispatch (issue #134 — single source of truth)
 
