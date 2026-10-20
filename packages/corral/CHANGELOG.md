@@ -50,6 +50,13 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   hand-written comparison methods. Behaviour is unchanged: versions still
   order by `(major, minor, patch)`, and comparing with a non-`SpecVersion`
   still raises `TypeError`. (#118)
+- **`Schema.missing_values` defaults to `[""]`, not `None`.** A schema whose
+  JSON omits `missingValues` now carries Frictionless's default (an empty
+  cell is null) instead of `None`, so readers no longer need
+  `schema.missing_values or [""]`. It is always a list, like
+  `foreign_keys`; an explicit `missingValues: []` (no nulls at all) is kept
+  as `[]`. Written descriptors now include `"missingValues": [""]` for such
+  schemas. (#119, #120)
 
 ## [1.0.0-beta.2] — TBD
 

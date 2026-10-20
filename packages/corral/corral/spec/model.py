@@ -178,7 +178,11 @@ class Schema(_Base):
             empty list rather than ``None`` so callers can iterate
             without a None-check.
         missing_values: Strings the reader should interpret as null.
-            Frictionless default is ``[""]``.
+            Like ``foreign_keys`` it is always a list, but its default is
+            Frictionless's ``[""]`` (an empty cell is null), not ``[]``.
+            The two differ on the wire: an absent ``missingValues`` gets
+            the default, while an explicit ``missingValues: []`` means
+            no string is read as null.
         name: Optional schema name (some specs include this for
             convenience; not part of strict Frictionless).
         title: Human-readable title.
@@ -192,12 +196,14 @@ class Schema(_Base):
         'id'
         >>> Schema(fields=[]).foreign_keys
         []
+        >>> Schema(fields=[]).missing_values
+        ['']
     """
 
     fields: list[Field]
     primary_key: str | list[str] | None = PydField(default=None, alias="primaryKey")
     foreign_keys: list[ForeignKey] = PydField(default_factory=list, alias="foreignKeys")
-    missing_values: MissingValues | None = PydField(default=None, alias="missingValues")
+    missing_values: MissingValues = PydField(default_factory=lambda: [""], alias="missingValues")
     name: str | None = None
     title: str | None = None
     description: str | None = None
