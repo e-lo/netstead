@@ -6,6 +6,13 @@ This file is for the **corral** package only. `netstead` (which depends on corra
 
 ## [Unreleased]
 
+### Added
+
+- **`Engine.to_arrow(expr)` (#116).** The protocol gains an Arrow
+  converter beside `to_pandas` / `to_polars`; `IbisEngine.to_arrow` runs
+  `to_pyarrow` with no pandas hop, so `to_arrow(from_arrow(t))` equals `t`.
+  A third-party engine must now implement it to pass `register_engine`.
+
 ### Fixed
 
 - **`replace_table` on a table with an all-null column (#163).** Already

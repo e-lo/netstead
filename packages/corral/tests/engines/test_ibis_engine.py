@@ -246,6 +246,43 @@ def test_to_polars_returns_polars_dataframe(engine: IbisEngine, link_csv: Path):
     assert len(df) == 339
 
 
+@pytest.mark.parametrize("table", ["link", "node", "geometry", "lane"])
+def test_to_arrow_round_trips_leavenworth_parquet(engine: IbisEngine, table: str):
+    """#116: ``to_arrow`` hands back the same Arrow table that was read, and ``from_arrow`` takes it back."""
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    def narrow(t: pa.DataType) -> pa.DataType:  # the fixture files store large_string; the engine reads string
+        return {pa.large_string(): pa.string(), pa.large_binary(): pa.binary()}.get(t, t)
+
+    source = leavenworth.parquet_dir() / f"{table}.parquet"
+    on_disk = pq.read_table(source)
+    expected = on_disk.cast(pa.schema([(f.name, narrow(f.type)) for f in on_disk.schema]))
+    arrow = engine.to_arrow(engine.scan(source))
+    assert isinstance(arrow, pa.Table)
+    assert arrow.equals(expected)
+    assert engine.to_arrow(engine.from_arrow(arrow)).equals(expected)
+
+
+def test_to_arrow_keeps_awkward_types(engine: IbisEngine):
+    """Arrow-native types survive ``from_arrow`` -> ``to_arrow`` without a pandas or records hop."""
+    import datetime as dt
+    from decimal import Decimal
+
+    import pyarrow as pa
+
+    arrow = pa.table(
+        {
+            "ts": pa.array([dt.datetime(2026, 1, 1, tzinfo=dt.UTC), None], pa.timestamp("us", tz="UTC")),
+            "dec": pa.array([Decimal("1.25"), None], pa.decimal128(10, 2)),
+            "bin": pa.array([b"a", None], pa.binary()),
+            "lst": pa.array([[1, 2], None], pa.list_(pa.int64())),
+            "n": pa.array([1, None], pa.int32()),
+        }
+    )
+    assert engine.to_arrow(engine.from_arrow(arrow)).equals(arrow)
+
+
 def test_to_polars_without_polars_raises_engine_not_available(engine: IbisEngine, link_csv: Path, monkeypatch):
     """Parity with IbisEngine: missing polars must raise EngineNotAvailableError.
 

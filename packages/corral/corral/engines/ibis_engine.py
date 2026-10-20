@@ -700,6 +700,24 @@ class IbisEngine:
                 "polars is required for IbisEngine.to_polars; install with `pip install dbcorral[polars]`"
             ) from exc
 
+    def to_arrow(self, expr: ir.Table) -> pa.Table:
+        """Materialize ``expr`` and return a :class:`pyarrow.Table`.
+
+        Runs ibis's ``to_pyarrow`` (under the backend lock, like every
+        backend call); no pandas hop, so binary / decimal / timestamp
+        (with tz) / nested columns keep their Arrow types.
+
+        Examples:
+            >>> import pyarrow as pa
+            >>> from corral.engines.ibis_engine import IbisEngine
+            >>> engine = IbisEngine()
+            >>> tbl = pa.table({"a": [1, 2], "b": ["x", None]})
+            >>> engine.to_arrow(engine.from_arrow(tbl)).equals(tbl)
+            True
+            >>> engine.close()
+        """
+        return expr.to_pyarrow()
+
     # ------------------------------------------------------------------
     # Lazy introspection — routed via ibis' native expression API.
     # Single-line wrappers; promoted to the Engine protocol so the

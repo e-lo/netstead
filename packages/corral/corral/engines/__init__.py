@@ -47,7 +47,7 @@ def register_engine(engine: Engine, *, default: bool = False) -> None:
         engine: An instance satisfying the ``Engine`` protocol. Must
             expose a non-empty ``name`` string and the engine methods
             (``scan`` / ``materialize`` / ``to_pandas`` / ``to_polars``
-            / ``write``).
+            / ``to_arrow`` / ``write``).
         default: If ``True``, also make this the default engine
             returned by ``get_engine()`` with no argument.
 
@@ -79,6 +79,7 @@ def register_engine(engine: Engine, *, default: bool = False) -> None:
         ...     def materialize(self, expr): return None
         ...     def to_pandas(self, expr): return None
         ...     def to_polars(self, expr): return None
+        ...     def to_arrow(self, expr): return None
         ...     def columns(self, expr): return []
         ...     def count(self, expr): return 0
         ...     def head(self, expr, n): return expr
@@ -101,7 +102,7 @@ def register_engine(engine: Engine, *, default: bool = False) -> None:
             "(needs a 'name' attribute plus per-format primitives "
             "read_csv/read_parquet/read_duckdb_table/from_records/from_arrow and "
             "write_csv/write_parquet/write_duckdb_table, plus cast_schema, "
-            "scan, write, materialize, to_pandas, to_polars, "
+            "scan, write, materialize, to_pandas, to_polars, to_arrow, "
             "and the lazy-introspection methods columns/count/head/select/order_by/limit)"
         )
     if not getattr(engine, "name", None):
@@ -194,6 +195,7 @@ def set_default_engine(name: str) -> None:
         ...     def materialize(self, expr): return None
         ...     def to_pandas(self, expr): return None
         ...     def to_polars(self, expr): return None
+        ...     def to_arrow(self, expr): return None
         ...     def columns(self, expr): return []
         ...     def count(self, expr): return 0
         ...     def head(self, expr, n): return expr
