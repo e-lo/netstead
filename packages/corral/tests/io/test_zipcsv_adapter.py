@@ -422,5 +422,9 @@ def test_scan_ignores_a_broken_datapackage(tmp_path: Path) -> None:
     assert all(r.table_schema is None for r in refs)
 
 
-def test_scan_of_a_zip_whose_schemas_are_references_leaves_schema_empty() -> None:
-    assert all(r.table_schema is None for r in ZipCsvAdapter().scan(LEAVENWORTH_ZIP))
+def test_scan_matches_descriptor_resources_by_name_when_paths_differ() -> None:
+    """Leavenworth: the descriptor (shared with the csv directory) says ``csv/node.csv``; the member is ``node.csv``."""
+    refs = {r.name: r for r in ZipCsvAdapter().scan(LEAVENWORTH_ZIP)}
+    node_schema = refs["node"].table_schema
+    assert node_schema is not None
+    assert "node_id" in [f.name for f in node_schema.fields]
