@@ -1,7 +1,8 @@
 """main.js under node, against the Workbench's real wb factory and slots (registration, whens, badge, commands).
 
-Its DOM (the panel, the commit dialog) is checked in a browser (Task 17); here `activate(wb)` runs with no
-`document`, which also pins that activating builds no DOM: the panel draws itself the first time it shows.
+HARNESS runs `activate(wb)` with no `document`, which pins that activating builds no DOM: the panel draws itself the
+first time it shows. PANEL_HARNESS then draws the panel into a small fake DOM (only what main.js uses) and clicks
+through it; the real look and the native <dialog> are checked in a browser.
 """
 
 from pathlib import Path
@@ -125,3 +126,132 @@ def test_commands_open_the_form_or_say_not_yet_supported(run_js):
     assert calls[3] == ["toast", "project_cards: transit_routing_change is not yet supported"]
     assert calls[4] == ["dispatch", "project_cards.undo_change", "base"]
     assert not [c for c in calls if c[0] == "error"]
+
+
+# Just the DOM main.js touches: elements with attributes, children, text, focus and a <dialog>'s open state.
+FAKE_DOM = """
+class Text { constructor(t) { this.data = t; this.parent = null; } get textContent() { return this.data; } }
+class El {
+  constructor(tag) { this.tagName = tag.toUpperCase(); this.children = []; this.attrs = {}; this.parent = null;
+    this.style = {}; this.disabled = false; this.checked = false; this.value = ""; this.open = false; }
+  get id() { return this.attrs.id || ""; }
+  setAttribute(k, v) { this.attrs[k] = String(v); }
+  getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; }
+  append(...kids) {
+    for (const k of kids) { const n = typeof k === "string" ? new Text(k) : k; n.parent = this; this.children.push(n); }
+  }
+  replaceChildren(...kids) { for (const c of this.children) c.parent = null; this.children = []; this.append(...kids); }
+  get textContent() { return this.children.map(c => c.textContent).join(""); }
+  set textContent(v) { this.replaceChildren(String(v)); }
+  addEventListener() {}
+  contains(n) { for (; n; n = n.parent) if (n === this) return true; return false; }
+  focus() { document.activeElement = this; }
+  showModal() { if (this.open) throw new Error("InvalidStateError: already open"); this.open = true; }
+  close() { this.open = false; }
+}
+globalThis.document = { activeElement: null, createElement: tag => new El(tag) };
+const walk = el => [el, ...el.children.filter(c => c instanceof El).flatMap(walk)];
+const find = (root, tag, text) =>
+  walk(root).find(e => e.tagName === tag && (text === undefined || e.textContent === text));
+const button = (root, text) => find(root, "BUTTON", text);
+"""
+
+PANEL_HARNESS = (
+    HARNESS.split("const { wb } = createWb")[0]
+    .replace("dispatch: async a => {", "dispatch: async a => { if (a.type in hold) await hold[a.type];")
+    .replace(
+        'showPanel: id => calls.push(["show", id])',
+        'showPanel: id => { calls.push(["show", id]); if (!root.children.length) panels[0].render(root); }',
+    )
+    .replace(
+        "getJSON: async p => {",
+        """getJSON: async p => { if (p.includes("commit-check")) {
+      return { net_id: "base", warnings: [{ table: "link", key: 3, message: "x" }], problems: [], yaml: "" }; }
+    if (p.includes("roadway")) return { supported: true, net_id: "base", existing: {}, targets: { label: "2" },
+                                         columns: {}, options: {} };""",
+    )
+    .replace("schemaForm: () => ({ value: () => ({}),", "schemaForm: () => ({ value: () => ({ lanes: 3 }),")
+    + FAKE_DOM
+    + """
+const hold = {};
+const root = document.createElement("div");
+const { wb } = createWb("project_cards", deps);
+activate(wb);
+const byId = Object.fromEntries(slots.commands.list().map(c => [c.id, c]));
+const two = { selectionCount: 2, state: server, network: { id: "base" } };
+const dispatched = () => calls.filter(c => c[0] === "dispatch").map(c => c[1]);
+const setServer = patch => store.set({ server: { ...store.get().server, ...patch } });
+const cardsWith = d => ({ project_cards: { drafts: { base: d }, preview: null } });
+const got = {};
+
+// 1. An unsupported command leaves the open form on screen, and working.
+await byId["project_cards.new_roadway_property_change"].run(two);  // the first show draws the panel
+const [compose, , draftBox, commitBox, status, dialog] = root.children;
+await byId["project_cards.new_transit_routing_change"].run(two);
+got.formKept = compose.textContent.startsWith("New change: Property change");
+await button(compose, "Preview").onclick();
+got.afterUnsupported = [dispatched().at(-1), status.textContent];
+
+// 2. A second click while Add is in flight does not add twice; the buttons are disabled meanwhile.
+let release;
+hold["project_cards.add_change"] = new Promise(r => { release = r; });
+const addButton = button(compose, "Add to card");
+const clicks = [addButton.onclick(), addButton.onclick()];
+got.disabledWhileAdding = ["Preview", "Add to card", "Cancel"].map(t => button(compose, t).disabled);
+release();
+await Promise.all(clicks);
+got.adds = dispatched().filter(t => t === "project_cards.add_change").length;
+got.afterAdd = status.textContent;
+
+// 3. A redraw keeps focus in the box it was in.
+setServer({ plugins: cardsWith({ count: 1, project: "", changes: [{ describe: "a" }] }) });
+button(draftBox, "Undo last change").focus();
+setServer({ plugins: cardsWith({ count: 2, project: "", changes: [{ describe: "a" }, { describe: "b" }] }) });
+got.focus = [document.activeElement.textContent, draftBox.contains(document.activeElement)];
+
+// 5. The dialog's check goes stale when the draft changes elsewhere: Commit is disabled until checked again.
+find(commitBox, "INPUT").value = "Lanes";
+walk(commitBox).filter(e => e.tagName === "INPUT")[2].value = "cards/lanes.yml";
+await button(commitBox, "Commit…").onclick();
+const confirm = find(dialog, "INPUT");
+confirm.checked = true; confirm.onchange();
+const commitButton = () => button(dialog, "Commit anyway");
+got.beforeStale = [dialog.open, commitButton().disabled];
+setServer({ plugins: cardsWith({ count: 3, project: "", changes: [] }) });
+got.stale = [commitButton().disabled, dialog.textContent.includes("The draft changed since this check")];
+await button(dialog, "Check again").onclick();
+const confirm2 = find(dialog, "INPUT");
+confirm2.checked = true; confirm2.onchange();
+got.rechecked = [dialog.open, commitButton().disabled];
+let releaseCommit;
+hold["project_cards.commit"] = new Promise(r => { releaseCommit = r; });
+const commitClick = commitButton().onclick();
+got.disabledWhileCommitting = commitButton().disabled;
+releaseCommit();
+await commitClick;
+got.committed = [dialog.open, dispatched().filter(t => t === "project_cards.commit").length];
+
+// 6. An empty import path is caught here.
+await button(commitBox, "Import").onclick();
+got.emptyImport = [status.textContent, dispatched().includes("project_cards.import")];
+got.errors = calls.filter(c => c[0] === "error");
+console.log(JSON.stringify(got));
+"""
+)
+
+
+def test_the_panel_under_a_fake_dom(run_js):
+    got = run_js(FILES, PANEL_HARNESS)
+    assert got["errors"] == []
+    assert got["formKept"] is True
+    assert got["afterUnsupported"][0] == "project_cards.preview"
+    assert "no change form is open" not in got["afterUnsupported"][1]
+    assert got["disabledWhileAdding"] == [True, True, True]
+    assert got["adds"] == 1 and got["afterAdd"].startswith("Added")
+    assert got["focus"] == ["Undo last change", True]
+    assert got["beforeStale"] == [True, False]
+    assert got["stale"] == [True, True]
+    assert got["rechecked"] == [True, False]
+    assert got["disabledWhileCommitting"] is True
+    assert got["committed"] == [False, 1]
+    assert got["emptyImport"] == ["Give a card or edit log path", False]

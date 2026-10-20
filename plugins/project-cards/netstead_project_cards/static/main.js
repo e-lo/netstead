@@ -3,8 +3,8 @@
 // Workbench plugin"); the flow lives in controller.js and the rules in cardmodel.js, both tested under node.
 // Card and user text is only ever set as text (`h`'s `text`, or a string child), never parsed as markup.
 import {
-  ROADWAY_TYPES, TRANSIT_TYPES, TYPE_TITLES, commitFields, commitView, draftBadge, draftNet, draftOf, needsSelection,
-  openPreview, previewLine,
+  ROADWAY_TYPES, TRANSIT_TYPES, TYPE_TITLES, commitFields, commitView, draftBadge, draftNet, draftOf, importPath,
+  needsSelection, openPreview, previewLine,
 } from "./cardmodel.js";
 import { createController } from "./controller.js";
 
@@ -24,6 +24,24 @@ function h(tag, props = {}, ...children) {
   return el;
 }
 
+// Runs `fn` with `buttons` disabled, so a second click can't start it again; they are re-enabled after.
+async function busy(buttons, fn) {
+  const was = buttons.map(b => b.disabled);
+  for (const b of buttons) b.disabled = true;
+  try { return await fn(); } finally { buttons.forEach((b, i) => { b.disabled = was[i]; }); }
+}
+
+// Fills `box` with `nodes`. If focus was in the box (or `force`), it moves to the new button, else to the heading
+// (tabindex -1), so a redraw never drops keyboard focus. Returns true when the box has neither to take it.
+function redraw(box, nodes, force = false) {
+  const had = force || box.contains(document.activeElement);
+  box.replaceChildren(...nodes);
+  if (!had) return false;
+  const target = nodes.find(n => n.tagName === "BUTTON") || nodes.find(n => n.getAttribute("tabindex") === "-1");
+  if (target) target.focus();
+  return !target;
+}
+
 // A labelled control in core's form layout (`.sf-field`, as wb.schemaForm draws).
 const field = (label, control) => h("div", { class: "sf-field" }, h("label", { for: control.id, text: label }), control);
 
@@ -33,7 +51,7 @@ export function activate(wb) {
   const ctl = createController(wb);
   let view = null;
 
-  const panel = wb.registerPanel({
+  wb.registerPanel({
     workspace: "*",
     id: PANEL,
     title: "Card",
@@ -48,7 +66,7 @@ export function activate(wb) {
   });
 
   async function compose(type) {
-    if (!(await ctl.start(type))) return; // a transit type: the controller said "not yet supported"
+    if (!(await ctl.start(type))) return; // a transit type: the controller said "not yet supported"; any form stays
     wb.showPanel(PANEL); // the first show renders the panel, which draws the form
     if (view) view.draw();
   }
@@ -82,9 +100,12 @@ export function activate(wb) {
     run: ctx => ctl.undo({ netId: draftNet(ctx.state, ctxNet(ctx)) }),
   });
 
+  // Core redraws the badge on every server change; the panel follows the draft and the preview here.
   wb.store.subscribe(["plugins.project_cards", "active"], () => {
-    panel.refreshBadge();
-    if (view) view.draw();
+    const stale = ctl.serverChanged();
+    if (!view) return;
+    view.draw();
+    if (stale) view.checkWentStale();
   });
 }
 
@@ -103,6 +124,12 @@ function createView(wb, ctl, el) {
   const say = text => { status.textContent = text; };
   const guard = fn => async () => {
     try { await fn(); } catch (e) { say(e.message); }
+  };
+  // A button that runs `fn`, disabled while it does.
+  const act = (cls, label, fn) => {
+    const b = h("button", { class: cls }, label);
+    b.onclick = guard(() => busy([b], fn));
+    return b;
   };
   const server = () => wb.store.get();
   const baseNet = () => draftNet(server(), server().active); // the network whose draft the panel shows
@@ -133,66 +160,82 @@ function createView(wb, ctl, el) {
       forms[key] = wb.schemaForm(slot, c.form[key], start);
     }
     const values = () => Object.fromEntries(Object.entries(forms).map(([k, f]) => [k, f.value()]));
-    const run = step => guard(async () => {
+    const row = [h("button", { class: "mini" }, "Preview"), h("button", { class: "mini" }, "Add to card"),
+      h("button", { class: "mini ghost" }, "Cancel")];
+    const run = step => guard(() => busy(row, async () => {
       const errors = Object.values(forms).flatMap(f => f.errors());
       if (errors.length) { say(errors.join("; ")); return; }
       say(await step(values()));
       draw();
-    });
-    composeBox.append(
-      h("button", { class: "mini", onclick: run(async v => `Previewing on ${(await ctl.preview(v)).preview}`) },
-        "Preview"),
-      " ",
-      h("button", { class: "mini", onclick: run(async v => `Added: ${(await ctl.add(v)).describe}`) }, "Add to card"),
-      " ",
-      h("button", { class: "mini ghost", onclick: guard(async () => { await ctl.cancel(); say(""); draw(); }) },
-        "Cancel"),
-    );
+    }));
+    const [previewButton, addButton, cancelButton] = row;
+    previewButton.onclick = run(async v => `Previewing on ${(await ctl.preview(v)).preview}`);
+    addButton.onclick = run(async v => `Added: ${(await ctl.add(v)).describe}`);
+    cancelButton.onclick = guard(() => busy(row, async () => { await ctl.cancel(); say(""); draw(); }));
+    composeBox.append(previewButton, " ", addButton, " ", cancelButton);
     const first = Object.values(forms)[0];
     if (first) first.focus();
   }
 
+  // Returns true when focus was in the box and the preview has gone: the draft box takes it.
   function drawPreview() {
     const preview = openPreview(server());
-    previewBox.replaceChildren();
-    if (!preview) return;
-    previewBox.append(h("p", { text: previewLine(preview) }),
-      h("button", { class: "mini ghost", onclick: guard(async () => { await ctl.closePreview(); say(""); }) },
-        "Back to the network"));
+    return redraw(previewBox, preview ? [h("p", { text: previewLine(preview) }),
+      act("mini ghost", "Back to the network", async () => { await ctl.closePreview(); say(""); })] : []);
   }
 
-  function drawDraft() {
-    draftBox.replaceChildren();
+  function drawDraft(takeFocus) {
     const draft = draftOf(server(), server().active);
     if (!draft) {
-      draftBox.append(h("p", { class: "empty",
-        text: "No draft card for this network yet. Select links, then right-click: New change ▸ …" }));
+      redraw(draftBox, [h("p", { class: "empty", tabindex: -1,
+        text: "No draft card for this network yet. Select links, then right-click: New change ▸ …" })], takeFocus);
       return;
     }
     const name = draft.project ? `: ${draft.project}` : "";
-    draftBox.append(h("div", { class: "label", text: `Draft card${name} (${draft.count})` }));
     const list = h("ol");
     for (const change of draft.changes) list.append(h("li", { text: change.describe }));
-    draftBox.append(list,
-      h("button", { class: "mini", onclick: guard(async () => { await ctl.undo({ netId: baseNet() }); say("Undid the last change"); }) },
-        "Undo last change"));
+    const undo = act("mini", "Undo last change", async () => {
+      await ctl.undo({ netId: baseNet() });
+      say("Undid the last change");
+    });
+    const heading = h("div", { class: "label", tabindex: -1, text: `Draft card${name} (${draft.count})` });
+    redraw(draftBox, [heading, list, undo], takeFocus);
   }
+
+  // Set while the commit dialog is drawn: marks its check outdated (the draft changed elsewhere).
+  let markOutdated = () => {};
 
   async function openDialog(fields) {
     const check = await ctl.check(fields);
     const v = commitView(check);
     const note = h("p", { role: "status" });
-    const commit = h("button", { class: "mini", disabled: v.blocked || v.needsConfirm }, v.button);
+    const commit = h("button", { class: "mini" }, v.button);
+    const cancel = h("button", { class: "mini ghost", onclick: () => dialog.close() }, "Cancel");
+    const recheck = h("button", { class: "mini" }, "Check again");
+    recheck.hidden = true;
     const confirm = h("input", { type: "checkbox", id: "pc-confirm" });
-    confirm.onchange = () => { commit.disabled = v.blocked || !confirm.checked; };
+    let outdated = false;
+    const sync = () => { commit.disabled = outdated || v.blocked || (v.needsConfirm && !confirm.checked); };
+    sync();
+    confirm.onchange = sync;
     commit.onclick = async () => {
       try {
-        const result = await ctl.commit(fields);
+        const result = await busy([commit, cancel], () => ctl.commit(fields));
         dialog.close();
         say(`Committed ${result.card_id} to ${result.path}`);
       } catch (e) {
         note.textContent = e.message;
+      } finally {
+        sync();
       }
+    };
+    recheck.onclick = guard(() => busy([recheck], () => openDialog(fields)));
+    markOutdated = () => {
+      outdated = true;
+      sync();
+      note.textContent = "The draft changed since this check: check again before committing.";
+      recheck.hidden = false;
+      recheck.focus(); // the dialog is modal, and Commit (perhaps focused) is now disabled
     };
     dialog.replaceChildren(
       h("h3", { id: "pc-dialog-title", text: `Commit "${fields.project}"` }),
@@ -206,11 +249,10 @@ function createView(wb, ctl, el) {
       h("pre", { text: check.yaml, style: "max-height:45vh;overflow:auto;background:#0c0e12;padding:8px;"
         + "border:1px solid var(--edge);border-radius:6px;font-size:12px" }),
       note,
-      h("div", { style: "display:flex;gap:8px;justify-content:flex-end" },
-        h("button", { class: "mini ghost", onclick: () => dialog.close() }, "Cancel"), commit),
+      h("div", { style: "display:flex;gap:8px;justify-content:flex-end" }, cancel, recheck, commit),
     );
-    dialog.showModal();
-    (v.needsConfirm && !v.blocked ? confirm : commit.disabled ? dialog.querySelector("button") : commit).focus();
+    if (!dialog.open) dialog.showModal(); // "Check again" redraws an open dialog
+    (v.needsConfirm && !v.blocked ? confirm : commit.disabled ? cancel : commit).focus();
   }
 
   // Drawn once: redrawing on every state change would wipe what the user is typing.
@@ -221,31 +263,36 @@ function createView(wb, ctl, el) {
     const path = input("pc-path", "cards/main-street.yml");
     const overwrite = h("input", { type: "checkbox", id: "pc-overwrite" });
     const source = input("pc-import", "path/to/card.yml");
-    const open = guard(async () => {
+    const open = async () => {
       const raw = { project: project.value, path: path.value, tags: tags.value, overwrite: overwrite.checked };
       const { fields, error } = commitFields(raw, baseNet());
       if (error) say(error);
       else await openDialog(fields);
-    });
+    };
+    const importIt = async () => {
+      const { path: from, error } = importPath(source.value);
+      if (error) say(error);
+      else say(`Imported ${(await ctl.importCard(from)).imported} change(s)`);
+    };
     commitBox.append(
       h("div", { class: "label", text: "Commit" }),
       field("Project name", project), field("Tags", tags), field("Card file", path),
       field("Replace an existing file", overwrite),
-      h("button", { class: "mini", onclick: open }, "Commit…"),
+      act("mini", "Commit…", open),
       h("div", { class: "label", text: "Import a card" }),
       field("Card or edit log", source),
-      h("button", { class: "mini", onclick: guard(async () => {
-        say(`Imported ${(await ctl.importCard(source.value.trim())).imported} change(s)`);
-      }) }, "Import"),
+      act("mini", "Import", importIt),
     );
   }
 
   function draw() {
     drawCompose();
-    drawPreview();
-    drawDraft();
+    drawDraft(drawPreview());
   }
 
+  // The controller dropped the dialog's check: Commit stays disabled until the user checks again.
+  const checkWentStale = () => { if (dialog.open) markOutdated(); };
+
   drawCommit();
-  return { draw };
+  return { draw, checkWentStale };
 }

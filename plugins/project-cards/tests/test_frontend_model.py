@@ -375,3 +375,75 @@ console.log(JSON.stringify({ roadway: ROADWAY_TYPES, transit: TRANSIT_TYPES, tit
     )
     assert set(got["roadway"]) == ROADWAY_TYPES and set(got["transit"]) == TRANSIT_TYPES
     assert set(got["titled"]) == ROADWAY_TYPES | TRANSIT_TYPES and set(got["selectable"]) == SELECTABLE
+
+
+def test_an_unsupported_type_leaves_the_open_form_open(run_js):
+    got = run_js(
+        BOTH,
+        STUB_WB
+        + """
+await ctl.start("roadway_deletion", { saved: "ski" });
+const started = await ctl.start("transit_property_change");
+await ctl.preview({ options: {} });  // the deletion form still works
+console.log(JSON.stringify({ started, type: ctl.state.compose && ctl.state.compose.type, last: calls.at(-1) }));
+""",
+    )
+    assert got["started"] is None and got["type"] == "roadway_deletion"
+    assert got["last"][1]["type"] == "project_cards.preview"
+
+
+def test_a_step_already_running_refuses_a_second_one(run_js):
+    got = run_js(
+        BOTH,
+        STUB_WB
+        + """
+await ctl.start("roadway_deletion", { saved: "ski" });
+const first = ctl.add({ options: {} }), second = ctl.add({ options: {} });
+const settled = await Promise.allSettled([first, second]);
+await ctl.check({ project: "P", net_id: "base" });
+const fields = { project: "P", path: "p.yml" };
+const commits = await Promise.allSettled([ctl.commit(fields), ctl.commit(fields)]);
+const after = await ctl.undo();  // free again once the step settles
+const dispatched = calls.filter(c => c[0] === "dispatch").map(c => c[1].type);
+console.log(JSON.stringify({ dispatched, settled: settled.map(s => s.status), second: settled[1].reason.message,
+  commits: commits.map(s => s.status), after }));
+""",
+    )
+    assert got["dispatched"] == ["project_cards.add_change", "project_cards.commit", "project_cards.undo_change"]
+    assert got["settled"] == ["fulfilled", "rejected"] and got["commits"] == ["fulfilled", "rejected"]
+    assert got["second"] == "Wait for the last step to finish"
+    assert got["after"] == {"count": 1, "describe": "x"}
+
+
+def test_a_check_goes_stale_when_its_draft_changes_elsewhere(run_js):
+    got = run_js(
+        BOTH,
+        STUB_WB
+        + """
+cards.drafts.base = { count: 1, project: "", changes: [{ describe: "a" }] };
+await ctl.check({ project: "P", net_id: "base" });
+cards.drafts.other = { count: 1, project: "", changes: [] };  // another network's draft: still current
+const unrelated = ctl.serverChanged();
+const kept = ctl.state.check !== null;
+cards.drafts.base = { count: 2, project: "", changes: [{ describe: "a" }, { describe: "b" }] };  // another tab added
+const changed = ctl.serverChanged();
+const again = ctl.serverChanged();  // already cleared: nothing more to report
+await ctl.commit({ project: "P", path: "p.yml", net_id: "base" });
+console.log(JSON.stringify({ unrelated, kept, changed, again, check: ctl.state.check, commit: calls.at(-1)[1] }));
+""",
+    )
+    assert got["unrelated"] is False and got["kept"] is True
+    assert got["changed"] is True and got["again"] is False and got["check"] is None
+    assert got["commit"]["confirm_warnings"] is False  # the warnings shown are no longer the draft's
+
+
+def test_an_import_needs_a_path(run_js):
+    got = run_js(
+        MODEL,
+        """
+import { importPath } from "./cardmodel.js";
+console.log(JSON.stringify([importPath("  cards/a.yml "), importPath("  "), importPath()]));
+""",
+    )
+    missing = {"error": "Give a card or edit log path"}
+    assert got == [{"path": "cards/a.yml"}, missing, missing]

@@ -2,8 +2,9 @@
 // it; tests/test_frontend_model.py runs it under node with a stub `wb`. A refused Action rejects, and the step stops
 // there: the form and the preview stay open, so the user can fix the form and try again. Whether a preview is open is
 // read from the server's state (`openPreview(wb.store.get())`), never remembered here: the palette, the assistant or
-// another tab can close one.
-import { addition, changeAction, deletion, needsSelection, openPreview, propertyChange } from "./cardmodel.js";
+// another tab can close one. One step runs at a time: a second click while an Action is in flight is refused, so a
+// change is never added (or a card committed) twice.
+import { addition, changeAction, deletion, draftOf, needsSelection, openPreview, propertyChange } from "./cardmodel.js";
 
 const query = params => Object.entries(params)
   .filter(([, v]) => v !== undefined && v !== null && v !== "")
@@ -13,14 +14,20 @@ const query = params => Object.entries(params)
 export function createController(wb) {
   const state = { compose: null, check: null };
   const previewOpen = () => openPreview(wb.store.get()) !== null;
+  let running = false;
+  const oneAtATime = fn => async (...args) => {
+    if (running) throw new Error("Wait for the last step to finish");
+    running = true;
+    try { return await fn(...args); } finally { running = false; }
+  };
 
-  // Open the form for a change type: the plugin's /form route says what the selection holds now.
+  // Open the form for a change type: the plugin's /form route says what the selection holds now. An unsupported type
+  // only says so: a form already open stays open (and working).
   async function start(type, { saved = null } = {}) {
     const params = { type, saved };
     if (needsSelection(type) && !saved) params.use_selection = "true";
     const form = await wb.api.get(`/form?${query(params)}`);
     if (!form.supported) {
-      state.compose = null;
       wb.toast(form.message);
       return null;
     }
@@ -77,10 +84,21 @@ export function createController(wb) {
   }
 
   // Before committing: the live edit warnings, the schema problems and the card as YAML, for the commit dialog. The
-  // check stays until a commit succeeds or the draft changes (add, undo, import, cancel).
+  // check stays until a commit succeeds or the draft changes (add, undo, import, cancel, or from elsewhere).
+  const draftNow = netId => JSON.stringify(draftOf(wb.store.get(), netId));
+  let checkedDraft = null;
   async function check(fields) {
     state.check = await wb.api.get(`/commit-check?${query({ project: fields.project, net_id: fields.net_id })}`);
+    checkedDraft = draftNow(state.check.net_id);
     return state.check;
+  }
+
+  // Call on every server change: true when it changed the checked draft (another tab, the assistant, the palette),
+  // which drops the check, so its warnings are never confirmed for a draft they no longer describe.
+  function serverChanged() {
+    if (!state.check || draftNow(state.check.net_id) === checkedDraft) return false;
+    state.check = null;
+    return true;
   }
 
   // Committing after the dialog showed warnings for this network is the confirmation the server asks for. A refusal
@@ -98,5 +116,9 @@ export function createController(wb) {
     return wb.api.dispatch({ type: "project_cards.import", path });
   }
 
-  return { state, start, changeFrom, preview, closePreview, add, cancel, undo, check, commit, importCard };
+  return {
+    state, start, changeFrom, check, serverChanged,
+    ...Object.fromEntries(Object.entries({ preview, closePreview, add, cancel, undo, commit, importCard })
+      .map(([name, step]) => [name, oneAtATime(step)])),
+  };
 }

@@ -118,6 +118,12 @@ export function commitFields({ project = "", path = "", tags = "", overwrite = f
   return missing.length ? { error: `Give the card ${missing.join(" and ")}` } : { fields };
 }
 
+// The import form's path as the import Action's, or {error}.
+export function importPath(path = "") {
+  const trimmed = String(path).trim();
+  return trimmed ? { path: trimmed } : { error: "Give a card or edit log path" };
+}
+
 // What the commit dialog shows for a /commit-check answer. Any live edit warning needs the user's confirmation
 // (`needsConfirm`); a schema problem means the card can't be committed yet (`blocked`).
 export function commitView(check) {
