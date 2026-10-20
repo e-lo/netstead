@@ -229,3 +229,14 @@ def test_two_maps_coexist_in_one_page(tiny_net):
     assert (
         page.count("function __netsteadAttach") + page.count("__netsteadAttach =") <= 2
     )  # tolerance for any defn style
+
+
+def test_default_basemap_is_keyless(tiny_net):
+    """The report ships the keyless Esri light-grey tiles. CARTO's raster tiles now watermark
+    every zoomed-in tile with "API KEY REQUIRED", and a key would have to be baked into a
+    static, shareable HTML file -- so no CARTO, with or without a key."""
+    assert NetworkMap(tiny_net)._payload()["tile_provider"] == "esri"
+    head = NetworkMap.head_assets()
+    assert "cartocdn.com" not in head and "carto" not in head.lower()
+    assert "World_Light_Gray_Base" in head and "World_Light_Gray_Reference" in head
+    assert "maxNativeZoom: 16" in head
