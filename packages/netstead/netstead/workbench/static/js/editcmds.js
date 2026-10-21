@@ -8,6 +8,7 @@ import { editSummary, undoBlocked } from "./editmodel.js";
 import { dispatchJob } from "./edits.js";
 import { deleteRecord, openFixEditor } from "./fixeditor.js";
 import { recordIssues } from "./issuelist.js";
+import { openSaveDialog } from "./savedialog.js";
 import { detailsSettled } from "./side.js";
 import { CORE, slots } from "./slots.js";
 import { store } from "./store.js";
@@ -67,6 +68,5 @@ export function registerEditCommands() {
     run: c => deleteRecord(c.focus.table, c.focus.id) });
   add({ id: "undo_edit", group: "Edits", title: "Undo last edit", when: c => !undoBlocked(editSummary(c.state)),
     run: () => dispatch({ type: "undo_edit" }) });
-  add({ id: "save_copy", group: "Edits", title: "Save a copy…", when: c => Boolean(c.network),
-    run: () => { showPanel("edits"); $("ed-save-name").focus(); } });
+  add({ id: "save_copy", group: "Edits", title: "Save a copy…", when: c => Boolean(c.network), run: () => openSaveDialog() });
 }

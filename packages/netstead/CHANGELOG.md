@@ -129,6 +129,17 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Added
 
+- **Workbench: Open menu, Save dialog and validity light in the header.** The
+  Recent select is gone: "Open…" drops a menu with the three most recent
+  networks (the path is the tooltip; re-opening is a normal `open_network`)
+  and "Browse / import…" for the wizard. "Save a copy…" is a header button
+  that opens a dialog (name, format, folder, and, when edit warnings are open
+  or the live check failed, the warning text with a "Save anyway" checkbox
+  that is `accept_warnings`); a save the server refuses reopens the dialog
+  with its reason instead of a browser confirm. The Edits panel keeps only
+  the edit list with Undo and Redo. A validity light before the counts
+  shows not validated / stale / valid / warnings / errors with the counts
+  in its tooltip, and opens the Issues panel.
 - **Workbench: Redo, and icon buttons with tooltips.** A new `redo_edit` Action
   (`RedoEdit`, replayed as `app.do(RedoEdit())`) re-applies the edit the last
   `undo_edit` took back; the session state's `edits[<net>]` gains `redo_count`,

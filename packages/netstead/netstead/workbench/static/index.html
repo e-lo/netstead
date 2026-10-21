@@ -17,13 +17,21 @@
       <h1>Netstead Workbench</h1>
       <nav id="ws-tabs" role="tablist" aria-label="Workspaces" hidden></nav>
       <select id="net-select" aria-label="Active network"></select>
-      <button id="open-wizard" class="mini"><span data-icon="folder-open"></span>Open / Import…</button>
-      <select id="recent" aria-label="Recent networks"></select>
+      <span id="open-wrap">
+        <button id="open-wizard" class="mini" aria-haspopup="menu" aria-controls="open-menu" aria-expanded="false"><span data-icon="folder-open"></span>Open…<span class="caret" data-icon="chevron-down"></span></button>
+        <div id="open-menu" role="menu" aria-label="Open a network" hidden>
+          <div id="open-recents"></div>
+          <div class="menu-sep" role="separator"></div>
+          <button id="open-browse" role="menuitem">Browse / import…</button>
+        </div>
+      </span>
+      <button id="save-btn" class="iconbtn" data-icon="save" data-tip="Save a copy…" aria-label="Save a copy"></button>
       <div id="viewmode">
         <button data-mode="map" class="on">Map</button>
         <button data-mode="split">Split</button>
         <button data-mode="table">Table</button>
       </div>
+      <button id="valid-light" class="iconbtn vl-unknown" data-tip="Not validated yet" aria-label="Validation: not validated yet"></button>
       <span id="count"></span>
       <span class="spacer" id="cmd-slot"><button id="cmd-btn" class="iconbtn" data-icon="terminal" data-tip="Commands (⌘K / Ctrl+K)" aria-label="Commands" aria-keyshortcuts="Control+K Meta+K"></button></span>
       <button id="jobs-btn" class="mini ghost" data-tip="Background jobs" aria-label="Background jobs"><span data-icon="play"></span><span id="jobs-count" class="pcount">0</span></button>
@@ -183,12 +191,6 @@
         <span class="diag" id="ed-undo-why"></span></div>
       <div id="ed-status" class="diag" role="status"></div>
       <div id="ed-list"><span class="empty">No edits yet.</span></div>
-      <div class="label">Save a copy</div>
-      <div class="row wrap"><input id="ed-save-name" placeholder="leavenworth-fixed" aria-label="Copy name">
-        <select id="ed-save-format" aria-label="Format"><option value="parquet">Parquet folder</option>
-          <option value="csv">CSV folder</option><option value="duckdb">DuckDB file</option><option value="zip">Zip</option></select>
-        <button class="mini ghost" id="ed-save" aria-expanded="false" aria-controls="ed-save-fb">Choose folder…</button></div>
-      <div class="fb" id="ed-save-fb" hidden></div>
     </section>
     <section class="dock-pane" id="dock-assistant" data-panel="assistant" role="tabpanel" aria-labelledby="dtab-assistant" hidden>
       <div id="as-note" class="diag"></div>
@@ -215,6 +217,33 @@
   <h4>Jobs</h4>
   <div id="jobs-list"><span class="empty">No jobs yet.</span></div>
 </div>
+<dialog id="save-dialog" aria-labelledby="save-title">
+  <form method="dialog" id="save-form" class="modal-card save-card">
+    <div class="modal-head"><h3 id="save-title">Save a copy</h3></div>
+    <div class="modal-body">
+      <p class="diag">Writes the active network, with every pending edit, as a new copy. The original is never changed.</p>
+      <div class="row wrap">
+        <label class="save-lbl" for="ed-save-name">Name</label>
+        <input id="ed-save-name" placeholder="leavenworth-fixed" aria-label="Copy name" autocomplete="off">
+        <label class="save-lbl" for="ed-save-format">Format</label>
+        <select id="ed-save-format" aria-label="Format"><option value="parquet">Parquet folder</option>
+          <option value="csv">CSV folder</option><option value="duckdb">DuckDB file</option><option value="zip">Zip</option></select>
+      </div>
+      <div class="label">Folder</div>
+      <div class="diag" id="save-folder">No folder chosen yet: pick one below.</div>
+      <div class="fb" id="ed-save-fb"></div>
+      <div id="save-warn" class="save-warn" hidden>
+        <pre id="save-warn-text"></pre>
+        <label class="save-accept"><input type="checkbox" id="save-accept"> Save anyway (recorded as an explicit choice)</label>
+      </div>
+      <div id="save-error" class="save-error" role="alert" hidden></div>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="mini ghost" id="save-cancel">Cancel</button>
+      <button type="button" class="mini" id="ed-save">Save</button>
+    </div>
+  </form>
+</dialog>
 <div id="wizard" class="modal" role="dialog" aria-modal="true" aria-labelledby="wz-title" hidden>
   <div class="modal-card">
     <div class="modal-head">
