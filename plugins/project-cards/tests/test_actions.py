@@ -265,9 +265,19 @@ def test_undo_refuses_when_core_made_the_newest_change(session):
     assert draft(session)["count"] == 1 and cell(session, 1, "lanes") == [2]
 
 
-def test_every_cards_action_is_drafted_by_the_assistant(session):
-    types = [t for t in session.actions.types() if t.startswith("project_cards.")]
-    assert types and all(session.actions.model(t).mutates for t in types)
+READ_ONLY = {
+    "project_cards.open_catalog",
+    "project_cards.refresh_catalog",
+    "project_cards.check_card",
+    "project_cards.session_summary",
+}
+
+
+def test_every_cards_action_that_changes_something_is_drafted_by_the_assistant(session):
+    # The catalog Actions and the summary change no network, preview or file: the assistant may just call them.
+    types = {t for t in session.actions.types() if t.startswith("project_cards.")}
+    assert types > READ_ONLY
+    assert {t for t in types if session.actions.model(t).mutates} == types - READ_ONLY
 
 
 def test_a_replayed_session_reproduces_the_network(session, make_session):

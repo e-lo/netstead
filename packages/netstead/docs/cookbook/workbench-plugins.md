@@ -276,6 +276,9 @@ A plugin never sees the `Session`. Every handler, `router`, `state` and `on_load
 | `host.publish(name, payload)` | Sends the browser a `{"type": "plugin", "plugin": <id>, "name": ..., "payload": ...}` event over the session's event stream; `wb.on(name)` hears it. `name` is lowercase letters, digits and underscores, starting with a letter (`[a-z][a-z0-9_]*`), since a dot in `wb.on` names another plugin; anything else raises `ValueError`. |
 | `host.submit_job(label, fn)` | Runs `fn(ctx)` on a background job, with progress and cancel in the jobs panel, and returns the job id. `mutate` and `derive` are safe to call from it. |
 | `host.writable(path)` | Resolves a path for writing inside `io.allowed_roots`. Raises `PathNotAllowed` outside it. |
+| `host.readable(path)` | Resolves a path for reading inside `io.allowed_roots`: a file or a folder that exists. Raises `PathNotAllowed` outside the roots (before touching the disk) and `ActionError` when nothing is there. API 1.7. |
+| `host.list_dir(path)` | The entries of a folder inside `io.allowed_roots`, folders first, hidden entries skipped, each `{name, path, kind, is_dir}` (`kind` is what core's file browser can open it as, else `None`). Reads no file. Raises `PathNotAllowed` outside the roots and `ActionError` when the folder is missing or is a file. API 1.7. |
+| `host.history(prefix=None)` | The session's history (the entries `GET /api/history` returns: `seq`, `action`, `python`, `ok`, `error`, `ts`, `via`, …), oldest first, as copies; with `prefix` (say `"my_plugin."`), only the Actions whose type starts with it. Read-only; the Action now running is not in it yet. API 1.7. |
 
 A preview, following "nothing mutates silently":
 
@@ -500,7 +503,7 @@ export function activate(wb) {
 
 | Member | What it gives you |
 |---|---|
-| `wb.id`, `wb.hostApi` | This plugin's id, and the plugin API this netstead provides (`"1.6"`). |
+| `wb.id`, `wb.hostApi` | This plugin's id, and the plugin API this netstead provides (`"1.7"`). |
 | `wb.api.fetch(path, init)`, `wb.api.get(path)`, `wb.api.post(path, body)` | `fetch`, and JSON helpers, scoped to your router: `"/count"` is `/api/plugins/<id>/count`. A path must start with `/` and, once resolved (`%2e%2e` and `\` count as `..` and `/`), stay under that prefix; other hosts are refused. |
 | `wb.api.dispatch(action)` | Posts any Action (yours, another plugin's, core's) to `POST /api/actions` and resolves to its result. |
 | `wb.store.get()`, `wb.store.subscribe(keys, fn)` | The server state (`/api/state`), and a listener that fires when any of `keys` changes. Keys may be dotted (`"plugins.hello"`). `get()` and the listener's argument are a frozen copy: changing it throws (changes go through Actions). Returns an unsubscribe function. |
@@ -706,6 +709,7 @@ A minor bump only adds to the API and a major bump breaks it.
 | `1.4` | The assistant: `assistant: ClassVar[bool] = False` on an Action keeps it out of the NL assistant's tools; a plugin's Actions are offered as tools once the plugin is listed in `assistant.plugins`. `GET /api/actions` entries carry `assistant`. |
 | `1.5` | `ActionError` and `NotSupportedYet` are exported from `netstead.workbench.plugins`: a handler raises them to refuse with a message the user sees. |
 | `1.6` | `host.mutate` and `host.undo` raise `ActionError` when storage refuses the edit or its reverse (corral's `EditingError`, an Arrow, ibis or DuckDB error), with the message scrubbed of credentials and keys. `host.mutate` returns a `Mutation(results, seq)` (exported; **breaking**: it used to return the list of results), `seq` being the pending edit's id, unique per network id for the session. `host.pending_edits(net_id)` returns a `PendingEdits(issued, edits)` (exported); `host.undo()`'s `seq` names the edit it reversed. `host.on_rollback(fn)` lets a handler put its own state back when its Action is rolled back. `assistant_compact: ClassVar[bool] = True` on a `mutates` Action offers it in the assistant's compact tool set; `GET /api/actions` entries carry `assistant_compact`. |
+| `1.7` | Reading inside the sandbox: `host.readable(path)` (a file or folder that exists, inside `io.allowed_roots`) and `host.list_dir(path)` (a folder's entries, hidden ones skipped). `host.history(prefix=None)` gives a read-only view of the session's history, so a plugin can summarise what it did. |
 
 **The plugin API is provisional until netstead v1.0.** Until then it may change without a major
 bump. Pin the netstead versions you support in your package's dependencies, and check the changelog

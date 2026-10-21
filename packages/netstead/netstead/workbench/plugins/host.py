@@ -16,6 +16,8 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel, ValidationError
 
 from ..editing import EditPlan, plan_add, plan_delete, plan_update
+from ..errors import ActionError
+from ..files import list_dir
 from ..ledger import PendingEdits
 from ..paths import resolve_allowed
 from ..selection import payload_facility_forms, selection_warnings
@@ -250,3 +252,40 @@ class Host:
     def writable(self, path: str | Path) -> Path:
         """Resolve ``path`` for writing inside ``io.allowed_roots`` (raises ``PathNotAllowed`` outside it)."""
         return resolve_allowed(path, self._session.settings)
+
+    def readable(self, path: str | Path) -> Path:
+        """Resolve ``path`` for reading inside ``io.allowed_roots``: a file or a folder that exists (1.7).
+
+        Raises ``PathNotAllowed`` outside the roots (before touching the disk) and ``ActionError`` when nothing is
+        there, or when the disk refuses to say (a folder on the way that cannot be searched).
+        """
+        resolved = resolve_allowed(path, self._session.settings)
+        try:
+            exists = resolved.exists()
+        except OSError as exc:
+            raise ActionError(f"could not read {path}: {exc.strerror or exc}") from exc
+        if not exists:
+            raise ActionError(f"no such file or folder: {path}")
+        return resolved
+
+    def list_dir(self, path: str | Path) -> list[dict[str, Any]]:
+        """The entries of a folder inside ``io.allowed_roots``, folders first, hidden entries skipped (1.7).
+
+        Each is ``{name, path, kind, is_dir}``: ``kind`` is what core's file browser can open the entry as
+        (``gmns``, ``zip``, ``json``, ...; ``None`` for a plain file or folder). The listing reads no file. Raises
+        ``PathNotAllowed`` outside the roots and ``ActionError`` when the folder is missing or is a file.
+        """
+        try:
+            listing = list_dir(str(path), self._session.settings)
+        except (FileNotFoundError, NotADirectoryError) as exc:
+            raise ActionError(str(exc)) from exc
+        return [{k: e[k] for k in ("name", "path", "kind", "is_dir")} for e in listing["entries"]]
+
+    def history(self, prefix: str | None = None) -> list[dict[str, Any]]:
+        """The session's history (``GET /api/history`` entries), oldest first, as JSON-safe copies (1.7).
+
+        With ``prefix`` (say ``"my_plugin."``), only the entries whose Action type starts with it. Read-only: an
+        Action now running is not in it yet (it is recorded once it returns).
+        """
+        entries = list(self._session.history)
+        return [e.to_dict() for e in entries if prefix is None or str(e.action.get("type", "")).startswith(prefix)]

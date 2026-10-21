@@ -5,7 +5,33 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
 
 ## [Unreleased]
 
+### Added
+
+- **A catalog of cards, checked against the network, previewed and applied.** `project_cards.open_catalog(path)`
+  (or the new `catalog_dir` setting) lists the ProjectCard files of a folder and one level of its sub-folders, with
+  the files that are not cards and why; `refresh_catalog` rescans. `check_card(card_id)` says whether a card applies
+  to the open network as it is now, per change: the records it resolves, the ids the network lacks, and a reason
+  when a change cannot be applied (a query selection without netstead provenance: "query without provenance;
+  re-resolution not supported"). `preview_card(card_id)` shows every change of a card on a copy of the network and
+  publishes `project_cards.card_selection` (the links and nodes the card aims at) for the map. `apply_card(card_id,
+  existing_value_conflict=..., ignore_missing=...)` applies a card to the network through the same lowering as a
+  draft change, all or nothing, and records it; no file is written. The cards applied this session (committed from
+  the draft or applied from the catalog) are `plugins.project_cards.applied` (`card_id`, `path`, `project`,
+  `applied_at`, `changes`, `source`, `edit_ids`); the open catalog is `plugins.project_cards.catalog`.
+- **A session summary.** `project_cards.session_summary()` and `GET /api/plugins/project_cards/summary.txt`: the
+  network, the cards applied (with their edit ids), the draft, and this plugin's Actions in order, as plain text.
+- `GET /api/plugins/project_cards/catalog` lists the open catalog and checks up to 50 unchecked cards per request.
+- Needs Host API 1.7 (`host.readable`, `host.list_dir`, `host.history`).
+
 ### Changed
+
+- **A query selection without provenance reads; applying it is what is refused.** A card that selects links by a
+  query (`name`, `ref`, …) with no `netstead.resolved[i]` note used to be refused on read ("re-resolving a query
+  arrives with apply_card"). It now reads as an unresolved `Selection` (`unresolved` is true, `target_ids()` is
+  empty) and writes back unchanged, so a catalog can list it; import, preview and apply refuse the change with
+  "query without provenance; re-resolution not supported".
+- `project_cards.import` resolves its path with `host.readable`: a path with nothing at it is refused with "no such
+  file or folder", before the "is not a file" check.
 
 - **Importing the offline report's edit log.** netstead now writes it as a schema-valid card (picked ids with
   `ignore_missing: false`, notes as `netstead.note[<i>]` lines), which import reads as an ordinary card. The tolerant

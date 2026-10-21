@@ -41,15 +41,8 @@ ADD = (
 def test_every_cards_action_is_a_drafted_tool(make_session):
     session = make_session(overrides=OPTED_IN)
     specs = {s.action_type: s for s in tool_specs(session) if s.plugin == "project_cards"}
-    assert set(specs) == {
-        "project_cards.add_change",
-        "project_cards.undo_change",
-        "project_cards.commit",
-        "project_cards.import",
-        "project_cards.preview",
-        "project_cards.close_preview",
-    }
-    assert all(s.mutates for s in specs.values())
+    assert set(specs) == {f"project_cards.{name}" for name in EVERY}
+    assert {s.action_type for s in specs.values() if s.mutates} == {f"project_cards.{name}" for name in DRAFTED}
     assert specs["project_cards.add_change"].tool.name == "project_cards__add_change"
 
 
@@ -101,14 +94,19 @@ def test_approving_a_card_change_drafted_on_the_preview_is_stale_once_the_base_m
     assert NET not in session.state()["plugins"]["project_cards"]["drafts"]
 
 
-COMPACT = {"add_change", "undo_change", "preview", "close_preview"}
+#: The read-only Actions (the catalog and the summary): offered as plain tools, never drafted.
+READ_ONLY = {"open_catalog", "refresh_catalog", "check_card", "session_summary"}
+#: The drafted Actions a compact tool set still offers (they need no file path).
+COMPACT = {"add_change", "undo_change", "preview", "close_preview", "preview_card", "apply_card"} | READ_ONLY
 EVERY = COMPACT | {"commit", "import"}
+DRAFTED = EVERY - READ_ONLY
 
 
 @pytest.mark.parametrize(("mode", "offered"), [("auto", COMPACT), ("off", EVERY)])
 def test_a_local_model_gets_the_everyday_cards_tools_while_tools_are_compact(make_session, mode, offered):
     # Core's compact tool set ("auto" on a local endpoint) drafts only the Actions marked ``assistant_compact``:
     # the cards Actions that need no file path. Committing and importing (a path) need compact_tools = "off".
+    # The read-only catalog Actions are offered either way (open_catalog takes a path, but changes nothing).
     provider = Scripted(reply(text="ok"))
     session = make_session(provider=provider, overrides={"assistant.plugins": ["project_cards"]})
     session.dispatch({"type": "set_setting", "key": "assistant.compact_tools", "value": mode})

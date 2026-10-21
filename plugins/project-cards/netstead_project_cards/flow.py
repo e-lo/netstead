@@ -1,33 +1,40 @@
-"""Steps the Action handlers and the routes share: network, facility, card, errors."""
+"""Steps the Action handlers and the routes share: network, facility, card, errors, the catalog and the summary."""
 
 from __future__ import annotations
 
 import copy
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from typing import Any
 
 from netstead.workbench.plugins import ActionError, Host, NotSupportedYet
 from pydantic import ValidationError
 
-from .card import DraftCard
+from .card import DraftCard, read_card_file
+from .catalog import Catalog, CatalogEntry, applicability, scan_catalog
 from .errors import CardError, CardNotSupported, not_supported
-from .lower import Pending
+from .lower import Pending, describe
 from .mapping import FieldMap
 from .state import CardsState
+from .summary import build_summary
 from .types import TRANSIT_TYPES, NetworkChange, RoadwayDeletion, RoadwayPropertyChange, Selection, incomplete
 from .validate import card_problems
 
 __all__ = [
     "SELECTABLE",
     "as_action_errors",
+    "catalog_entry",
     "check_card_shape",
+    "check_entries",
     "complete_change",
+    "load_catalog",
     "open_handle",
     "pending_seqs",
     "refuse_transit",
     "selection_facility",
     "selection_networks",
+    "summary_text",
     "target_network",
 ]
 
@@ -184,3 +191,63 @@ def check_card_shape(change: NetworkChange, mapping: FieldMap) -> None:
     problems = card_problems(DraftCard(project="check", changes=[change]).to_card(mapping))
     if problems:
         raise CardError(f"this change would not be a valid ProjectCard: {problems[0]}")
+
+
+# ---------------------------------------------------------------- the catalog and the summary
+
+
+def load_catalog(host: Host, path: str, mapping: FieldMap) -> Catalog:
+    """Scan the folder at ``path`` (inside ``io.allowed_roots``) as a catalog; nothing is stored.
+
+    Raises ``PathNotAllowed`` outside the roots and ``ActionError`` when there is no folder there.
+    """
+    folder = host.readable(path)
+    if not folder.is_dir():
+        raise ActionError(f"{path} is not a folder")
+    return scan_catalog(str(folder), host.list_dir, lambda p: read_card_file(p, mapping))
+
+
+def catalog_entry(state: CardsState, card_id: str) -> CatalogEntry:
+    """The open catalog's card ``card_id`` (``ActionError`` when no catalog is open or it has no such card)."""
+    catalog = state.catalog()
+    if catalog is None:
+        raise ActionError("no catalog is open: open a folder of cards first (project_cards.open_catalog)")
+    entry = catalog.entry(card_id)
+    if entry is None:
+        raise ActionError(f"the catalog at {catalog.path} has no card {card_id!r}")
+    return entry
+
+
+def check_entries(host: Host, state: CardsState, net: str, entries: Sequence[CatalogEntry]) -> list[dict[str, Any]]:
+    """Compute and store each entry's applicability on the open network ``net`` (read once); return the results.
+
+    Each result is :func:`~netstead_project_cards.catalog.applicability`'s dict plus the ``net_id`` and ``version``
+    it was computed on. Nothing is mutated.
+    """
+    handle = host.network(net)
+    version = handle.version  # before the frames (cached per version): a result never claims a newer version
+    links, nodes = handle.links_df(), handle.nodes_df()
+    results = []
+    for entry in entries:
+        result = {**applicability(entry.card, links, nodes), "net_id": net, "version": version}
+        state.set_applicability(entry, result)
+        results.append(result)
+    return results
+
+
+def summary_text(host: Host, state: CardsState, net_id: str | None) -> str:
+    """The session summary for ``net_id`` (default: the active network, if any): see :mod:`summary`."""
+    net = net_id or host.active
+    handle = open_handle(host, net) if net is not None else None
+    network = None
+    if net is not None and handle is not None:
+        about = handle.summary()
+        network = {
+            "name": about["label"],
+            "source": about["source"],
+            "spec_version": getattr(handle.roadway, "spec_version", None),
+        }
+    card = state.card(net) if net is not None else None
+    draft = {"project": card.project, "changes": [describe(c) for c in card.changes]} if card is not None else None
+    applied = [a.to_dict() for a in state.applied]
+    return build_summary(network, applied, draft, host.history("project_cards."), datetime.now(UTC))
