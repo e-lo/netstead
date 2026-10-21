@@ -1033,6 +1033,8 @@ def test_grid_filter_chip_text(node_module, col, spec, text):
 def test_grid_filter_chip_text_elides_a_long_value_list(node_module):
     spec = '{kind: "set", mode: "any_of", values: ["a", "b", "c", "d", "e", "f"], listLike: true}'
     assert node_module("gridfilter.js", _GF, f'chipText("u", {spec})') == "u any of a, b, c, d +2"
+
+
 # ---- resize.js: panel sizes (the map/table split percentage, the side column width) ----
 
 SIZE_DEFAULTS = {"split": 55, "side": 330}
@@ -1087,3 +1089,90 @@ def test_serialize_sizes_round_trips(node_module):
     assert node_module("resize.js", ["parseSizes", "serializeSizes"], expr) == {"split": 40, "side": 500}
     raw = node_module("resize.js", ["serializeSizes"], "serializeSizes({split: 40, side: 500, extra: 1})")
     assert json.loads(raw) == {"split": 40, "side": 500}
+
+
+# ---- recents.js: the Open menu's recent networks ----
+
+
+def recent_entries(node_module, stored, limit=None):
+    args = json.dumps(stored) + (f", {limit}" if limit is not None else "")
+    return node_module("recents.js", ["recentEntries"], f"recentEntries({args})")
+
+
+def test_recent_entries_keep_newest_first_and_cap_at_three(node_module):
+    stored = [{"source": f"/n/{i}", "label": f"net{i}"} for i in range(5)]
+    assert recent_entries(node_module, stored) == [
+        {"label": "net0", "path": "/n/0"},
+        {"label": "net1", "path": "/n/1"},
+        {"label": "net2", "path": "/n/2"},
+    ]
+    assert len(recent_entries(node_module, stored, 5)) == 5
+
+
+def test_recent_entries_dedupe_by_path_keeping_the_newest(node_module):
+    stored = [{"source": "/a", "label": "first"}, {"source": "/b", "label": "b"}, {"source": "/a", "label": "older"}]
+    assert recent_entries(node_module, stored) == [{"label": "first", "path": "/a"}, {"label": "b", "path": "/b"}]
+
+
+def test_recent_entries_tolerate_garbage(node_module):
+    assert recent_entries(node_module, None) == []
+    assert recent_entries(node_module, [{"label": "no source"}, None, {"source": "/x/"}]) == [
+        {"label": "x", "path": "/x/"}
+    ]
+
+
+# ---- validity.js: the header's validity light ----
+
+
+def validity(node_module, server):
+    return node_module("validity.js", ["validityState"], f"validityState({json.dumps(server)})")
+
+
+def _validated(counts, stale=False):
+    return {"active": "n", "issues": {"n": {"version": 2, "stale": stale, "counts": counts}}}
+
+
+def test_validity_unknown_without_a_validation(node_module):
+    assert validity(node_module, None) == {"level": "unknown", "icon": "circle", "tip": "Not validated yet"}
+    assert validity(node_module, {"active": "n", "issues": {}})["level"] == "unknown"
+    assert (
+        validity(node_module, {"active": "n", "issues": {"other": {"version": 1, "counts": {}}}})["level"] == "unknown"
+    )
+
+
+def test_validity_stale_after_the_network_changed(node_module):
+    v = validity(node_module, {"active": "n", "issues": {"n": {"version": 4, "stale": True, "counts": {"error": 2}}}})
+    assert v == {
+        "level": "stale",
+        "icon": "circle",
+        "tip": "Validated v4; the network changed since: re-run validation",
+    }
+
+
+def test_validity_error_warn_and_clean_with_plurals(node_module):
+    assert validity(node_module, _validated({"error": 3, "warning": 1, "info": 16})) == {
+        "level": "error",
+        "icon": "x-circle",
+        "tip": "3 errors, 1 warning, 16 info",
+    }
+    assert validity(node_module, _validated({"error": 1})) == {"level": "error", "icon": "x-circle", "tip": "1 error"}
+    assert validity(node_module, _validated({"warning": 1, "info": 16})) == {
+        "level": "warn",
+        "icon": "alert-triangle",
+        "tip": "1 warning, 16 info",
+    }
+    assert validity(node_module, _validated({"warning": 2})) == {
+        "level": "warn",
+        "icon": "alert-triangle",
+        "tip": "2 warnings",
+    }
+    assert validity(node_module, _validated({"info": 5})) == {
+        "level": "clean",
+        "icon": "check-circle",
+        "tip": "Valid: 0 errors, 0 warnings, 5 info",
+    }
+    assert validity(node_module, _validated({})) == {
+        "level": "clean",
+        "icon": "check-circle",
+        "tip": "Valid: 0 errors, 0 warnings",
+    }

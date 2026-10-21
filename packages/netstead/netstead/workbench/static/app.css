@@ -222,8 +222,37 @@
   #app { grid-template-rows:auto 1fr auto; }
   #net-select { background:#0c0e12; color:var(--ink); border:1px solid var(--edge); border-radius:8px;
                 padding:7px 8px; max-width:180px; }
-  #recent { background:#0c0e12; color:var(--ink); border:1px solid var(--edge); border-radius:8px;
-            padding:7px 8px; max-width:160px; }
+  /* the Open menu: recents (label; the path is the title), a rule, Browse / import… */
+  #open-wrap { position:relative; }
+  #open-wizard .caret { margin:0 0 0 4px; }
+  #open-wizard .caret svg { width:12px; height:12px; }
+  #open-menu { position:absolute; top:calc(100% + 4px); left:0; z-index:7; min-width:220px; max-width:360px; padding:6px;
+               background:rgba(23,26,33,.98); border:1px solid var(--edge); border-radius:10px; }
+  #open-menu [role="menuitem"] { display:block; width:100%; text-align:left; background:none; color:var(--ink);
+               font-weight:500; font-size:13px; padding:7px 10px; border-radius:6px; overflow:hidden;
+               text-overflow:ellipsis; white-space:nowrap; }
+  #open-menu [role="menuitem"]:hover, #open-menu [role="menuitem"]:focus-visible { background:#20242e; outline:none; }
+  #open-menu .empty { display:block; padding:6px 10px; font-size:12px; }
+  .menu-sep { height:1px; margin:6px 4px; background:var(--edge); }
+  /* the validity light: grey = unknown, amber outline = stale, green / amber / red = clean / warnings / errors */
+  #valid-light.vl-unknown { color:var(--muted); }
+  #valid-light.vl-stale { color:#e0a83a; opacity:.75; border:1px dashed #e0a83a; }
+  #valid-light.vl-clean { color:#4fc78a; }
+  #valid-light.vl-warn { color:#e0a83a; }
+  #valid-light.vl-error { color:var(--to); }
+  /* the Save dialog (a native <dialog>; .modal-card gives it the wizard's card look) */
+  #save-dialog { padding:0; border:0; background:none; color:var(--ink); }
+  #save-dialog::backdrop { background:rgba(0,0,0,.55); }
+  #save-dialog .save-card { width:min(640px, calc(100vw - 32px)); margin:0; }
+  #save-dialog input:not([type=checkbox]), #save-dialog select { background:#0c0e12; color:var(--ink);
+               border:1px solid var(--edge); border-radius:6px; padding:6px 8px; font-size:13px; }
+  #ed-save-name { flex:1; min-width:140px; }
+  .save-lbl { color:var(--muted); font-size:12px; }
+  #ed-save-fb { max-height:240px; overflow:auto; }
+  .save-warn { margin-top:10px; padding:8px 10px; border:1px solid #e0a83a; border-radius:8px; background:#2b2310; }
+  .save-warn pre { margin:0 0 6px; white-space:pre-wrap; font:inherit; font-size:12.5px; }
+  .save-accept { display:flex; align-items:center; gap:6px; font-size:13px; }
+  .save-error { margin-top:8px; color:var(--to); font-size:12.5px; }
   footer#history { grid-column:1 / -1; display:flex; align-items:center; gap:10px; padding:6px 16px; min-width:0;
                    background:var(--panel); border-top:1px solid var(--edge); font-size:12px; color:var(--muted); }
   #hist-py { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink);

@@ -84,11 +84,85 @@ def test_js_syntax(tmp_path, run_node):
     assert proc.returncode == 0, proc.stderr
 
 
-def test_header_has_open_import_recent_and_jobs_not_the_path_box():
+def test_header_has_open_menu_save_and_jobs_not_the_path_box_or_recent_select():
     html = (STATIC_DIR / "index.html").read_text()
-    for element_id in ("open-wizard", "recent", "jobs-btn", "jobs-panel", "wizard"):
+    for element_id in (
+        "open-wizard",
+        "open-menu",
+        "save-btn",
+        "save-dialog",
+        "valid-light",
+        "jobs-btn",
+        "jobs-panel",
+        "wizard",
+    ):
         assert f'id="{element_id}"' in html
-    assert 'id="open-src"' not in html and 'id="open-go"' not in html
+    assert 'id="open-src"' not in html and 'id="open-go"' not in html and 'id="recent"' not in html
+
+
+def test_open_menu_lists_recents_from_the_pure_module_then_browse():
+    html = (STATIC_DIR / "index.html").read_text()
+    row = html[html.index("<header>") : html.index('id="nl-row"')]
+    assert 'id="open-wizard"' in row and 'aria-haspopup="menu"' in row and 'aria-controls="open-menu"' in row
+    assert '<div id="open-menu" role="menu"' in html and 'id="open-browse"' in html
+    header = (JS_DIR / "header.js").read_text()
+    assert 'from "./recents.js"' in header and "recentEntries(" in header and "openWizard()" in header
+    assert "export function renderRecent(" not in header and '$("recent")' not in header  # the Recent select is gone
+    assert 'e.key === "Escape"' in header
+
+
+def test_the_save_dialog_owns_the_save_a_copy_flow():
+    html = (STATIC_DIR / "index.html").read_text()
+    row = html[html.index("<header>") : html.index('id="nl-row"')]
+    assert 'id="save-btn"' in row and 'data-tip="Save a copy…"' in row
+    assert (
+        row.index('id="open-wizard"')
+        < row.index('id="save-btn"')
+        < row.index('id="valid-light"')
+        < row.index('id="count"')
+    )
+    dialog = html[
+        html.index('<dialog id="save-dialog"') : html.index("</dialog>", html.index('<dialog id="save-dialog"'))
+    ]
+    for element_id in (
+        "ed-save-name",
+        "ed-save-format",
+        "ed-save-fb",
+        "ed-save",
+        "save-warn",
+        "save-warn-text",
+        "save-accept",
+        "save-cancel",
+    ):
+        assert f'id="{element_id}"' in dialog
+    for fmt in ("parquet", "csv", "duckdb", "zip"):
+        assert f'<option value="{fmt}"' in dialog
+    pane = html[html.index('id="dock-edits"') : html.index("</aside>")]
+    assert 'id="ed-save' not in pane and "Save a copy" not in pane
+    save = (JS_DIR / "savedialog.js").read_text()
+    assert "showModal()" in save and "createFileBrowser(" in save and "savePrompt(" in save
+    assert "accept_warnings" in save and "window.confirm(" not in save  # the checkbox replaces the confirm
+    assert "savedText(job.result)" in save and "check_failed" in save and "dispatchJob(action, onSaveEnded)" in save
+    edits = (JS_DIR / "edits.js").read_text()
+    assert "save_network" not in edits and "createFileBrowser" not in edits and "window.confirm(" not in edits
+    assert "validatedText(job.result)" in edits  # a validation's outcome is still reported from the Edits module
+    main = (JS_DIR / "main.js").read_text()
+    assert 'from "./savedialog.js"' in main and "wireSaveDialog()" in main and "onEditJob(e.job)" in main
+    assert "run: () => openSaveDialog()" in (JS_DIR / "editcmds.js").read_text()  # the palette's Save a copy…
+
+
+def test_the_validity_light_follows_the_server_state():
+    html = (STATIC_DIR / "index.html").read_text()
+    row = html[html.index("<header>") : html.index('id="nl-row"')]
+    light = row[row.index('id="valid-light"') - 30 : row.index(">", row.index('id="valid-light"'))]
+    assert 'class="iconbtn vl-unknown"' in light and "aria-label=" in light and "data-tip=" in light
+    css = (STATIC_DIR / "app.css").read_text()
+    for cls in ("vl-unknown", "vl-stale", "vl-clean", "vl-warn", "vl-error"):
+        assert f".{cls}" in css
+    src = (JS_DIR / "validity.js").read_text()
+    assert "import " not in src  # pure
+    header = (JS_DIR / "header.js").read_text()
+    assert "validityState(" in header and "showPanel(" in header and '"validate"' in header and '"issues"' in header
 
 
 def test_wizard_modules_exist_and_are_wired_from_main():
@@ -173,7 +247,7 @@ def test_header_puts_the_utterance_and_picker_on_their_own_row():
     for element_id in ("utterance", "nl-picker", "go"):
         assert f'id="{element_id}"' in row
     main_row = html[html.index("<header>") : html.index('id="nl-row"')]
-    for element_id in ("net-select", "open-wizard", "recent", "viewmode", "jobs-btn", "settings-btn"):
+    for element_id in ("net-select", "open-wizard", "save-btn", "valid-light", "viewmode", "jobs-btn", "settings-btn"):
         assert f'id="{element_id}"' in main_row
 
 
@@ -458,27 +532,18 @@ def test_record_edits_undo_and_save_are_registered_commands():
     side = (JS_DIR / "side.js").read_text()
     for act in ("edit", "delete", "undo"):
         assert f'data-act="{act}"' in side
-    edits = (JS_DIR / "edits.js").read_text()
-    assert "accept_warnings = true" in edits and "window.confirm(" in edits  # saving over warnings is confirmed
-    # A refused save (the server checks again) is confirmed too; a save's and a validation's result are reported.
-    assert "accept_warnings: true" in edits and "savePrompt(job.payload)" in edits
-    assert "savedText(job.result)" in edits and "validatedText(job.result)" in edits
+    # Saving over warnings is an explicit choice (the Save dialog's checkbox); a refused save (the server checks
+    # again) is shown in the dialog too, and a save's and a validation's result are reported.
+    save = (JS_DIR / "savedialog.js").read_text()
+    assert "accept_warnings" in save and "savePrompt(job.payload)" in save and "savedText(job.result)" in save
+    assert "validatedText(job.result)" in (JS_DIR / "edits.js").read_text()
     assert "onEditJob(e.job)" in (JS_DIR / "main.js").read_text()
     # Anchors with no coordinates are still listed in the Selection panel, as not on the map (escaped like the others).
     selection = (JS_DIR / "selection.js").read_text()
     assert "anchors_unplaced" in (JS_DIR / "selectmodel.js").read_text() and "not on the map" in selection
     html = (STATIC_DIR / "index.html").read_text()
     pane = html[html.index('id="dock-edits"') : html.index("</aside>")]
-    for element_id in (
-        "ed-undo",
-        "ed-undo-why",
-        "ed-status",
-        "ed-list",
-        "ed-save-name",
-        "ed-save-format",
-        "ed-save",
-        "ed-save-fb",
-    ):
+    for element_id in ("ed-undo", "ed-undo-why", "ed-status", "ed-list"):
         assert f'id="{element_id}"' in pane
     header = (JS_DIR / "header.js").read_text()
     assert "dirtyBadge(" in header and "networkBadge(" in header
