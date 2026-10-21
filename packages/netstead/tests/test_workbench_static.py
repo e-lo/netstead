@@ -201,6 +201,7 @@ def test_text_cells_edit_with_a_datalist_of_allowed_values():
     assert 'id="cell-opts"' in html and "<datalist" in html
     assert 'list="cell-opts"' in table and "cellOptions(" in table and "distinct" in table
     assert 'icon("alert-triangle"' in table and '"warn"' in table  # a warned cell is outlined and carries the icon
+    assert "shouldApplyOnLeave(" in table and "onblur" in table  # leaving a cell applies changed text
     assert "#tbl-grid td.warn" in (STATIC_DIR / "app.css").read_text()
 
 

@@ -30,8 +30,8 @@ This file is for the **netstead** package only. The underlying generic engine `c
   editor completes from the spec's `enum` plus the column's existing values
   (comma-list columns such as `allowed_uses` complete one token at a time and
   say "comma-separated"); a cell with an open edit warning is outlined in red
-  with a warning icon and the message as its tooltip; and leaving an editor
-  with changed text says the edit was not applied and how to apply it.
+  with a warning icon and the message as its tooltip; and leaving a cell
+  applies the edit, as in a spreadsheet (Escape discards it).
 - **The Workbench map draws link shapes kept in the `geometry` table.** A
   network whose links carry a `geometry_id` into a separate `geometry` table
   (the bundled Leavenworth network, for one) drew every link as a straight

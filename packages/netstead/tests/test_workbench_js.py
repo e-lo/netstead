@@ -525,16 +525,13 @@ def test_list_options_complete_the_last_token_of_a_comma_list(node_module):
     ]
 
 
-def test_leaving_a_changed_cell_says_the_edit_was_not_applied(node_module):
+def test_leaving_a_cell_applies_only_changed_text(node_module):
     expr = (
-        '[discardedText("parking", "none", "none"), discardedText("parking", "angle", "none"),'
-        ' discardedText("parking", "", null)]'
+        '[shouldApplyOnLeave("none", "none"), shouldApplyOnLeave(" none ", "none"),'
+        ' shouldApplyOnLeave("angle", "none"), shouldApplyOnLeave("", null), shouldApplyOnLeave("", "none"),'
+        ' shouldApplyOnLeave("30", 30)]'
     )
-    assert node_module("editmodel.js", ["discardedText"], expr) == [
-        "",
-        "parking: the typed value was not applied. Press Enter to apply an edit; Escape discards it.",
-        "",
-    ]
+    assert node_module("editmodel.js", ["shouldApplyOnLeave"], expr) == [False, False, True, False, True, False]
 
 
 def test_an_empty_cell_parses_by_its_column_kind(node_module):

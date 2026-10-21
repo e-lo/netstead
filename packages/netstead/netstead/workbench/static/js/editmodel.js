@@ -48,12 +48,11 @@ export function listOptions(value, tokens) {
   return tokens.map(t => head + t);
 }
 
-// What to say when a cell editor closes by losing the focus with the text changed (nothing was sent): "" when the
-// text still reads as the cell's value, so an untouched editor closes quietly.
-export function discardedText(column, typed, current) {
+// Whether leaving a cell editor (its input losing the focus) applies what was typed, as a spreadsheet does: only
+// when the text no longer reads as the cell's value, so an untouched editor closes without sending anything.
+export function shouldApplyOnLeave(typed, current) {
   const before = current == null ? "" : String(current);
-  if ((typed == null ? "" : String(typed)).trim() === before.trim()) return "";
-  return `${column}: the typed value was not applied. Press Enter to apply an edit; Escape discards it.`;
+  return (typed == null ? "" : String(typed)).trim() !== before.trim();
 }
 
 // The EditCells action: one column of one or more rows of one table.
