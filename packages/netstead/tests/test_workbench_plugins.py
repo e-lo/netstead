@@ -1103,8 +1103,8 @@ def test_the_plugin_id_core_is_reserved(make_session):
 
 
 def test_a_plugin_built_for_api_1_0_installs_on_this_host(make_session):
-    """A minor bump only adds: a plugin that declares 1.0 still installs (and its Action registers) on 1.6."""
-    assert HOST_API == "1.6"
+    """A minor bump only adds: a plugin that declares 1.0 still installs (and its Action registers) on 1.7."""
+    assert HOST_API == "1.7"
     session = make_session(make_hello(requires_api="1.0"))
     assert _status(session, "hello").state == "loaded" and session.actions.has("hello.greet")
 

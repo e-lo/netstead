@@ -380,15 +380,19 @@ def test_import_refuses_a_query_without_provenance(session, tmp_path):
         "        ignore_missing: true\n    property_changes:\n      lanes: {set: 2}\n",
         encoding="utf-8",
     )
-    with pytest.raises(NotSupportedYet, match="apply_card"):
+    with pytest.raises(NotSupportedYet, match="change 1 of 1: query without provenance; re-resolution not supported"):
         session.dispatch(ImportCard(path=str(path)))
+    assert session.network(NET).version == 0
 
 
 def test_import_refusals(session, tmp_path):
     with pytest.raises(PathNotAllowed):
         session.dispatch(ImportCard(path="/etc/card.yml"))
-    with pytest.raises(ActionError, match="is not a file"):
+    with pytest.raises(ActionError, match=r"no such file or folder: .*missing\.yml"):
         session.dispatch(ImportCard(path=str(tmp_path / "missing.yml")))
+    (tmp_path / "folder.yml").mkdir()
+    with pytest.raises(ActionError, match="is not a file"):
+        session.dispatch(ImportCard(path=str(tmp_path / "folder.yml")))
     empty = write(DraftCard(project="Empty"), tmp_path / "empty.yml")
     with pytest.raises(ActionError, match="no changes to import"):
         session.dispatch(ImportCard(path=empty))

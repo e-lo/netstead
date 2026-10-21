@@ -161,6 +161,12 @@ This file is for the **netstead** package only. The underlying generic engine `c
   shows both, and `Style` gains `node_color_by` (validated against the node
   table, replayed as `app.do(Style(node_color_by=...))`). `GET …/properties`
   and `GET …/property/{name}` take `?table=node` for the node table's columns.
+- **Host API 1.7: reading inside the sandbox, and a view of history.** `host.readable(path)` resolves a file or
+  folder that exists inside `io.allowed_roots` (`PathNotAllowed` outside them, `ActionError` when nothing is there);
+  `host.list_dir(path)` lists a folder's entries (`{name, path, kind, is_dir}`, folders first, hidden entries
+  skipped), as core's file browser does; `host.history(prefix=None)` returns the session's history entries (the
+  `GET /api/history` shape) as read-only copies, filtered by Action-type prefix. The project cards plugin uses them
+  for its catalog and session summary.
 - **Workbench: Open menu, Save dialog and validity light in the header.** The
   Recent select is gone: "Open…" drops a menu with the three most recent
   networks (the path is the tooltip; re-opening is a normal `open_network`)

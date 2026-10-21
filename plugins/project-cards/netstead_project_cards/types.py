@@ -29,6 +29,7 @@ __all__ = [
     "LIST_VALUE",
     "ROADWAY_TYPES",
     "TRANSIT_TYPES",
+    "UNRESOLVED_QUERY",
     "Id",
     "NetworkChange",
     "PropertyChange",
@@ -52,6 +53,8 @@ Scalar = int | float | str
 Id = int | str
 
 EMPTY_VALUE = "a ProjectCard cannot set a property to empty"
+#: Why a query selection read from a card without netstead provenance cannot be applied in this version.
+UNRESOLVED_QUERY = "query without provenance; re-resolution not supported"
 LIST_VALUE = "a ProjectCard cannot set a property to a list: give one number or string"
 
 
@@ -121,8 +124,9 @@ class Selection(_Model):
     aimed at a specific link should fail loudly when that link is gone). ``query`` keeps a re-resolvable ProjectCard
     facility in card form (``host.selection["projectcard"]["query"]``, which carries its own ``ignore_missing``:
     the selection's ``ignore_missing`` follows it, true when absent), and ``resolved`` the link ids it resolved to
-    when the change was made (provenance). A query applies to its
-    ``resolved`` ids; re-resolving it on another network version is ``apply_card`` (later).
+    when the change was made (provenance). A query applies to its ``resolved`` ids. A query without them (a card
+    written by another tool) is :attr:`unresolved`: it reads and writes, but applying it is refused with
+    :data:`UNRESOLVED_QUERY` until re-resolving a query on the open network is supported.
     """
 
     table: Literal["link", "node"] = "link"
@@ -155,12 +159,17 @@ class Selection(_Model):
         if self.query is not None:
             if self.table != "link" or not isinstance(self.query.get("links"), dict):
                 raise ValueError("a query selects links: its 'links' must be a mapping")
-            if not self.resolved:
-                raise ValueError("a query must record the link ids it resolved to (resolved=[...])")
+            if self.resolved is not None and not self.resolved:
+                raise ValueError("resolved records the link ids a query matched: give some, or leave it out")
         return self
 
+    @property
+    def unresolved(self) -> bool:
+        """Whether this is a query with no provenance (no ``resolved`` ids), which cannot be applied yet."""
+        return self.query is not None and self.resolved is None
+
     def target_ids(self) -> list[Id]:
-        """The ids this selection applies to now."""
+        """The ids this selection applies to now (none for an :attr:`unresolved` query)."""
         return list(self.ids if self.ids is not None else self.resolved or [])
 
 

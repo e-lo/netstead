@@ -105,9 +105,10 @@ class DraftCard(BaseModel):
         Raises:
             CardError: not a ProjectCard (no ``project``), malformed ``tags``, ``dependencies`` or provenance notes,
                 or a malformed change (the message starts ``change <n>:``).
-            CardNotSupported: transit, ``pycode``, managed lanes, a query selection without netstead provenance, a
-                scoped (time-of-day) value in an added record, or a selector key other than the id and
-                ``ignore_missing``.
+            CardNotSupported: transit, ``pycode``, managed lanes, a scoped (time-of-day) value in an added record,
+                or a selector key other than the id and ``ignore_missing``. A query selection without netstead
+                provenance reads as an unresolved :class:`~netstead_project_cards.types.Selection`; applying it
+                is what is refused.
 
         A deletion keeps its ``links`` selector's ``ignore_missing``. Its ``nodes`` flag is dropped and written back
         as ``ignore_missing: false`` (a node deletion aims at specific records and fails loudly when one is gone).
@@ -179,7 +180,7 @@ def read_card_file(path: str | Path, mapping: FieldMap | None = None) -> DraftCa
 def _provenance(changes: list[Any], m: FieldMap) -> list[str]:
     lines = []
     for i, c in enumerate(changes):
-        if isinstance(c, RoadwayPropertyChange) and c.facility is not None and c.facility.query is not None:
+        if isinstance(c, RoadwayPropertyChange) and c.facility is not None and c.facility.resolved is not None:
             lines.append(f"netstead.resolved[{i}]: {m.selector('link')[1]}={json.dumps(c.facility.resolved)}")
         if c.note:
             lines.append(f"netstead.note[{i}]: {' '.join(c.note.split())}")
@@ -346,12 +347,7 @@ def _selection(facility: Mapping[str, Any], m: FieldMap, resolved: list[Any] | N
     by_id = key in links and set(links) <= {key, "ignore_missing"} and "from" not in facility and "to" not in facility
     if by_id:
         return Selection(ids=_as_list(links[key]), ignore_missing=bool(links.get("ignore_missing")))
-    if resolved is None:
-        raise CardNotSupported(
-            "this card selects links by a query (name, ref, ...) with no netstead provenance; "
-            "re-resolving a query arrives with apply_card"
-        )
-    return Selection(query=dict(facility), resolved=resolved)
+    return Selection(query=dict(facility), resolved=resolved)  # resolved None: unresolved, refused when applied
 
 
 def _from_record(record: Mapping[str, Any], table: str, m: FieldMap) -> dict[str, Any]:

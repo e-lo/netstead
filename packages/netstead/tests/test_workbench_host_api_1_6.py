@@ -85,7 +85,9 @@ def _seqs(host) -> list[int]:
 
 
 def test_this_netstead_provides_host_api_1_6():
-    assert HOST_API == "1.6"
+    from netstead.workbench.plugins.spec import api_compatible
+
+    assert api_compatible("1.6", HOST_API)
 
 
 # ---------------------------------------------------------------------------- storage errors are refusals
