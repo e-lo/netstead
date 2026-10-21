@@ -3,7 +3,8 @@
   * { box-sizing:border-box; }
   html,body { margin:0; height:100%; font:14px/1.45 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
               color:var(--ink); background:var(--bg); }
-  #app { display:grid; grid-template-columns:1fr 330px; grid-template-rows:auto 1fr; height:100%; }
+  /* --side-w and --split (below) are the two drag-handle sizes; handles.js sets them from localStorage */
+  #app { --side-w:330px; display:grid; grid-template-columns:1fr auto var(--side-w); grid-template-rows:auto 1fr; height:100%; }
   header { grid-column:1 / -1; display:flex; flex-direction:column; gap:8px; padding:10px 16px;
            background:var(--panel); border-bottom:1px solid var(--edge); }
   .hrow { display:flex; gap:10px; align-items:center; flex-wrap:wrap; min-width:0; }
@@ -17,13 +18,31 @@
   #viewmode button.on { background:var(--accent); color:#11151a; }
 
   /* stage holds map + table pane; mode decides which show */
-  #stage { position:relative; display:flex; flex-direction:column; min-height:0; min-width:0; }
+  #stage { --split:55%; position:relative; display:flex; flex-direction:column; min-height:0; min-width:0; }
   #stage[data-mode="map"] #tablepane { display:none; }
-  #stage[data-mode="table"] #map { display:none; }
+  #stage[data-mode="table"] #mapwrap { display:none; }
   #stage[data-mode="table"] #tablepane { flex:1; }
-  #stage[data-mode="split"] #map { flex:1 1 55%; }
-  #stage[data-mode="split"] #tablepane { flex:1 1 45%; border-top:2px solid var(--edge); }
-  #map { flex:1; }
+  #stage[data-mode="split"] #mapwrap { flex:1 1 var(--split); }
+  #stage[data-mode="split"] #tablepane { flex:1 1 calc(100% - var(--split)); }
+  #stage:not([data-mode="split"]) #split-handle { display:none; }
+  #mapwrap { position:relative; flex:1; min-height:0; min-width:0; }
+  /* The popovers, map buttons and legend sit over the map, not inside it: MapLibre's container has overflow:hidden,
+     which clipped a popover taller than the Split-view map. The overlay itself lets every pointer event through
+     (map click, hover, shift-drag box select); only its children catch them. */
+  #map-overlay { position:absolute; inset:0; z-index:3; pointer-events:none; }
+  #map-overlay > * { pointer-events:auto; }
+
+  /* drag handles: a bar between the map and the table (Split view) and one before the side column */
+  #split-handle, #side-handle { flex:none; display:flex; align-items:center; justify-content:center; color:var(--muted);
+                                background:var(--panel); touch-action:none; user-select:none; }
+  #split-handle { height:9px; border-top:1px solid var(--edge); border-bottom:1px solid var(--edge); cursor:row-resize; }
+  #side-handle { width:9px; border-left:1px solid var(--edge); cursor:col-resize; }
+  #split-handle svg { width:16px; height:16px; transform:rotate(90deg); }
+  #side-handle svg { width:16px; height:16px; }
+  #split-handle:hover, #side-handle:hover, #split-handle.dragging, #side-handle.dragging { background:#20242e; color:var(--accent); }
+  #split-handle:focus-visible, #side-handle:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+  body.resizing-split { cursor:row-resize; user-select:none; }
+  body.resizing-side { cursor:col-resize; user-select:none; }
 
   /* data-table pane */
   #tablepane { display:flex; min-height:0; min-width:0; background:var(--bg); }
@@ -103,7 +122,7 @@
            font-weight:600; cursor:pointer; }
   button:disabled, button:disabled:hover { opacity:.4; filter:grayscale(1); cursor:not-allowed; }
   #count { color:var(--muted); font-size:12px; }
-  #map { position:relative; width:100%; height:100%; }
+  #map { position:absolute; inset:0; } /* fills #mapwrap; the overlay sits above it */
   #side { background:var(--panel); border-left:1px solid var(--edge); padding:16px; overflow:auto; }
 
   /* top-right controls */
@@ -127,6 +146,7 @@
   .mini [data-icon] { display:inline-flex; vertical-align:-3px; margin-right:5px; }
   .mini [data-icon] svg { width:14px; height:14px; }
   .panel { position:absolute; top:54px; right:12px; z-index:3; width:224px; padding:12px;
+           max-height:calc(100% - 66px); overflow:auto; /* 54px top + 12px bottom; scrolls over a short map */
            background:rgba(23,26,33,.95); border:1px solid var(--edge); border-radius:10px; color:var(--ink);
            font-size:12.5px; backdrop-filter:blur(3px); display:none; }
   .panel.open { display:block; }

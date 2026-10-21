@@ -139,6 +139,15 @@ This file is for the **netstead** package only. The underlying generic engine `c
   tooltips (inline SVG from `static/js/icons.js`); the model picker's tooltip
   shows the full model label; the empty "No edit warnings." text is gone (the
   count says so).
+- **Workbench: resizable table and side panels; map popovers scroll instead of
+  clipping in Split view** (2026-10-20 beta feedback, items 6, 8, 10). A drag
+  handle between the map and the table sets the map's share of the stage
+  (20–80 %), and one before the side panel sets its width (240–720 px); double-
+  click resets, arrow keys nudge, and the sizes are remembered per browser
+  (`localStorage` `wb.sizes`). The Layers and Map-display popovers, the map
+  buttons and the legend now sit in an overlay over the map rather than inside
+  MapLibre's clipping container, and a popover taller than the map scrolls, so
+  Layers → Filter links is reachable in Split view.
 - **Validation output reads at a glance** (2026-10-20 beta feedback).
   `netstead validate` opens with a severity summary line
   (`0 errors · 1 warning · 16 info`), names the source once, and folds the

@@ -43,7 +43,11 @@
     </div>
   </header>
   <div id="stage" data-mode="map">
-    <div id="map">
+    <div id="mapwrap">
+      <div id="map"><div id="boxsel"></div></div>
+      <!-- Over the map, not inside it: MapLibre's container clips (overflow:hidden), so in Split view a popover
+           taller than the shrunken map lost its bottom. The overlay passes pointer events through to the map. -->
+      <div id="map-overlay">
       <div id="map-btns">
         <button class="iconbtn" id="btn-highlight" data-tip="Highlight links (click; shift-drag box)" aria-label="Highlight links">&#9647;</button>
         <button class="iconbtn" id="btn-fitnet" data-tip="Zoom to full network" aria-label="Zoom to full network">&#9974;</button>
@@ -90,8 +94,10 @@
           <select id="widthby" aria-label="Width links by"><option value="none">Lane count</option></select></div>
       </div>
       <div id="legend"></div>
-      <div id="boxsel"></div>
+      </div>
     </div>
+    <div id="split-handle" role="separator" aria-orientation="horizontal" aria-label="Resize map and table" tabindex="0"
+         aria-valuemin="20" aria-valuemax="80" aria-valuenow="55" title="Drag to resize; double-click to reset"><span data-icon="grip"></span></div>
     <div id="tablepane">
       <div id="tbl-rail"></div>
       <div id="tbl-main">
@@ -113,6 +119,8 @@
       </div>
     </div>
   </div>
+  <div id="side-handle" role="separator" aria-orientation="vertical" aria-label="Resize side panel" tabindex="0"
+       aria-valuemin="240" aria-valuemax="720" aria-valuenow="330" title="Drag to resize; double-click to reset"><span data-icon="grip"></span></div>
   <aside id="side">
     <div id="dock-tabs" role="tablist" aria-label="Panels" hidden></div>
     <section class="dock-pane" id="dock-details" data-panel="details" role="tabpanel" aria-labelledby="dtab-details">
