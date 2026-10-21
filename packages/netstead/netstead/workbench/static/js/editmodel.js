@@ -30,6 +30,32 @@ export const cellEditable = (col, pk) => Boolean(col) && col.name !== pk && Bool
 // "yes" in an empty boolean cell is true and "maybe" is refused rather than sent as text).
 export const cellSample = (current, kind) => (current != null ? current : kind === "num" ? 0 : kind === "bool" ? false : "");
 
+const sortedStrings = values => [...new Set((values || []).map(String))].sort();
+
+// The values a text cell's editor offers (its datalist): the spec's allowed values (`col.enum`) first, then the
+// values the column already holds (`/distinct`), each sorted, without duplicates.
+export function cellOptions(col, distinct) {
+  const allowed = sortedStrings(col && col.enum);
+  const seen = new Set(allowed);
+  return [...allowed, ...sortedStrings(distinct).filter(v => !seen.has(v))];
+}
+
+// A comma-list cell's datalist as the text grows: each token completes the last segment, keeping what is typed
+// before the last comma (so "auto, b" offers "auto, bike"); with no comma yet, the tokens themselves.
+export function listOptions(value, tokens) {
+  const text = value == null ? "" : String(value), at = text.lastIndexOf(",");
+  const head = at < 0 ? "" : text.slice(0, at + 1) + (/^\s+/.test(text.slice(at + 1)) ? " " : "");
+  return tokens.map(t => head + t);
+}
+
+// What to say when a cell editor closes by losing the focus with the text changed (nothing was sent): "" when the
+// text still reads as the cell's value, so an untouched editor closes quietly.
+export function discardedText(column, typed, current) {
+  const before = current == null ? "" : String(current);
+  if ((typed == null ? "" : String(typed)).trim() === before.trim()) return "";
+  return `${column}: the typed value was not applied. Press Enter to apply an edit; Escape discards it.`;
+}
+
 // The EditCells action: one column of one or more rows of one table.
 export function cellAction({ table, ids, column, raw, current, note = null }) {
   const action = { type: "edit_cells", table, ids: [...ids], values: { [column]: parseCell(raw, current) } };
