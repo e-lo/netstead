@@ -121,6 +121,27 @@ def test_opening_a_network_applies_the_default_colouring_its_columns_allow(sessi
     assert session.state()["style"]["node_color_by"] == "none"
 
 
+def test_an_explicit_none_survives_opening_or_switching_to_another_network(session, rdu_source):
+    session.dispatch(OpenNetwork(source=str(leavenworth.csv_dir())))
+    session.dispatch(Style(color_by="none"))
+    session.dispatch(OpenNetwork(source=rdu_source))  # has facility_type, yet the explicit choice stays
+    assert session.style["color_by"] == "none" and session.style["node_color_by"] == "none"
+    session.dispatch(SetActiveNetwork(net_id="leavenworth"))  # switching back: nodes get their default again
+    assert session.style["color_by"] == "none" and session.style["node_color_by"] == "ctrl_type"
+
+
+def test_switching_or_closing_reconciles_the_colouring_with_the_active_network(session, rdu_source):
+    session.dispatch(OpenNetwork(source=rdu_source))
+    session.dispatch(OpenNetwork(source=str(leavenworth.csv_dir())))
+    session.dispatch(Style(node_color_by="node_type"))
+    session.dispatch(SetActiveNetwork(net_id="rdu-i40"))  # no node_type (nor ctrl_type) there
+    assert session.style["node_color_by"] == "none"
+    session.dispatch(SetActiveNetwork(net_id="leavenworth"))
+    assert session.style["node_color_by"] == "ctrl_type"
+    session.dispatch(CloseNetwork(net_id="leavenworth"))  # RDU becomes active
+    assert session.state()["active"] == "rdu-i40" and session.style["node_color_by"] == "none"
+
+
 def test_node_colour_by_is_validated_against_the_node_table(session):
     session.dispatch(OpenNetwork(source=str(leavenworth.csv_dir())))
     session.dispatch(Style(node_color_by="node_type"))

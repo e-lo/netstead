@@ -31,7 +31,7 @@ import { onSettingsHistory, registerSection, wireSettings } from "./settings.js"
 import { activeSelection, store } from "./store.js";
 import { onFocusChanged, onNetworkChanged, onNetworkEdited, refreshRows, restoreViewMode, syncScopeControls, tableVisible, wireTable } from "./table.js";
 import { onWizardJob, wireWizard } from "./wizard.js";
-import { registerCoreSlots, wireWorkspaces } from "./workspaces.js";
+import { registerCoreSlots, showPanel, wireWorkspaces } from "./workspaces.js";
 
 const netKeyFor = server => {
   const h = server.networks.find(n => n.id === server.active);
@@ -60,10 +60,15 @@ async function loadActiveNetwork() {
   }
 }
 
+// A styled column the loaded table lacks (the state can name one for a moment around a switch) draws as "none":
+// no fetch, no 404.
+const has = (props, name) => props.some(p => p.name === name);
+
 async function loadColorProperty() {
-  const { server, net, netKey, prop } = store.get();
+  const { server, net, netKey, prop, properties } = store.get();
   const name = server.style.color_by;
-  if (!net || name === "none" || (prop && prop.name === name && prop.netKey === netKey)) return;
+  if (!net || name === "none" || !has(properties, name)) { if (prop) store.set({ prop: null }); return; }
+  if (prop && prop.name === name && prop.netKey === netKey) return;
   const p = await getJSON(netPath(server.active, `property/${encodeURIComponent(name)}`));
   const now = store.get();
   if (now.server.style.color_by === name && now.netKey === netKey) store.set({ prop: { ...p, netKey } });
@@ -71,9 +76,9 @@ async function loadColorProperty() {
 
 // `style.node_color_by`'s column of the node table, fetched like the links' colour property.
 async function loadNodeColorProperty() {
-  const { server, net, netKey, nodeProp } = store.get();
+  const { server, net, netKey, nodeProp, nodeProperties } = store.get();
   const name = server.style.node_color_by || "none";
-  if (!net || name === "none") { if (nodeProp) store.set({ nodeProp: null }); return; }
+  if (!net || name === "none" || !has(nodeProperties, name)) { if (nodeProp) store.set({ nodeProp: null }); return; }
   if (nodeProp && nodeProp.name === name && nodeProp.netKey === netKey) return;
   const p = await getJSON(netPath(server.active, `property/${encodeURIComponent(name)}?table=node`));
   const now = store.get();
@@ -144,13 +149,16 @@ function onNodeClick(nodeId) {
 function onBoxSelect() { if (tableVisible()) store.set({ tableScope: "highlighted" }); }
 
 // The focused record: details, its map feature (fly only when the click came from the table), its row.
+// `focus.from` says where the click came from: "map" (the feature is in view: no fly) or "table" bring Inspect
+// forward; "panel" (a finding or warning picked in Validate or Edit, which stay) only flies there.
 function onFocus(s) {
   const f = s.focus;
   store.set({ marker: null });
   if (f) {
     showDetails(f.table, f.id);
-    if (f.table === "link" && f.from === "table") fitLinks([f.id]);
-    if (f.table === "node") flyToNode(f.id, { fly: f.from === "table" });
+    if (f.from === "map" || f.from === "table") showPanel("inspect");
+    if (f.table === "link" && f.from !== "map") fitLinks([f.id]);
+    if (f.table === "node") flyToNode(f.id, { fly: f.from !== "map" });
   } else {
     clearDetails();
   }

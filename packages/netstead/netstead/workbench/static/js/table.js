@@ -496,11 +496,12 @@ function startCellEdit(tr, td) {
   input.select();
 }
 
-// FK navigation: open the referenced table and focus the referenced row (its map feature flies into view).
-export async function jumpTo(table, id) {
+// FK navigation: open the referenced table and focus the referenced row (its map feature flies into view). `from`
+// is the focus's origin ("table": Inspect comes forward; "panel": the asking panel stays).
+export async function jumpTo(table, id, from = "table") {
   if (!document.querySelector(`.tbl-item[data-name="${CSS.escape(table)}"]`)) { toast(`${table} is not in this network`); return; }
   if (TBL.name !== table) await selectTable(table);
-  store.set({ focus: { table, id, from: "table" } });
+  store.set({ focus: { table, id, from } });
 }
 
 const pkNumeric = () => TBL.schema.columns.some(c => c.name === TBL.schema.primary_key && c.kind === "num");

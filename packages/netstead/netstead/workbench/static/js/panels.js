@@ -76,10 +76,10 @@ export function populateNodeColorby(props) {
   }
 }
 
-// Set a select to `value`, adding the option when its property list has not arrived yet (the state comes first).
+// Set a select to `value`; a column its list lacks (the list has not arrived yet, or the table has no such column)
+// shows as "none" rather than as an invented option.
 function pick(select, value) {
-  if (value !== "none" && ![...select.options].some(o => o.value === value)) select.appendChild(option(value, value));
-  select.value = value;
+  select.value = [...select.options].some(o => o.value === value) ? value : "none";
 }
 const continuous = select => { const o = select.selectedOptions[0]; return Boolean(o && o.dataset.kind === "continuous"); };
 

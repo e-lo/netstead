@@ -114,7 +114,7 @@ function saveAsCard() {
 function syncCardButton(ids) {
   const on = ids.includes(CARDS_PANEL), b = $("ed-card");
   b.disabled = !on;
-  b.title = on ? "Start a project card change from the selection" : "Needs the project-cards plugin";
+  b.dataset.tip = on ? "Start a project card change from the selection" : "Needs the project-cards plugin";
 }
 
 export function wireEdits() {

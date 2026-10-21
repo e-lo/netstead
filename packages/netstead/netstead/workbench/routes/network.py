@@ -243,7 +243,10 @@ def network_router(session: Session) -> APIRouter:
     def property_values(
         net_id: str, component: str, name: str, table: Literal["link", "node"] = "link"
     ) -> dict[str, Any]:
-        payload = property_payload(_styled_frame(net_id, component, table), name)
+        frame = _styled_frame(net_id, component, table)
+        if name not in {c["name"] for c in styleable_columns(frame, table)}:  # never geometry or an id column
+            raise HTTPException(404, f"unknown property {name!r}")
+        payload = property_payload(frame, name)
         if payload is None:
             raise HTTPException(404, f"unknown property {name!r}")
         return payload

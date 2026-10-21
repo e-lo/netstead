@@ -408,6 +408,8 @@ class Session:
         self.saved: dict[str, dict[str, Any]] = {}  # name -> a saved selection payload (SaveSelection)
         self.filters: dict[str, dict[str, Any]] = {}  # net_id -> its Filter: {table, where}
         self.style: dict[str, Any] = copy.deepcopy(DEFAULT_STYLE)
+        #: Style keys a ``Style`` action set explicitly: an explicit ``"none"`` survives opening another network.
+        self._style_set: set[str] = set()
         self.history: list[HistoryEntry] = []
         self.edits: dict[str, EditLedger] = {}  # net_id -> its pending edits
         #: net_id -> the newest edit seq handed out on a ledger that is gone (a rolled-back Action dropped it, or the
@@ -998,9 +1000,10 @@ class Session:
     def _reconcile_style(self, handle: NetworkHandle) -> None:
         """Point the colour-by columns at ones ``handle`` has, now that it is the active network.
 
-        Each of ``color_by`` (links) and ``node_color_by`` (nodes) keeps its column when the network has it, else
-        takes the default column when that exists, else ``"none"``. Never raises: a network without the default
-        columns opens with single-colour features. Called with the lock held.
+        Each of ``color_by`` (links) and ``node_color_by`` (nodes) keeps its column when the network has it, and
+        keeps an explicit ``"none"`` (one a ``Style`` action set); otherwise it takes the default column when that
+        exists, else ``"none"``. Never raises: a network without the default columns opens with single-colour
+        features. Called with the lock held, whenever the active network changes (open, add, switch, close).
         """
         tables = {"color_by": ("link", handle.links_df), "node_color_by": ("node", handle.nodes_df)}
         for key, (table, frame) in tables.items():
@@ -1010,9 +1013,16 @@ class Session:
                 logger.exception("could not list %s columns of %s for styling", table, handle.id)
                 names = set()
             current = self.style.get(key, "none")
-            if current in names:
+            if current in names or (current == "none" and key in self._style_set):
                 continue
             self.style[key] = DEFAULT_STYLE[key] if DEFAULT_STYLE[key] in names else "none"
+            self._style_set.discard(key)  # the explicit choice no longer holds: a later network gets the default
+
+    def _reconcile_active_style(self) -> None:
+        """:meth:`_reconcile_style` for whichever network is active now (nothing without one)."""
+        handle = self.registry.get(self.active) if self.active else None
+        if handle is not None:
+            self._reconcile_style(handle)
 
     def mutate(
         self,
@@ -1676,9 +1686,11 @@ class Session:
         if self.active == action.net_id:
             ids = self.registry.ids()
             self.active = ids[0] if ids else None
+            self._reconcile_active_style()
 
     def _do_set_active_network(self, action: SetActiveNetwork) -> None:
         self.active = self._handle(action.net_id).id
+        self._reconcile_active_style()
 
     def _prepare_select(self, action: Select) -> _ParsedSelect | None:
         """Parse and resolve an utterance WITHOUT the session lock (an LLM call can take seconds).
@@ -1994,7 +2006,7 @@ class Session:
     def _do_style(self, action: Style) -> dict[str, Any]:
         patch = action.model_dump(exclude_none=True, exclude={"type"})
         wanted = {k: patch[k] for k in ("color_by", "node_color_by", "width_by") if patch.get(k) not in (None, "none")}
-        if wanted:
+        if "color_by" in wanted or "width_by" in wanted:
             kinds = {c["name"]: c["kind"] for c in styleable_columns(self._handle(None).links_df())}
             if "color_by" in wanted and wanted["color_by"] not in kinds:
                 raise ActionError(f"cannot color by {wanted['color_by']!r}; choose one of {sorted(kinds)}")
@@ -2009,6 +2021,7 @@ class Session:
                 )
         for key, value in patch.items():
             self.style[key] = {**self.style[key], **value} if isinstance(value, dict) else value
+        self._style_set.update(k for k in ("color_by", "node_color_by") if k in patch)
         return copy.deepcopy(self.style)
 
     def _do_navigate(self, action: Navigate) -> None:

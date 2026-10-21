@@ -75,10 +75,11 @@ function fix(target) {
   runCore("fix_issue");
 }
 
-// Focus a record: in the table too when it shows (switching to the record's table), else on the map and in Details.
+// Focus a record from this panel: in the table too when it shows (switching to the record's table), on the map and
+// in Inspect's details; the panel itself stays in front (from: "panel").
 function focusRecord(table, id) {
-  if (tableVisible()) jumpTo(table, id).catch(fail);
-  else store.set({ focus: { table, id, from: "table" } });
+  if (tableVisible()) jumpTo(table, id, "panel").catch(fail);
+  else store.set({ focus: { table, id, from: "panel" } });
 }
 
 // Enter or Space on a focused list row does what a click does.
@@ -125,13 +126,13 @@ async function loadList() {
   ]);
   if (mine !== seq) return;
   renderFacets(page.facets, f);
-  $("iss-list").innerHTML = listHTML(page.issues) || '<span class="empty">No issues match.</span>';
+  $("iss-list").innerHTML = listHTML(page.issues, "iss-list") || '<span class="empty">No issues match.</span>';
   $("iss-range").textContent = rangeLabel(offset, page.issues.length, page.total);
   $("iss-prev").disabled = offset <= 0;
   $("iss-next").disabled = offset + PAGE >= page.total;
   $("iss-unloc-count").textContent = unlocated.total;
   const more = unlocated.total - unlocated.issues.length;
-  $("iss-unlocated").innerHTML = listHTML(unlocated.issues) + (more > 0 ? `<div class="empty">and ${more} more</div>` : "");
+  $("iss-unlocated").innerHTML = listHTML(unlocated.issues, "iss-unlocated") + (more > 0 ? `<div class="empty">and ${more} more</div>` : "");
   wireRows($("iss-list"), page.issues);
   wireRows($("iss-unlocated"), unlocated.issues);
   markFocusedIssue();
@@ -150,19 +151,23 @@ function renderFacets(facets, f) {
 
 function issueHTML(i) {
   const where = i.key != null ? `${i.table} ${i.key}` : i.table || "";
-  const zoom = located(i) ? `<button class="iconbtn iss-zoom" data-tip="Zoom to" aria-label="Zoom to">${icon("crosshair", { size: 14 })}</button>` : "";
+  const zoom = located(i) ? `<button class="iconbtn iss-zoom" data-tip="Zoom to" aria-label="${esc(zoomLabel(i, where))}">` +
+    `${icon("crosshair", { size: 14 })}</button>` : "";
   const button = i.fixable ? `<button class="mini ghost iss-fix">Fix</button>` : "";
   return `<div class="iss sev-${esc(i.severity)}" data-i="${esc(i.i)}" tabindex="0"><span class="sev-dot" aria-hidden="true"></span>` +
     `<div class="iss-body"><div><b>${esc(i.code)}</b> <span class="diag">${esc(where)}${i.column ? ` · ${esc(i.column)}` : ""}</span></div>` +
     `<div class="iss-msg">${esc(i.message)}</div>${i.fix_hint ? `<div class="diag">${esc(i.fix_hint)}</div>` : ""}</div>${zoom}${button}</div>`;
 }
 
+const zoomLabel = (i, where) => `Zoom to ${i.code}${where ? ` on ${where}` : ""}`;
+
 // A page of findings: a group of repeated structural findings is one collapsed row (▸ code (n), its summary) that
-// expands to its members; everything else is its own row.
-function listHTML(issues) {
+// expands to its members; everything else is its own row. `prefix` (the list's id) keeps the group ids unique
+// across the located and unlocated lists.
+function listHTML(issues, prefix) {
   return groupIssues(issues).map((g, k) => {
     if (!g.group) return issueHTML(g.issue);
-    const id = `iss-grp-${k}`;
+    const id = `${prefix}-grp-${k}`;
     return `<div class="iss grp sev-${esc(g.severity)}" data-g="${k}" tabindex="0" role="button" aria-expanded="false" aria-controls="${id}">` +
       `<span class="sev-dot" aria-hidden="true"></span><div class="iss-body"><div><span class="iss-tog" aria-hidden="true">▸</span> ` +
       `<b>${esc(g.code)}</b> <span class="pcount">${esc(g.count)}</span></div><div class="iss-msg">${esc(groupSummary(g))}</div></div></div>` +

@@ -1178,6 +1178,29 @@ def test_validity_error_warn_and_clean_with_plurals(node_module):
     }
 
 
+# ---- palette.js: node colours follow the links' palette rules
+
+_NODE_STYLE = 'ramp: "YlOrRd", colors: {nodes: [1, 2, 3]}'
+
+
+def test_node_colours_single_categorical_continuous_and_null(node_module):
+    expr = (
+        "(() => { const net = {N: {count: 3}}; const rows = c => [0, 1, 2].map(i => [...c.slice(i * 4, i * 4 + 4)]);"
+        f" const single = buildNodeColors(net, {{node_color_by: 'none', {_NODE_STYLE}}}, null);"
+        f" const cat = buildNodeColors(net, {{node_color_by: 'ctrl_type', {_NODE_STYLE}}},"
+        " {name: 'ctrl_type', kind: 'categorical', categories: ['stop', 'yield'], values: ['stop', null, 'yield']});"
+        f" const num = buildNodeColors(net, {{node_color_by: 'z', {_NODE_STYLE}}},"
+        " {name: 'z', kind: 'continuous', min: 0, max: 10, values: [0, 5, 10]});"
+        f" const other = buildNodeColors(net, {{node_color_by: 'ctrl_type', {_NODE_STYLE}}},"
+        " {name: 'z', kind: 'continuous', values: [1, 2, 3]});"
+        " return [rows(single), rows(cat), rows(num), rows(other)]; })()"
+    )
+    single, cat, num, other = node_module("palette.js", ["buildNodeColors"], expr)
+    assert single == [[1, 2, 3, 150]] * 3 and other == single  # no property, or the wrong one: the single colour
+    assert cat == [[228, 66, 62, 215], [205, 208, 214, 215], [57, 126, 184, 215]]  # palette, null, palette
+    assert num == [[255, 237, 160, 215], [254, 178, 76, 215], [240, 59, 32, 215]]  # the ramp's ends and middle
+
+
 # ---- issuegroups.js: the Validate panel's client-side grouping (mirrors corral.reports.grouping.group_issues)
 
 _STRUCTURAL = (

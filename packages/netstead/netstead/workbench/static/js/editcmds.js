@@ -57,7 +57,7 @@ export function registerEditCommands() {
   add({ id: "fix_record", title: "Fix…", contexts: ["feature", "row"], when: c => Boolean(recordFixTarget(c.target)),
     run: c => {
       const { table, id } = c.target;
-      store.set({ fixTarget: recordFixTarget(c.target), focus: { table, id, from: "map" },
+      store.set({ fixTarget: recordFixTarget(c.target), focus: { table, id, from: "panel" },
         issueFilter: { ...store.get().issueFilter, thisRecord: true } });
       runCore("fix_issue");
     } });

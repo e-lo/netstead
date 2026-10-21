@@ -397,7 +397,12 @@ def test_validate_groups_repeated_structural_findings_and_offers_zoom_to():
     issues = (JS_DIR / "issues.js").read_text()
     assert 'from "./issuegroups.js"' in issues and "groupIssues(issues)" in issues and "groupSummary(g)" in issues
     assert 'class="iss grp' in issues and 'aria-expanded="false"' in issues and 'class="iss-members"' in issues
-    assert 'icon("crosshair"' in issues and 'class="iconbtn iss-zoom" data-tip="Zoom to" aria-label="Zoom to"' in issues
+    assert (
+        'icon("crosshair"' in issues
+        and 'class="iconbtn iss-zoom" data-tip="Zoom to" aria-label="${esc(zoomLabel(i, where))}"' in issues
+    )
+    assert 'listHTML(page.issues, "iss-list")' in issues and 'listHTML(unlocated.issues, "iss-unlocated")' in issues
+    assert "const id = `${prefix}-grp-${k}`" in issues  # group ids never collide across the two lists
     for zoom in ("fitLinks([a.link])", "flyToNode(a.node)", "flyTo(a.lonlat[0], a.lonlat[1])"):
         assert zoom in issues
     assert '"#dock-validate .iss[data-i]"' in issues and 'showPanel("validate")' in issues
@@ -436,10 +441,23 @@ def test_the_drawer_is_the_dock_and_keeps_the_details_content():
     html = (STATIC_DIR / "index.html").read_text()
     side = html[html.index('<aside id="side">') : html.index("</aside>")]
     assert 'id="dock-tabs" role="tablist"' in side and side.index('id="dock-tabs"') < side.index('id="dock-find"')
-    pane = side[side.index('id="dock-find"') :]
+    pane = side[side.index('id="dock-find"') : side.index('id="dock-inspect"')]
     assert 'data-panel="find"' in pane and 'role="tabpanel"' in pane
-    for element_id in ("status-wrap", "hl-count", "hl-set", "hl-clear", "details", "anchors", "fragment", "diag"):
+    for element_id in ("status-wrap", "hl-count", "hl-set", "hl-clear", "anchors", "fragment", "diag"):
         assert f'id="{element_id}"' in pane
+    inspect = side[side.index('id="dock-inspect"') : side.index('id="dock-edit"')]
+    assert 'id="details"' in inspect and 'id="details"' not in pane
+
+
+def test_a_map_or_table_focus_brings_inspect_forward_but_a_panels_own_does_not():
+    main = (JS_DIR / "main.js").read_text()
+    on_focus = main[main.index("function onFocus(") : main.index("onFocusChanged();", main.index("function onFocus("))]
+    assert 'if (f.from === "map" || f.from === "table") showPanel("inspect");' in on_focus
+    assert 'f.from !== "map"' in on_focus  # a panel's focus still flies the map there
+    issues = (JS_DIR / "issues.js").read_text()
+    assert 'jumpTo(table, id, "panel")' in issues and 'focus: { table, id, from: "panel" }' in issues
+    assert 'from: "panel"' in (JS_DIR / "editcmds.js").read_text()  # the right-click Fix… flow stays in Validate
+    assert 'export async function jumpTo(table, id, from = "table")' in (JS_DIR / "table.js").read_text()
 
 
 def test_the_workspace_strip_is_in_the_first_header_row_and_starts_hidden():
