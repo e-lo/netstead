@@ -161,6 +161,16 @@ This file is for the **netstead** package only. The underlying generic engine `c
   distinct values (its comma-split tokens when `list_like`, at most 500), and
   the table schema route gives each column its spec `enum` (or `null`). This
   is the server side of the column-filter popovers; the UI follows.
+- **Workbench table: typed column filters with popovers and chips.** The text
+  box under every column header is gone; each header has a funnel button that
+  opens one filter popover for that column, typed by the column: a numeric
+  column offers `= ≠ < ≤ > ≥ between is empty is not empty`; a text or boolean
+  column offers a checklist of its distinct values (with a search box past 12,
+  and *any of* / *all of* / *none of* for a comma-separated column such as
+  `allowed_uses`), a *contains* tab and the empty tests. Active filters show as
+  chips above the grid (`free_speed > 40`, `allowed_uses any of auto, truck`),
+  each with an x; "Clear all" appears from two on. The per-column model is the
+  pure module `static/js/gridfilter.js`.
 - **Quality rule `quality.overlapping_links`** ([#5](https://github.com/e-lo/netstead/issues/5)).
   Flags pairs of links whose shapes share a stretch longer than
   `min_overlap_units` (default `0`, in CRS units), such as a link drawn on top of

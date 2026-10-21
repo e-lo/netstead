@@ -895,3 +895,115 @@ def test_arrow_pixel_offset_follows_the_right_hand_offset_line(node_module):
 @pytest.mark.parametrize(("zoom", "size"), [(12, 8), (13, 8), (14, 10), (15, 12), (18, 18), (22, 18)])
 def test_arrow_size_grows_with_zoom_between_8_and_18_px(node_module, zoom, size):
     assert node_module("netbuf.js", ["arrowSize"], f"arrowSize({zoom})") == size
+
+
+# ---- gridfilter.js: the table's per-column filter model and its chip text ----
+
+_GF = ["createGridFilter", "chipText"]
+
+
+def _gf(node_module, body: str):
+    """Evaluate ``body`` with ``f`` bound to a fresh model."""
+    return node_module("gridfilter.js", _GF, f"(() => {{ const f = createGridFilter(); {body} }})()")
+
+
+def test_grid_filter_conditions_map_each_spec_to_a_server_condition(node_module):
+    body = """
+      f.setFilter("free_speed", {kind: "num", op: "gt", val: 40});
+      f.setFilter("lanes", {kind: "num", op: "between", lo: 35, hi: 45});
+      f.setFilter("name", {kind: "text", val: "Pine"});
+      f.setFilter("shape", {kind: "empty", op: "isnull"});
+      f.setFilter("allowed_uses", {kind: "set", mode: "any_of", values: ["auto", "truck"], listLike: true});
+      f.setFilter("facility_type", {kind: "set", mode: "any_of", values: ["primary"], listLike: false});
+      f.setFilter("roadway", {kind: "set", mode: "none_of", values: ["residential"], listLike: false});
+      return [f.conditions(), f.active()];"""
+    conds, active = _gf(node_module, body)
+    assert conds == [
+        {"col": "free_speed", "op": "gt", "val": 40},
+        {"col": "lanes", "op": "between", "val": [35, 45]},
+        {"col": "name", "op": "contains", "val": "Pine"},
+        {"col": "shape", "op": "isnull", "val": None},
+        {"col": "allowed_uses", "op": "any_of", "val": ["auto", "truck"]},
+        {"col": "facility_type", "op": "in", "val": ["primary"]},  # a plain column: membership, not tokens
+        {"col": "roadway", "op": "none_of", "val": ["residential"]},  # none_of works on plain cells too
+    ]
+    assert active == ["free_speed", "lanes", "name", "shape", "allowed_uses", "facility_type", "roadway"]
+
+
+def test_grid_filter_bool_set_sends_booleans_not_their_names(node_module):
+    body = (
+        'f.setFilter("managed", {kind: "set", mode: "any_of", values: ["True"], listLike: false, bool: true});'
+        " return f.conditions();"
+    )
+    assert _gf(node_module, body) == [{"col": "managed", "op": "in", "val": [True]}]
+
+
+def test_grid_filter_remove_clear_get_and_a_replaced_column(node_module):
+    body = """
+      f.setFilter("a", {kind: "num", op: "eq", val: 1});
+      f.setFilter("b", {kind: "text", val: "x"});
+      f.setFilter("a", {kind: "num", op: "lt", val: 2});   // replaces, keeps its place
+      const afterReplace = f.conditions();
+      f.remove("b"); const afterRemove = f.active(); const gone = f.get("b"); const kept = f.get("a");
+      f.setFilter("c", null); // a null spec is a removal, not an error
+      f.setFilter("a", {kind: "num", op: "eq", val: 3}); f.clear();
+      return [afterReplace, afterRemove, gone, kept, f.active(), f.conditions()];"""
+    after_replace, after_remove, gone, kept, active, conds = _gf(node_module, body)
+    assert after_replace == [{"col": "a", "op": "lt", "val": 2}, {"col": "b", "op": "contains", "val": "x"}]
+    assert after_remove == ["a"] and gone is None and kept == {"kind": "num", "op": "lt", "val": 2}
+    assert active == [] and conds == []
+
+
+@pytest.mark.parametrize(
+    ("spec", "message"),
+    [
+        ('{kind: "num", op: "gt", val: "abc"}', "number"),
+        ('{kind: "num", op: "between", lo: 5, hi: 1}', "between"),
+        ('{kind: "num", op: "like", val: 1}', "operator"),
+        ('{kind: "set", mode: "any_of", values: [], listLike: true}', "value"),
+        ('{kind: "set", mode: "all_of", values: ["a"], listLike: false}', "all of"),
+        ('{kind: "text", val: "  "}', "text"),
+        ('{kind: "colour"}', "kind"),
+    ],
+)
+def test_grid_filter_refuses_a_malformed_spec(node_module, spec, message):
+    body = f'try {{ f.setFilter("c", {spec}); return null; }} catch (e) {{ return e.message; }}'
+    got = _gf(node_module, body)
+    assert got and message in got.lower()
+
+
+@pytest.mark.parametrize(
+    ("col", "spec", "text"),
+    [
+        ("free_speed", '{kind: "num", op: "gt", val: 40}', "free_speed > 40"),
+        ("free_speed", '{kind: "num", op: "gte", val: 40}', "free_speed ≥ 40"),
+        ("free_speed", '{kind: "num", op: "ne", val: 40}', "free_speed ≠ 40"),
+        ("free_speed", '{kind: "num", op: "between", lo: 35, hi: 45}', "free_speed 35–45"),  # noqa: RUF001 (an en dash)
+        ("name", '{kind: "text", val: "Pine"}', 'name contains "Pine"'),
+        (
+            "allowed_uses",
+            '{kind: "set", mode: "any_of", values: ["auto", "truck"], listLike: true}',
+            "allowed_uses any of auto, truck",
+        ),
+        (
+            "allowed_uses",
+            '{kind: "set", mode: "all_of", values: ["auto", "truck"], listLike: true}',
+            "allowed_uses all of auto, truck",
+        ),
+        (
+            "facility_type",
+            '{kind: "set", mode: "none_of", values: ["residential"]}',
+            "facility_type none of residential",
+        ),
+        ("lanes", '{kind: "empty", op: "isnull"}', "lanes is empty"),
+        ("lanes", '{kind: "empty", op: "notnull"}', "lanes is not empty"),
+    ],
+)
+def test_grid_filter_chip_text(node_module, col, spec, text):
+    assert node_module("gridfilter.js", _GF, f'chipText("{col}", {spec})') == text
+    assert _gf(node_module, f'f.setFilter("{col}", {spec}); return f.chipText("{col}");') == text
+
+
+def test_grid_filter_chip_text_elides_a_long_value_list(node_module):
+    spec = '{kind: "set", mode: "any_of", values: ["a", "b", "c", "d", "e", "f"], listLike: true}'
+    assert node_module("gridfilter.js", _GF, f'chipText("u", {spec})') == "u any of a, b, c, d +2"

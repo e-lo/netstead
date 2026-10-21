@@ -540,3 +540,15 @@ def test_the_assistant_settings_section_is_registered():
     assert "status.warnings" in js  # unknown names in the allowlists are listed
     assert 'id="assistant-panel"' in (STATIC_DIR / "index.html").read_text()
     assert "registerAssistantSettings()" in (JS_DIR / "main.js").read_text()
+
+
+def test_column_filters_are_popovers_and_chips_not_header_inputs():
+    html = (STATIC_DIR / "index.html").read_text()
+    assert '<div id="col-filter" role="dialog" aria-label="Column filter" hidden></div>' in html
+    pane = html[html.index('id="tbl-bar"') : html.index('id="tbl-pager"')]
+    assert pane.index('id="tbl-chips"') < pane.index('id="tbl-grid-wrap"')  # the chip strip sits above the grid
+    table = (JS_DIR / "table.js").read_text()
+    assert "data-fcol" not in table and 'op: "contains"' not in table  # no header text boxes, no hard-wired op
+    assert 'from "./gridfilter.js"' in table and "TBL.filters.conditions()" in table
+    assert 'icon("filter"' in table and 'class="iconbtn fbtn' in table and "data-tip=" in table
+    assert 'tablePath("distinct")' in table

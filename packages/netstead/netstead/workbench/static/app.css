@@ -43,8 +43,52 @@
   #tbl-grid th .cn { cursor:pointer; user-select:none; }
   #tbl-grid th .cn:hover { color:var(--accent); }
   #tbl-grid th .ar { color:var(--accent); margin-left:3px; }
-  #tbl-grid th input { width:100%; margin-top:4px; background:#0c0e12; color:var(--ink); border:1px solid var(--edge);
-                       border-radius:5px; padding:2px 5px; font-size:11px; }
+  /* the header's funnel: small and quiet until its column has a filter; its tooltip hangs below (the left edge
+     of the first column would clip one to the side) */
+  #tbl-grid th .fbtn { width:22px; height:22px; margin-left:4px; vertical-align:middle; background:none; border-color:transparent;
+                       color:var(--muted); backdrop-filter:none; display:inline-flex; }
+  #tbl-grid th .fbtn:hover { color:var(--ink); border-color:var(--edge); }
+  #tbl-grid th .fbtn.on { background:var(--accent); color:#11151a; border-color:var(--accent); }
+  #tbl-grid th .fbtn svg { width:13px; height:13px; }
+  #tbl-grid [data-tip]:hover::after { top:calc(100% + 4px); right:auto; left:0; transform:none; }
+  /* the chip strip: one chip per column filter, hidden when there are none */
+  #tbl-chips { display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:6px 12px; border-bottom:1px solid var(--edge);
+               font-size:12px; }
+  #tbl-chips[hidden] { display:none; }
+  #tbl-chips .chip { display:inline-flex; align-items:center; gap:4px; padding:2px 4px 2px 9px; border-radius:999px;
+                     background:rgba(255,140,59,.14); border:1px solid rgba(255,140,59,.4); color:var(--ink); }
+  #tbl-chips .chip .ct { max-width:320px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #tbl-chips .chip .cx { width:18px; height:18px; background:none; border:0; color:var(--muted); backdrop-filter:none; border-radius:50%; }
+  #tbl-chips .chip .cx:hover { color:var(--ink); background:rgba(255,255,255,.12); }
+  #tbl-chips .chip .cx svg { width:12px; height:12px; }
+  #tbl-chips button.chip.clear { padding:2px 9px; background:none; border-color:var(--edge); color:var(--muted); cursor:pointer; font-size:12px; }
+  #tbl-chips button.chip.clear:hover { color:var(--ink); }
+  /* the column-filter popover, under the funnel that opened it */
+  #col-filter { position:fixed; z-index:30; width:280px; padding:8px; background:var(--panel); border:1px solid var(--edge);
+                border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.45); font-size:12.5px; color:var(--ink); }
+  #col-filter[hidden] { display:none; }
+  #col-filter .cf-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+  #col-filter .cf-col { font-weight:600; }
+  #col-filter .cf-close { width:24px; height:24px; background:none; border:0; color:var(--muted); backdrop-filter:none; }
+  #col-filter .cf-close:hover { color:var(--ink); }
+  #col-filter .cf-tabs { display:flex; gap:2px; margin-bottom:6px; border-bottom:1px solid var(--edge); }
+  #col-filter .cf-tabs button { background:none; border:0; border-bottom:2px solid transparent; border-radius:0; color:var(--muted);
+                                padding:4px 8px; font-size:12px; cursor:pointer; }
+  #col-filter .cf-tabs button.on { color:var(--ink); border-bottom-color:var(--accent); }
+  #col-filter .cf-row { display:flex; align-items:center; gap:6px; margin:4px 0; }
+  #col-filter .cf-row > [hidden] { display:none; }
+  #col-filter input, #col-filter select { background:#0c0e12; color:var(--ink); border:1px solid var(--edge); border-radius:5px;
+                                          padding:3px 6px; font-size:12px; min-width:0; }
+  #col-filter input[type=number], #col-filter .cf-text, #col-filter .cf-search { flex:1; width:0; }
+  #col-filter .cf-and { color:var(--muted); }
+  #col-filter .cf-list { max-height:220px; overflow:auto; margin:4px 0; display:flex; flex-direction:column; gap:1px; }
+  #col-filter .cf-list label { display:flex; align-items:center; gap:6px; padding:2px 4px; border-radius:4px; cursor:pointer;
+                               white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #col-filter .cf-list label:hover { background:#20242e; }
+  #col-filter .cf-list label[hidden] { display:none; }
+  #col-filter .cf-list input[type=checkbox] { margin:0; }
+  #col-filter .cf-note { color:var(--muted); font-size:11px; margin:2px 0; }
+  #col-filter .cf-foot { display:flex; gap:6px; justify-content:flex-end; margin-top:6px; }
   #tbl-grid td { padding:4px 9px; border-bottom:1px solid #20242e; white-space:nowrap; max-width:240px;
                  overflow:hidden; text-overflow:ellipsis; }
   #tbl-grid tr.data:hover { background:#20242e; cursor:pointer; }
