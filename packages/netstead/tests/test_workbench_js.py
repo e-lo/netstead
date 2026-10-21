@@ -1176,3 +1176,63 @@ def test_validity_error_warn_and_clean_with_plurals(node_module):
         "icon": "check-circle",
         "tip": "Valid: 0 errors, 0 warnings",
     }
+
+
+# ---- issuegroups.js: the Validate panel's client-side grouping (mirrors corral.reports.grouping.group_issues)
+
+_STRUCTURAL = (
+    "[0, 1, 2].map(k => ({i: k, code: 'structural.missing_optional_resource', severity: 'info', "
+    "category: 'structural', table: ['zone', 'config', 'curb_seg'][k], row: null, anchor: null}))"
+)
+
+
+def test_structural_findings_without_a_row_fold_into_one_group(node_module):
+    got = node_module("issuegroups.js", ["groupIssues"], f"groupIssues({_STRUCTURAL})")
+    assert len(got) == 1 and got[0]["group"] is True
+    assert (got[0]["code"], got[0]["severity"], got[0]["count"]) == ("structural.missing_optional_resource", "info", 3)
+    assert got[0]["tables"] == ["zone", "config", "curb_seg"] and [i["i"] for i in got[0]["issues"]] == [0, 1, 2]
+
+
+def test_located_and_lone_findings_stand_alone_in_report_order(node_module):
+    expr = (
+        "groupIssues([{i: 0, code: 'fk.unverifiable', severity: 'warning', category: 'referential', table: 'link',"
+        " row: 3},"
+        " {i: 1, code: 'structural.unexpected_resource', severity: 'warning', category: 'structural', table: 'x',"
+        " row: null},"
+        " {i: 2, code: 'fk.unverifiable', severity: 'warning', category: 'referential', table: 'link', row: 4},"
+        " {i: 3, code: 'structural.missing_optional_resource', severity: 'info', table: 'a', row: null},"
+        " {i: 4, code: 'structural.missing_optional_resource', severity: 'info', table: 'b', row: null},"
+        " {i: 5, code: 'structural.missing_optional_resource', severity: 'warning', table: 'c', row: null}])"
+        ".map(g => g.group ? ['group', g.code, g.count] : ['one', g.issue.i])"
+    )
+    assert node_module("issuegroups.js", ["groupIssues"], expr) == [
+        ["one", 0],
+        ["one", 1],  # a group of one is not a group
+        ["one", 2],  # rows never group, even with a shared code
+        ["group", "structural.missing_optional_resource", 2],  # the category may be read from the code's prefix
+        ["one", 5],  # another severity is another key
+    ]
+    assert node_module("issuegroups.js", ["groupIssues"], "groupIssues(null)") == []
+
+
+def test_a_group_summarises_like_corral_with_a_name_limit(node_module):
+    expr = (
+        "(() => { const g = groupIssues(Array.from({length: 10}, (_, k) => ("
+        "{code: 'structural.missing_optional_resource', severity: 'info', category: 'structural', table: 't' + k,"
+        " row: null})))[0];"
+        " return [groupSummary(g), groupSummary(g, 2),"
+        " groupSummary({code: 'structural.odd', count: 2, tables: ['a', 'b']})]; })()"
+    )
+    assert node_module("issuegroups.js", ["groupIssues", "groupSummary"], expr) == [
+        "optional resources absent: t0, t1, t2, t3, t4, t5, t6, t7 (+2 more)",
+        "optional resources absent: t0, t1 (+8 more)",
+        "2 findings on: a, b",
+    ]
+
+
+def test_located_means_an_anchor_the_map_can_use(node_module):
+    expr = (
+        "[located({anchor: {link: 7}}), located({anchor: {node: 2}}), located({anchor: {lonlat: [1, 2]}}),"
+        " located({anchor: null}), located({key: 7}), located(null)]"
+    )
+    assert node_module("issuegroups.js", ["located"], expr) == [True, True, True, False, False, False]

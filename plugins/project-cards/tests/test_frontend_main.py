@@ -85,7 +85,7 @@ console.log(JSON.stringify({
 
 def test_main_registers_the_panel_and_the_commands(run_js):
     got = run_js(FILES, HARNESS)
-    assert got["panels"] == [["project_cards.draft", "*", "Card"]]
+    assert got["panels"] == [["cards", "*", "Cards"]]  # the bare id core reserves for this plugin's tab
     ids = [c[0] for c in got["commands"]]
     assert ids == [
         "project_cards.new_roadway_property_change",
@@ -125,7 +125,7 @@ def test_the_context_menu_offers_new_change_only_with_a_selection(run_js):
 def test_commands_open_the_form_or_say_not_yet_supported(run_js):
     calls = run_js(FILES, HARNESS)["calls"]
     assert calls[0] == ["get", "/api/plugins/project_cards/form?type=roadway_property_change&use_selection=true"]
-    assert calls[1] == ["show", "project_cards.draft"]
+    assert calls[1] == ["show", "cards"]
     assert calls[2] == ["get", "/api/plugins/project_cards/form?type=transit_routing_change"]
     assert calls[3] == ["toast", "project_cards: transit_routing_change is not yet supported"]
     assert calls[4] == ["dispatch", "project_cards.undo_change", "base"]

@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 from netstead import Network
+from netstead.fixtures import leavenworth
 from netstead.select.parse import StubParser
 from netstead.workbench.actions import (
     ClearSelection,
@@ -107,6 +108,30 @@ def test_style_partial_merge_and_validation(opened):
     assert opened.style["color_by"] == "lanes"
     with pytest.raises(ActionError, match="cannot color by"):
         opened.dispatch(Style(color_by="geometry"))
+
+
+def test_opening_a_network_applies_the_default_colouring_its_columns_allow(session, rdu_source):
+    # Leavenworth has both default columns: links by facility_type, nodes by ctrl_type.
+    session.dispatch(OpenNetwork(source=str(leavenworth.csv_dir())))
+    assert session.state()["style"]["color_by"] == "facility_type"
+    assert session.state()["style"]["node_color_by"] == "ctrl_type"
+    # RDU has facility_type but no ctrl_type: nodes fall back to a single colour, nothing raises.
+    session.dispatch(OpenNetwork(source=rdu_source))
+    assert session.state()["style"]["color_by"] == "facility_type"
+    assert session.state()["style"]["node_color_by"] == "none"
+
+
+def test_node_colour_by_is_validated_against_the_node_table(session):
+    session.dispatch(OpenNetwork(source=str(leavenworth.csv_dir())))
+    session.dispatch(Style(node_color_by="node_type"))
+    assert session.style["node_color_by"] == "node_type"
+    with pytest.raises(ActionError, match="cannot color nodes by"):
+        session.dispatch(Style(node_color_by="nope"))
+    with pytest.raises(ActionError, match="cannot color nodes by"):
+        session.dispatch(Style(node_color_by="facility_type"))  # a link column, not a node column
+    session.dispatch(Style(node_color_by="none"))
+    assert session.style["node_color_by"] == "none"
+    assert session.history[-1].python == "app.do(Style(node_color_by='none'))"
 
 
 def test_navigate_publishes_event(opened):

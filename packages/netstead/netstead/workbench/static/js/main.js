@@ -19,7 +19,7 @@ import { onHistoryEntry, onLLMEvent, onLLMJob, refreshLLM, renderLLMPanel, wireL
 import { layerRegistry } from "./layers.js";
 import { fitBbox, fitLinks, fitNetwork, flyToNode, initMap, render, setBasemap } from "./map.js";
 import { decodeNetwork } from "./netbuf.js";
-import { populateColorby, renderFilter, renderLegend, renderPluginLayers, syncControls, wireFilter, wirePanels } from "./panels.js";
+import { populateColorby, populateNodeColorby, renderFilter, renderLegend, renderPluginLayers, syncControls, wireFilter, wirePanels } from "./panels.js";
 import { commandReporters } from "./pluginload.js";
 import { loadPlugins, reportPluginError } from "./plugins.js";
 import { renderPluginsPanel, wirePluginsPanel } from "./pluginspanel.js";
@@ -43,15 +43,17 @@ async function loadActiveNetwork() {
   const { server, netKey } = store.get();
   const { h, key } = netKeyFor(server);
   if (key === netKey || inFlight.has(key)) return;
-  if (!h) { store.set({ netKey: null, net: null, attrs: null, properties: [], prop: null, marker: null }); return; }
+  if (!h) { store.set({ netKey: null, net: null, attrs: null, properties: [], nodeProperties: [], prop: null, nodeProp: null, marker: null }); return; }
   inFlight.add(key);
   try {
-    const [buf, attrs, props] = await Promise.all([
+    const [buf, attrs, props, nodeProps] = await Promise.all([
       getBuffer(netPath(h.id, "network.bin")), getJSON(netPath(h.id, "network.attrs.json")), getJSON(netPath(h.id, "properties")),
+      getJSON(netPath(h.id, "properties?table=node")),
     ]);
     if (netKeyFor(store.get().server).key !== key) return; // superseded while fetching
     const switched = !netKey || !netKey.startsWith(`${h.id}@`);
-    store.set({ netKey: key, net: decodeNetwork(buf), attrs, properties: props.properties, prop: null, marker: null });
+    store.set({ netKey: key, net: decodeNetwork(buf), attrs, properties: props.properties, nodeProperties: nodeProps.properties,
+      prop: null, nodeProp: null, marker: null });
     if (switched) fitNetwork({ animate: false });
   } finally {
     inFlight.delete(key);
@@ -65,6 +67,17 @@ async function loadColorProperty() {
   const p = await getJSON(netPath(server.active, `property/${encodeURIComponent(name)}`));
   const now = store.get();
   if (now.server.style.color_by === name && now.netKey === netKey) store.set({ prop: { ...p, netKey } });
+}
+
+// `style.node_color_by`'s column of the node table, fetched like the links' colour property.
+async function loadNodeColorProperty() {
+  const { server, net, netKey, nodeProp } = store.get();
+  const name = server.style.node_color_by || "none";
+  if (!net || name === "none") { if (nodeProp) store.set({ nodeProp: null }); return; }
+  if (nodeProp && nodeProp.name === name && nodeProp.netKey === netKey) return;
+  const p = await getJSON(netPath(server.active, `property/${encodeURIComponent(name)}?table=node`));
+  const now = store.get();
+  if (now.server.style.node_color_by === name && now.netKey === netKey) store.set({ nodeProp: { ...p, netKey } });
 }
 
 // `style.width_by`'s column, fetched like the colour property (kept per decoded network version).
@@ -104,7 +117,7 @@ async function onState(server) {
   store.set({ server });
   try {
     await loadActiveNetwork();
-    await Promise.all([loadColorProperty(), loadWidthProperty(), loadFilterIds()]);
+    await Promise.all([loadColorProperty(), loadNodeColorProperty(), loadWidthProperty(), loadFilterIds()]);
   } catch (e) { toast(e.message); }
 }
 
@@ -205,14 +218,14 @@ function onFilterMaybeChanged(s) {
 }
 
 function wireStore() {
-  store.subscribe(["server", "net", "prop", "widthProp", "filterIds", "highlights", "marker", "focus", "related", "hiddenLayers", "layerSeq"], () => render());
+  store.subscribe(["server", "net", "prop", "nodeProp", "widthProp", "filterIds", "highlights", "marker", "focus", "related", "hiddenLayers", "layerSeq"], () => render());
   store.subscribe(["layerSeq", "hiddenLayers"], s => renderPluginLayers(layerRegistry.toggleable(), s.hiddenLayers));
   store.subscribe(["server"], s => {
     renderHeader(s.server); syncControls(s.server.style); renderSelectionPanel(s);
     onSelectionMaybeChanged(activeSelection(s)); renderFilter(s.server); onFilterMaybeChanged(s);
   });
-  store.subscribe(["server", "prop"], s => renderLegend(s.server.style, s.prop));
-  store.subscribe(["properties"], s => { populateColorby(s.properties); syncControls(s.server.style); });
+  store.subscribe(["server", "prop", "nodeProp"], s => renderLegend(s.server.style, s.prop, s.nodeProp));
+  store.subscribe(["properties", "nodeProperties"], s => { populateColorby(s.properties); populateNodeColorby(s.nodeProperties); syncControls(s.server.style); });
   store.subscribe(["netKey"], s => onNetKey(s.netKey));
   store.subscribe(["focus"], s => onFocus(s));
   // New highlights change the rows of every scope but All (back to the first page); a focus only re-tints.

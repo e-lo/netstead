@@ -140,6 +140,27 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Added
 
+- **Workbench: Find / Inspect / Edit / Cards / Validate panels; the map coloured
+  by default.** The side panel's tabs, in order: **Find** (the utterance box
+  with Select / Ask and the model picker, moved out of the header's second row,
+  which is gone; the selection's anchors, diagnostics, export and saved
+  selections; the highlighted links; and a **View** section with the layer
+  toggles, "Color links by", a new "Color nodes by", width, direction / offset
+  / legend and "Filter links", moved out of the map's Layers and Map-display
+  popovers, which are gone with their two buttons); **Inspect** (the focused
+  record's details); **Edit** (the edit list, Undo and Redo, the edit warnings,
+  moved here from Issues, and "Save selection as card…", enabled while the
+  project-cards plugin is loaded); **Cards** (the plugin's panel, when loaded);
+  **Validate** (run / export, the facets and the findings, with repeated
+  structural findings folded into one `▸ code (n)` row that expands, and a
+  "Zoom to" crosshair on every located finding); then **Assistant**. Plugins
+  may register the bare panel id `cards` only as `project_cards`
+  (`RESERVED_IDS` in `slots.js`). Opening a network colours links by
+  `facility_type` and nodes by `ctrl_type` when the tables have those columns
+  (`DEFAULT_STYLE`; a network without them opens with `"none"`), the legend
+  shows both, and `Style` gains `node_color_by` (validated against the node
+  table, replayed as `app.do(Style(node_color_by=...))`). `GET …/properties`
+  and `GET …/property/{name}` take `?table=node` for the node table's columns.
 - **Workbench: Open menu, Save dialog and validity light in the header.** The
   Recent select is gone: "Open…" drops a menu with the three most recent
   networks (the path is the tooltip; re-opening is a normal `open_network`)

@@ -13,8 +13,11 @@ import pandas as pd
 
 __all__ = ["basemap_style", "json_scalar", "property_payload", "styleable_columns"]
 
-#: Columns never offered as a color-by property (geometry/opaque or identity).
-_SKIP_STYLE_COLS = {"geometry", "osm_node_ids", "osm_way_id", "link_id", "from_node_id", "to_node_id"}
+#: Columns never offered as a color-by property (geometry/opaque or identity), per table.
+_SKIP_STYLE_COLS = {
+    "link": {"geometry", "osm_node_ids", "osm_way_id", "link_id", "from_node_id", "to_node_id"},
+    "node": {"geometry", "node_id", "x_coord", "y_coord", "osm_node_id", "zone_id"},
+}
 _MAX_CATEGORIES = 25
 
 _ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas"
@@ -32,13 +35,17 @@ def json_scalar(v: Any) -> Any:
     return getattr(v, "item", lambda: v)()
 
 
-def styleable_columns(links: pd.DataFrame) -> list[dict]:
-    """List columns usable for color-by, classified continuous vs categorical."""
+def styleable_columns(frame: pd.DataFrame, table: str = "link") -> list[dict]:
+    """List columns usable for color-by, classified continuous vs categorical.
+
+    ``table`` names which identity columns to leave out: ``"link"`` (the default) or ``"node"``.
+    """
     out = []
-    for c in links.columns:
-        if c in _SKIP_STYLE_COLS:
+    skip = _SKIP_STYLE_COLS.get(table, set())
+    for c in frame.columns:
+        if c in skip:
             continue
-        s = links[c]
+        s = frame[c]
         if pd.api.types.is_numeric_dtype(s):
             out.append({"name": c, "kind": "continuous"})
         elif s.nunique(dropna=True) <= _MAX_CATEGORIES:  # skip high-cardinality (e.g. name)

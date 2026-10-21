@@ -165,6 +165,23 @@ def test_registry_orders_entries_and_namespaces_plugin_ids(node_module):
     ]
 
 
+def test_a_reserved_bare_id_belongs_to_one_plugin_only(node_module):
+    expr = """(() => {
+      const r = createRegistry("panel"), errors = [];
+      r.add("project_cards", {id: "cards", title: "Cards", order: 25});
+      for (const [owner, id] of [["hello", "cards"], ["project_cards", "draft"]])
+        try { r.add(owner, {id, title: "?"}); } catch (e) { errors.push(e.message); }
+      return [r.list().map(p => [p.id, p.owner]), errors, RESERVED_IDS];
+    })()"""
+    ids, errors, reserved = node_module("slots.js", ["createRegistry", "RESERVED_IDS"], expr)
+    assert ids == [["cards", "project_cards"]]
+    assert errors == [
+        'hello: id "cards" must start with "hello."',
+        'project_cards: id "draft" must start with "project_cards."',
+    ]
+    assert reserved == {"cards": "project_cards"}
+
+
 def test_command_specs_default_to_the_palette_and_reject_bad_shapes(node_module):
     expr = """(() => {
       const errors = [];
@@ -1036,9 +1053,9 @@ class El {
 const find = (id, el) => (el.id === id ? el : el.children.map(c => find(id, c)).find(Boolean) || null);
 const body = new El("body");
 for (const id of ["ws-tabs", "dock-tabs", "stage", "side", "viewmode"]) body.appendChild(new El(id));
-const details = new El("dock-details", "section");
-details.className = "dock-pane"; details.dataset.panel = "details";
-body.children[3].appendChild(details);
+const inspect = new El("dock-inspect", "section");
+inspect.className = "dock-pane"; inspect.dataset.panel = "inspect";
+body.children[3].appendChild(inspect);
 body.children[2].dataset.mode = "map";
 globalThis.document = { getElementById: id => find(id, body), createElement: tag => new El("", tag),
   querySelectorAll: () => [], activeElement: null, addEventListener() {} };
@@ -1079,8 +1096,8 @@ const during = [store.get().workspace, Boolean(document.getElementById("dock-bro
 rollback();
 const after = [store.get().workspace, Boolean(document.getElementById("dock-broken.p")),
   document.getElementById("ws-tabs").hidden, document.getElementById("dock-tabs").hidden,
-  document.getElementById("stage").getAttribute("role"), document.getElementById("dock-details").hidden,
-  document.getElementById("dock-details").getAttribute("role"),
+  document.getElementById("stage").getAttribute("role"), document.getElementById("dock-inspect").hidden,
+  document.getElementById("dock-inspect").getAttribute("role"),
   slots.workspaces.list().map(w => w.id), slots.panels.list().map(p => p.id), slots.commands.list().length,
   store.get().commandSeq];
 console.log(JSON.stringify({ during, after, errors }));
@@ -1096,7 +1113,7 @@ def test_a_failed_activation_leaves_no_trace_in_the_dock_and_returns_to_inspect(
     assert proc.returncode == 0, proc.stderr
     got = json.loads(proc.stdout)
     assert got["during"] == ["broken.ws", True, False, "tabpanel"]
-    assert got["after"] == ["inspect", False, True, True, None, False, None, ["inspect"], ["details"], 0, 2]
+    assert got["after"] == ["inspect", False, True, True, None, False, None, ["inspect"], ["inspect"], 0, 2]
     assert got["errors"] == []
 
 

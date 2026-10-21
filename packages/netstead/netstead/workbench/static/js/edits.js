@@ -1,13 +1,21 @@
-// The Issues and Edits dock panels (registered like a plugin's, in every workspace), and the active network's pending
-// edits and live edit warnings (GET /edits), kept in `store.edits`; the Edits panel: pending edits, Undo and Redo
-// (Save a copy is the header's Save dialog, savedialog.js). Notes and table names are data: every one is escaped.
+// The Edit and Validate dock panels (registered like a plugin's, in every workspace), and the active network's pending
+// edits and live edit warnings (GET /edits), kept in `store.edits`; the Edit panel: pending edits, Undo and Redo
+// (Save a copy is the header's Save dialog, savedialog.js), the edit warnings (issues.js renders them) and "Save
+// selection as card…", live only while the project-cards plugin's Cards panel is registered. Notes and table names
+// are data: every one is escaped.
 import { dispatch, getJSON, netPath } from "./api.js";
+import { commandContext, runCommand } from "./commands.js";
 import { $, esc, toast } from "./dom.js";
 import { dirtyBadge, editsBadge, pendingLine, redoBlocked, undoBlocked, validatedText } from "./editmodel.js";
+import { hub } from "./hub.js";
 import { issuesBadge } from "./issuelist.js";
-import { ALL_WORKSPACES, CORE } from "./slots.js";
+import { ALL_WORKSPACES, CORE, slots } from "./slots.js";
 import { store } from "./store.js";
-import { addPanel } from "./workspaces.js";
+import { addPanel, showPanel } from "./workspaces.js";
+
+// The project-cards plugin's panel (a bare id core reserves for it: slots.js RESERVED_IDS) and its command that
+// starts a card change from the selection.
+const CARDS_PANEL = "cards", NEW_CARD_CHANGE = "project_cards.new_roadway_property_change";
 
 let seq = 0, feedKey = null;
 const fail = e => toast(e.message);
@@ -15,8 +23,8 @@ const activeId = () => { const s = store.get().server; return s && s.active; };
 
 // Badges read the server state (ctx.state), so the dock refreshes them on every state event.
 export function registerEditPanels() {
-  addPanel(CORE, { id: "issues", title: "Issues", workspace: ALL_WORKSPACES, order: 10, badge: c => issuesBadge(c.state) });
-  addPanel(CORE, { id: "edits", title: "Edits", workspace: ALL_WORKSPACES, order: 20, badge: c => editsBadge(c.state) });
+  addPanel(CORE, { id: "edit", title: "Edit", workspace: ALL_WORKSPACES, order: 20, badge: c => editsBadge(c.state) });
+  addPanel(CORE, { id: "validate", title: "Validate", workspace: ALL_WORKSPACES, order: 30, badge: c => issuesBadge(c.state) });
 }
 
 export async function loadEdits() {
@@ -51,7 +59,7 @@ export function renderEdits(edits) {
   setBlocked("ed-redo", redoBlocked(e), "Redo");
   $("ed-undo-why").textContent = e && e.pending ? why : "";
   const parts = e ? [dirtyBadge(e) || (e.pending ? "Every edit is in a saved copy." : ""),
-    e.warnings.length ? `${e.warnings.length} open warning(s): see Issues.` : "",
+    e.warnings.length ? `${e.warnings.length} open warning(s): see Edit warnings below.` : "",
     e.check_failed ? "The live check failed: run validation." :
       e.truncated ? "The live check was cut short: run validation." : ""] : [];
   $("ed-status").textContent = parts.filter(Boolean).join(" · ");
@@ -94,7 +102,25 @@ export function onEditJob(job) {
   tracked.onEnd(job, tracked.action);
 }
 
+// "Save selection as card…": the plugin's new-change command when it applies (it needs a selection), else just its
+// Cards panel. Enabled only while a panel with the reserved id is registered.
+function saveAsCard() {
+  const command = slots.commands.get(NEW_CARD_CHANGE), s = store.get();
+  const ctx = commandContext({ server: s.server, focus: s.focus, highlights: s.highlights, workspace: s.workspace });
+  if (command && (!command.when || command.when(ctx))) runCommand(command, ctx, (c, e) => fail(e));
+  else showPanel(CARDS_PANEL);
+}
+
+function syncCardButton(ids) {
+  const on = ids.includes(CARDS_PANEL), b = $("ed-card");
+  b.disabled = !on;
+  b.title = on ? "Start a project card change from the selection" : "Needs the project-cards plugin";
+}
+
 export function wireEdits() {
   $("ed-undo").onclick = () => dispatch({ type: "undo_edit" }).catch(fail);
   $("ed-redo").onclick = () => dispatch({ type: "redo_edit" }).catch(fail);
+  $("ed-card").onclick = saveAsCard;
+  hub.on("core.panels", syncCardButton);
+  syncCardButton(slots.panels.list().map(p => p.id));
 }

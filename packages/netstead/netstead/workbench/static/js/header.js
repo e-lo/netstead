@@ -1,15 +1,10 @@
-// Header: network switcher, the Open menu (recents, then Browse / import…), the validity light, and the utterance
-// box (the command bar: Enter selects, as it always has; Ask, Ctrl+Enter or ⌘Enter sends the text to the
-// assistant). All via actions.
+// Header: network switcher, the Open menu (recents, then Browse / import…), and the validity light. All via
+// actions. (The utterance box is the Find panel's: selection.js.)
 import { dispatch } from "./api.js";
-import { ask } from "./assistant.js";
-import { barRoute } from "./assistmodel.js";
 import { $, esc, toast } from "./dom.js";
 import { dirtyBadge } from "./editmodel.js";
 import { icon } from "./icons.js";
-import { fitLinks } from "./map.js";
 import { recentEntries } from "./recents.js";
-import { slots } from "./slots.js";
 import { derivedTitle, networkBadge } from "./tabs.js";
 import { validityState } from "./validity.js";
 import { showPanel } from "./workspaces.js";
@@ -20,8 +15,8 @@ import { openWizard } from "./wizard.js";
 const RECENT_KEY = "netstead.workbench.recent";
 const RECENT_MAX = 10;
 
-async function run(action, after) {
-  try { const result = await dispatch(action); if (after) after(result); } catch (e) { toast(e.message); }
+async function run(action) {
+  try { await dispatch(action); } catch (e) { toast(e.message); }
 }
 
 // A remote URL is kept without its query string or fragment (a presigned signature or SAS token must
@@ -123,21 +118,5 @@ export function wireHeader() {
   };
   $("open-menu").onkeydown = onOpenMenuKey;
   document.addEventListener("pointerdown", e => { if (openMenuIsOpen() && !e.target.closest("#open-wrap")) setOpenMenu(false); });
-  // The validity light opens the Validate panel (the Issues panel until that rename lands).
-  $("valid-light").onclick = () => showPanel(slots.panels.get("validate") ? "validate" : "issues");
-  const select = async () => {
-    const utterance = $("utterance").value.trim();
-    if (!utterance) return;
-    $("go").disabled = true;
-    await run({ type: "select", utterance }, sel => fitLinks(sel.link_ids));
-    $("go").disabled = false;
-  };
-  $("go").onclick = select;
-  $("ask").onclick = () => ask($("utterance").value, { fromBar: true });
-  $("utterance").onkeydown = e => {
-    if (e.isComposing) return;
-    const route = barRoute(e);
-    if (route === "select") select();
-    else if (route === "ask") { e.preventDefault(); ask($("utterance").value, { fromBar: true }); }
-  };
+  $("valid-light").onclick = () => showPanel("validate");
 }

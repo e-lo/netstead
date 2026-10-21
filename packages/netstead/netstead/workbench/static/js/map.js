@@ -3,7 +3,7 @@ import { $, esc } from "./dom.js";
 import { createClickGuard } from "./gesture.js";
 import { layerRegistry } from "./layers.js";
 import { arrowPixelOffset, arrowSize, buildArrows, linkPaths, widthForLanes } from "./netbuf.js";
-import { buildLinkColors, buildLinkWidths, dimUnmatched } from "./palette.js";
+import { buildLinkColors, buildLinkWidths, buildNodeColors, dimUnmatched } from "./palette.js";
 import { commandContext, frozenCopy } from "./commands.js";
 import { CORE } from "./slots.js";
 import { activeSelection, store } from "./store.js";
@@ -26,7 +26,7 @@ const TOOLTIP_STYLE = { background: "#11151a", color: "#e6e8ec", fontSize: "12px
 
 let map = null, overlay = null;
 let handlers = { onLinkClick() {}, onNodeClick() {}, onBoxSelect() {}, onContextMenu() {}, onLayerError(e) { console.error(e); } };
-let colorCache = { key: null, colors: null }, widthCache = { key: null, widths: null };
+let colorCache = { key: null, colors: null }, widthCache = { key: null, widths: null }, nodeColorCache = { key: null, colors: null };
 let pathsCache = { key: null, paths: null }, arrowCache = { key: null, arrows: null };
 let labelsShown = true;
 // Whether the current style's layers exist (style.load fired). Not map.isStyleLoaded(): that also waits for
@@ -82,6 +82,14 @@ function linkColors(s) {
   return colorCache.colors;
 }
 
+// Per-node colours for `style.node_color_by` (or the single node colour), cached like the links'.
+function nodeColors(s) {
+  const st = s.server.style, np = s.nodeProp;
+  const key = JSON.stringify([s.netKey, st.node_color_by, st.ramp, st.colors.nodes, np && np.name, np && np.netKey]);
+  if (nodeColorCache.key !== key) nodeColorCache = { key, colors: buildNodeColors(s.net, st, np) };
+  return nodeColorCache.colors;
+}
+
 // Per-vertex widths for `style.width_by`, or null (the lane-count widths).
 function linkWidths(s) {
   const st = s.server.style, wp = s.widthProp;
@@ -125,11 +133,13 @@ function baseLayers(s) {
         updateTriggers: { getPixelOffset: [offsetOn, widthCache.key] } }));
     }
   }
-  // Nodes draw above links, and are pickable, so a map click can focus a node.
+  // Nodes draw above links, and are pickable, so a map click can focus a node. Their colours come from the node
+  // table's `node_color_by` column (nodeColors), the single node colour without one.
   if (style.show.nodes) layers.push(new deck.ScatterplotLayer({ id: "nodes",
-    data: { length: net.N.count, attributes: { getPosition: { value: net.nodePositions, size: 2 } } },
+    data: { length: net.N.count, attributes: { getPosition: { value: net.nodePositions, size: 2 },
+                                               getFillColor: { value: nodeColors(s), size: 4 } } },
     getRadius: 1.8, radiusUnits: "pixels", radiusMinPixels: 2,
-    getFillColor: [...style.colors.nodes, 150], pickable: true, autoHighlight: true, highlightColor: [255, 140, 59, 235],
+    pickable: true, autoHighlight: true, highlightColor: [255, 140, 59, 235],
     onClick: info => { if (info && info.index >= 0) handlers.onNodeClick(net.nodeIds[info.index]); } }));
   return layers;
 }

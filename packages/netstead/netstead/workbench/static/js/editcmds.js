@@ -39,7 +39,7 @@ function recordFixTarget(t) {
 
 // Focus the record (Details shows it), then open the record editor in Details.
 async function editRecord(table, id) {
-  showPanel("details");
+  showPanel("inspect");
   const f = store.get().focus;
   if (!f || f.table !== table || f.id !== id) store.set({ focus: { table, id, from: "table" } });
   await detailsSettled();
@@ -49,9 +49,9 @@ async function editRecord(table, id) {
 
 export function registerEditCommands() {
   add({ id: "run_validation", group: "Issues", title: "Run validation", when: c => Boolean(c.network),
-    run: () => { showPanel("issues"); return dispatchJob({ type: "run_validation" }); } });
+    run: () => { showPanel("validate"); return dispatchJob({ type: "run_validation" }); } });
   add({ id: "fix_issue", group: "Issues", title: "Fix the picked issue…", when: () => Boolean(store.get().fixTarget),
-    run: () => { showPanel("issues"); return openFixEditor($("iss-fixer"), store.get().fixTarget); } });
+    run: () => { showPanel("validate"); return openFixEditor($("iss-fixer"), store.get().fixTarget); } });
   // The only core context-menu command (R8): on a record with an issue, focus it, filter Issues to it, and fix.
   // The record is already in view (it was right-clicked, or is focused), so the focus does not move the map.
   add({ id: "fix_record", title: "Fix…", contexts: ["feature", "row"], when: c => Boolean(recordFixTarget(c.target)),

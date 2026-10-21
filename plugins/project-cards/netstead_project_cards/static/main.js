@@ -1,5 +1,5 @@
-// The project cards plugin's front end: a "Card" dock panel (compose a change, preview it, the draft card's changes,
-// commit and import) and "New change ▸ …" commands. Everything goes through `wb` (see the cookbook page "Write a
+// The project cards plugin's front end: the "Cards" dock panel (compose a change, preview it, the draft card's
+// changes, commit and import; its id is the bare `cards` core reserves for this plugin) and "New change ▸ …" commands. Everything goes through `wb` (see the cookbook page "Write a
 // Workbench plugin"); the flow lives in controller.js and the rules in cardmodel.js, both tested under node.
 // Card and user text is only ever set as text (`h`'s `text`, or a string child), never parsed as markup.
 import {
@@ -8,7 +8,7 @@ import {
 } from "./cardmodel.js";
 import { createController } from "./controller.js";
 
-const PANEL = "project_cards.draft";
+const PANEL = "cards";
 
 // A DOM element. `text` is its text content, `on<event>` a handler, `disabled` / `checked` properties, the rest
 // attributes; string children become text nodes.
@@ -54,8 +54,8 @@ export function activate(wb) {
   wb.registerPanel({
     workspace: "*",
     id: PANEL,
-    title: "Card",
-    order: 40,
+    title: "Cards",
+    order: 25,
     // On a preview, the draft of the base it stands for (draftOf follows the preview).
     badge: ctx => draftBadge(ctx.state, ctxNet(ctx)),
     render(el) {

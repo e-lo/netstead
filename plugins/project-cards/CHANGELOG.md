@@ -7,6 +7,8 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
 
 ### Changed
 
+- **The panel is the dock's Cards tab.** It registers as `cards` (the bare id core reserves for this plugin), titled
+  "Cards", between core's Edit and Validate tabs (order 25); it was `project_cards.draft`, titled "Card", last.
 - **Importing the offline report's edit log.** netstead now writes it as a schema-valid card (picked ids with
   `ignore_missing: false`, notes as `netstead.note[<i>]` lines), which import reads as an ordinary card. The tolerant
   reading of the old shape (ids at the top of the facility, a per-change `notes`) stays, for logs written before.

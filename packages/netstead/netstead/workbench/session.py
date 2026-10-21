@@ -135,8 +135,11 @@ FILTER_CACHE_SIZE = 8
 #: session lock (``filter_ids``); held only around dict operations, never across a query.
 _FILTER_CACHE_LOCK = threading.Lock()
 
+#: ``color_by`` and ``node_color_by`` name the columns the map colours by when a network has them; opening a network
+#: that lacks one puts ``"none"`` in its place (:meth:`Session._reconcile_style`).
 DEFAULT_STYLE: dict[str, Any] = {
-    "color_by": "none",
+    "color_by": "facility_type",
+    "node_color_by": "ctrl_type",
     "width_by": "none",
     "ramp": "YlOrRd",
     "offset": True,
@@ -163,6 +166,7 @@ class _Loaded:
         handle = session.registry.add(self.net, source=self.source, label=self.label, net_id=self.net_id)
         handle.prime(**self.frames)
         session.active = handle.id
+        session._reconcile_style(handle)
         return {"net_id": handle.id, **self.extra}
 
 
@@ -986,8 +990,29 @@ class Session:
         with self._lock:
             handle = self.registry.add(net, source=source, label=label, net_id=net_id)
             self.active = self.active or handle.id
+            if self.active == handle.id:
+                self._reconcile_style(handle)
             self.events.publish({"type": "state", "state": self.state()})
         return handle
+
+    def _reconcile_style(self, handle: NetworkHandle) -> None:
+        """Point the colour-by columns at ones ``handle`` has, now that it is the active network.
+
+        Each of ``color_by`` (links) and ``node_color_by`` (nodes) keeps its column when the network has it, else
+        takes the default column when that exists, else ``"none"``. Never raises: a network without the default
+        columns opens with single-colour features. Called with the lock held.
+        """
+        tables = {"color_by": ("link", handle.links_df), "node_color_by": ("node", handle.nodes_df)}
+        for key, (table, frame) in tables.items():
+            try:
+                names = {c["name"] for c in styleable_columns(frame(), table)}
+            except Exception:  # boundary: an odd table must not stop the network opening
+                logger.exception("could not list %s columns of %s for styling", table, handle.id)
+                names = set()
+            current = self.style.get(key, "none")
+            if current in names:
+                continue
+            self.style[key] = DEFAULT_STYLE[key] if DEFAULT_STYLE[key] in names else "none"
 
     def mutate(
         self,
@@ -1968,7 +1993,7 @@ class Session:
 
     def _do_style(self, action: Style) -> dict[str, Any]:
         patch = action.model_dump(exclude_none=True, exclude={"type"})
-        wanted = {k: patch[k] for k in ("color_by", "width_by") if patch.get(k) not in (None, "none")}
+        wanted = {k: patch[k] for k in ("color_by", "node_color_by", "width_by") if patch.get(k) not in (None, "none")}
         if wanted:
             kinds = {c["name"]: c["kind"] for c in styleable_columns(self._handle(None).links_df())}
             if "color_by" in wanted and wanted["color_by"] not in kinds:
@@ -1976,6 +2001,12 @@ class Session:
             numeric = sorted(n for n, k in kinds.items() if k == "continuous")
             if "width_by" in wanted and wanted["width_by"] not in numeric:
                 raise ActionError(f"cannot size by {wanted['width_by']!r}; choose a numeric column: {numeric}")
+        if "node_color_by" in wanted:
+            node_kinds = {c["name"] for c in styleable_columns(self._handle(None).nodes_df(), "node")}
+            if wanted["node_color_by"] not in node_kinds:
+                raise ActionError(
+                    f"cannot color nodes by {wanted['node_color_by']!r}; choose one of {sorted(node_kinds)}"
+                )
         for key, value in patch.items():
             self.style[key] = {**self.style[key], **value} if isinstance(value, dict) else value
         return copy.deepcopy(self.style)
