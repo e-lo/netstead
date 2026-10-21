@@ -895,3 +895,59 @@ def test_arrow_pixel_offset_follows_the_right_hand_offset_line(node_module):
 @pytest.mark.parametrize(("zoom", "size"), [(12, 8), (13, 8), (14, 10), (15, 12), (18, 18), (22, 18)])
 def test_arrow_size_grows_with_zoom_between_8_and_18_px(node_module, zoom, size):
     assert node_module("netbuf.js", ["arrowSize"], f"arrowSize({zoom})") == size
+
+
+# ---- resize.js: panel sizes (the map/table split percentage, the side column width) ----
+
+SIZE_DEFAULTS = {"split": 55, "side": 330}
+
+
+@pytest.mark.parametrize(
+    ("kind", "value", "expected"),
+    [
+        ("split", 95, 80),
+        ("split", 5, 20),
+        ("split", 40, 40),
+        ("side", 100, 240),
+        ("side", 9999, 720),
+        ("side", 500, 500),
+    ],
+)
+def test_clamp_size_keeps_each_panel_within_its_range(node_module, kind, value, expected):
+    assert node_module("resize.js", ["clampSize"], f'clampSize("{kind}", {value})') == expected
+
+
+def parse_sizes(node_module, stored: str):
+    return node_module("resize.js", ["parseSizes"], f"parseSizes({stored})")
+
+
+def test_clamp_size_of_a_non_number_is_the_default(node_module):
+    assert node_module("resize.js", ["clampSize"], 'clampSize("split", NaN)') == 55
+    assert node_module("resize.js", ["clampSize"], 'clampSize("side", "wide")') == 330
+
+
+def test_size_defaults_match_the_stylesheet(node_module):
+    assert node_module("resize.js", ["DEFAULTS"], "DEFAULTS") == SIZE_DEFAULTS
+
+
+@pytest.mark.parametrize("stored", ['"garbage"', "null", '"[1,2]"', '"42"', '""'])
+def test_parse_sizes_falls_back_to_defaults_on_garbage(node_module, stored):
+    assert parse_sizes(node_module, stored) == SIZE_DEFAULTS
+
+
+def test_parse_sizes_reads_valid_fields(node_module):
+    assert parse_sizes(node_module, """'{"split":40,"side":500}'""") == {"split": 40, "side": 500}
+
+
+def test_parse_sizes_defaults_each_bad_field_on_its_own(node_module):
+    assert parse_sizes(node_module, """'{"split":"x","side":500}'""") == {"split": 55, "side": 500}
+    assert parse_sizes(node_module, """'{"split":40}'""") == {"split": 40, "side": 330}
+    # an out-of-range number is clamped, not dropped
+    assert parse_sizes(node_module, """'{"split":99,"side":1}'""") == {"split": 80, "side": 240}
+
+
+def test_serialize_sizes_round_trips(node_module):
+    expr = "parseSizes(serializeSizes({split: 40, side: 500}))"
+    assert node_module("resize.js", ["parseSizes", "serializeSizes"], expr) == {"split": 40, "side": 500}
+    raw = node_module("resize.js", ["serializeSizes"], "serializeSizes({split: 40, side: 500, extra: 1})")
+    assert json.loads(raw) == {"split": 40, "side": 500}

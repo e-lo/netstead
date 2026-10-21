@@ -8,6 +8,7 @@ import { openContextMenu, wireContextMenus } from "./ctxmenu.js";
 import { $, mountIcons, toast } from "./dom.js";
 import { registerEditCommands } from "./editcmds.js";
 import { onEditJob, onEditsState, registerEditPanels, renderEdits, wireEdits } from "./edits.js";
+import { wireHandles } from "./handles.js";
 import { rememberRecent, renderHeader, renderRecent, wireHeader } from "./header.js";
 import { showEntry, wireHistory } from "./history.js";
 import { hub } from "./hub.js";
@@ -250,7 +251,7 @@ async function boot() {
   registerEditCommands();
   wirePalette({ onError: whenError, onRunError: runError });
   wireActionForm();
-  wireStore(); wirePanels(); wireFilter(); wireSide(); wireTable(); wireHeader(); wireHistory(); wireMapButtons(); wireJobs(); wireWizard(); wireLLM(); wireSettings(); wireIssues(); wireEdits(); wireSelectionPanel(); wireAssistant();
+  wireStore(); wirePanels(); wireFilter(); wireSide(); wireTable(); wireHandles(); wireHeader(); wireHistory(); wireMapButtons(); wireJobs(); wireWizard(); wireLLM(); wireSettings(); wireIssues(); wireEdits(); wireSelectionPanel(); wireAssistant();
   registerIssueLayer(); // after wireStore: the layerSeq subscription that renders Overlays is in place
   registerSection("llm", "Language models", "llm-panel", () => renderLLMPanel());
   registerAssistantSettings();

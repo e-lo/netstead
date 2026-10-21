@@ -235,6 +235,34 @@ def test_layers_popover_lists_overlays_from_the_registry():
     assert "export function renderPluginLayers(" in (JS_DIR / "panels.js").read_text()
 
 
+def test_map_popovers_sit_over_the_map_not_inside_it():
+    # MapLibre's container clips (overflow:hidden); a popover inside it lost its bottom in Split view.
+    html = (STATIC_DIR / "index.html").read_text()
+    wrap = html[html.index('<div id="mapwrap">') : html.index('id="split-handle"')]
+    map_el = wrap[wrap.index('<div id="map">') : wrap.index('<div id="map-overlay">')]
+    overlay = wrap[wrap.index('<div id="map-overlay">') :]
+    for element_id in ("map-btns", "layers-panel", "settings-panel", "legend"):
+        assert f'id="{element_id}"' in overlay and f'id="{element_id}"' not in map_el
+    assert 'id="boxsel"' in map_el  # the box-select rectangle is measured against the map
+    css = (STATIC_DIR / "app.css").read_text()
+    assert "#map-overlay { position:absolute; inset:0; z-index:3; pointer-events:none; }" in css
+    assert "#map-overlay > * { pointer-events:auto; }" in css
+    assert 'container: "map"' in (JS_DIR / "map.js").read_text()  # MapLibre still owns #map
+
+
+def test_the_split_and_side_handles_are_separators_wired_from_main():
+    html = (STATIC_DIR / "index.html").read_text()
+    for element_id, orientation in (("split-handle", "horizontal"), ("side-handle", "vertical")):
+        tag = html[html.index(f'id="{element_id}"') : html.index('data-icon="grip"', html.index(f'id="{element_id}"'))]
+        assert 'role="separator"' in tag and f'aria-orientation="{orientation}"' in tag and 'tabindex="0"' in tag
+    assert html.index('id="mapwrap"') < html.index('id="split-handle"') < html.index('id="tablepane"')
+    assert html.index('</div>\n  <div id="side-handle"') < html.index('<aside id="side">')
+    handles = (JS_DIR / "handles.js").read_text()
+    assert 'from "./resize.js"' in handles and "setPointerCapture(" in handles and "resizeSoon()" in handles
+    assert "localStorage.setItem(STORAGE_KEY, serializeSizes(sizes))" in handles
+    assert "wireHandles()" in (JS_DIR / "main.js").read_text()
+
+
 def test_the_drawer_is_the_dock_and_keeps_the_details_content():
     html = (STATIC_DIR / "index.html").read_text()
     side = html[html.index('<aside id="side">') : html.index("</aside>")]
