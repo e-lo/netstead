@@ -240,6 +240,25 @@ def test_an_edit_the_spec_disagrees_with_is_applied_and_warned(session):
     assert session.state()["edits"]["leavenworth"]["warnings"] == 1
 
 
+def test_an_out_of_enum_categorical_edit_persists_and_names_its_column(session):
+    # Beta report: categorical edits "did not persist, with no message". The server never refuses an out-of-enum
+    # value: it is applied and warned, naming the column so the grid can flag the cell.
+    result = session.dispatch(EditCells(ids=[1], values={"bike_facility": "boulevard"}))
+    assert cell(session, 1, "bike_facility") == ["boulevard"]
+    (warning,) = result["warnings"]
+    where = (warning["code"], warning["table"], warning["key"], warning["column"])
+    assert where == ("edit.enum", "link", 1, "bike_facility")
+    assert "'boulevard' is not one of" in warning["message"]
+    edits = session.edits_payload(handle(session))
+    assert [(w["code"], w["column"]) for w in edits["warnings"]] == [("edit.enum", "bike_facility")]
+
+
+def test_a_free_text_categorical_edit_persists_without_an_enum_warning(session):
+    result = session.dispatch(EditCells(ids=[1], values={"facility_type": "boulevard"}))  # GMNS: free text
+    assert cell(session, 1, "facility_type") == ["boulevard"]
+    assert result["warnings"] == [] and result["open_warnings"] == 0
+
+
 def test_what_storage_cannot_hold_is_refused_and_recorded(session):
     with pytest.raises(ActionError, match="does not fit"):
         session.dispatch(EditCells(ids=[1], values={"lanes": 1.5}))

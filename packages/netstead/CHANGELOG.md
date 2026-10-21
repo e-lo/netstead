@@ -21,6 +21,17 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Fixed
 
+- **Categorical cell edits in the Workbench grid are offered the spec's allowed
+  values, and an out-of-enum value is kept and flagged, never silently lost.**
+  Beta testers reported edits to `bike_facility`, `parking` and the like "did
+  not persist, with no message". The server always kept them (with an
+  `edit.enum` warning); the grid did not show that, and leaving the cell editor
+  with the mouse discarded the typed text without a word. Now a text cell's
+  editor completes from the spec's `enum` plus the column's existing values
+  (comma-list columns such as `allowed_uses` complete one token at a time and
+  say "comma-separated"); a cell with an open edit warning is outlined in red
+  with a warning icon and the message as its tooltip; and leaving a cell
+  applies the edit, as in a spreadsheet (Escape discards it).
 - **The Workbench map draws link shapes kept in the `geometry` table.** A
   network whose links carry a `geometry_id` into a separate `geometry` table
   (the bundled Leavenworth network, for one) drew every link as a straight

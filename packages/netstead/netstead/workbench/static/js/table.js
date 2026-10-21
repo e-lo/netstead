@@ -5,7 +5,7 @@
 import { dispatch, getJSON, netPath, postJSON } from "./api.js";
 import { openContextMenu } from "./ctxmenu.js";
 import { $, esc, toast } from "./dom.js";
-import { cellAction, cellEditable, cellSample, cellWarnings } from "./editmodel.js";
+import { cellAction, cellEditable, cellOptions, cellSample, cellWarnings, listOptions, shouldApplyOnLeave } from "./editmodel.js";
 import { createGridFilter } from "./gridfilter.js";
 import { icon } from "./icons.js";
 import { recordIssues } from "./issuelist.js";
@@ -31,6 +31,9 @@ let rowsTimer = null, pendingRestart = false, dirty = false;
 // The cell open for editing ({td, html, busy}). Rows never re-render under it (that would drop what is being typed);
 // they catch up when it closes.
 let editing = null;
+// A text column's editor options ("<table>:<column>" -> {values, listLike}) from `/distinct`, kept until the network
+// changes (an edit may add a value).
+const optionsCache = new Map();
 
 const activeId = () => { const s = store.get().server; return s && s.active; };
 const fail = e => toast(e.message);
@@ -63,6 +66,7 @@ export function setViewMode(mode) {
 export function onNetworkChanged() {
   Object.assign(TBL, { loaded: false, name: null, schema: null });
   TBL.seq++; clearTimeout(rowsTimer); // drop pages still loading for the old network
+  optionsCache.clear();
   TBL.filters.clear(); closeFilterPopover(); renderChips();
   $("tbl-rail").innerHTML = ""; $("tbl-grid").innerHTML = ""; $("tbl-name").textContent = "—";
   if (tableVisible()) loadTables().catch(fail);
@@ -71,6 +75,7 @@ export function onNetworkChanged() {
 // The same network at a new version (an edit or an undo): refresh the rail's row counts and the rows in place,
 // keeping the table, page, sort, filters and scope.
 export function onNetworkEdited() {
+  optionsCache.clear();
   if (!TBL.loaded) return;
   refreshRail().catch(fail);
   refreshRows();
@@ -373,11 +378,13 @@ function renderRows(cols, rows, vias) {
     const tip = [vias[i] ? `related via ${vias[i]}` : "", nIss ? `${nIss} issue${nIss === 1 ? "" : "s"}` : "",
       focused ? "click a cell to edit it" : ""].filter(Boolean).join(" · ");
     const title = tip ? ` title="${esc(tip)}"` : "";
+    // A cell with an open edit warning (an out-of-enum value, a missing key) is outlined, carries the message as
+    // its tooltip and a warning icon after its text: a kept-but-warned edit is never mistaken for a dropped one.
     const tds = r.map((v, c) => {
       const msgs = rw && rw[cols[c]];
-      const cls = [msgs ? "cw" : "", cellEditable(schemaCols.get(cols[c]), pk) ? "" : "ro"].filter(Boolean).join(" ");
+      const cls = [msgs ? "warn" : "", cellEditable(schemaCols.get(cols[c]), pk) ? "" : "ro"].filter(Boolean).join(" ");
       return `<td data-c="${c}"${cls ? ` class="${cls}"` : ""}${msgs ? ` title="${esc(msgs.join("\n"))}"` : ""}>` +
-        `${cellHTML(v, fks.get(cols[c]), focused)}</td>`;
+        `${cellHTML(v, fks.get(cols[c]), focused)}${msgs ? icon("alert-triangle", { size: 12 }) : ""}</td>`;
     }).join("");
     return `<tr class="data ${marks.join(" ")}" data-pk="${pv == null ? "" : esc(pv)}"${title}>${tds}</tr>`;
   }).join("");
@@ -404,9 +411,25 @@ function rowClick(pkVal) {
   store.set({ focus: { table: TBL.name, id: coerceId(pkVal, pkNumeric()), from: "table" } });
 }
 
-// Edit one cell of the focused row in place: Enter applies an EditCells action; Escape or leaving cancels. Text that
-// does not parse (a bad yes/no) is refused before anything is sent, and a refusal from the server keeps the input
-// open with what was typed: a failed entry never leaves the old value looking applied, nor sends it.
+// The values a text column's editor offers: the spec's allowed values at once, the column's existing values (or,
+// for a comma list, its tokens) when `/distinct` answers; cached per table and column until the network changes.
+async function columnOptions(col) {
+  const key = `${TBL.name}:${col.name}`;
+  if (!optionsCache.has(key)) {
+    const j = await getJSON(tablePath("distinct") + `?col=${encodeURIComponent(col.name)}`);
+    optionsCache.set(key, { values: cellOptions(col, j.values), listLike: Boolean(j.list_like) });
+  }
+  return optionsCache.get(key);
+}
+
+const fillOptions = values => { $("cell-opts").innerHTML = values.map(v => `<option value="${esc(v)}">`).join(""); };
+
+// Edit one cell of the focused row in place: Enter, or leaving the cell with changed text (a spreadsheet's
+// convention), applies an EditCells action; Escape discards. A text column's input completes from the spec's
+// allowed values and the column's existing ones; a comma-list column completes its last token. Text that does not
+// parse (a bad yes/no) is refused before anything is sent, and a refusal from the server keeps the input open with
+// what was typed: a failed entry never leaves the old value looking applied, nor sends it. Leaving again with the
+// same refused text closes the editor (not a loop of refusals the user cannot escape).
 function startCellEdit(tr, td) {
   if (editing) return;
   const c = Number(td.dataset.c), column = TBL.cols[c], row = TBL.rows[[...tr.parentNode.children].indexOf(tr)];
@@ -414,36 +437,60 @@ function startCellEdit(tr, td) {
   if (!row || !cellEditable(col, TBL.schema.primary_key)) return;
   const current = row[c], id = coerceId(tr.dataset.pk, pkNumeric());
   const me = editing = { td, html: td.innerHTML, busy: false };
-  td.innerHTML = `<input class="cell-in" aria-label="${esc(`${column} of ${TBL.name} ${id}`)}">`;
+  const text = col.kind === "str";
+  td.innerHTML = `<input class="cell-in"${text ? ' list="cell-opts"' : ""} aria-label="${esc(`${column} of ${TBL.name} ${id}`)}">`;
   const input = td.querySelector("input");
   input.value = current == null ? "" : String(current);
-  // Escape closes it at once; a blur closes it unless the input has the focus back (a refused entry re-focuses it).
-  const close = (now = false) => {
-    if (editing !== me || me.busy || (!now && document.activeElement === input)) return;
+  if (text) {
+    fillOptions(cellOptions(col, null)); // the spec's values before the column's arrive
+    columnOptions(col).then(opts => {
+      if (editing !== me) return;
+      if (!opts.listLike) { fillOptions(opts.values); return; }
+      td.insertAdjacentHTML("beforeend", '<span class="cell-hint">comma-separated</span>');
+      const complete = () => fillOptions(listOptions(input.value, opts.values));
+      input.oninput = complete;
+      complete();
+    }).catch(fail);
+  }
+  const close = () => {
+    if (editing !== me || me.busy) return;
     td.innerHTML = me.html;
     editing = null;
     if (dirty) refreshRows();
   };
-  input.onclick = e => e.stopPropagation();
-  input.oncontextmenu = e => e.stopPropagation(); // the browser's own menu (paste) inside the input, not the row menu
-  input.onblur = () => setTimeout(close, 150);
-  input.onkeydown = async e => {
-    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(true); return; }
-    if (e.key !== "Enter" || me.busy) return;
-    e.preventDefault();
+  // Send the typed text as one EditCells action (Enter and leaving share this). A refusal, before or from the
+  // server, keeps the editor open with the text and the focus back in it.
+  const apply = async () => {
+    if (me.busy) return;
     let action;
     try { action = cellAction({ table: TBL.name, ids: [id], column, raw: input.value, current: cellSample(current, col.kind) }); }
-    catch (err) { toast(err.message); return; }
+    catch (err) { me.refused = input.value; toast(err.message); input.focus(); return; }
     me.busy = true; input.disabled = true;
     try {
       await dispatch(action);
       if (editing === me) editing = null; // the edit bumps the version: rows reload with the new value and warnings
       refreshRows();
     } catch (err) {
-      me.busy = false; input.disabled = false;
+      me.busy = false; me.refused = input.value; input.disabled = false;
       toast(err.message);
       if (editing === me) input.focus();
     }
+  };
+  // Leaving the cell (after a grace, unless the input has the focus back: a refusal re-focuses it) applies changed
+  // text, or just closes the editor when the text is unchanged or was already refused as it stands.
+  const leave = () => {
+    if (editing !== me || me.busy || document.activeElement === input) return;
+    if (shouldApplyOnLeave(input.value, current) && input.value !== me.refused) apply();
+    else close();
+  };
+  input.onclick = e => e.stopPropagation();
+  input.oncontextmenu = e => e.stopPropagation(); // the browser's own menu (paste) inside the input, not the row menu
+  input.onblur = () => setTimeout(leave, 150);
+  input.onkeydown = e => {
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); return; }
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    apply();
   };
   input.focus();
   input.select();

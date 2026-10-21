@@ -195,6 +195,16 @@ def test_fk_cells_link_to_their_target():
     assert 'class="fk' in table and "jumpTo(" in table and "stopPropagation" in table  # an FK click is not a row click
 
 
+def test_text_cells_edit_with_a_datalist_of_allowed_values():
+    html = (STATIC_DIR / "index.html").read_text()
+    table = (JS_DIR / "table.js").read_text()
+    assert 'id="cell-opts"' in html and "<datalist" in html
+    assert 'list="cell-opts"' in table and "cellOptions(" in table and "distinct" in table
+    assert 'icon("alert-triangle"' in table and '"warn"' in table  # a warned cell is outlined and carries the icon
+    assert "shouldApplyOnLeave(" in table and "onblur" in table  # leaving a cell applies changed text
+    assert "#tbl-grid td.warn" in (STATIC_DIR / "app.css").read_text()
+
+
 def test_related_module_feeds_the_map_and_the_rail():
     related = (JS_DIR / "related.js").read_text()
     assert '"related"' in related and "rel-badge" in related

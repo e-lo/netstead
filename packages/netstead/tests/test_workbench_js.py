@@ -508,6 +508,32 @@ def test_only_non_key_scalar_cells_are_edited_in_place(node_module):
     assert node_module("editmodel.js", ["cellEditable"], expr) == [False, True, False, True, False]
 
 
+def test_cell_options_offer_the_spec_values_then_the_existing_ones(node_module):
+    expr = '[cellOptions({enum: ["b", "a"]}, ["b", "c"]), cellOptions({enum: null}, ["z", "y"]), cellOptions({}, null)]'
+    assert node_module("editmodel.js", ["cellOptions"], expr) == [["a", "b", "c"], ["y", "z"], []]
+
+
+def test_list_options_complete_the_last_token_of_a_comma_list(node_module):
+    expr = (
+        '[listOptions("", ["auto", "bike"]), listOptions("auto, b", ["auto", "bike"]),'
+        ' listOptions("auto,", ["auto", "bike"])]'
+    )
+    assert node_module("editmodel.js", ["listOptions"], expr) == [
+        ["auto", "bike"],
+        ["auto, auto", "auto, bike"],
+        ["auto,auto", "auto,bike"],
+    ]
+
+
+def test_leaving_a_cell_applies_only_changed_text(node_module):
+    expr = (
+        '[shouldApplyOnLeave("none", "none"), shouldApplyOnLeave(" none ", "none"),'
+        ' shouldApplyOnLeave("angle", "none"), shouldApplyOnLeave("", null), shouldApplyOnLeave("", "none"),'
+        ' shouldApplyOnLeave("30", 30)]'
+    )
+    assert node_module("editmodel.js", ["shouldApplyOnLeave"], expr) == [False, False, True, False, True, False]
+
+
 def test_an_empty_cell_parses_by_its_column_kind(node_module):
     expr = '[cellSample(null, "num"), cellSample(null, "bool"), cellSample(null, "str"), cellSample(3, "str")]'
     assert node_module("editmodel.js", ["cellSample"], expr) == [0, False, "", 3]
