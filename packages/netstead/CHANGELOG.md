@@ -152,6 +152,15 @@ This file is for the **netstead** package only. The underlying generic engine `c
   codes on one line, and the `package source '…': ` lead-in is dropped from
   every message. Its page title is now `validation report` with the source in
   the subtitle. `--json` is unchanged.
+- **Workbench table filters: token and range operators, distinct values, spec
+  enums.** The filter language (the table rows routes and the `Filter` action)
+  gains `any_of`, `all_of` and `none_of`, which match a list of values against
+  a comma-separated cell such as `link.allowed_uses` (`"auto"` matches
+  `"auto,truck,walk,bike"`), and `between`, an inclusive `[low, high]` numeric
+  range. `GET .../table/{table}/distinct?col=<name>&limit=200` lists a column's
+  distinct values (its comma-split tokens when `list_like`, at most 500), and
+  the table schema route gives each column its spec `enum` (or `null`). This
+  is the server side of the column-filter popovers; the UI follows.
 - **Quality rule `quality.overlapping_links`** ([#5](https://github.com/e-lo/netstead/issues/5)).
   Flags pairs of links whose shapes share a stretch longer than
   `min_overlap_units` (default `0`, in CRS units), such as a link drawn on top of

@@ -19,7 +19,7 @@ from typing import Any, Literal
 
 import duckdb
 import pandas as pd
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, HTTPException, Query, Response
 from ibis.common.exceptions import IbisTypeError
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -32,6 +32,7 @@ from netstead.viz.tables import (
     KeyTypeError,
     coerce_keys,
     column_dtype,
+    distinct_values,
     locate_row,
     page_table,
     parse_ids,
@@ -48,6 +49,7 @@ from ..related import (
     Relation,
     RelationGraph,
     count,
+    field_enums,
     ids_of,
     relate,
     relation_graph,
@@ -264,7 +266,7 @@ def network_router(session: Session) -> APIRouter:
     def table_schema_ep(net_id: str, component: str, table_name: str) -> dict[str, Any]:
         h = handle(net_id, component)
         g = graph(h)
-        payload = table_schema(table_name, table(h, table_name))
+        payload = table_schema(table_name, table(h, table_name), field_enums(h.roadway.spec, table_name))
         payload["primary_key"] = g.pks.get(table_name)
         payload["foreign_keys"] = [
             {
@@ -277,6 +279,15 @@ def network_router(session: Session) -> APIRouter:
             if fk.table == table_name
         ]
         return payload
+
+    @router.get("/table/{table_name}/distinct")
+    def table_distinct(
+        net_id: str, component: str, table_name: str, col: str, limit: int = Query(default=200, ge=1)
+    ) -> dict[str, Any]:
+        """The distinct values of one column (a column filter's value list); ``limit`` is capped at MAX_LIMIT."""
+        h = handle(net_id, component)
+        with _bad_request():
+            return distinct_values(table(h, table_name), col, limit=limit)
 
     @router.get("/table/{table_name}/rows")
     def table_rows(
