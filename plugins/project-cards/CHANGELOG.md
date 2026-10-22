@@ -22,6 +22,13 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
   network, the cards applied (with their edit ids), the draft, and this plugin's Actions in order, as plain text.
 - `GET /api/plugins/project_cards/catalog` lists the open catalog and checks up to 50 unchecked cards per request.
 - Needs Host API 1.7 (`host.readable`, `host.list_dir`, `host.history`).
+- **The Cards panel has four sections.** *Catalog*: a folder path with Open and a rescan button, then each card with
+  its applicability badge (`✓` applies, `✗` does not, with the reasons or missing ids on hover, `?` not checked yet),
+  project, change count and tags, and Preview (the card's links highlighted on the map), Apply… (a dialog for
+  `existing_value_conflict` and `ignore_missing`, pre-checked only when the check found missing ids) and Details
+  (each change's check); files that are not cards are under "Not cards (n)". *Draft*: the compose, draft and commit
+  UI as before. *Applied this session*: the cards committed or applied, newest first, with their source.
+  *Session summary*: Copy and Download (`<network>-cards-session.txt`).
 
 ### Changed
 

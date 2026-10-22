@@ -517,6 +517,7 @@ export function activate(wb) {
 | `wb.on(event, fn)` | Your own `host.publish(event, payload)` events (`"greeted"`), another plugin's (`"catalog.added"`), or core's (`"core.history"`, `"core.job"`). They arrive over the page's one event stream: never open your own `EventSource`. Returns an unsubscribe function. |
 | `wb.showPanel(id)` | Shows a panel, switching workspace when the current one doesn't have it. |
 | `wb.toast(message)` | A short notice, prefixed with your plugin id. |
+| `wb.highlight({links})` | Replaces the page's highlighted links (the highlight tool's cyan links, listed in the Find panel) with `links`; `wb.highlight()` clears them. Nodes are not highlighted by core yet (`nodes` is accepted and ignored). |
 
 `GET /api/actions` lists every registered Action: `type`, class `name`, `description` (its
 docstring's first line), owning `plugin` (`null` for core), `mutates`, `assistant` (whether the NL assistant may ever offer it), and its JSON `schema`.

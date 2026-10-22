@@ -147,3 +147,73 @@ export function commitView(check) {
     button: n ? "Commit anyway" : "Commit",
   };
 }
+
+// ---------------------------------------------------------------------------------------------------- the catalog
+
+// The open catalog as state() reports it ({path, cards, rejected}), or null.
+export const catalogOf = state => cards(state).catalog || null;
+
+// The first few ids, and how many more (as the server's `few`).
+export function fewIds(ids, n = 5) {
+  const items = [...(ids || [])];
+  const shown = items.slice(0, n).join(", ");
+  return items.length > n ? `${shown} (+${items.length - n} more)` : shown;
+}
+
+// Every id a card's check found missing, across its changes.
+export const missingIds = applicability => ((applicability && applicability.changes) || []).flatMap(c => c.missing || []);
+
+// The badge for a card's applicability (the /catalog listing's, `null` until checked): `✓` applies, `✗` does not
+// (`tip` names each change's reason or missing ids), `?` not checked yet.
+export function applicabilityBadge(applicability) {
+  if (!applicability) return { badge: "?", tip: "Not checked yet" };
+  if (applicability.ok) return { badge: "✓", tip: `Applies to ${applicability.net_id}` };
+  const problems = (applicability.changes || [])
+    .filter(c => c.reason || (c.missing && c.missing.length))
+    .map(c => `${c.describe}: ${c.reason || `missing ${fewIds(c.missing)}`}`);
+  return { badge: "✗", tip: problems.join("\n") || "Does not apply" };
+}
+
+// The catalog's cards as the panel lists them: one row per card, with its badge, in the listing's order. `catalog`
+// is the listing to show (by default the one in `state`): the /catalog route's answer carries fresher checks.
+export function catalogRows(state, catalog = catalogOf(state)) {
+  return ((catalog && catalog.cards) || []).map(entry => ({
+    card_id: entry.card_id,
+    path: entry.path,
+    project: entry.project || entry.card_id,
+    changes: entry.change_count || 0,
+    tags: entry.tags || [],
+    applicability: entry.applicability || null,
+    ...applicabilityBadge(entry.applicability),
+  }));
+}
+
+// What the Apply… dialog starts with: conflicts are errors (as a card says), and missing ids are ignored only when
+// the check found some (a card refused for a reason is not helped by ignoring ids).
+export function applyDefaults(entry) {
+  const applicability = entry ? entry.applicability : null;
+  const ignore = Boolean(applicability && !applicability.ok && missingIds(applicability).length > 0);
+  return { existing_value_conflict: "error", ignore_missing: ignore };
+}
+
+// "2026-10-21T14:03:00+00:00" -> "14:03" (the applied list shows the time of day; the summary has the full stamp).
+export const clockTime = iso => {
+  const m = /T(\d{2}:\d{2})/.exec(String(iso || ""));
+  return m ? m[1] : String(iso || "");
+};
+
+// The cards applied this session, newest first, with the time of day they were applied.
+export function appliedRows(state) {
+  return [...(cards(state).applied || [])].reverse().map(a => ({
+    card_id: a.card_id,
+    net_id: a.net_id,
+    project: a.project || a.card_id,
+    source: a.source,
+    changes: a.changes || 0,
+    applied_at: a.applied_at,
+    time: clockTime(a.applied_at),
+  }));
+}
+
+// The file name the session summary downloads as.
+export const summaryFileName = netId => `${netId || "network"}-cards-session.txt`;

@@ -17,6 +17,11 @@ network's draft card (badged with its count of uncommitted changes), and **Undo 
 **Commit…** shows the live edit warnings (confirmed with **Commit anyway**) and the card's YAML, then writes the card
 atomically inside `io.allowed_roots`. **Import** applies a card, or the offline report's edit log, all or nothing.
 
+The **Cards** panel has four sections, in order: **Catalog** (open a folder of cards; each card shows `✓` / `✗` / `?`
+for whether it applies to the open network, with **Preview**, **Apply…** and **Details**; files that are not cards
+are listed under "Not cards"), **Draft** (the compose, draft and commit UI above), **Applied this session** (cards
+committed or applied, newest first, marked `committed` or `catalog`) and **Session summary** (Copy and Download).
+
 The library the Workbench pieces build on:
 
 - **The change model** (`netstead_project_cards.types`): one pydantic record per ProjectCard change type

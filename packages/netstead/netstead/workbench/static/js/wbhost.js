@@ -89,6 +89,9 @@ export function createWb(pluginId, deps) {
     on(name, fn) { open(); return track(deps.events.on(eventName(pluginId, name), safe(fn, `event ${name}`))); },
     showPanel: id => deps.dock.showPanel(id),
     toast: message => deps.toast(`${pluginId}: ${message}`),
+    // Replace the page's highlights (the cyan links of the highlight tool, the Find panel's list) with `links`;
+    // `highlight()` clears them. Core highlights links only: `nodes` is accepted and ignored for now.
+    highlight({ links = [] } = {}) { deps.store.set({ highlights: new Set(links) }); },
   };
   const rollback = () => {
     closed = true;
