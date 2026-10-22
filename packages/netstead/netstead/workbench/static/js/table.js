@@ -331,6 +331,7 @@ function query() {
 }
 
 async function loadRows() {
+  if (!TBL.name) return; // no table picked yet (a state push can land before the first one is chosen)
   const seq = ++TBL.seq;
   const j = await postJSON(tablePath("rows"), query());
   if (seq !== TBL.seq) return; // superseded by a newer request
