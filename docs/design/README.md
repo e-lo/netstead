@@ -74,6 +74,7 @@ architecture.md and this index in the same PR.
 | [Project cards plugin (ProjectCard authoring)](2026-10-19-cards-plugin-plan.md) | cards scope | implemented (#228, #229, #237) | #228, #229, #237 |
 | [Workbench P2: validate + edit (core only)](2026-10-07-workbench-p2-plan.md) | Workbench design | implemented | #225 |
 | [Workbench P3: selection verification (P3a) + NL assistant (P3b)](2026-10-16-workbench-p3-plan.md) | Workbench design | implemented | #226, #227 |
+| [Workbench beta feedback](2026-10-20-workbench-beta-feedback-plan.md) | Workbench design | implemented (PR pending) | (PR pending) |
 
 ### Scopes
 
@@ -91,7 +92,6 @@ Records on a branch go here, then move to the tables above when they merge.
 
 | Record | Kind | Branch | Status | Notes |
 |---|---|---|---|---|
-| [Workbench beta feedback](2026-10-20-workbench-beta-feedback-plan.md) | plan | `feat/workbench-beta-feedback` | accepted | 20 beta-feedback items from the 2026-10-20 quickstart walk: rendering fixes, filters, categorical edits, grouped validation findings, panel restructure, Cards panel with catalog (Host API 1.7) |
 
 ## Gaps to close
 

@@ -28,18 +28,18 @@ uv run netstead app
 ```
 
 An installed plugin is enabled: there is nothing to switch on. **Settings → Plugins** lists *Project cards* as
-loaded, with its version and the plugin API it needs (1.5). If it shows an error instead, the rest of the Workbench
+loaded, with its version and the plugin API it needs (1.7). If it shows an error instead, the rest of the Workbench
 still runs (see [Write a Workbench plugin](workbench-plugins.md#startup-outcomes)).
 
 ## Step-by-step
 
-1. **Select links.** Type a request such as "Benton Street" in the command bar. Or turn on **Highlight links** (▯ on
-   the map), click links or shift-drag a box over them, then press **Set as selection** under **Highlighted links**
-   in the **Details** panel. A click alone only focuses a link: it never changes the selection.
-2. **Pick a change.** Right-click the selection (or open **Selection actions ▾** in the **Selection** panel) and
+1. **Select links.** Type a request such as "Benton Street" in the **Find** tab's box. Or turn on **Highlight
+   links** (▯ on the map), click links or shift-drag a box over them, then press **Set as selection** under
+   **Highlighted links** in the **Find** tab. A click alone only focuses a link: it never changes the selection.
+2. **Pick a change.** Right-click the selection (or open **Selection actions ▾** in the **Find** tab) and
    choose **New change ▸ Property change** or **New change ▸ Deletion**. **New change ▸ Addition** adds a link, and
    optionally a new end node, without a selection, so it is only in the command palette (**Ctrl+K**, **⌘K** on a
-   Mac). The **Card** dock panel opens with the form.
+   Mac). The **Cards** dock tab opens with the form, in its **Draft** section.
 3. **Fill in the form.** The panel says what the change applies to ("1 picked link", or "4 links matching
    {"name": ["Benton Street"]}").
     - **Property change:** one field per column, titled with its current value when every selected link agrees
@@ -60,12 +60,12 @@ still runs (see [Write a Workbench plugin](workbench-plugins.md#startup-outcomes
    A second preview replaces the first. If the network changes while you preview, the panel says so: preview again
    to see it.
 5. **Add to card** applies the change to the network (never to the preview, which then closes) and lists it in the
-   draft card. Core's **Edits** panel lists it too, with `project_cards` as its source, and the live checks run as
+   draft card. Core's **Edit** tab lists it too, with `project_cards` as its source, and the live checks run as
    they do for any edit. Each change is one step: all of it applies, or none of it. **Cancel** closes the form and
    any preview. If the selection changes while a Property change or Deletion form is open, the form says it is out
    of date and **Preview** and **Add to card** wait until you press **Reload form**, which reads it again for the
    new selection.
-6. **Watch the badge.** The **Card** panel's tab shows the number of uncommitted changes with a dirty dot; its
+6. **Watch the badge.** The **Cards** tab shows the number of uncommitted changes with a dirty dot; its
    workspace tab shows the dot. The draft belongs to the network: switch networks and the panel shows that network's
    draft.
 7. **Commit.** Under **Commit**, give the card a **Project name**, optional **Tags** (comma separated) and a
@@ -78,10 +78,10 @@ still runs (see [Write a Workbench plugin](workbench-plugins.md#startup-outcomes
       ProjectCard yet: …").
 
     The file is written atomically: a failed write leaves an existing file as it was, and an existing file is
-    replaced only when **Replace an existing file** is ticked. When a `catalog` plugin is installed, the card is
-    also added to it (`catalog.add_card`). A new, empty draft then starts.
+    replaced only when **Replace an existing file** is ticked. When a catalog is open on the same folder, the card
+    is listed in it too (**Refresh** rescans). A new, empty draft then starts.
 
-Committing writes the card, not the network: the edits stay pending in the **Edits** panel until you save the
+Committing writes the card, not the network: the edits stay pending in the **Edit** tab until you save the
 network, as with any edit.
 
 ### Undo
@@ -91,7 +91,38 @@ draft's newest change, network edits included. A deletion with **Also delete end
 undone. Committed cards are not undone.
 
 Core and the plugin each undo only their own edits. Core's **Undo** won't take back a card change, and the plugin's
-undo refuses when the network's newest edit is one you made yourself: undo that one first, in the **Edits** panel.
+undo refuses when the network's newest edit is one you made yourself: undo that one first, in the **Edit** tab.
+
+## Use a card catalog
+
+A **catalog** is a folder of existing ProjectCard files you check against the open network, preview and apply —
+distinct from the draft you build above.
+
+- **Open a catalog.** In the **Cards** tab's **Catalog** section, give a folder path (inside `io.allowed_roots`)
+  and press **Open**, or set `[plugins.project_cards] catalog_dir` so it opens automatically when the session
+  starts (see the [Settings reference](../reference/settings.md)). The folder is
+  scanned non-recursively, plus one level of sub-folders, for `.yml` / `.yaml` / `.json` card files; files that
+  are not cards are listed with why not. **Refresh** rescans (new, changed and removed files).
+- **Applicability badges.** Each listed card shows `✓` (it applies cleanly to the network as it is now), `✗`
+  (some ids are missing, or a change can't be applied — hover for the reason), or `?` (not checked yet; the
+  panel checks up to 50 unchecked cards per request). A query selection with no netstead provenance reads and
+  lists fine, but is refused when applying: "query without provenance; re-resolution not supported".
+- **Preview** shows every change of the card on a copy of the network (as in step 4 above) and highlights the
+  links and nodes it targets on the map, so you can see what it touches before committing to it.
+- **Apply…** applies the card to the network, all or nothing, through the same path as a draft change — no file
+  is written, since the card already exists. Its dialog offers **If a current value differs when the card is
+  applied** (`existing_value_conflict`: error / warn / skip) and, for a `✗` card, **ignore missing ids**: with it
+  checked, a missing id is skipped and listed instead of refusing the whole card.
+- **Applied this session** lists every card applied this session, from the catalog or committed from the draft,
+  with its project name, change count and edit ids.
+- **Session summary** builds a plain-text summary (network, source, spec version; the applied cards with their
+  edit ids; the draft, if any; and this plugin's actions in order, each ok or failed) with **Copy** and
+  **Download** buttons. `GET /api/plugins/project_cards/summary.txt` serves the same text.
+
+From Python: `project_cards.open_catalog(path)`, `project_cards.refresh_catalog()`, `project_cards.check_card
+(card_id)`, `project_cards.preview_card(card_id)`, `project_cards.apply_card(card_id, existing_value_conflict=
+..., ignore_missing=...)` and `project_cards.session_summary()` — see [From Python](#from-python) below for the
+Action names. Needs Host API 1.7 (`host.readable`, `host.list_dir`, `host.history`).
 
 ### Import a card
 
@@ -112,8 +143,10 @@ Import refuses:
 - **TOML cards**: `projectcard` 0.3.3 can't read them. Use YAML or JSON.
 - **Transit changes**, `pycode` and `roadway_managed_lanes`.
 - **A query selection without netstead provenance.** A card that selects links by a query (`name`, `ref`, …) is
-  applied to the link ids recorded in its notes, so only cards that the plugin wrote can be imported this way.
-  Re-resolving a query on another version of the network is planned for later.
+  applied to the link ids recorded in its notes, so only cards that the plugin wrote can be imported this way. One
+  with no provenance reads fine (it is an unresolved selection), but import and apply refuse the change: "query
+  without provenance; re-resolution not supported". Re-resolving a query on another version of the network is
+  planned for later.
 - **A deletion that doesn't select by id** (`model_link_id` / `model_node_id`).
 
 ## What goes in the card
@@ -178,6 +211,12 @@ copied lines import from `netstead_project_cards.actions`:
 | `project_cards.close_preview` (`ClosePreview`) | Close the preview. |
 | `project_cards.commit` (`CommitCard`) | Write the draft as a card file and start a new draft. |
 | `project_cards.import` (`ImportCard`) | Apply a card or edit log to the draft, all or nothing. |
+| `project_cards.open_catalog` (`OpenCatalog`) | Open a folder of card files as the catalog. |
+| `project_cards.refresh_catalog` (`RefreshCatalog`) | Rescan the open catalog's folder. |
+| `project_cards.check_card` (`CheckCard`) | Check whether a catalog card applies to the network now, without changing anything. |
+| `project_cards.preview_card` (`PreviewCard`) | Preview a catalog card's changes on a copy of the network. |
+| `project_cards.apply_card` (`ApplyCard`) | Apply a catalog card to the network, all or nothing; record it as applied. |
+| `project_cards.session_summary` (`SessionSummary`) | The session summary as plain text. |
 
 `session.dispatch` (or its alias `app.do`) runs them. A change targets the shared selection (`use_selection=True`),
 a saved selection (`saved_selection="<name>"`, Python and the assistant only), or names its own facility. This
@@ -281,7 +320,7 @@ refused as stale if the previewed network has changed since.
 
 ## See also
 
-- [Explore in the Workbench](workbench.md): selection, edits, the Edits panel, saving.
+- [Explore in the Workbench](workbench.md): selection, edits, the Edit tab, saving.
 - [Write a Workbench plugin](workbench-plugins.md): the plugin API this plugin is built on.
 - [Triage and fix findings](fix-findings.md): the offline report's edit log.
 - [projectcard](https://github.com/network-wrangler/projectcard): the ProjectCard schema and validator.

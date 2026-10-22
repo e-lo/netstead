@@ -5,6 +5,8 @@ kind: tutorial
 summary: What you see in the browser Workbench and why it matters — the linked map and table, selection and ambiguity, validation severities, edits and versions, replay as Python.
 ---
 
+<!-- screenshots: refresh after the beta-feedback PR merges -->
+
 # Visual tour
 
 This is the [Workbench quickstart](quickstart-workbench.md) told slowly: the same eight steps on the same
@@ -15,7 +17,7 @@ Python, is the [Python tour](python-tour.md).
 ## What you'll build
 
 ![Sixty-second walkthrough: open, select, validate, fix, replay](assets/screenshots/workbench-walkthrough.gif){ .screenshot }
-*Open, select, validate, fix, replay: the tour in a minute.*
+*Open, select, validate, fix, replay: the tour in a minute. (screenshot predates the panel restructure)*
 
 By the end you will be able to read the Workbench the way a modeler reads it: a GMNS network on a map, its
 tables beside it, a selection with a status you can trust, a validation report whose severities mean something,
@@ -33,7 +35,7 @@ page doesn't repeat the commands; if the install or the first run fails, see
 ### 1. A GMNS network on a map
 
 ![The Workbench with the Leavenworth network open](assets/screenshots/workbench-01-open.png){ .screenshot }
-*Leavenworth, WA: 339 links and 121 nodes, drawn from the `link`, `node` and `geometry` tables.*
+*Leavenworth, WA: 339 links and 121 nodes, drawn from the `link`, `node` and `geometry` tables. (screenshot predates the panel restructure)*
 
 What you see is a small, real street network: downtown Leavenworth, an OSM-derived grid about 2 km across,
 with Highway 2 along the south and residential streets fanning north. The header says what it is made of:
@@ -50,16 +52,16 @@ bounding box: the first thing to try whenever the map looks empty.
 ### 2. The linked table
 
 ![Split view: a link picked on the map, its row focused in the table](assets/screenshots/workbench-02-split.png){ .screenshot }
-*Split view. One record, three views: the link on the map, its row in the table, its attributes in Details.*
+*Split view. One record, three views: the link on the map, its row in the table, its attributes in Inspect. (screenshot predates the panel restructure)*
 
 **Split** puts the `link` table next to the map. The rail on the left of the table lists every table in the
 network with its row count: `link`, `node`, `geometry`, `lane`, `link_tod` and the rest. Click a link on the
 map and three things agree on which record you mean: the map outlines it, the table scrolls to and outlines
-its row, and **Details** lists its attributes. Click a row and the map flies to it.
+its row, and the **Inspect** tab comes forward and lists its attributes. Click a row and the map flies to it.
 
 What the linked table gives you is the half of a network that a map can't show. A speed, a lane count, a
-time-of-day override or a foreign key are table facts; the map can colour by one of them at a time (**Layers
-→ Color links by**), but the table shows them all, sortable and pageable, with the key columns (`from_node_id`,
+time-of-day override or a foreign key are table facts; the map can colour by one of them at a time (**Find →
+View → Color links by**), but the table shows them all, sortable and pageable, with the key columns (`from_node_id`,
 `geometry_id`) as links you can follow into the other tables. Rows a foreign key away from the focused record,
 such as the link's two end nodes or its lanes, are tinted in every table and on the map. GMNS is a relational
 spec, and the Workbench treats it as one.
@@ -70,10 +72,10 @@ selection, next, is the thing the Workbench records and can replay.
 ### 3. A selection you can read back
 
 ![Ski Hill Drive selected from the header box](assets/screenshots/workbench-03-select.png){ .screenshot }
-*Ski Hill Drive: 20 links, status `resolved`, and the GMNS selection fragment that names them.*
+*Ski Hill Drive: 20 links, status `resolved`, and the GMNS selection fragment that names them. (screenshot predates the panel restructure)*
 
-Type `Ski Hill Drive` into the header box and press **Select**. The resolver matches the phrase against the
-network's own street names, finds the facility, and marks its 20 links. The **Selection** panel shows three
+Type `Ski Hill Drive` into the **Find** tab's box and press **Select**. The resolver matches the phrase against
+the network's own street names, finds the facility, and marks its 20 links. The **Find** tab shows three
 things worth reading:
 
 - The **status**, `resolved`: the phrase mapped to one unambiguous set of links. Other statuses are
@@ -93,7 +95,7 @@ same either way.
 ### 4. What an ambiguous anchor means
 
 ![An ambiguous selection: candidate nodes for the anchor, as rings on the map](assets/screenshots/workbench-04-ambiguous.png){ .screenshot }
-*"Cherry Street between Prospect Street and West Center Street": the `to` anchor could be node 60 or node 61.*
+*"Cherry Street between Prospect Street and West Center Street": the `to` anchor could be node 60 or node 61. (screenshot predates the panel restructure)*
 
 Now select `Cherry Street between Prospect Street and West Center Street`. A "between" phrase has a facility
 (Cherry Street) and two **anchors**, the cross streets that bound the stretch; each anchor must resolve to one
@@ -115,11 +117,11 @@ didn't check by hand.
 
 ### 5. What validation severities mean
 
-![The Issues panel after Run validation](assets/screenshots/workbench-05-issues.png){ .screenshot }
-*After Run validation: 272 warnings and 16 info, and a dot on the map for every issue with a place.*
+![The Validate panel after Run validation](assets/screenshots/workbench-05-issues.png){ .screenshot }
+*After Run validation: 272 warnings and 16 info, and a dot on the map for every issue with a place. (screenshot predates the panel restructure)*
 
-**Run validation** in the **Issues** panel runs two kinds of check and lists them together, each with a
-severity:
+**Run validation** (the play icon in the **Validate** tab) runs two kinds of check and lists them together,
+each with a severity:
 
 - **error** — the network breaks the spec in a way a consumer can't work around: a required table or field is
   missing, a value has the wrong type, a foreign key points at a row that doesn't exist. Leavenworth has none.
@@ -136,16 +138,17 @@ that was checked. Spec checks are about whether the file is valid GMNS; quality 
 network is plausible, and they are configurable (**Settings → Validation**, keyed by rule code), so a region
 with 40 mph residential streets can raise the threshold instead of silencing the rule.
 
-Each located issue is a dot on the map, coloured by severity; click one in the list and the map flies to its
-link, Details shows the record, and the table scrolls to the row. Findings about a whole table, like the
-missing-resource notes, have no place on the map and sit under **Unlocated**. The filters (severity, table,
-code) carry counts, so `quality.high_speed_residential (271)` is one click away from being the only thing in
-the list.
+Each located issue is a dot on the map, coloured by severity; click one in the list (or its crosshair "zoom
+to" icon) and the map flies to its link, Inspect shows the record, and the table scrolls to the row. Findings
+about a whole table, like the missing-resource notes, have no place on the map; findings that share a code and
+differ only by resource are grouped into one row under a collapsed **Unlocated findings** block. The filters
+(severity, table, code) carry counts, so `quality.high_speed_residential (271)` is one click away from being
+the only thing in the list.
 
 ### 6. What an edit does to the network
 
-![Fixing a free_speed value from an issue; the Edits panel shows the pending edit](assets/screenshots/workbench-06-fix.png){ .screenshot }
-*Fix on an issue: the editor opens on the issue's column; Apply sends one edit; the Edits panel records it at v1.*
+![Fixing a free_speed value from an issue; the Edit tab shows the pending edit](assets/screenshots/workbench-06-fix.png){ .screenshot }
+*Fix on an issue: the editor opens on the issue's column; Apply sends one edit; the Edit tab records it at v1. (screenshot predates the panel restructure)*
 
 Press **Fix** on a `quality.high_speed_residential` issue. The editor opens on that record and that column
 (`link 1 · free_speed`), prefilled with `40`, and with the issue as the edit's note, which you can replace
@@ -157,13 +160,14 @@ Three things happen, and each is visible:
   memory only; nothing on disk is touched until you save a copy, and the source is never overwritten. The
   version is what the rest of the Workbench keys on: the map and table redraw for `v1`, the stored validation
   is marked stale (`the network changed since: re-run`), and a delete planned on `v0` would be refused.
-- **The edit log grows.** The **Edits** panel lists `#1 link 1: free_speed = 35.0 (Residential street: posted
+- **The edit log grows.** The **Edit** tab lists `#1 link 1: free_speed = 35.0 (Residential street: posted
   35 mph)`, with the rows it touched (`1 link`) and the version it produced (`v1`), and says `1 unsaved`; the
-  network picker says the same. **Undo last** reverses the newest edit; undo is last-in, first-out and is
-  itself recorded (`app.do(UndoEdit())`).
+  network picker says the same, and the header's validity light turns amber-outlined. The undo icon reverses
+  the newest edit; undo is last-in, first-out and is itself recorded (`app.do(UndoEdit())`). A redo icon beside
+  it would reapply that edit (`app.do(RedoEdit())`) until any other change clears it.
 - **The edited rows are re-checked at once.** A value the spec disagrees with, such as a foreign key to a row
-  that doesn't exist or a required field left empty, is applied anyway and listed under **Edit warnings** at the
-  top of the Issues panel with its own **Fix**, so you can put it right where you found it. A speed of 35 raises
+  that doesn't exist or a required field left empty, is applied anyway and listed under **Edit warnings** in
+  the **Edit** tab with its own **Fix**, so you can put it right where you found it. A speed of 35 raises
   no warning, so the count stays at 0.
 
 Why it matters: an edit in the Workbench is a typed action with a note, a version and an undo, not a cell
@@ -172,11 +176,12 @@ changed in a spreadsheet. That is what makes the next two steps possible.
 ### 7. What "Session as Python" is for
 
 ![Session as Python: the whole session as a replayable script](assets/screenshots/workbench-07-python.png){ .screenshot }
-*Every action you took, as the script that repeats it.*
+*Every action you took, as the script that repeats it. (screenshot predates the panel restructure)*
 
-The strip at the bottom of the window shows the last action as Python; **Session as Python** shows the whole
-session as one script: the imports, `app = Session()`, and one `app.do(...)` line per action, from
-`OpenNetwork(source=...)` through `Select`, `PinAnchor`, `RunValidation`, `EditCells` and `UndoEdit`.
+The strip at the bottom of the window shows the last action as Python; the code icon in the footer (tooltip
+"Copy session as Python") shows the whole session as one script: the imports, `app = Session()`, and one
+`app.do(...)` line per action, from `OpenNetwork(source=...)` through `Select`, `PinAnchor`, `RunValidation`,
+`EditCells` and `UndoEdit`.
 
 It exists because clicking is a bad way to document work. The script is the record of what you did to the
 network, in the form a reviewer can read, a colleague can run on the next quarter's network, and a CI job can
@@ -188,13 +193,13 @@ so a fresh `Session()` needs it in `io.allowed_roots` (see
 ### 8. Saving a copy, and what stays the same
 
 ![Save a copy: the edited network written to a new folder](assets/screenshots/workbench-08-save.png){ .screenshot }
-*Save a copy as a Parquet folder. The source folder is never written to.*
+*Save a copy as a Parquet folder. The source folder is never written to. (screenshot predates the panel restructure)*
 
-**Edits → Save a copy** writes the network as it is now (`v1`, with your fix) to a **new** folder or file:
-name it, choose Parquet, CSV, DuckDB or Zip, and pick a folder inside your home directory with **Choose
-folder…** and **Use this folder**. The save is a job; when it finishes a toast says where the copy went and
-which tables differ from the source, the edit is marked `saved` in the Edits panel, and the unsaved badge
-clears.
+The **Save** icon in the header opens a dialog that writes the network as it is now (`v1`, with your fix) to
+a **new** folder or file: name it, choose Parquet, CSV, DuckDB or Zip, and pick a folder inside your home
+directory with **Choose folder…** and **Use this folder**, then **Save**. The save is a job; when it finishes
+a toast says where the copy went and which tables differ from the source, the edit is marked `saved` in the
+Edit tab, and the unsaved badge clears.
 
 What stays the same is the network you opened. The Workbench never writes to its source, local or remote, and
 never overwrites an existing copy, so an afternoon of edits can't damage the file you started from. Open
