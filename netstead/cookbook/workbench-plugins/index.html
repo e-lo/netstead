@@ -1,0 +1,3966 @@
+<!DOCTYPE html><html lang="en" class="no-js"><head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Python toolkit for the General Modeling Network Specification — load, validate, scope, edit GMNS networks at regional scale, with CLI / notebook / HTTP / MCP surfaces.">
+      
+      
+      
+        <link rel="canonical" href="https://e-lo.github.io/netstead/netstead/cookbook/workbench-plugins/">
+      
+      
+        <link rel="prev" href="../workbench/">
+      
+      
+        <link rel="next" href="../workbench-project-cards/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Write a Workbench plugin - netstead documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  <link href="../../assets/stylesheets/glightbox.min.css" rel="stylesheet"><script src="../../assets/javascripts/glightbox.min.js"></script><style id="glightbox-style">
+            html.glightbox-open { overflow: initial; height: 100%; }
+            .gslide-title { margin-top: 0px; user-select: text; }
+            .gslide-desc { color: #666; user-select: text; }
+            .gslide-image img { background: white; }
+            .gscrollbar-fixer { padding-right: 15px; }
+            .gdesc-inner { font-size: 0.75rem; }
+            body[data-md-color-scheme="slate"] .gdesc-inner { background: var(--md-default-bg-color); }
+            body[data-md-color-scheme="slate"] .gslide-title { color: var(--md-default-fg-color); }
+            body[data-md-color-scheme="slate"] .gslide-desc { color: var(--md-default-fg-color); }
+        </style></head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="green">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#write-a-workbench-plugin" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="netstead documentation" class="md-header__button md-logo" aria-label="netstead documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"></path></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"></path></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            netstead documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Write a Workbench plugin
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="green" aria-label="Switch to dark mode" type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden="">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 6H7c-3.31 0-6 2.69-6 6s2.69 6 6 6h10c3.31 0 6-2.69 6-6s-2.69-6-6-6m0 10H7c-2.21 0-4-1.79-4-4s1.79-4 4-4h10c2.21 0 4 1.79 4 4s-1.79 4-4 4M7 9c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3"></path></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="green" data-md-color-accent="green" aria-label="Switch to light mode" type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden="">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 7H7a5 5 0 0 0-5 5 5 5 0 0 0 5 5h10a5 5 0 0 0 5-5 5 5 0 0 0-5-5m0 8a3 3 0 0 1-3-3 3 3 0 0 1 3-3 3 3 0 0 1 3 3 3 3 0 0 1-3 3"></path></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required="">
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"></path></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard="" data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"></path></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix="">
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/e-lo/netstead" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"></path></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../quickstart/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Quickstart: Python
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../quickstart-workbench/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Quickstart: Workbench
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../install/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Install and troubleshoot
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../what-is-gmns/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  What is GMNS?
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../visual-tour/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Visual tour
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../python-tour/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Python tour
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../workbench-and-other-tools/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  The Workbench and other tools
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../roadmap/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Status and roadmap
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../changelog/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Changelog
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="../" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Cookbook
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../reference/api/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../migration/v0.3-to-v1.0/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Migration v0.3 → v1.0
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="https://e-lo.github.io/netstead/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  « Netstead umbrella
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="https://e-lo.github.io/netstead/corral/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  corral site »
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="netstead documentation" class="md-nav__button md-logo" aria-label="netstead documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"></path></svg>
+
+    </a>
+    netstead documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/e-lo/netstead" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"></path></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix="">
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart: Python
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart-workbench/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart: Workbench
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Install and troubleshoot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../what-is-gmns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What is GMNS?
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../visual-tour/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visual tour
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python-tour/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python tour
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../workbench-and-other-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Workbench and other tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Status and roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" checked="">
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cookbook
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_11" id="__nav_11_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Cookbook
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11_1">
+        
+          
+          <label class="md-nav__link" for="__nav_11_1" id="__nav_11_1_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Validate and fix
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_11_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Validate and fix
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../validate-network/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Validate a network
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../customise-quality/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Customise quality rules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fix-findings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Triage and fix findings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11_2">
+        
+          
+          <label class="md-nav__link" for="__nav_11_2" id="__nav_11_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build and scope
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_11_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Build and scope
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../build-from-osm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build from OpenStreetMap or Overture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scope-from-nodes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scope from seed nodes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11_3">
+        
+          
+          <label class="md-nav__link" for="__nav_11_3" id="__nav_11_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Query and edit
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_11_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Query and edit
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../query-and-update/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Query and update linked tables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../edit-with-rollback/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Edit with rollback
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11_4" checked="">
+        
+          
+          <label class="md-nav__link" for="__nav_11_4" id="__nav_11_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workbench
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_11_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_11_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Workbench
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../workbench/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Explore in the Workbench
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Write a Workbench plugin
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Write a Workbench plugin
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+      
+        <li class="md-nav__item">
+  <a href="#when-to-use-this" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When to use this
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-a-plugin-is" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a plugin is
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What a plugin is">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#trust-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Trust model
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-ux-contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The UX contract
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#walk-through-the-hello-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Walk through the hello example
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Walk through the hello example">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#actions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Actions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-plugin-object" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The plugin object
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Settings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#routes-and-front-end" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Routes and front end
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-host-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Host reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The Host reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#editing-networks-api-12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Editing networks (API 1.2)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#edit-ids-api-16" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Edit ids (API 1.6)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rolling-back-your-own-state-api-16" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rolling back your own state (API 1.6)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#your-actions-in-the-assistant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Your Actions in the assistant
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-front-end-activatewb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The front end: activate(wb)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The front end: activate(wb)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-wb-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The wb reference
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#badges" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Badges
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#map-layers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Map layers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#forms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Forms
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#styling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Styling
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#when-plugin-code-fails" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When plugin code fails
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#test-a-plugin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Test a plugin
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#startup-outcomes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Startup outcomes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#versioning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Versioning
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../workbench-project-cards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Author ProjectCards
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../local-llm-ollama/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local language models (Ollama)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11_5">
+        
+          
+          <label class="md-nav__link" for="__nav_11_5" id="__nav_11_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maps and reports
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_11_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Maps and reports
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../view-your-network/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    View a network on a map
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11_6">
+        
+          
+          <label class="md-nav__link" for="__nav_11_6" id="__nav_11_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Serve and automate
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_11_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Serve and automate
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../serve-http/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Self-host the HTTP server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../serve-mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Wire up the MCP server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../run-bench/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run the bench
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12">
+        
+          
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_12">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../spec-versions/development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GMNS development branch
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../spec-versions/local/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GMNS local spec (0.97)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/table-of-tables/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Table of tables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Settings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/workbench-actions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workbench Actions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/workbench-http-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workbench HTTP API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ai/mcp-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../gmns-data-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GMNS data model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../migration/v0.3-to-v1.0/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migration v0.3 → v1.0
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://e-lo.github.io/netstead/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    « Netstead umbrella
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://e-lo.github.io/netstead/corral/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    corral site »
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+      
+        <li class="md-nav__item">
+  <a href="#when-to-use-this" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When to use this
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-a-plugin-is" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a plugin is
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What a plugin is">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#trust-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Trust model
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-ux-contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The UX contract
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#walk-through-the-hello-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Walk through the hello example
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Walk through the hello example">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#actions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Actions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-plugin-object" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The plugin object
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Settings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#routes-and-front-end" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Routes and front end
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-host-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Host reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The Host reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#editing-networks-api-12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Editing networks (API 1.2)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#edit-ids-api-16" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Edit ids (API 1.6)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rolling-back-your-own-state-api-16" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rolling back your own state (API 1.6)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#your-actions-in-the-assistant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Your Actions in the assistant
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-front-end-activatewb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The front end: activate(wb)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The front end: activate(wb)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-wb-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The wb reference
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#badges" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Badges
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#map-layers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Map layers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#forms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Forms
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#styling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Styling
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#when-plugin-code-fails" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When plugin code fails
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#test-a-plugin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Test a plugin
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#startup-outcomes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Startup outcomes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#versioning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Versioning
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/e-lo/netstead/edit/main/packages/netstead/docs/cookbook/workbench-plugins.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75z"></path></svg>
+    </a>
+  
+  
+    
+      
+    
+    <a href="https://github.com/e-lo/netstead/raw/main/packages/netstead/docs/cookbook/workbench-plugins.md" title="View source of this page" class="md-content__button md-icon">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0 8a5 5 0 0 1-5-5 5 5 0 0 1 5-5 5 5 0 0 1 5 5 5 5 0 0 1-5 5m0-12.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5"></path></svg>
+    </a>
+  
+
+
+<h1 id="write-a-workbench-plugin">Write a Workbench plugin<a class="headerlink" href="#write-a-workbench-plugin" title="Permanent link"> ¶</a></h1>
+<h2 id="when-to-use-this">When to use this<a class="headerlink" href="#when-to-use-this" title="Permanent link"> ¶</a></h2>
+<p>You want the <a href="../workbench/">Workbench</a> to do something it doesn’t do yet, such as
+<a href="../workbench-project-cards/">authoring project cards</a>, managing a scenario catalog or running a domain check, and you
+don’t want to fork netstead to get it. A plugin is a separate pip package. Install it next to netstead and
+<code>netstead app</code> picks it up.</p>
+<p>For a full plugin built on this API (Actions with undo, routes, a dock panel, schema forms, a preview on a derived
+network), read the <code>netstead-project-cards</code> package in
+<a href="https://github.com/e-lo/netstead/tree/main/plugins/project-cards"><code>plugins/project-cards</code></a>.</p>
+<p>The plugin API is <strong>provisional until netstead v1.0</strong> (see <a href="#versioning">Versioning</a>).</p>
+<h2 id="what-a-plugin-is">What a plugin is<a class="headerlink" href="#what-a-plugin-is" title="Permanent link"> ¶</a></h2>
+<p>A plugin is a Python package that declares an entry point in the <code>netstead.workbench.plugins</code>
+group. The entry-point name must equal the plugin id, and it points at a zero-argument factory that
+returns a <code>netstead.workbench.plugins.WorkbenchPlugin</code>:</p>
+<div class="language-toml highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">[project.entry-points.</span><span class="s2">"netstead.workbench.plugins"</span><span class="k">]</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">hello</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"netstead_hello:plugin"</span>
+</span></code></pre></div>
+<p>At startup each <code>netstead app</code> session discovers the installed entry points, checks each plugin,
+and installs the ones that pass. A plugin that fails is recorded with its reason and skipped. It
+never stops the app (see <a href="#startup-outcomes">Startup outcomes</a>).</p>
+<h3 id="trust-model">Trust model<a class="headerlink" href="#trust-model" title="Permanent link"> ¶</a></h3>
+<p><strong>Plugins are full-trust code running inside the Workbench process</strong>, the same as pytest plugins.
+Nothing sandboxes them. A plugin can do anything your user account can do: read and write any
+file, call the network, and read the OS keyring. The <code>Host</code> API is the <em>supported</em> surface, not a
+security boundary. The <code>io.allowed_roots</code> sandbox that <code>host.writable</code> applies only helps plugins
+that choose to use it. Install only plugins you would also run as a script.</p>
+<p>The <code>--host 0.0.0.0</code> warning from <a href="../workbench/">Explore in the Workbench</a> applies with more force
+here. An exposed bind has no authentication, and every loaded plugin’s routes
+(<code>/api/plugins/&lt;id&gt;/...</code>) and Actions (<code>POST /api/actions</code>) are exposed with it. While the server
+binds to a loopback address, plugin routes sit behind the same <code>Host</code>-header and cross-origin
+write guards as every core route. Those guards do not run on an exposed bind.</p>
+<h2 id="the-ux-contract">The UX contract<a class="headerlink" href="#the-ux-contract" title="Permanent link"> ¶</a></h2>
+<p>The Workbench stays coherent only if every plugin follows the same rules. These are condensed from
+the design. Core enforces some of them and plugins are expected to follow the rest.</p>
+<ol>
+<li>
+<p><strong>Core owns the shared network nouns; plugins may own domain nouns.</strong> Core owns networks
+   (including derived networks and their lineage), the <strong>one shared selection</strong>, the map and
+   tables, jobs, history and settings. A plugin never forks the selection or brings a second map.
+   A plugin may add domain nouns of its own (a <em>card</em>, a <em>scenario</em>), and these follow three rules:</p>
+<ul>
+<li><strong>Namespaced and exposed.</strong> They live in plugin state (<code>plugins.&lt;id&gt;.*</code> in <code>/api/state</code>) and
+  change only through that plugin’s namespaced Actions, so other plugins, Python and NL can see
+  and act on them.</li>
+<li><strong>Projected onto core nouns, never duplicating them.</strong> A card <em>resolves to</em> a core selection
+  (highlighting it is an ordinary <code>Select</code>). A scenario <em>materializes as</em> a core derived
+  network, so the map, tables and validation work on it unchanged.</li>
+<li><strong>Referenceable by a stable id</strong> of the form <code>{plugin}:{kind}/{id}</code>, for example
+  <code>catalog:card/I80-hov-2035</code>, so history and “copy as Python” stay replayable.</li>
+</ul>
+<p><strong>Cross-plugin interaction is by Action.</strong> Check for the other plugin’s Action with
+<code>host.has_action("catalog.add_card")</code> and dispatch it, or fall back. That is a <em>soft</em>
+dependency, and core has no service registry. If you need another plugin’s Python API, declare
+a normal pip dependency on it.
+2. <strong>Selection → verb → form → preview → commit.</strong> The user selects, picks a verb, fills a form
+   prefilled from the selection, sees a preview on the map, and commits. Present your workflows in
+   this shape.
+3. <strong>Nothing mutates silently.</strong> Previews and scenarios are derived networks (<code>host.derive</code>) and
+   leave the base untouched. Make in-place changes (<code>host.mutate</code>) inside an Action handler: the
+   Action is recorded in history and replays in “copy as Python”, and if the handler fails the
+   change is undone. A <code>mutate</code> from anywhere else (a <code>submit_job</code> function, a plugin route) still
+   appears in history, as a <code>&lt;id&gt;.mutate</code> entry, but it can’t be replayed: the copied script shows
+   it only as a comment.
+4. <strong>Everything is an Action, plugins included.</strong> Plugin Action types are namespaced
+   (<code>&lt;id&gt;.&lt;name&gt;</code>) and get the same history, “copy as Python”, replay and HTTP dispatch as core
+   Actions.
+5. <strong>Schema-driven forms.</strong> Plugin Actions render from their JSON Schema through one core form
+   component (<code>wb.schemaForm</code>); every plugin Action also gets a generated form in the command
+   palette.
+6. <strong>Workspaces as tabs, with predictable placement.</strong> Plugins contribute workspaces, dock panels,
+   commands (palette and context menus; and, once opted in, the NL assistant: see below) and map layers. They
+   don’t add ad-hoc UI.
+7. <strong>Dirty state is always visible.</strong> Unsaved drafts, uncommitted cards and derived networks are
+   badged in the network switcher and on workspace tabs.
+8. <strong>Plugins are accountable.</strong> Every installed plugin reports its id, version, required API and
+   load error. A broken plugin degrades to “not loaded, with this error” and never takes down the
+   app.</p>
+</li>
+</ol>
+<h2 id="walk-through-the-hello-example">Walk through the <code>hello</code> example<a class="headerlink" href="#walk-through-the-hello-example" title="Permanent link"> ¶</a></h2>
+<p><a href="https://github.com/e-lo/netstead/tree/main/examples/workbench-plugin-hello"><code>examples/workbench-plugin-hello</code></a>
+is a complete plugin. Copy it as a starting point:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>examples/workbench-plugin-hello<span class="w">   </span><span class="c1"># needs the `server` extra, as `netstead app` does</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>uv<span class="w"> </span>run<span class="w"> </span>netstead<span class="w"> </span>app
+</span></code></pre></div>
+<h3 id="actions">Actions<a class="headerlink" href="#actions" title="Permanent link"> ¶</a></h3>
+<p>An Action is a module-level subclass of <code>netstead.workbench.plugins.BaseAction</code>. Its <code>type</code>
+field is a single-value <code>Literal</code> named <code>"&lt;plugin id&gt;.&lt;name&gt;"</code>:</p>
+<!-- doctest: skip -->
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">netstead.workbench.plugins</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseAction</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="k">class</span><span class="w"> </span><span class="nc">Greet</span><span class="p">(</span><span class="n">BaseAction</span><span class="p">):</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="nb">type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"hello.greet"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"hello.greet"</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+</span></code></pre></div>
+<p>Each Action is paired with its handler in a <code>netstead.workbench.plugins.ActionSpec</code>. The handler
+signature is <code>handler(host, action) -&gt; result</code>. It runs under the session lock. Its return value
+is what <code>session.dispatch</code> returns, and over HTTP it is the <code>result</code> field of the <code>POST /api/actions</code>
+response, next to <code>ok</code>, <code>error</code> and the recorded history <code>entry</code>. Raise
+<code>netstead.workbench.plugins.ActionError("…")</code> to refuse: the message is shown to the user and the
+Action is recorded as failed (<code>NotSupportedYet</code> for “not in this version”). Any other exception is
+recorded as an internal error (<code>InternalError</code>), with secrets scrubbed from its message. Set
+<code>mutates: ClassVar[bool] = True</code> on an Action that changes a network in place, so the assistant
+drafts it for the user to confirm instead of applying it. Plugin Actions can’t be <code>runs_as_job</code>. For slow work, call <code>host.submit_job</code>
+from the handler.</p>
+<p>Two rules keep “copy session as Python” working:</p>
+<ul>
+<li><strong>The class must be importable.</strong> Define it at the top level of a module (not in a function and
+  not in <code>__main__</code>), and give it a class name no core Action or other plugin uses. The copied
+  script imports it as <code>from &lt;its module&gt; import &lt;Class&gt;</code>. For the example that is
+  <code>from netstead_hello import Greet</code>.</li>
+<li><strong>Field values must round-trip through <code>repr</code>.</strong> The replay line is
+  <code>app.do(Greet(name='Ada'))</code>, built from <code>repr(value)</code> of each field. Use str, numbers, bools,
+  <code>None</code>, lists, dicts and tuples of those, or nested pydantic models. A value whose <code>repr</code> isn’t
+  valid Python (a numpy array, a datetime without an import, an open file) makes the copied script
+  fail.</li>
+</ul>
+<p>Two optional class variables shape the replay line:</p>
+<ul>
+<li><strong><code>replay_omits: ClassVar[frozenset[str]]</code></strong> names fields the replay line leaves out. Use it for a
+  guard that only means something in the live session, such as <code>expected_version</code>: a version planned
+  in the browser is stale in a script run later, so the replay plans again. Core <code>DeleteRows</code> omits
+  its <code>expected_version</code> this way. A name that isn’t one of the Action’s fields is refused at install.</li>
+<li><strong><code>replay_overrides: ClassVar[dict[str, Any]]</code></strong> forces field values in the replay line, applied
+  after the defaults are dropped. Core <code>BuildNetwork</code> sets <code>{"approved": True}</code>, so a replayed build
+  doesn’t stop to ask for the approval the user already gave.</li>
+</ul>
+<p>The startup checks enforce the namespacing, the single <code>Literal</code>, importability, unique class
+names and <code>replay_omits</code> field names. The <code>repr</code> rule is yours to keep.</p>
+<h3 id="the-plugin-object">The plugin object<a class="headerlink" href="#the-plugin-object" title="Permanent link"> ¶</a></h3>
+<!-- doctest: skip -->
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">netstead.workbench.plugins</span><span class="w"> </span><span class="kn">import</span> <span class="n">HOST_API</span><span class="p">,</span> <span class="n">ActionSpec</span><span class="p">,</span> <span class="n">Host</span><span class="p">,</span> <span class="n">WorkbenchPlugin</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">ConfigDict</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="k">class</span><span class="w"> </span><span class="nc">HelloSettings</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="n">model_config</span> <span class="o">=</span> <span class="n">ConfigDict</span><span class="p">(</span><span class="n">extra</span><span class="o">=</span><span class="s2">"forbid"</span><span class="p">)</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="n">prefix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"Hello"</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="k">def</span><span class="w"> </span><span class="nf">plugin</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">WorkbenchPlugin</span><span class="p">:</span>
+</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>    <span class="n">greeted</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"count"</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>  <span class="c1"># per-session state lives in the factory's closure</span>
+</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>
+</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">greet</span><span class="p">(</span><span class="n">host</span><span class="p">:</span> <span class="n">Host</span><span class="p">,</span> <span class="n">action</span><span class="p">:</span> <span class="n">Greet</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+</span><span id="__span-3-16"><a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>        <span class="n">greeted</span><span class="p">[</span><span class="s2">"count"</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+</span><span id="__span-3-17"><a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>        <span class="n">host</span><span class="o">.</span><span class="n">publish</span><span class="p">(</span><span class="s2">"greeted"</span><span class="p">,</span> <span class="p">{</span><span class="s2">"name"</span><span class="p">:</span> <span class="n">action</span><span class="o">.</span><span class="n">name</span><span class="p">})</span>
+</span><span id="__span-3-18"><a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>        <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">host</span><span class="o">.</span><span class="n">settings</span><span class="o">.</span><span class="n">prefix</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">action</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">!"</span>
+</span><span id="__span-3-19"><a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a>
+</span><span id="__span-3-20"><a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a>    <span class="k">return</span> <span class="n">WorkbenchPlugin</span><span class="p">(</span>
+</span><span id="__span-3-21"><a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a>        <span class="nb">id</span><span class="o">=</span><span class="s2">"hello"</span><span class="p">,</span>
+</span><span id="__span-3-22"><a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a>        <span class="n">name</span><span class="o">=</span><span class="s2">"Hello"</span><span class="p">,</span>
+</span><span id="__span-3-23"><a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a>        <span class="n">version</span><span class="o">=</span><span class="s2">"0.1.0"</span><span class="p">,</span>
+</span><span id="__span-3-24"><a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a>        <span class="n">requires_api</span><span class="o">=</span><span class="n">HOST_API</span><span class="p">,</span>
+</span><span id="__span-3-25"><a id="__codelineno-3-25" name="__codelineno-3-25" href="#__codelineno-3-25"></a>        <span class="n">actions</span><span class="o">=</span><span class="p">(</span><span class="n">ActionSpec</span><span class="p">(</span><span class="n">Greet</span><span class="p">,</span> <span class="n">greet</span><span class="p">),),</span>
+</span><span id="__span-3-26"><a id="__codelineno-3-26" name="__codelineno-3-26" href="#__codelineno-3-26"></a>        <span class="n">router</span><span class="o">=</span><span class="n">router</span><span class="p">,</span>  <span class="c1"># see below</span>
+</span><span id="__span-3-27"><a id="__codelineno-3-27" name="__codelineno-3-27" href="#__codelineno-3-27"></a>        <span class="n">static_dir</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">"static"</span><span class="p">,</span>
+</span><span id="__span-3-28"><a id="__codelineno-3-28" name="__codelineno-3-28" href="#__codelineno-3-28"></a>        <span class="n">settings_model</span><span class="o">=</span><span class="n">HelloSettings</span><span class="p">,</span>
+</span><span id="__span-3-29"><a id="__codelineno-3-29" name="__codelineno-3-29" href="#__codelineno-3-29"></a>        <span class="n">state</span><span class="o">=</span><span class="k">lambda</span> <span class="n">host</span><span class="p">:</span> <span class="p">{</span><span class="s2">"greeted"</span><span class="p">:</span> <span class="n">greeted</span><span class="p">[</span><span class="s2">"count"</span><span class="p">]},</span>
+</span><span id="__span-3-30"><a id="__codelineno-3-30" name="__codelineno-3-30" href="#__codelineno-3-30"></a>    <span class="p">)</span>
+</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>The namespace for Action types, routes, state, settings and static files. Must match <code>[a-z][a-z0-9_]*</code> and equal the entry-point name.</td>
+</tr>
+<tr>
+<td><code>requires_api</code></td>
+<td>The plugin API version you wrote against. Pass <code>HOST_API</code> from the netstead you develop with.</td>
+</tr>
+<tr>
+<td><code>actions</code></td>
+<td>A tuple of <code>ActionSpec(model, handler)</code>.</td>
+</tr>
+<tr>
+<td><code>settings_model</code></td>
+<td>A pydantic model that validates the <code>[plugins.&lt;id&gt;]</code> table. Read the result as <code>host.settings</code>.</td>
+</tr>
+<tr>
+<td><code>state(host)</code></td>
+<td>Returns a JSON-safe dict merged into <code>/api/state</code> under <code>plugins.&lt;id&gt;</code>. Keep it cheap, because it runs on every state push.</td>
+</tr>
+<tr>
+<td><code>router(host)</code></td>
+<td>Returns a FastAPI <code>APIRouter</code>, mounted at <code>/api/plugins/&lt;id&gt;</code>. Called once, at install.</td>
+</tr>
+<tr>
+<td><code>static_dir</code> / <code>frontend</code></td>
+<td>A directory served at <code>/plugins/&lt;id&gt;/</code>, and the ES module in it the browser loads (default <code>main.js</code>).</td>
+</tr>
+<tr>
+<td><code>on_load(host)</code></td>
+<td>Runs once at install, before the router is built and the Actions register. If it raises, the plugin isn’t installed, but whatever it did before raising (files written, threads started) is not undone. The same holds if the router or static dir then fails.</td>
+</tr>
+</tbody>
+</table>
+<p>The factory runs once per session, so state kept in its closure belongs to that session.</p>
+<h3 id="settings">Settings<a class="headerlink" href="#settings" title="Permanent link"> ¶</a></h3>
+<p>Settings come from the same layers as every other setting (user config, project <code>netstead.toml</code>,
+env, session):</p>
+<div class="language-toml highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># ./netstead.toml</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">[plugins.hello]</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">prefix</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"Howdy"</span>
+</span></code></pre></div>
+<p>Bad values mark the plugin <code>error</code> at startup. Through the Workbench’s settings API they are refused
+before anything is written. <strong>Credentials are never settings.</strong> A secret-named key (<code>api_key</code>,
+<code>token</code>, <code>password</code> and so on), a value shaped like an API key, or a URL carrying a password under
+<code>[plugins.&lt;id&gt;]</code> is refused in every layer, and the settings fail to load. Read keys from the OS
+keyring or the environment in your own code instead.</p>
+<h3 id="routes-and-front-end">Routes and front end<a class="headerlink" href="#routes-and-front-end" title="Permanent link"> ¶</a></h3>
+<!-- doctest: skip -->
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fastapi</span><span class="w"> </span><span class="kn">import</span> <span class="n">APIRouter</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">router</span><span class="p">(</span><span class="n">host</span><span class="p">:</span> <span class="n">Host</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">APIRouter</span><span class="p">:</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="n">api</span> <span class="o">=</span> <span class="n">APIRouter</span><span class="p">()</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>    <span class="nd">@api</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/count"</span><span class="p">)</span>  <span class="c1"># served at GET /api/plugins/hello/count</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">count</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>        <span class="k">return</span> <span class="p">{</span><span class="s2">"greeted"</span><span class="p">:</span> <span class="n">greeted</span><span class="p">[</span><span class="s2">"count"</span><span class="p">]}</span>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>    <span class="k">return</span> <span class="n">api</span>
+</span></code></pre></div>
+<p><code>static_dir</code> is served at <code>/plugins/&lt;id&gt;/</code>. Requests can’t escape it (<code>..</code> and its encoded forms
+get a 404). At startup the Workbench imports <code>frontend</code> and calls its <code>activate(wb)</code> (see
+<a href="#the-front-end-activatewb">The front end</a>). If the module fails to import, has no <code>activate</code>,
+<code>activate</code> throws, or importing the module and running <code>activate</code> take more than 5 seconds together,
+everything it registered is removed and Settings → Plugins shows the error. The rest of the Workbench carries on. <code>router(host)</code> is called once,
+when the session installs the plugin. If it raises or returns something other than an <code>APIRouter</code>,
+or <code>static_dir</code> isn’t a directory, the plugin isn’t installed: it is marked <code>error</code>, none of its
+Actions register, its state isn’t merged, and nothing of it is mounted.</p>
+<h2 id="the-host-reference">The <code>Host</code> reference<a class="headerlink" href="#the-host-reference" title="Permanent link"> ¶</a></h2>
+<p>A plugin never sees the <code>Session</code>. Every handler, <code>router</code>, <code>state</code> and <code>on_load</code> gets a
+<code>netstead.workbench.plugins.Host</code> bound to that plugin’s id.</p>
+<table>
+<thead>
+<tr>
+<th>Member</th>
+<th>What it gives you</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>host.plugin_id</code></td>
+<td>This plugin’s id.</td>
+</tr>
+<tr>
+<td><code>host.settings</code></td>
+<td>The validated <code>[plugins.&lt;id&gt;]</code> model, or <code>None</code> if there is no <code>settings_model</code>. Re-read on each access, so it reflects setting changes.</td>
+</tr>
+<tr>
+<td><code>host.active</code></td>
+<td>The active network’s id, or <code>None</code>.</td>
+</tr>
+<tr>
+<td><code>host.selection</code></td>
+<td>A copy of the shared selection payload (the dict <code>/api/state</code> carries), or <code>None</code>. It adds <code>projectcard</code>: a resolved selection’s ProjectCard facility forms (<code>picked</code>, <code>resolved</code>, <code>query</code>), else <code>None</code>. <code>anchors</code> are the from/to nodes with <code>lon</code>/<code>lat</code>; <code>anchors_unplaced</code> (API 1.2) are those whose node has no coordinates.</td>
+</tr>
+<tr>
+<td><code>host.saved_selections()</code></td>
+<td>A summary of each saved selection: <code>name</code>, <code>net_id</code>, <code>status</code>, <code>links</code> (a count), <code>utterance</code>, <code>by</code> (<code>query</code> or <code>ids</code>) and <code>stale</code> (it was saved with a stale pin). API 1.3.</td>
+</tr>
+<tr>
+<td><code>host.saved_selection(name)</code></td>
+<td>A copy of the selection saved as <code>name</code>, or <code>None</code>: <code>net_id</code>, <code>source</code> (a locator: no query string), <code>version</code>, <code>status</code>, <code>utterance</code>, <code>intent</code> (with any pins), <code>parsed_by</code>, <code>link_ids</code>, the anchors’ nodes and <code>stale_pins</code>, plus <code>projectcard</code> (its facility forms) and <code>warnings</code> (a stale pin, in words). It is the selection as saved; <code>UseSelection</code> resolves it again on the network as it is now. API 1.3.</td>
+</tr>
+<tr>
+<td><code>host.network(net_id=None)</code></td>
+<td>The network handle (default: the active one). Read it, but change it only through <code>mutate</code>.</td>
+</tr>
+<tr>
+<td><code>host.mutate(net_id, edits, note=..., expected_version=None)</code></td>
+<td>Applies <code>corral.editing.Edit</code>s to a network’s roadway <strong>all or nothing</strong>. The edits run on a draft, so a failing edit leaves the network (and its caches) untouched and re-raises. If storage refuses an edit while it is applied to the draft (corral’s <code>EditingError</code>, or an Arrow, ibis or DuckDB error), it raises <code>ActionError</code> (“the edit failed: <type>: <message>“, with URL credentials and key-shaped tokens scrubbed; the original is logged), so the user sees why (API 1.6; before, a plugin’s handler failed with “internal error”). Any other exception re-raises as it is, and so does a failure after the edit was applied: it is not reported as a failed edit. On success it bumps the version, appends <code>"&lt;id&gt;: &lt;note&gt;"</code> to the lineage and pushes state. It returns a <code>Mutation</code>, a frozen dataclass: <code>results</code> (a tuple of the <code>EditResult</code>s, the rollback data) and <code>seq</code>, the pending edit’s id (API 1.6; <code>None</code> for an empty list of edits). Before 1.6 it returned the list of results itself. Inside a handler, the change is undone if the handler fails. Outside one (a job, a route), it is recorded as a non-replayable <code>&lt;id&gt;.mutate</code> history entry. With <code>expected_version</code> (a plan’s <code>version</code>, API 1.2) it refuses with <code>ActionError</code>, changing nothing, if the network’s version moved since.</message></type></td>
+</tr>
+<tr>
+<td><code>host.undo(net_id=None)</code></td>
+<td>Reverts this plugin’s newest mutation of a network, if it is that network’s newest change, and returns the undone entry (<code>seq</code>, <code>source</code>, <code>note</code>, <code>version</code>, <code>rows</code>, <code>saved</code>); <code>seq</code> is the id <code>host.mutate</code> returned for it. Raises <code>ActionError</code> when there is nothing to undo or the newest change came from core, Python or another plugin, and (API 1.6) when storage refuses the reverse (“the undo failed: …”, scrubbed as for <code>mutate</code>). API 1.2.</td>
+</tr>
+<tr>
+<td><code>host.pending_edits(net_id=None)</code></td>
+<td>A <code>PendingEdits</code> (frozen), read in one moment under the session lock: <code>edits</code>, the network’s pending edits from every source, oldest first, each as <code>host.undo</code> returns it (<code>seq</code>, <code>source</code>, <code>note</code>, <code>version</code>, <code>rows</code>, <code>saved</code>); and <code>issued</code>, the newest seq handed out at that moment. Check your own edits against it rather than the network’s lineage. Raises <code>ActionError</code> if the network is not open. API 1.6.</td>
+</tr>
+<tr>
+<td><code>host.on_rollback(fn)</code></td>
+<td>From a handler: call <code>fn()</code> if this Action is rolled back, either because it fails or because an Action it is nested in fails after it succeeded. Use it to put back your own state and files, which core does not roll back. See <a href="#rolling-back-your-own-state-api-16">Rolling back your own state</a>. Raises <code>RuntimeError</code> outside a handler, and from inside a rollback callback. API 1.6.</td>
+</tr>
+<tr>
+<td><code>host.edit_warnings(net_id=None)</code></td>
+<td>The live edit warnings on a network now, from every source (dicts with <code>code</code>, <code>table</code>, <code>key</code>, <code>column</code>, <code>value</code>, <code>message</code>). API 1.2.</td>
+</tr>
+<tr>
+<td><code>host.plan_update(net_id, table, ids, values)</code>, <code>host.plan_delete(net_id, table, ids)</code>, <code>host.plan_add(net_id, table, rows)</code></td>
+<td>Core’s edit plans (<code>EditPlan</code>: <code>edits</code>, <code>summary</code>, <code>rows</code> per table, <code>keys</code>, and the <code>version</code> it planned on), refusing what storage cannot hold with <code>EditRefused</code>. Apply one with <code>host.mutate</code>. API 1.2.</td>
+</tr>
+<tr>
+<td><code>host.derive(net_id, label=..., note=...)</code></td>
+<td>Registers a <strong>copy-on-write</strong> copy of a network (a preview or scenario) and returns its id. Edits to the copy never touch the base. The copy records <code>derived_from</code> and inherits the lineage. Inside a handler that fails, the copy is unregistered again.</td>
+</tr>
+<tr>
+<td><code>host.has_action(type)</code></td>
+<td>Whether core or any loaded plugin registered that Action type. Use it for soft cross-plugin dependencies.</td>
+</tr>
+<tr>
+<td><code>host.dispatch(action)</code></td>
+<td>Dispatches any Action (a model or a dict). Called from a handler, it is recorded in history as nested in that handler’s Action (<code>parent_seq</code>): “copy as Python” shows it as a comment, since replaying the outer Action runs it again, and it is undone if the outer handler fails. Job Actions (<code>open_network</code>, <code>build_network</code>, <code>run_validation</code>, <code>save_network</code>) can’t be dispatched from a handler, because waiting for them would deadlock. Use <code>host.submit_job</code> for slow work instead.</td>
+</tr>
+<tr>
+<td><code>host.publish(name, payload)</code></td>
+<td>Sends the browser a <code>{"type": "plugin", "plugin": &lt;id&gt;, "name": ..., "payload": ...}</code> event over the session’s event stream; <code>wb.on(name)</code> hears it. <code>name</code> is lowercase letters, digits and underscores, starting with a letter (<code>[a-z][a-z0-9_]*</code>), since a dot in <code>wb.on</code> names another plugin; anything else raises <code>ValueError</code>.</td>
+</tr>
+<tr>
+<td><code>host.submit_job(label, fn)</code></td>
+<td>Runs <code>fn(ctx)</code> on a background job, with progress and cancel in the jobs panel, and returns the job id. <code>mutate</code> and <code>derive</code> are safe to call from it.</td>
+</tr>
+<tr>
+<td><code>host.writable(path)</code></td>
+<td>Resolves a path for writing inside <code>io.allowed_roots</code>. Raises <code>PathNotAllowed</code> outside it.</td>
+</tr>
+<tr>
+<td><code>host.readable(path)</code></td>
+<td>Resolves a path for reading inside <code>io.allowed_roots</code>: a file or a folder that exists. Raises <code>PathNotAllowed</code> outside the roots (before touching the disk) and <code>ActionError</code> when nothing is there. API 1.7.</td>
+</tr>
+<tr>
+<td><code>host.list_dir(path)</code></td>
+<td>The entries of a folder inside <code>io.allowed_roots</code>, folders first, hidden entries skipped, each <code>{name, path, kind, is_dir}</code> (<code>kind</code> is what core’s file browser can open it as, else <code>None</code>). Reads no file. Raises <code>PathNotAllowed</code> outside the roots and <code>ActionError</code> when the folder is missing or is a file. API 1.7.</td>
+</tr>
+<tr>
+<td><code>host.history(prefix=None)</code></td>
+<td>The session’s history (the entries <code>GET /api/history</code> returns: <code>seq</code>, <code>action</code>, <code>python</code>, <code>ok</code>, <code>error</code>, <code>ts</code>, <code>via</code>, …), oldest first, as copies; with <code>prefix</code> (say <code>"my_plugin."</code>), only the Actions whose type starts with it. Read-only; the Action now running is not in it yet. API 1.7.</td>
+</tr>
+</tbody>
+</table>
+<p>A preview, following “nothing mutates silently”:</p>
+<!-- doctest: skip -->
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">corral.editing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Edit</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">widen</span><span class="p">(</span><span class="n">host</span><span class="p">:</span> <span class="n">Host</span><span class="p">,</span> <span class="n">action</span><span class="p">:</span> <span class="n">Widen</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="n">preview</span> <span class="o">=</span> <span class="n">host</span><span class="o">.</span><span class="n">derive</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">"Preview: widen"</span><span class="p">,</span> <span class="n">note</span><span class="o">=</span><span class="s2">"preview"</span><span class="p">)</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    <span class="n">payload</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"predicate"</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">t</span><span class="o">.</span><span class="n">link_id</span> <span class="o">==</span> <span class="n">action</span><span class="o">.</span><span class="n">link_id</span><span class="p">,</span> <span class="s2">"set"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"lanes"</span><span class="p">:</span> <span class="n">action</span><span class="o">.</span><span class="n">lanes</span><span class="p">}}</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    <span class="n">host</span><span class="o">.</span><span class="n">mutate</span><span class="p">(</span><span class="n">preview</span><span class="p">,</span> <span class="p">[</span><span class="n">Edit</span><span class="p">(</span><span class="n">op</span><span class="o">=</span><span class="s2">"update_rows"</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="s2">"link"</span><span class="p">,</span> <span class="n">payload</span><span class="o">=</span><span class="n">payload</span><span class="p">)],</span> <span class="n">note</span><span class="o">=</span><span class="sa">f</span><span class="s2">"widen </span><span class="si">{</span><span class="n">action</span><span class="o">.</span><span class="n">link_id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>    <span class="k">return</span> <span class="n">preview</span>  <span class="c1"># the base network is untouched</span>
+</span></code></pre></div>
+<h3 id="editing-networks-api-12">Editing networks (API 1.2)<a class="headerlink" href="#editing-networks-api-12" title="Permanent link"> ¶</a></h3>
+<p>Plan a change with core’s rules, apply it, check it, and undo it yourself if you need to:</p>
+<!-- doctest: skip -->
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">netstead.workbench.plugins</span><span class="w"> </span><span class="kn">import</span> <span class="n">ActionError</span><span class="p">,</span> <span class="n">EditRefused</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">retag</span><span class="p">(</span><span class="n">host</span><span class="p">:</span> <span class="n">Host</span><span class="p">,</span> <span class="n">action</span><span class="p">:</span> <span class="n">Retag</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>    <span class="k">try</span><span class="p">:</span>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>        <span class="n">plan</span> <span class="o">=</span> <span class="n">host</span><span class="o">.</span><span class="n">plan_update</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="s2">"link"</span><span class="p">,</span> <span class="p">[</span><span class="n">action</span><span class="o">.</span><span class="n">link_id</span><span class="p">],</span> <span class="p">{</span><span class="s2">"name"</span><span class="p">:</span> <span class="n">action</span><span class="o">.</span><span class="n">name</span><span class="p">})</span>
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>    <span class="k">except</span> <span class="n">EditRefused</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>  <span class="c1"># a value the column cannot hold, a key column, a missing row...</span>
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>        <span class="k">raise</span> <span class="n">ActionError</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">exc</span><span class="p">))</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
+</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>    <span class="n">host</span><span class="o">.</span><span class="n">mutate</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">plan</span><span class="o">.</span><span class="n">edits</span><span class="p">,</span> <span class="n">note</span><span class="o">=</span><span class="n">plan</span><span class="o">.</span><span class="n">summary</span><span class="p">,</span> <span class="n">expected_version</span><span class="o">=</span><span class="n">plan</span><span class="o">.</span><span class="n">version</span><span class="p">)</span>
+</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>    <span class="k">return</span> <span class="n">host</span><span class="o">.</span><span class="n">edit_warnings</span><span class="p">()</span>  <span class="c1"># read these before committing anything to disk</span>
+</span></code></pre></div>
+<ul>
+<li>A plan reads the network as it is now and records that version as <code>plan.version</code>. Pass it to
+  <code>host.mutate(..., expected_version=plan.version)</code>: if anything changed the network in between, the
+  mutation is refused with <code>ActionError</code> and nothing changes, so plan again. Inside a handler nothing can
+  come between them (handlers run under the session lock). From a job or a route, another edit can land
+  between the two calls even when they run back to back, so always pass <code>expected_version</code> there.</li>
+<li><code>host.plan_delete</code> cascades through the spec’s foreign keys (a link takes its lanes with it) and refuses
+  to delete a node a link still uses; <code>plan.rows</code> says what would go.</li>
+<li>What the spec says about the new values (required, enum, type, foreign keys, duplicate keys) is never
+  a refusal: it comes back as a live warning from <code>host.edit_warnings()</code>.</li>
+<li>Every <code>host.mutate</code> is a pending edit whose source is your plugin id. Core lists it in its Edit tab
+  with that id and never undoes it.</li>
+<li>Undo is strict last-in, first-out across sources. <code>host.undo()</code> reverts your newest change only when it
+  is the network’s newest change; core’s Undo and <code>host.undo</code> each refuse the other’s change, naming who
+  made it.</li>
+<li>A plugin that uses these declares <code>requires_api="1.2"</code> (or <code>HOST_API</code>).</li>
+</ul>
+<h3 id="edit-ids-api-16">Edit ids (API 1.6)<a class="headerlink" href="#edit-ids-api-16" title="Permanent link"> ¶</a></h3>
+<p><code>host.mutate</code> returns a <code>Mutation(results, seq)</code>: <code>seq</code> is the pending edit’s id. <code>host.pending_edits(net_id)</code>
+returns a <code>PendingEdits(issued, edits)</code>, and <code>host.undo()</code> returns the <code>seq</code> it reversed, so a plugin that keeps a
+record of its own edits can check it against the ledger:</p>
+<!-- doctest: skip -->
+<div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">done</span> <span class="o">=</span> <span class="n">host</span><span class="o">.</span><span class="n">mutate</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">plan</span><span class="o">.</span><span class="n">edits</span><span class="p">,</span> <span class="n">note</span><span class="o">=</span><span class="n">plan</span><span class="o">.</span><span class="n">summary</span><span class="p">,</span> <span class="n">expected_version</span><span class="o">=</span><span class="n">plan</span><span class="o">.</span><span class="n">version</span><span class="p">)</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">my_edits</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">done</span><span class="o">.</span><span class="n">seq</span><span class="p">)</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="o">...</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">pending</span> <span class="o">=</span> <span class="n">host</span><span class="o">.</span><span class="n">pending_edits</span><span class="p">()</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="n">mine</span> <span class="o">=</span> <span class="p">{</span><span class="n">e</span><span class="p">[</span><span class="s2">"seq"</span><span class="p">]</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">pending</span><span class="o">.</span><span class="n">edits</span> <span class="k">if</span> <span class="n">e</span><span class="p">[</span><span class="s2">"source"</span><span class="p">]</span> <span class="o">==</span> <span class="n">host</span><span class="o">.</span><span class="n">plugin_id</span><span class="p">}</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="n">gone</span> <span class="o">=</span> <span class="p">[</span><span class="n">seq</span> <span class="k">for</span> <span class="n">seq</span> <span class="ow">in</span> <span class="n">my_edits</span> <span class="k">if</span> <span class="n">seq</span> <span class="o">&lt;=</span> <span class="n">pending</span><span class="o">.</span><span class="n">issued</span> <span class="ow">and</span> <span class="n">seq</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">mine</span><span class="p">]</span>
+</span></code></pre></div>
+<ul>
+<li>A network id’s seqs are unique for the whole session: a seq is never handed out twice, not after a rolled-back
+  Action spent it, and not after the network is closed and opened again under the same id (numbering goes on).
+  So an edit a rollback took away never comes back under the same id. (The handle still changes when a network is
+  reopened; checking it too costs nothing.)</li>
+<li>Because rolled-back edits keep their seqs, the seqs in the Edit tab can have gaps.</li>
+<li><code>issued</code> is the newest seq handed out when the edits were read. An edit you hold with a seq above it was made
+  after the read, so the read says nothing about it: don’t drop it. This matters when you read outside an Action
+  handler (a route), where an Action can land between your read and what you do with it.</li>
+</ul>
+<h3 id="rolling-back-your-own-state-api-16">Rolling back your own state (API 1.6)<a class="headerlink" href="#rolling-back-your-own-state-api-16" title="Permanent link"> ¶</a></h3>
+<p>When an Action fails, core rolls back what it changed: the networks’ tables, versions, lineage and pending edits,
+the networks it derived, and the active network, selection, style, saved selections and filters. It does not know
+about your plugin’s own state (a draft kept in your factory’s closure) or the files your handler wrote. A handler
+nested in another Action (<code>host.dispatch</code>) can succeed and still be rolled back when the outer Action fails later.</p>
+<p>Register a callback that puts your state back, after the change it undoes:</p>
+<!-- doctest: skip -->
+<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">commit</span><span class="p">(</span><span class="n">host</span><span class="p">:</span> <span class="n">Host</span><span class="p">,</span> <span class="n">action</span><span class="p">:</span> <span class="n">Commit</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="n">written</span> <span class="o">=</span> <span class="n">write_file</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">text</span><span class="p">)</span>  <span class="c1"># your own helper</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    <span class="n">old</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">take_draft</span><span class="p">(</span><span class="n">net</span><span class="p">)</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>    <span class="n">host</span><span class="o">.</span><span class="n">on_rollback</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="p">(</span><span class="n">remove_or_restore</span><span class="p">(</span><span class="n">written</span><span class="p">),</span> <span class="n">state</span><span class="o">.</span><span class="n">put_draft</span><span class="p">(</span><span class="n">net</span><span class="p">,</span> <span class="n">old</span><span class="p">)))</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    <span class="k">return</span> <span class="p">{</span><span class="s2">"path"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">path</span><span class="p">)}</span>
+</span></code></pre></div>
+<ul>
+<li>It runs if this Action fails, or if it succeeds and an Action it is nested in fails afterwards. Once the
+  outermost Action succeeds, it is dropped.</li>
+<li>Rollback runs newest first, in one stack with core’s own undo records: when your callback runs, the network
+  changes made after you registered it are already undone, and the ones made before it are not yet.</li>
+<li>It runs under the session lock. Put back your own state and files there, and call no <code>Host</code> method:
+  <code>host.mutate</code>, <code>host.derive</code>, <code>host.undo</code>, <code>host.dispatch</code> and <code>host.on_rollback</code> raise <code>RuntimeError("... cannot
+  be called from a rollback callback")</code>.</li>
+<li>Lock order is the session lock, then your plugin’s own lock. Take your lock inside the callback if you need it,
+  and never call <code>Host</code> while holding your own lock: a handler holds the session lock and then takes yours, so the
+  other order can deadlock.</li>
+<li>An exception in it is logged and the rest of the rollback still runs. A <code>BaseException</code> (<code>KeyboardInterrupt</code>)
+  lets the rollback finish, then propagates. Handle your own failures (a file that can’t be restored) inside it.</li>
+</ul>
+<h2 id="your-actions-in-the-assistant">Your Actions in the assistant<a class="headerlink" href="#your-actions-in-the-assistant" title="Permanent link"> ¶</a></h2>
+<p>A plugin’s Actions are offered to the natural-language assistant only when the user turns the plugin on in
+<strong>Settings → Assistant: actions &amp; plugins</strong> (<code>assistant.plugins = ["&lt;your id&gt;"]</code>). Then each of your Actions is a
+tool, named <code>&lt;id&gt;__&lt;name&gt;</code> (a dot is not allowed in a tool name), with its JSON schema, and the first paragraph of its
+docstring as the description: write it for a model as well as a person. Actions with <code>mutates = True</code> are drafted for the user
+to approve; the others run at once, recorded with <code>via: "assistant"</code>.</p>
+<p>To keep an Action out even when the plugin is on (it needs a file path, or it only makes sense from your panel):</p>
+<!-- doctest: skip -->
+<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">Rebuild</span><span class="p">(</span><span class="n">BaseAction</span><span class="p">):</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    <span class="nb">type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"cards.rebuild"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"cards.rebuild"</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>    <span class="n">assistant</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+</span></code></pre></div>
+<p><code>assistant</code> needs Host API 1.4. Your browser commands are not offered to the assistant.</p>
+<p>With a model on this machine (<code>assistant.compact_tools = "auto"</code>, the default, or <code>"on"</code>) the assistant gets a compact
+tool set: the read-only Actions that apply now, and only those <code>mutates</code> Actions marked <code>assistant_compact</code>. Core
+marks its
+everyday edits (<code>edit_cells</code>, <code>delete_rows</code>, <code>undo_edit</code>). Mark yours when a small model can fill in its fields
+reliably (no file path, no judgement call):</p>
+<!-- doctest: skip -->
+<div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">AddChange</span><span class="p">(</span><span class="n">BaseAction</span><span class="p">):</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>    <span class="nb">type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"cards.add_change"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"cards.add_change"</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>    <span class="n">mutates</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>    <span class="n">assistant_compact</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>  <span class="c1"># offered to a local model too</span>
+</span></code></pre></div>
+<p><code>assistant_compact</code> needs Host API 1.6 (<code>GET /api/actions</code> entries carry it). Before it, a plugin’s mutating Actions
+were offered only with <code>assistant.compact_tools = "off"</code>.</p>
+<p>Declare <code>mutates</code> honestly. An Action the assistant runs at once (one without <code>mutates = True</code>) can’t change a
+network: if its handler dispatches a mutating Action through <code>host.dispatch</code>, or calls <code>host.mutate</code>, <code>host.undo</code> (which
+reverts through the same path) or <code>host.derive</code>, the Action fails with an <code>ActionError</code> (“ran from the assistant without
+approval”) and everything it did is rolled back. The same
+Action dispatched by the user, Python or a script is unaffected. <code>host.submit_job</code> is not checked this way: a job runs
+after the handler has returned, so a plugin that starts one from a read-only Action is trusted not to change a
+network in it.</p>
+<p>The tools are built from the <strong>session’s</strong> registry (<code>session.actions</code>), which holds the core Actions plus every
+loaded plugin’s. The module-level <code>netstead.workbench.actions.action_json_schema</code> covers core Actions only.</p>
+<h2 id="the-front-end-activatewb">The front end: <code>activate(wb)</code><a class="headerlink" href="#the-front-end-activatewb" title="Permanent link"> ¶</a></h2>
+<p>A plugin’s front end is one native ES module (no build step), served from <code>static_dir</code> as
+<code>/plugins/&lt;id&gt;/&lt;frontend&gt;</code>. After core has drawn the map, the Workbench imports every loaded plugin’s
+module at once and calls each one’s <code>activate(wb)</code>. A slow plugin never delays the map or another
+plugin. Tabs, panels, commands and layers sort by <code>order</code>; between two plugins’ entries with the same
+<code>order</code>, which comes first depends on which plugin finished loading first, so set <code>order</code> when placement
+matters. <code>wb</code> is the only way in: don’t import core’s modules or reach into its DOM.</p>
+<p>The hello example’s <code>main.js</code>, annotated:</p>
+<!-- doctest: skip -->
+<div class="language-js highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="k">export</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">activate</span><span class="p">(</span><span class="nx">wb</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">greeted</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0</span><span class="p">;</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">  </span><span class="c1">// A dock panel in the Inspect workspace. render(el) runs the first time the panel shows.</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">panel</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">wb</span><span class="p">.</span><span class="nx">registerPanel</span><span class="p">({</span>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="w">    </span><span class="nx">workspace</span><span class="o">:</span><span class="w"> </span><span class="s2">"inspect"</span><span class="p">,</span>
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="w">    </span><span class="nx">id</span><span class="o">:</span><span class="w"> </span><span class="s2">"hello.panel"</span><span class="p">,</span><span class="w">                 </span><span class="c1">// every id starts with "&lt;plugin id&gt;."</span>
+</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="w">    </span><span class="nx">title</span><span class="o">:</span><span class="w"> </span><span class="s2">"Hello"</span><span class="p">,</span>
+</span><span id="__span-12-9"><a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="w">    </span><span class="nx">order</span><span class="o">:</span><span class="w"> </span><span class="mf">50</span><span class="p">,</span><span class="w">                         </span><span class="c1">// after core's Details (0)</span>
+</span><span id="__span-12-10"><a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="w">    </span><span class="nx">badge</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">greeted</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span><span class="w">      </span><span class="c1">// a count on the tab; {dirty: true, title: "…"} for unsaved work</span>
+</span><span id="__span-12-11"><a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="w">    </span><span class="nx">render</span><span class="p">(</span><span class="nx">el</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-12-12"><a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a><span class="w">      </span><span class="nx">el</span><span class="p">.</span><span class="nx">innerHTML</span><span class="w"> </span><span class="o">=</span>
+</span><span id="__span-12-13"><a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a><span class="w">        </span><span class="s1">'&lt;p class="muted"&gt;Greet someone. Each greeting is a recorded Action: see the history strip.&lt;/p&gt;'</span><span class="w"> </span><span class="o">+</span>
+</span><span id="__span-12-14"><a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a><span class="w">        </span><span class="s1">'&lt;div&gt;&lt;/div&gt;&lt;button class="mini"&gt;Greet&lt;/button&gt; &lt;span class="muted" role="status"&gt;&lt;/span&gt;'</span><span class="p">;</span>
+</span><span id="__span-12-15"><a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a><span class="w">      </span><span class="kd">const</span><span class="w"> </span><span class="p">[,</span><span class="w"> </span><span class="nx">slot</span><span class="p">,</span><span class="w"> </span><span class="nx">button</span><span class="p">,</span><span class="w"> </span><span class="nx">status</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">el</span><span class="p">.</span><span class="nx">children</span><span class="p">;</span>
+</span><span id="__span-12-16"><a id="__codelineno-12-16" name="__codelineno-12-16" href="#__codelineno-12-16"></a><span class="w">      </span><span class="c1">// A form generated from the Action's JSON Schema (from GET /api/actions).</span>
+</span><span id="__span-12-17"><a id="__codelineno-12-17" name="__codelineno-12-17" href="#__codelineno-12-17"></a><span class="w">      </span><span class="kd">const</span><span class="w"> </span><span class="nx">form</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">wb</span><span class="p">.</span><span class="nx">schemaForm</span><span class="p">(</span><span class="nx">slot</span><span class="p">,</span><span class="w"> </span><span class="nx">wb</span><span class="p">.</span><span class="nx">actionSchema</span><span class="p">(</span><span class="s2">"hello.greet"</span><span class="p">),</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s2">"world"</span><span class="w"> </span><span class="p">});</span>
+</span><span id="__span-12-18"><a id="__codelineno-12-18" name="__codelineno-12-18" href="#__codelineno-12-18"></a><span class="w">      </span><span class="nx">button</span><span class="p">.</span><span class="nx">onclick</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-12-19"><a id="__codelineno-12-19" name="__codelineno-12-19" href="#__codelineno-12-19"></a><span class="w">        </span><span class="kd">const</span><span class="w"> </span><span class="nx">errors</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">form</span><span class="p">.</span><span class="nx">errors</span><span class="p">();</span><span class="w">  </span><span class="c1">// required fields, bounds, entries that didn't parse</span>
+</span><span id="__span-12-20"><a id="__codelineno-12-20" name="__codelineno-12-20" href="#__codelineno-12-20"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">errors</span><span class="p">.</span><span class="nx">length</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">status</span><span class="p">.</span><span class="nx">textContent</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">errors</span><span class="p">.</span><span class="nx">join</span><span class="p">(</span><span class="s2">"; "</span><span class="p">);</span><span class="w"> </span><span class="k">return</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-12-21"><a id="__codelineno-12-21" name="__codelineno-12-21" href="#__codelineno-12-21"></a><span class="w">        </span><span class="k">try</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-12-22"><a id="__codelineno-12-22" name="__codelineno-12-22" href="#__codelineno-12-22"></a><span class="w">          </span><span class="c1">// Every change is an Action: recorded in history, replayable in "Copy as Python".</span>
+</span><span id="__span-12-23"><a id="__codelineno-12-23" name="__codelineno-12-23" href="#__codelineno-12-23"></a><span class="w">          </span><span class="nx">status</span><span class="p">.</span><span class="nx">textContent</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">wb</span><span class="p">.</span><span class="nx">api</span><span class="p">.</span><span class="nx">dispatch</span><span class="p">({</span><span class="w"> </span><span class="p">...</span><span class="nx">form</span><span class="p">.</span><span class="nx">value</span><span class="p">(),</span><span class="w"> </span><span class="nx">type</span><span class="o">:</span><span class="w"> </span><span class="s2">"hello.greet"</span><span class="w"> </span><span class="p">});</span>
+</span><span id="__span-12-24"><a id="__codelineno-12-24" name="__codelineno-12-24" href="#__codelineno-12-24"></a><span class="w">        </span><span class="p">}</span><span class="w"> </span><span class="k">catch</span><span class="w"> </span><span class="p">(</span><span class="nx">e</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-12-25"><a id="__codelineno-12-25" name="__codelineno-12-25" href="#__codelineno-12-25"></a><span class="w">          </span><span class="nx">status</span><span class="p">.</span><span class="nx">textContent</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">e</span><span class="p">.</span><span class="nx">message</span><span class="p">;</span><span class="w">  </span><span class="c1">// text, never markup</span>
+</span><span id="__span-12-26"><a id="__codelineno-12-26" name="__codelineno-12-26" href="#__codelineno-12-26"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-12-27"><a id="__codelineno-12-27" name="__codelineno-12-27" href="#__codelineno-12-27"></a><span class="w">      </span><span class="p">};</span>
+</span><span id="__span-12-28"><a id="__codelineno-12-28" name="__codelineno-12-28" href="#__codelineno-12-28"></a><span class="w">    </span><span class="p">},</span>
+</span><span id="__span-12-29"><a id="__codelineno-12-29" name="__codelineno-12-29" href="#__codelineno-12-29"></a><span class="w">  </span><span class="p">});</span>
+</span><span id="__span-12-30"><a id="__codelineno-12-30" name="__codelineno-12-30" href="#__codelineno-12-30"></a>
+</span><span id="__span-12-31"><a id="__codelineno-12-31" name="__codelineno-12-31" href="#__codelineno-12-31"></a><span class="w">  </span><span class="c1">// The count comes from the plugin's own route; host.publish("greeted") says when to re-read it.</span>
+</span><span id="__span-12-32"><a id="__codelineno-12-32" name="__codelineno-12-32" href="#__codelineno-12-32"></a><span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">refresh</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-12-33"><a id="__codelineno-12-33" name="__codelineno-12-33" href="#__codelineno-12-33"></a><span class="w">    </span><span class="nx">greeted</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="k">await</span><span class="w"> </span><span class="nx">wb</span><span class="p">.</span><span class="nx">api</span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s2">"/count"</span><span class="p">)).</span><span class="nx">greeted</span><span class="p">;</span><span class="w">  </span><span class="c1">// GET /api/plugins/hello/count</span>
+</span><span id="__span-12-34"><a id="__codelineno-12-34" name="__codelineno-12-34" href="#__codelineno-12-34"></a><span class="w">    </span><span class="nx">panel</span><span class="p">.</span><span class="nx">refreshBadge</span><span class="p">();</span>
+</span><span id="__span-12-35"><a id="__codelineno-12-35" name="__codelineno-12-35" href="#__codelineno-12-35"></a><span class="w">  </span><span class="p">};</span>
+</span><span id="__span-12-36"><a id="__codelineno-12-36" name="__codelineno-12-36" href="#__codelineno-12-36"></a><span class="w">  </span><span class="nx">wb</span><span class="p">.</span><span class="nx">on</span><span class="p">(</span><span class="s2">"greeted"</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">refresh</span><span class="p">());</span>
+</span><span id="__span-12-37"><a id="__codelineno-12-37" name="__codelineno-12-37" href="#__codelineno-12-37"></a><span class="w">  </span><span class="nx">refresh</span><span class="p">().</span><span class="k">catch</span><span class="p">(</span><span class="nx">e</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">wb</span><span class="p">.</span><span class="nx">toast</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">message</span><span class="p">));</span>
+</span><span id="__span-12-38"><a id="__codelineno-12-38" name="__codelineno-12-38" href="#__codelineno-12-38"></a>
+</span><span id="__span-12-39"><a id="__codelineno-12-39" name="__codelineno-12-39" href="#__codelineno-12-39"></a><span class="w">  </span><span class="c1">// Commands: one in the palette, one on a right-clicked map feature or table row, one for the selection.</span>
+</span><span id="__span-12-40"><a id="__codelineno-12-40" name="__codelineno-12-40" href="#__codelineno-12-40"></a><span class="w">  </span><span class="nx">wb</span><span class="p">.</span><span class="nx">registerCommand</span><span class="p">({</span>
+</span><span id="__span-12-41"><a id="__codelineno-12-41" name="__codelineno-12-41" href="#__codelineno-12-41"></a><span class="w">    </span><span class="nx">id</span><span class="o">:</span><span class="w"> </span><span class="s2">"hello.greet"</span><span class="p">,</span><span class="w"> </span><span class="nx">title</span><span class="o">:</span><span class="w"> </span><span class="s2">"Say hello"</span><span class="p">,</span><span class="w"> </span><span class="nx">contexts</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"palette"</span><span class="p">],</span>
+</span><span id="__span-12-42"><a id="__codelineno-12-42" name="__codelineno-12-42" href="#__codelineno-12-42"></a><span class="w">    </span><span class="nx">run</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">wb</span><span class="p">.</span><span class="nx">api</span><span class="p">.</span><span class="nx">dispatch</span><span class="p">({</span><span class="w"> </span><span class="nx">type</span><span class="o">:</span><span class="w"> </span><span class="s2">"hello.greet"</span><span class="p">,</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s2">"world"</span><span class="w"> </span><span class="p">}),</span>
+</span><span id="__span-12-43"><a id="__codelineno-12-43" name="__codelineno-12-43" href="#__codelineno-12-43"></a><span class="w">  </span><span class="p">});</span>
+</span><span id="__span-12-44"><a id="__codelineno-12-44" name="__codelineno-12-44" href="#__codelineno-12-44"></a><span class="w">  </span><span class="nx">wb</span><span class="p">.</span><span class="nx">registerCommand</span><span class="p">({</span>
+</span><span id="__span-12-45"><a id="__codelineno-12-45" name="__codelineno-12-45" href="#__codelineno-12-45"></a><span class="w">    </span><span class="nx">id</span><span class="o">:</span><span class="w"> </span><span class="s2">"hello.greet_record"</span><span class="p">,</span><span class="w"> </span><span class="nx">title</span><span class="o">:</span><span class="w"> </span><span class="s2">"Say hello to this record"</span><span class="p">,</span><span class="w"> </span><span class="nx">contexts</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"feature"</span><span class="p">,</span><span class="w"> </span><span class="s2">"row"</span><span class="p">],</span>
+</span><span id="__span-12-46"><a id="__codelineno-12-46" name="__codelineno-12-46" href="#__codelineno-12-46"></a><span class="w">    </span><span class="nx">run</span><span class="o">:</span><span class="w"> </span><span class="nx">ctx</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">wb</span><span class="p">.</span><span class="nx">api</span><span class="p">.</span><span class="nx">dispatch</span><span class="p">({</span><span class="w"> </span><span class="nx">type</span><span class="o">:</span><span class="w"> </span><span class="s2">"hello.greet"</span><span class="p">,</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="sb">`</span><span class="si">${</span><span class="nx">ctx</span><span class="p">.</span><span class="nx">target</span><span class="p">.</span><span class="nx">table</span><span class="si">}</span><span class="sb"> </span><span class="si">${</span><span class="nx">ctx</span><span class="p">.</span><span class="nx">target</span><span class="p">.</span><span class="nx">id</span><span class="si">}</span><span class="sb">`</span><span class="w"> </span><span class="p">}),</span>
+</span><span id="__span-12-47"><a id="__codelineno-12-47" name="__codelineno-12-47" href="#__codelineno-12-47"></a><span class="w">  </span><span class="p">});</span>
+</span><span id="__span-12-48"><a id="__codelineno-12-48" name="__codelineno-12-48" href="#__codelineno-12-48"></a><span class="w">  </span><span class="nx">wb</span><span class="p">.</span><span class="nx">registerCommand</span><span class="p">({</span>
+</span><span id="__span-12-49"><a id="__codelineno-12-49" name="__codelineno-12-49" href="#__codelineno-12-49"></a><span class="w">    </span><span class="nx">id</span><span class="o">:</span><span class="w"> </span><span class="s2">"hello.greet_selection"</span><span class="p">,</span><span class="w"> </span><span class="nx">title</span><span class="o">:</span><span class="w"> </span><span class="s2">"Say hello to the selection"</span><span class="p">,</span><span class="w"> </span><span class="nx">contexts</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"selection"</span><span class="p">],</span>
+</span><span id="__span-12-50"><a id="__codelineno-12-50" name="__codelineno-12-50" href="#__codelineno-12-50"></a><span class="w">    </span><span class="nx">when</span><span class="o">:</span><span class="w"> </span><span class="nx">ctx</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">ctx</span><span class="p">.</span><span class="nx">selectionCount</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0</span><span class="p">,</span>
+</span><span id="__span-12-51"><a id="__codelineno-12-51" name="__codelineno-12-51" href="#__codelineno-12-51"></a><span class="w">    </span><span class="nx">run</span><span class="o">:</span><span class="w"> </span><span class="nx">ctx</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">wb</span><span class="p">.</span><span class="nx">api</span><span class="p">.</span><span class="nx">dispatch</span><span class="p">({</span><span class="w"> </span><span class="nx">type</span><span class="o">:</span><span class="w"> </span><span class="s2">"hello.greet"</span><span class="p">,</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="sb">`</span><span class="si">${</span><span class="nx">ctx</span><span class="p">.</span><span class="nx">selectionCount</span><span class="si">}</span><span class="sb"> selected links`</span><span class="w"> </span><span class="p">}),</span>
+</span><span id="__span-12-52"><a id="__codelineno-12-52" name="__codelineno-12-52" href="#__codelineno-12-52"></a><span class="w">  </span><span class="p">});</span>
+</span><span id="__span-12-53"><a id="__codelineno-12-53" name="__codelineno-12-53" href="#__codelineno-12-53"></a><span class="p">}</span>
+</span></code></pre></div>
+<h3 id="the-wb-reference">The <code>wb</code> reference<a class="headerlink" href="#the-wb-reference" title="Permanent link"> ¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>Member</th>
+<th>What it gives you</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>wb.id</code>, <code>wb.hostApi</code></td>
+<td>This plugin’s id, and the plugin API this netstead provides (<code>"1.7"</code>).</td>
+</tr>
+<tr>
+<td><code>wb.api.fetch(path, init)</code>, <code>wb.api.get(path)</code>, <code>wb.api.post(path, body)</code></td>
+<td><code>fetch</code>, and JSON helpers, scoped to your router: <code>"/count"</code> is <code>/api/plugins/&lt;id&gt;/count</code>. A path must start with <code>/</code> and, once resolved (<code>%2e%2e</code> and <code>\</code> count as <code>..</code> and <code>/</code>), stay under that prefix; other hosts are refused.</td>
+</tr>
+<tr>
+<td><code>wb.api.dispatch(action)</code></td>
+<td>Posts any Action (yours, another plugin’s, core’s) to <code>POST /api/actions</code> and resolves to its result.</td>
+</tr>
+<tr>
+<td><code>wb.store.get()</code>, <code>wb.store.subscribe(keys, fn)</code></td>
+<td>The server state (<code>/api/state</code>), and a listener that fires when any of <code>keys</code> changes. Keys may be dotted (<code>"plugins.hello"</code>). <code>get()</code> and the listener’s argument are a frozen copy: changing it throws (changes go through Actions). Returns an unsubscribe function.</td>
+</tr>
+<tr>
+<td><code>wb.selection.get()</code>, <code>wb.selection.subscribe(fn)</code></td>
+<td>The active network’s shared selection (or <code>null</code>), as a frozen copy, and a listener for its changes. Returns an unsubscribe function.</td>
+</tr>
+<tr>
+<td><code>wb.registerWorkspace({id, title, layout?, badge?, order?})</code></td>
+<td>A workspace tab. <code>layout: {view: "map" \| "split" \| "table"}</code> is its first-visit view; after that it opens in the view the user left it in. Returns an unregister function.</td>
+</tr>
+<tr>
+<td><code>wb.registerPanel({workspace, id, title, render?, badge?, onShow?, order?})</code></td>
+<td>A dock panel. <code>workspace</code> is an id, a list, or <code>"*"</code> (every workspace). <code>render(el)</code> runs once, the first time it shows; <code>onShow()</code> each time it is shown. Returns <code>{refreshBadge(), dispose()}</code>.</td>
+</tr>
+<tr>
+<td><code>wb.registerCommand({id, title, run, contexts?, when?, group?, order?})</code></td>
+<td>A command. <code>contexts</code> defaults to <code>["palette"]</code> (see <a href="#commands">Commands</a>). Returns an unregister function.</td>
+</tr>
+<tr>
+<td><code>wb.registerLayer(component, id, factory, {order?, title?})</code></td>
+<td>A map layer (see <a href="#map-layers">Map layers</a>). Returns an unregister function.</td>
+</tr>
+<tr>
+<td><code>wb.schemaForm(el, schema, value, {onChange?, omit?})</code></td>
+<td>Renders a form for a JSON Schema into <code>el</code> (see <a href="#forms">Forms</a>). Returns <code>{value(), errors(), set(value), focus()}</code>.</td>
+</tr>
+<tr>
+<td><code>wb.actionSchema(type)</code>, <code>wb.hasAction(type)</code></td>
+<td>An Action’s JSON Schema (or <code>null</code>), and whether it is registered: for soft dependencies on another plugin, as <code>host.has_action</code> is in Python. Read from <code>GET /api/actions</code> before activation.</td>
+</tr>
+<tr>
+<td><code>wb.on(event, fn)</code></td>
+<td>Your own <code>host.publish(event, payload)</code> events (<code>"greeted"</code>), another plugin’s (<code>"catalog.added"</code>), or core’s (<code>"core.history"</code>, <code>"core.job"</code>). They arrive over the page’s one event stream: never open your own <code>EventSource</code>. Returns an unsubscribe function.</td>
+</tr>
+<tr>
+<td><code>wb.showPanel(id)</code></td>
+<td>Shows a panel, switching workspace when the current one doesn’t have it.</td>
+</tr>
+<tr>
+<td><code>wb.toast(message)</code></td>
+<td>A short notice, prefixed with your plugin id.</td>
+</tr>
+<tr>
+<td><code>wb.highlight({links})</code></td>
+<td>Replaces the page’s highlighted links (the highlight tool’s cyan links, listed in the Find panel) with <code>links</code>; <code>wb.highlight()</code> clears them. Nodes are not highlighted by core yet (<code>nodes</code> is accepted and ignored).</td>
+</tr>
+</tbody>
+</table>
+<p><code>GET /api/actions</code> lists every registered Action: <code>type</code>, class <code>name</code>, <code>description</code> (its
+docstring’s first line), owning <code>plugin</code> (<code>null</code> for core), <code>mutates</code>, <code>assistant</code> (whether the NL assistant may ever offer it), and its JSON <code>schema</code>.</p>
+<p><strong>Ids.</strong> Every id a plugin registers (workspace, panel, command, layer, and the <code>id</code> of each deck.gl
+layer a factory returns) starts with <code>"&lt;plugin id&gt;."</code>. Core’s ids are bare (<code>inspect</code>, <code>details</code>,
+<code>links</code>), and the plugin id <code>core</code> is reserved.</p>
+<h3 id="commands">Commands<a class="headerlink" href="#commands" title="Permanent link"> ¶</a></h3>
+<p><code>run(ctx)</code> and <code>when(ctx)</code> get one context:</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>network</code></td>
+<td><code>{id, version, derived_from}</code> of the active network, or <code>null</code>.</td>
+</tr>
+<tr>
+<td><code>selection</code>, <code>selectionCount</code></td>
+<td>The active network’s shared selection (<code>{net_id, link_ids, …}</code>) and its number of links. A selection with no links counts as none.</td>
+</tr>
+<tr>
+<td><code>focus</code></td>
+<td>The record last clicked, <code>{table, id}</code>, or <code>null</code>.</td>
+</tr>
+<tr>
+<td><code>highlights</code></td>
+<td>The highlighted link ids (an array).</td>
+</tr>
+<tr>
+<td><code>workspace</code></td>
+<td>The active workspace’s id.</td>
+</tr>
+<tr>
+<td><code>target</code></td>
+<td>The right-clicked record, <code>{table, id}</code>: a map feature or grid row, or the focused record in the palette’s “For …” group. <code>null</code> otherwise.</td>
+</tr>
+<tr>
+<td><code>state</code></td>
+<td>The server state.</td>
+</tr>
+</tbody>
+</table>
+<p>Everything in <code>ctx</code> is a frozen copy: changing it throws, and the page’s own state is untouched.
+Changes go through Actions. A panel’s or workspace’s <code>badge(ctx)</code> gets the same context.</p>
+<p>Where each context shows:</p>
+<table>
+<thead>
+<tr>
+<th><code>contexts</code> entry</th>
+<th>Where</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>"palette"</code></td>
+<td>The command palette (<strong>Ctrl+K</strong>, <strong>⌘K</strong> on a Mac, or <strong>Commands…</strong> in the header).</td>
+</tr>
+<tr>
+<td><code>"feature"</code></td>
+<td>Right-click on a link or node on the map.</td>
+</tr>
+<tr>
+<td><code>"row"</code></td>
+<td>Right-click on a table row.</td>
+</tr>
+<tr>
+<td><code>"selection"</code></td>
+<td><strong>Selection actions ▾</strong> in the <strong>Selection</strong> panel, a “Selection (n links)” section in the map and row menus, and in the palette.</td>
+</tr>
+</tbody>
+</table>
+<p>The palette is also the keyboard way to a context menu: with a record focused it lists that record’s
+feature and row commands under “For ‹table› ‹id›”, and the selection’s under “Selection (n links)”.
+A command’s <code>group</code> shows as “Group ▸ Title” in menus and the palette. A menu opens only when a
+command applies; with none, the map keeps its right-drag rotate and a table row the browser’s own
+menu.</p>
+<p><strong>Declarative first.</strong> Every plugin Action also gets a generated palette command, “‹Plugin›:
+‹Action›…” (for hello, “Hello: Greet…”). It opens a dialog with the Action’s schema form and a Run
+button, so a plugin that ships no JavaScript is still usable.</p>
+<h3 id="badges">Badges<a class="headerlink" href="#badges" title="Permanent link"> ¶</a></h3>
+<p><code>badge(ctx)</code> returns a count, a string, or <code>{text, dirty, title}</code>, or nothing for no badge. It is
+re-evaluated on every server-state change, and when you call <code>panel.refreshBadge()</code>. <code>dirty: true</code>
+shows a dot on the panel’s tab and on its workspace tab, so unsaved work is visible from anywhere.</p>
+<h3 id="map-layers">Map layers<a class="headerlink" href="#map-layers" title="Permanent link"> ¶</a></h3>
+<!-- doctest: skip -->
+<div class="language-js highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="nx">wb</span><span class="p">.</span><span class="nx">registerLayer</span><span class="p">(</span><span class="s2">"roadway"</span><span class="p">,</span><span class="w"> </span><span class="s2">"hello.pins"</span><span class="p">,</span><span class="w"> </span><span class="nx">ctx</span><span class="w"> </span><span class="p">=&gt;</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="nx">ctx</span><span class="p">.</span><span class="nx">focus</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">ctx</span><span class="p">.</span><span class="nx">focus</span><span class="p">.</span><span class="nx">table</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s2">"node"</span>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">    </span><span class="o">?</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">ctx</span><span class="p">.</span><span class="nx">deck</span><span class="p">.</span><span class="nx">ScatterplotLayer</span><span class="p">({</span><span class="w"> </span><span class="nx">id</span><span class="o">:</span><span class="w"> </span><span class="s2">"hello.pins"</span><span class="p">,</span><span class="w"> </span><span class="nx">data</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="cm">/* … */</span><span class="p">],</span><span class="w"> </span><span class="nx">getPosition</span><span class="o">:</span><span class="w"> </span><span class="nx">d</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">d</span><span class="p">.</span><span class="nx">xy</span><span class="p">,</span><span class="w"> </span><span class="nx">getRadius</span><span class="o">:</span><span class="w"> </span><span class="mf">8</span><span class="w"> </span><span class="p">})</span>
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">    </span><span class="o">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nx">title</span><span class="o">:</span><span class="w"> </span><span class="s2">"Hello pins"</span><span class="p">,</span><span class="w"> </span><span class="nx">order</span><span class="o">:</span><span class="w"> </span><span class="mf">350</span><span class="w"> </span><span class="p">});</span>
+</span></code></pre></div>
+<ul>
+<li><code>factory(ctx)</code> returns a deck.gl layer, a list of them, or nothing, on every map redraw. Anything
+  that isn’t a deck.gl layer, or a layer whose <code>id</code> doesn’t start with <code>"&lt;plugin id&gt;."</code>, is left
+  out and reported (core’s ids drive picking, tooltips and box-select).</li>
+<li><code>ctx</code> has <code>deck</code> (the page’s deck.gl), <code>server</code>, <code>style</code>, <code>selection</code>, <code>focus</code>, <code>highlights</code> (a
+  Set), <code>related</code>, <code>marker</code>, <code>zoom</code>, <code>net</code> and <code>attrs</code>. <code>server</code>, <code>selection</code>, <code>focus</code>, <code>related</code>
+  and <code>marker</code> are frozen copies and <code>highlights</code> is a copy. <strong><code>net</code> and <code>attrs</code></strong> (the decoded
+  network and its attributes) are too big to copy on each redraw, so they are the page’s own: read
+  them, never change them.</li>
+<li>Core’s layers, bottom to top: <code>base</code> 100, <code>selection</code> 200, <code>related</code> 300, <code>highlighted</code> 400,
+  <code>focus</code> 500, <code>marker</code> 600. A plugin layer defaults to 350: above related records, under the user’s
+  highlights, focus and marker.</li>
+<li>A <code>title</code> lists the layer under the <strong>Find</strong> tab’s <strong>View</strong> section, with a show/hide switch (per browser
+  tab, not recorded).</li>
+<li><code>"transit"</code> is accepted as a component and not drawn yet.</li>
+</ul>
+<h3 id="forms">Forms<a class="headerlink" href="#forms" title="Permanent link"> ¶</a></h3>
+<p><code>wb.schemaForm(el, schema, value, {onChange, omit})</code> is the Settings dialog’s field renderer, made
+general: text, numbers (with their bounds), checkboxes, menus for enums and <code>Literal</code>s, lists, one
+level of nested object as a group, and JSON for anything else. A <code>const</code> property (an Action’s
+<code>type</code>) gets no field, and <code>omit</code> drops others by name. <code>value()</code> is what the form shows: a
+checkbox’s or menu’s shown value is included, a field left blank is left out, and a required field
+that may be <code>None</code> sends <code>null</code> (its blank choice reads “None”). <code>errors()</code> lists required fields
+left empty, numbers out of bounds, and entries that didn’t parse. The server validates again.</p>
+<h3 id="styling">Styling<a class="headerlink" href="#styling" title="Permanent link"> ¶</a></h3>
+<p>Use core’s classes (<code>mini</code>, <code>ghost</code>, <code>muted</code>, <code>pcount</code>, <code>row</code>, <code>sw</code>) so your panel looks like the
+rest of the Workbench. Scope your own CSS under <code>[data-panel="&lt;your panel id&gt;"]</code>, the panel’s
+container. If you ship a stylesheet, add a <code>&lt;link&gt;</code> for it from <code>activate</code>.</p>
+<h3 id="when-plugin-code-fails">When plugin code fails<a class="headerlink" href="#when-plugin-code-fails" title="Permanent link"> ¶</a></h3>
+<p>Every call into plugin code is contained, so one plugin’s bug never breaks core or another plugin:</p>
+<table>
+<thead>
+<tr>
+<th>Call</th>
+<th>When it throws (or its promise rejects)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>activate(wb)</code> (or the module import, or no <code>activate</code>, or the import and <code>activate</code> taking more than 5 s together)</td>
+<td>Everything it registered is removed, and later registrations and listeners (<code>wb.on</code>, <code>subscribe</code>) through that <code>wb</code> are refused.</td>
+</tr>
+<tr>
+<td>A panel’s <code>render</code></td>
+<td>The panel shows “This panel failed to load: …”.</td>
+</tr>
+<tr>
+<td>A <code>badge</code></td>
+<td>No badge.</td>
+</tr>
+<tr>
+<td><code>onShow</code>, a <code>wb.on</code> or <code>wb.store</code> / <code>wb.selection</code> listener</td>
+<td>Skipped for that call.</td>
+</tr>
+<tr>
+<td>A command’s <code>when</code></td>
+<td>The command doesn’t apply.</td>
+</tr>
+<tr>
+<td>A command’s <code>run</code></td>
+<td>Nothing else happens.</td>
+</tr>
+<tr>
+<td>A layer factory</td>
+<td>That layer isn’t drawn.</td>
+</tr>
+</tbody>
+</table>
+<p>Each failure is logged to the browser console, shown in a notice (“Plugin hello: …”), and listed
+under the plugin in <strong>Settings → Plugins</strong>. A failure that would repeat on every redraw (a badge, a
+layer, a <code>when</code>, a listener) is reported once per message. A command’s <code>run</code> is reported every time the
+user runs it, so they always see why nothing happened, but it is listed once.</p>
+<p>Only calls core makes into your code are contained this way. An error thrown from your own timer
+(<code>setTimeout</code>, <code>setInterval</code>), an event handler you attached yourself, or a promise you don’t return to
+core reaches the browser console but isn’t attributed to your plugin or listed in Settings → Plugins.
+Catch those yourself (and <code>wb.toast</code> if the user should know).</p>
+<p>Every string a plugin hands core (titles, badges, menu labels, schema text) is shown as text, never
+as markup. Markup you write into your own panel’s <code>el</code> is yours to escape.</p>
+<h2 id="test-a-plugin">Test a plugin<a class="headerlink" href="#test-a-plugin" title="Permanent link"> ¶</a></h2>
+<p>There is no special harness. Build a <code>Session</code> with your plugin passed in explicitly, which skips
+entry-point discovery, and drive it:</p>
+<!-- doctest: skip -->
+<div class="language-python highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">netstead.select.parse</span><span class="w"> </span><span class="kn">import</span> <span class="n">StubParser</span>
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">netstead.workbench</span><span class="w"> </span><span class="kn">import</span> <span class="n">Session</span>
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>
+</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">netstead_hello</span><span class="w"> </span><span class="kn">import</span> <span class="n">Greet</span><span class="p">,</span> <span class="n">plugin</span>
+</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>
+</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>
+</span><span id="__span-14-8"><a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span>
+</span><span id="__span-14-9"><a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a><span class="k">def</span><span class="w"> </span><span class="nf">session</span><span class="p">(</span><span class="n">tmp_path</span><span class="p">):</span>
+</span><span id="__span-14-10"><a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>    <span class="n">environ</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"NETSTEAD_CONFIG_DIR"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">tmp_path</span> <span class="o">/</span> <span class="s2">"user"</span><span class="p">)}</span>  <span class="c1"># never read your real user config</span>
+</span><span id="__span-14-11"><a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a>    <span class="k">return</span> <span class="n">Session</span><span class="p">(</span><span class="n">plugins</span><span class="o">=</span><span class="p">[</span><span class="n">plugin</span><span class="p">()],</span> <span class="n">project_dir</span><span class="o">=</span><span class="n">tmp_path</span><span class="p">,</span> <span class="n">environ</span><span class="o">=</span><span class="n">environ</span><span class="p">,</span> <span class="n">parser</span><span class="o">=</span><span class="n">StubParser</span><span class="p">())</span>
+</span><span id="__span-14-12"><a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a>
+</span><span id="__span-14-13"><a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a>
+</span><span id="__span-14-14"><a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a><span class="k">def</span><span class="w"> </span><span class="nf">test_greet</span><span class="p">(</span><span class="n">session</span><span class="p">):</span>
+</span><span id="__span-14-15"><a id="__codelineno-14-15" name="__codelineno-14-15" href="#__codelineno-14-15"></a>    <span class="k">assert</span> <span class="n">session</span><span class="o">.</span><span class="n">dispatch</span><span class="p">(</span><span class="n">Greet</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"Ada"</span><span class="p">))</span> <span class="o">==</span> <span class="s2">"Hello, Ada!"</span>
+</span><span id="__span-14-16"><a id="__codelineno-14-16" name="__codelineno-14-16" href="#__codelineno-14-16"></a>    <span class="k">assert</span> <span class="n">session</span><span class="o">.</span><span class="n">dispatch</span><span class="p">({</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"hello.greet"</span><span class="p">,</span> <span class="s2">"name"</span><span class="p">:</span> <span class="s2">"Bo"</span><span class="p">})</span> <span class="o">==</span> <span class="s2">"Hello, Bo!"</span>  <span class="c1"># as the browser sends it</span>
+</span><span id="__span-14-17"><a id="__codelineno-14-17" name="__codelineno-14-17" href="#__codelineno-14-17"></a>    <span class="k">assert</span> <span class="n">session</span><span class="o">.</span><span class="n">state</span><span class="p">()[</span><span class="s2">"plugins"</span><span class="p">][</span><span class="s2">"hello"</span><span class="p">]</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"greeted"</span><span class="p">:</span> <span class="mi">2</span><span class="p">}</span>
+</span><span id="__span-14-18"><a id="__codelineno-14-18" name="__codelineno-14-18" href="#__codelineno-14-18"></a>    <span class="k">assert</span> <span class="n">session</span><span class="o">.</span><span class="n">history</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">imports</span> <span class="o">==</span> <span class="s2">"from netstead_hello import Greet"</span>
+</span><span id="__span-14-19"><a id="__codelineno-14-19" name="__codelineno-14-19" href="#__codelineno-14-19"></a>    <span class="k">assert</span> <span class="nb">next</span><span class="p">(</span><span class="n">s</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">session</span><span class="o">.</span><span class="n">plugin_status</span> <span class="k">if</span> <span class="n">s</span><span class="o">.</span><span class="n">id</span> <span class="o">==</span> <span class="s2">"hello"</span><span class="p">)</span><span class="o">.</span><span class="n">state</span> <span class="o">==</span> <span class="s2">"loaded"</span>
+</span></code></pre></div>
+<p>Pass <code>overrides={"plugins.hello.prefix": "Howdy"}</code> to test settings. For the HTTP side, wrap the
+session in <code>TestClient(build_app(session))</code> from <code>netstead.workbench</code>.</p>
+<h2 id="startup-outcomes">Startup outcomes<a class="headerlink" href="#startup-outcomes" title="Permanent link"> ¶</a></h2>
+<p>Every plugin seen at startup gets a <code>netstead.workbench.plugins.PluginStatus</code>, listed by
+<code>GET /api/plugins</code> together with the host’s <code>host_api</code>, and shown in the Workbench under
+<strong>Settings → Plugins</strong> (with any front-end errors from the browser):</p>
+<table>
+<thead>
+<tr>
+<th>State</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>loaded</code></td>
+<td>Installed. Its Actions dispatch, and its routes and static files are mounted. <code>frontend</code> is the module URL (<code>/plugins/&lt;id&gt;/main.js</code>).</td>
+</tr>
+<tr>
+<td><code>disabled</code></td>
+<td>Listed in <code>[app] disabled_plugins</code>. It is skipped before its package is even imported.</td>
+</tr>
+<tr>
+<td><code>incompatible</code></td>
+<td>Its <code>requires_api</code> doesn’t match this netstead’s <code>HOST_API</code>.</td>
+</tr>
+<tr>
+<td><code>error</code></td>
+<td>Something failed: importing the entry point, the startup checks (id, namespacing, duplicates, class names), the settings, <code>on_load</code>, the router, or the static dir. <code>error</code> holds the reason.</td>
+</tr>
+</tbody>
+</table>
+<p>To turn a plugin off without uninstalling it:</p>
+<div class="language-toml highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="k">[app]</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="n">disabled_plugins</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"hello"</span><span class="p">]</span>
+</span></code></pre></div>
+<p>Or switch it off in <strong>Settings → Plugins</strong>, which saves <code>app.disabled_plugins</code> in your user config.
+When a project file or <code>NETSTEAD_APP__DISABLED_PLUGINS</code> sets it instead, that value wins: the switches
+are disabled and the section names the file or variable to change. <code>app.disabled_plugins</code> is read at
+startup, so restart <code>netstead app</code> after changing it; the row says “restart to apply” until then.
+Dispatching an Action of a plugin that isn’t loaded fails like any unknown Action type (HTTP 422).</p>
+<h2 id="versioning">Versioning<a class="headerlink" href="#versioning" title="Permanent link"> ¶</a></h2>
+<p><code>HOST_API</code> (in <code>netstead.workbench.plugins</code>) is a <code>major.minor</code> string. A plugin’s <code>requires_api</code>
+is compatible when the major versions are equal and the host’s minor is at least the plugin’s. A
+plugin written against <code>1.0</code> runs on <code>1.5</code>, but not on <code>2.0</code>, and a <code>1.5</code> plugin doesn’t run on <code>1.0</code>.
+A minor bump only adds to the API and a major bump breaks it.</p>
+<table>
+<thead>
+<tr>
+<th><code>HOST_API</code></th>
+<th>Added</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1.0</code></td>
+<td>The Python plugin core: Actions, <code>Host</code>, settings, state, routes, static files.</td>
+</tr>
+<tr>
+<td><code>1.1</code></td>
+<td>The browser API: <code>activate(wb)</code> and the <code>wb</code> object (workspaces, dock panels, commands, map layers, <code>schemaForm</code>), and <code>GET /api/actions</code>. A plugin with a front end should pass <code>requires_api="1.1"</code> (or <code>HOST_API</code>); a <code>1.0</code> plugin still runs.</td>
+</tr>
+<tr>
+<td><code>1.2</code></td>
+<td>Editing: <code>host.undo</code>, <code>host.edit_warnings</code> and <code>host.plan_update</code> / <code>plan_delete</code> / <code>plan_add</code> (with <code>EditPlan</code> and <code>EditRefused</code> exported from <code>netstead.workbench.plugins</code>), and <code>host.mutate(..., expected_version=plan.version)</code>, which refuses a stale plan. Every <code>host.mutate</code> becomes a pending edit with the plugin’s id as its source, re-checked live (<code>host.edit_warnings</code>), and listed in core’s Edit tab. <code>host.selection</code> adds <code>anchors_unplaced</code>.</td>
+</tr>
+<tr>
+<td><code>1.3</code></td>
+<td>Saved selections: <code>host.saved_selections()</code> and <code>host.saved_selection(name)</code>. <code>host.selection</code>’s anchors carry <code>anchor</code>, <code>confidence</code>, <code>pinned</code> and <code>candidates</code>, and the payload carries <code>stale_pins</code>. New core Actions a plugin may dispatch: <code>PinAnchor</code>, <code>SaveSelection</code>, <code>UseSelection</code>, <code>DeleteSelection</code>, <code>Filter</code>, <code>Style(width_by=…)</code> and <code>Navigate(record=…)</code>.</td>
+</tr>
+<tr>
+<td><code>1.4</code></td>
+<td>The assistant: <code>assistant: ClassVar[bool] = False</code> on an Action keeps it out of the NL assistant’s tools; a plugin’s Actions are offered as tools once the plugin is listed in <code>assistant.plugins</code>. <code>GET /api/actions</code> entries carry <code>assistant</code>.</td>
+</tr>
+<tr>
+<td><code>1.5</code></td>
+<td><code>ActionError</code> and <code>NotSupportedYet</code> are exported from <code>netstead.workbench.plugins</code>: a handler raises them to refuse with a message the user sees.</td>
+</tr>
+<tr>
+<td><code>1.6</code></td>
+<td><code>host.mutate</code> and <code>host.undo</code> raise <code>ActionError</code> when storage refuses the edit or its reverse (corral’s <code>EditingError</code>, an Arrow, ibis or DuckDB error), with the message scrubbed of credentials and keys. <code>host.mutate</code> returns a <code>Mutation(results, seq)</code> (exported; <strong>breaking</strong>: it used to return the list of results), <code>seq</code> being the pending edit’s id, unique per network id for the session. <code>host.pending_edits(net_id)</code> returns a <code>PendingEdits(issued, edits)</code> (exported); <code>host.undo()</code>’s <code>seq</code> names the edit it reversed. <code>host.on_rollback(fn)</code> lets a handler put its own state back when its Action is rolled back. <code>assistant_compact: ClassVar[bool] = True</code> on a <code>mutates</code> Action offers it in the assistant’s compact tool set; <code>GET /api/actions</code> entries carry <code>assistant_compact</code>.</td>
+</tr>
+<tr>
+<td><code>1.7</code></td>
+<td>Reading inside the sandbox: <code>host.readable(path)</code> (a file or folder that exists, inside <code>io.allowed_roots</code>) and <code>host.list_dir(path)</code> (a folder’s entries, hidden ones skipped). <code>host.history(prefix=None)</code> gives a read-only view of the session’s history, so a plugin can summarise what it did.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The plugin API is provisional until netstead v1.0.</strong> Until then it may change without a major
+bump. Pin the netstead versions you support in your package’s dependencies, and check the changelog
+when you upgrade.</p>
+
+
+
+
+
+
+
+  
+    
+  
+  
+    
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"></path></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 22, 2026 23:50:55 UTC">October 22, 2026</span>
+  </span>
+
+    
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Created">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"></path></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 11, 2026 00:15:35 UTC">October 11, 2026</span>
+  </span>
+
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden="">
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"></path></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.indexes", "navigation.top", "navigation.tracking", "toc.follow", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.tooltips", "content.action.edit", "content.action.view", "search.suggest", "search.highlight", "search.share"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  
+<script id="init-glightbox">const lightbox = GLightbox({"touchNavigation": true, "loop": false, "zoomable": true, "draggable": true, "openEffect": "zoom", "closeEffect": "zoom", "slideEffect": "slide"});
+document$.subscribe(()=>{ lightbox.reload(); });
+</script></body></html>

@@ -1,0 +1,75 @@
+{
+  "schema_version": "1",
+  "generated_at": "2026-10-22T23:51:17.265541+00:00",
+  "packages": {
+    "netstead": {
+      "version": "",
+      "symbols": [
+        {
+          "name": "DEFAULT_SPEC",
+          "kind": "value",
+          "module": "netstead",
+          "signature": "str = '0.97'",
+          "docstring": "str(object='') -> str\nstr(bytes_or_buffer[, encoding[, errors]]) -> str\n\nCreate a new string object from the given object. If encoding or\nerrors is specified, then the object must expose a data buffer\nthat will be decoded using the given encoding and error handler.\nOtherwise, returns the result of object.__str__() (if defined)\nor repr(object).\nencoding defaults to sys.getdefaultencoding().\nerrors defaults to 'strict'.",
+          "stability": "alpha"
+        },
+        {
+          "name": "SUPPORTED_SPECS",
+          "kind": "value",
+          "module": "netstead",
+          "signature": "tuple = ('0.95', '0.96', '0.97')",
+          "docstring": "Built-in immutable sequence.\n\nIf no argument is given, the constructor returns an empty tuple.\nIf iterable is specified the tuple is initialized from iterable's items.\n\nIf the argument is a tuple, the return value is the same object.",
+          "stability": "alpha"
+        },
+        {
+          "name": "Network",
+          "kind": "class",
+          "module": "netstead.network",
+          "signature": "Network(spec: 'DataPackage', tables: 'dict[str, Table]' = <factory>, engine: 'Engine | None' = None, source: 'str | None' = None, dirty_tracker: 'Any' = None, metadata: 'dict[str, Any]' = <factory>, spec_missing: 'bool' = False, spec_version: 'str | None' = None) -> None",
+          "docstring": "GMNS-aware :class:`~corral.dataset.Package`.\n\nSubclass of :class:`~corral.dataset.Package` that defaults to the\nbundled GMNS spec (see :mod:`netstead.spec`) and exposes named\naccessors for the canonical GMNS resources (``link``, ``node``,\n``segment``, ``lane``, ``geometry``, ``link_tod``,\n``signal_controller``, \u2026). Validation reports produced by\n:meth:`validate` carry the active :attr:`spec_version` so saved\nJSON / HTML reports are self-describing.\n\nAttributes:\n    spec_version: GMNS spec version this network was loaded\n        against \u2014 one of :data:`netstead.spec.SUPPORTED_SPECS`.\n        Populated by :meth:`from_source`; defaults to ``\"\"`` when\n        the dataclass is constructed directly (the structural\n        check still works, but :meth:`validate`'s stamp will be\n        empty until the caller sets it).\n\nExamples:\n    Load the bundled Leavenworth fixture, hit the named accessors,\n    and run validation::\n\n        >>> from netstead import Network\n        >>> from netstead.fixtures import leavenworth\n        >>> from corral.engines.ibis_engine import IbisEngine\n        >>> net = Network.from_source(leavenworth.csv_dir(), engine=IbisEngine())\n        >>> net.links.name\n        'link'\n        >>> net.nodes.name\n        'node'\n        >>> net.segments is None  # Leavenworth has no segment table\n        True\n        >>> report = net.validate()\n        >>> report.spec_version == net.spec_version\n        True",
+          "stability": "alpha"
+        },
+        {
+          "name": "NetworkError",
+          "kind": "class",
+          "module": "netstead.network",
+          "signature": "NetworkError",
+          "docstring": "A GMNS-required resource is missing or violates GMNS semantics.\n\nSpecialises :class:`~corral.dataset.PackageError` so generic\npackage-error handlers still catch it, while GMNS-aware callers can\nbranch on the more specific type. Raised today by\n:attr:`Network.links` / :attr:`Network.nodes` when the underlying\nresource is absent from the loaded package; task 3.8 will reuse it\nfor GMNS-semantics violations (broken connectivity, missing TOD\nreferences, \u2026).",
+          "stability": "alpha"
+        },
+        {
+          "name": "get_spec_path",
+          "kind": "function",
+          "module": "netstead.spec",
+          "signature": "get_spec_path(version: 'str' = '0.97') -> 'Path'",
+          "docstring": "Return the on-disk directory holding the vendored spec.\n\nResolves the version directory through :mod:`importlib.resources`\nso the lookup works identically whether ``netstead`` was imported\nfrom a source checkout or installed from a wheel.\n\nArgs:\n    version: One of :data:`SUPPORTED_SPECS` (default\n        :data:`DEFAULT_SPEC`).\n\nReturns:\n    Filesystem path to ``packages/netstead/netstead/spec/<version>/``\n    \u2014 the directory that contains the descriptor JSON plus one\n    ``.schema.json`` file per resource.\n\nRaises:\n    ValueError: If ``version`` is not in :data:`SUPPORTED_SPECS`.\n\nExamples:\n    >>> from netstead.spec import get_spec_path\n    >>> p = get_spec_path()\n    >>> p.is_dir()\n    True\n    >>> p.name\n    '0.97'\n    >>> (p / \"link.schema.json\").is_file()\n    True",
+          "stability": "alpha"
+        },
+        {
+          "name": "load_gmns_spec",
+          "kind": "function",
+          "module": "netstead.spec",
+          "signature": "load_gmns_spec(version: 'str' = '0.97') -> 'DataPackage'",
+          "docstring": "Load the vendored GMNS data package for one spec version.\n\nDelegates parsing to :func:`corral.spec.load_package`, which\nresolves each resource's ``schema`` reference, follows ``$ref``\npointers (including into ``shared_categories.json`` when present\n\u2014 that file ships only in 0.97), and inlines the resolved enum\nvalues onto each field's ``constraints.enum``.\n\nArgs:\n    version: One of :data:`SUPPORTED_SPECS` (default\n        :data:`DEFAULT_SPEC`).\n\nReturns:\n    Parsed :class:`~corral.spec.DataPackage` with every\n    resource's ``table_schema`` populated.\n\nRaises:\n    ValueError: If ``version`` is not in :data:`SUPPORTED_SPECS`.\n    SpecLoadError: If the vendored descriptor is missing or\n        malformed. This should not happen in a released wheel;\n        it indicates the package data was corrupted at build\n        time.\n\nExamples:\n    >>> from netstead.spec import load_gmns_spec\n    >>> pkg = load_gmns_spec()\n    >>> pkg.name\n    'gmns'\n    >>> pkg.version                       # we trust the dir name\n    '0.97'\n    >>> {r.name for r in pkg.resources} >= {\"link\", \"node\"}\n    True",
+          "stability": "alpha"
+        },
+        {
+          "name": "read",
+          "kind": "function",
+          "module": "netstead",
+          "signature": "read(source: 'str | Path', *, engine: 'Engine | None' = None, spec_version: 'str | None' = None, tables: 'Iterable[str] | None' = None) -> 'Network'",
+          "docstring": "Load a GMNS network from ``source``. The I/O front door.\n\nThin convenience wrapper around :meth:`Network.from_source` \u2014 exists\nso the documented top-level form ``netstead.read(...)`` works without\ncallers needing to know which class to import.\n\nArgs:\n    source: Local path, ``s3://`` / ``https://`` / ``duckdb://`` URL,\n        or directory of CSV / Parquet / DuckDB / zipped-CSV files\n        containing the GMNS package.\n    engine: Engine to materialise through. Defaults to the\n        corral default (typically the ibis + DuckDB engine).\n    spec_version: GMNS spec version to validate against. Defaults\n        to :data:`DEFAULT_SPEC` (currently ``\"0.97\"``); must be one\n        of :data:`SUPPORTED_SPECS`.\n    tables: Optional iterable of table names to partial-load.\n\nReturns:\n    A :class:`Network` whose tables are lazy ibis expressions.\n\nExamples:\n    >>> import netstead\n    >>> from netstead.fixtures import leavenworth\n    >>> net = netstead.read(leavenworth.csv_dir())\n    >>> net.links.count()\n    339",
+          "stability": "alpha"
+        },
+        {
+          "name": "validate",
+          "kind": "function",
+          "module": "netstead",
+          "signature": "validate(source: 'str | Path | Network', *, engine: 'Engine | None' = None, spec_version: 'str | None' = None, schema: 'bool' = True, structural: 'bool' = True, foreign_keys: 'bool' = True, sync_state: 'bool' = True, strict: 'bool' = False) -> 'ValidationReport'",
+          "docstring": "Validate a GMNS network. Accepts a path/URL or an already-loaded Network.\n\nThin wrapper around :meth:`Network.validate` \u2014 exists so the\ndocumented top-level form ``netstead.validate(...)`` works without\ncallers needing to load a :class:`Network` first.\n\nIf ``source`` is already a :class:`Network`, calls ``.validate()``\non it directly. Otherwise loads via :func:`netstead.read` first.\n\nArgs:\n    source: A :class:`Network`, or anything :func:`read` accepts\n        (local path, URL, package directory).\n    engine: Engine to materialise through. Only consulted when\n        ``source`` is a path \u2014 ignored when it's already a Network.\n    spec_version: GMNS spec version to validate against. Only\n        consulted when ``source`` is a path.\n    schema: Run the per-field schema check pass (types, enums,\n        constraints). Default ``True``.\n    structural: Run the package-structure pass (required tables,\n        file presence). Default ``True``.\n    foreign_keys: Run the FK referential-integrity pass. Default\n        ``True``.\n    sync_state: Stamp + check FK staleness against the\n        :class:`~corral.validation.sync_state.DirtyTracker`.\n        Default ``True``.\n    strict: Treat warnings as errors \u2014 caller can ``raise`` on\n        any non-clean report. Default ``False``.\n\nReturns:\n    A :class:`~corral.reports.ValidationReport` whose\n    ``spec_version`` field is stamped with the GMNS version the\n    data was checked against.\n\nExamples:\n    >>> import netstead\n    >>> from netstead.fixtures import leavenworth\n    >>> report = netstead.validate(leavenworth.csv_dir())\n    >>> report.spec_version\n    '0.97'",
+          "stability": "alpha"
+        }
+      ]
+    }
+  }
+}
