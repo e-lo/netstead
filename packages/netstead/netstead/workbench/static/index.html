@@ -17,81 +17,43 @@
       <h1>Netstead Workbench</h1>
       <nav id="ws-tabs" role="tablist" aria-label="Workspaces" hidden></nav>
       <select id="net-select" aria-label="Active network"></select>
-      <button id="open-wizard" class="mini">Open / Import…</button>
-      <select id="recent" aria-label="Recent networks"></select>
+      <span id="open-wrap">
+        <button id="open-wizard" class="mini" aria-haspopup="menu" aria-controls="open-menu" aria-expanded="false"><span data-icon="folder-open"></span>Open…<span class="caret" data-icon="chevron-down"></span></button>
+        <div id="open-menu" role="menu" aria-label="Open a network" hidden>
+          <div id="open-recents"></div>
+          <div class="menu-sep" role="separator"></div>
+          <button id="open-browse" role="menuitem">Browse / import…</button>
+        </div>
+      </span>
+      <button id="save-btn" class="iconbtn" data-icon="save" data-tip="Save a copy…" aria-label="Save a copy"></button>
       <div id="viewmode">
         <button data-mode="map" class="on">Map</button>
         <button data-mode="split">Split</button>
         <button data-mode="table">Table</button>
       </div>
+      <button id="valid-light" class="iconbtn vl-unknown" data-tip="Not validated yet" aria-label="Validation: not validated yet"></button>
       <span id="count"></span>
-      <span class="spacer" id="cmd-slot"><button id="cmd-btn" class="mini ghost" title="Command palette (Ctrl+K, ⌘K on a Mac)" aria-keyshortcuts="Control+K Meta+K">Commands…</button></span>
-      <button id="jobs-btn" class="mini ghost" aria-label="Background jobs">Jobs <span id="jobs-count" class="pcount">0</span></button>
-      <button id="settings-btn" class="mini ghost">Settings…</button>
-    </div>
-    <div class="hrow" id="nl-row">
-      <input id="utterance" placeholder='e.g. "I-40 EB between South Miami Boulevard and Airport Boulevard"' aria-label="Selection utterance" />
-      <span id="nl-picker">
-        <span id="nl-dot" class="dot off" aria-hidden="true"></span>
-        <select id="nl-provider" aria-label="Language model provider (this session)"></select>
-        <select id="nl-model" aria-label="Language model (this session)"></select>
-        <button id="nl-default" class="mini ghost" title="Save this provider and model as your default" disabled>Make default</button>
-        <button id="nl-manage" class="mini ghost" aria-label="Manage language models">Models…</button>
-      </span>
-      <button id="go">Select</button>
-      <button id="ask" class="ghost" title="Ask the assistant (Ctrl+Enter, ⌘Enter on a Mac)" aria-keyshortcuts="Control+Enter Meta+Enter">Ask</button>
+      <span class="spacer" id="cmd-slot"><button id="cmd-btn" class="iconbtn" data-icon="terminal" data-tip="Commands (⌘K / Ctrl+K)" aria-label="Commands" aria-keyshortcuts="Control+K Meta+K"></button></span>
+      <button id="jobs-btn" class="mini ghost" data-tip="Background jobs" aria-label="Background jobs"><span data-icon="play"></span><span id="jobs-count" class="pcount">0</span></button>
+      <button id="settings-btn" class="iconbtn" data-icon="gear" data-tip="Settings" aria-label="Settings"></button>
     </div>
   </header>
   <div id="stage" data-mode="map">
-    <div id="map">
+    <div id="mapwrap">
+      <div id="map"><div id="boxsel"></div></div>
+      <!-- Over the map, not inside it: MapLibre's container clips (overflow:hidden), so in Split view a popover
+           taller than the shrunken map lost its bottom. The overlay passes pointer events through to the map. -->
+      <div id="map-overlay">
       <div id="map-btns">
         <button class="iconbtn" id="btn-highlight" data-tip="Highlight links (click; shift-drag box)" aria-label="Highlight links">&#9647;</button>
         <button class="iconbtn" id="btn-fitnet" data-tip="Zoom to full network" aria-label="Zoom to full network">&#9974;</button>
         <button class="iconbtn" id="btn-fitsel" data-tip="Zoom to selection" aria-label="Zoom to selection">&#9673;</button>
-        <button class="iconbtn" id="btn-layers" data-tip="Layers" aria-label="Layers">&#9635;</button>
-        <button class="iconbtn" id="btn-settings" data-tip="Map display" aria-label="Map display">&#9881;</button>
-      </div>
-      <div class="panel" id="layers-panel">
-        <h4>Layers</h4>
-        <div class="row"><label class="sw"><input type="checkbox" id="tg-links"><span></span></label>
-          <span class="lbl">Links</span><input type="color" class="swatch" id="col-links"></div>
-        <div class="row"><label class="sw"><input type="checkbox" id="tg-nodes"><span></span></label>
-          <span class="lbl">Nodes</span><input type="color" class="swatch" id="col-nodes"></div>
-        <div class="row"><label class="sw"><input type="checkbox" id="tg-selection"><span></span></label>
-          <span class="lbl">Selection</span><input type="color" class="swatch" id="col-selection"></div>
-        <div class="row"><label class="sw"><input type="checkbox" id="tg-labels"><span></span></label>
-          <span class="lbl">Basemap labels</span></div>
-        <h4 style="margin-top:14px">Color links by</h4>
-        <div class="row"><select id="colorby"><option value="none">None (single color)</option></select></div>
-        <div class="row" id="ramp-row" style="display:none"><span class="lbl">Ramp</span>
-          <select id="ramp"><option>YlOrRd</option><option>Blues</option><option>Viridis</option></select></div>
-        <h4 style="margin-top:14px">Filter links</h4>
-        <div class="row"><select id="flt-col" aria-label="Filter column"></select></div>
-        <div class="row flt-cond"><select id="flt-op" aria-label="Filter operator">
-            <option value="eq">=</option><option value="ne">≠</option><option value="lt">&lt;</option>
-            <option value="lte">≤</option><option value="gt">&gt;</option><option value="gte">≥</option>
-            <option value="contains">contains</option><option value="isnull">is empty</option><option value="notnull">is not empty</option>
-          </select>
-          <input id="flt-val" aria-label="Filter value" size="8"></div>
-        <div class="row"><button class="mini" id="flt-apply">Apply</button><button class="mini ghost" id="flt-clear">Clear</button>
-          <span id="flt-count" class="diag" role="status"></span></div>
-        <div id="flt-note" class="diag" hidden></div>
-        <div id="plugin-layers"></div>
-      </div>
-      <div class="panel" id="settings-panel">
-        <h4>Map display</h4>
-        <div class="row"><span class="lbl">Offset directions</span>
-          <label class="sw"><input type="checkbox" id="tg-offset"><span></span></label></div>
-        <div class="row"><span class="lbl">Show direction</span>
-          <label class="sw"><input type="checkbox" id="tg-direction"><span></span></label></div>
-        <div class="row"><span class="lbl">Show legend</span>
-          <label class="sw"><input type="checkbox" id="tg-legend"><span></span></label></div>
-        <div class="row"><span class="lbl">Width by</span>
-          <select id="widthby" aria-label="Width links by"><option value="none">Lane count</option></select></div>
       </div>
       <div id="legend"></div>
-      <div id="boxsel"></div>
+      </div>
     </div>
+    <div id="split-handle" role="separator" aria-orientation="horizontal" aria-label="Resize map and table" tabindex="0"
+         aria-valuemin="20" aria-valuemax="80" aria-valuenow="55" title="Drag to resize; double-click to reset"><span data-icon="grip"></span></div>
     <div id="tablepane">
       <div id="tbl-rail"></div>
       <div id="tbl-main">
@@ -106,27 +68,31 @@
             <option value="filtered">Filtered</option>
           </select>
           <button class="mini ghost" id="tbl-hops" title="Follow keys one more step">Expand a hop</button></div>
+        <div id="tbl-chips" aria-label="Active column filters" hidden></div>
         <div id="tbl-grid-wrap"><table id="tbl-grid"></table></div>
+        <datalist id="cell-opts"></datalist>
         <div id="tbl-pager"><button id="tbl-prev">&#8592; Prev</button>
           <span id="tbl-range">—</span><button id="tbl-next">Next &#8594;</button></div>
       </div>
     </div>
   </div>
+  <div id="side-handle" role="separator" aria-orientation="vertical" aria-label="Resize side panel" tabindex="0"
+       aria-valuemin="240" aria-valuemax="720" aria-valuenow="330" title="Drag to resize; double-click to reset"><span data-icon="grip"></span></div>
   <aside id="side">
     <div id="dock-tabs" role="tablist" aria-label="Panels" hidden></div>
-    <section class="dock-pane" id="dock-details" data-panel="details" role="tabpanel" aria-labelledby="dtab-details">
-    <div class="label">Highlighted links <span id="hl-count" class="pcount">0</span></div>
-    <div id="hl-wrap">
-      <span class="empty" id="hl-hint">Turn on <b>Highlight links</b> (&#9647;), then click links or shift-drag a box.</span>
-      <div id="hl-actions" style="display:none">
-        <button class="mini" id="hl-set">Set as selection</button>
-        <button class="mini ghost" id="hl-clear">Clear highlights</button>
-      </div>
+    <section class="dock-pane" id="dock-find" data-panel="find" role="tabpanel" aria-labelledby="dtab-find">
+    <div id="find-bar">
+      <input id="utterance" placeholder='e.g. "I-40 EB between South Miami Boulevard and Airport Boulevard"' aria-label="Selection utterance" />
+      <div class="row wrap" id="find-go"><button id="go">Select</button>
+        <button id="ask" class="ghost" title="Ask the assistant (Ctrl+Enter, ⌘Enter on a Mac)" aria-keyshortcuts="Control+Enter Meta+Enter">Ask</button></div>
+      <span id="nl-picker">
+        <span id="nl-dot" class="dot off" aria-hidden="true"></span>
+        <select id="nl-provider" aria-label="Language model provider (this session)"></select>
+        <select id="nl-model" aria-label="Language model (this session)"></select>
+        <button id="nl-default" class="mini ghost" title="Save this provider and model as your default" disabled>Make default</button>
+        <button id="nl-manage" class="mini ghost" aria-label="Manage language models">Models…</button>
+      </span>
     </div>
-    <div class="label">Details</div>
-    <div id="details"><span class="empty">Click a link or node on the map, or a row in the table.</span></div>
-    </section>
-    <section class="dock-pane" id="dock-selection" data-panel="selection" role="tabpanel" aria-labelledby="dtab-selection" hidden>
     <div id="status-wrap"></div>
     <div id="sel-stale" class="warnbox" role="alert" hidden></div>
     <div id="sel-cmds-wrap" hidden><button class="mini ghost" id="sel-cmds" aria-haspopup="menu" aria-expanded="false">Selection actions &#9662;</button></div>
@@ -145,15 +111,76 @@
     <pre id="fragment">—</pre>
     <div class="label">Saved selections <button class="mini ghost" id="sel-save">Save selection…</button></div>
     <div id="sel-saved" tabindex="-1"><span class="empty">None saved.</span></div>
+    <div class="label">Highlighted links <span id="hl-count" class="pcount">0</span></div>
+    <div id="hl-wrap">
+      <span class="empty" id="hl-hint">Turn on <b>Highlight links</b> (&#9647;), then click links or shift-drag a box.</span>
+      <div id="hl-actions" style="display:none">
+        <button class="mini" id="hl-set">Set as selection</button>
+        <button class="mini ghost" id="hl-clear">Clear highlights</button>
+      </div>
+    </div>
+    <details id="view-section">
+      <summary class="label">View</summary>
+      <h4>Layers</h4>
+      <div class="row"><label class="sw"><input type="checkbox" id="tg-links"><span></span></label>
+        <span class="lbl">Links</span><input type="color" class="swatch" id="col-links" aria-label="Link colour"></div>
+      <div class="row"><label class="sw"><input type="checkbox" id="tg-nodes"><span></span></label>
+        <span class="lbl">Nodes</span><input type="color" class="swatch" id="col-nodes" aria-label="Node colour"></div>
+      <div class="row"><label class="sw"><input type="checkbox" id="tg-selection"><span></span></label>
+        <span class="lbl">Selection</span><input type="color" class="swatch" id="col-selection" aria-label="Selection colour"></div>
+      <div class="row"><label class="sw"><input type="checkbox" id="tg-labels"><span></span></label>
+        <span class="lbl">Basemap labels</span></div>
+      <div id="plugin-layers"></div>
+      <h4>Color links by</h4>
+      <div class="row"><select id="colorby" aria-label="Color links by"><option value="none">None (single color)</option></select></div>
+      <h4>Color nodes by</h4>
+      <div class="row"><select id="node-colorby" aria-label="Color nodes by"><option value="none">None (single color)</option></select></div>
+      <div class="row" id="ramp-row" style="display:none"><span class="lbl">Ramp</span>
+        <select id="ramp" aria-label="Colour ramp"><option>YlOrRd</option><option>Blues</option><option>Viridis</option></select></div>
+      <h4>Width by</h4>
+      <div class="row"><select id="widthby" aria-label="Width links by"><option value="none">Lane count</option></select></div>
+      <h4>Direction</h4>
+      <div class="row"><span class="lbl">Show direction</span>
+        <label class="sw"><input type="checkbox" id="tg-direction"><span></span></label></div>
+      <div class="row"><span class="lbl">Offset directions</span>
+        <label class="sw"><input type="checkbox" id="tg-offset"><span></span></label></div>
+      <div class="row"><span class="lbl">Show legend</span>
+        <label class="sw"><input type="checkbox" id="tg-legend"><span></span></label></div>
+      <h4>Filter links</h4>
+      <div class="row"><select id="flt-col" aria-label="Filter column"></select></div>
+      <div class="row flt-cond"><select id="flt-op" aria-label="Filter operator">
+          <option value="eq">=</option><option value="ne">≠</option><option value="lt">&lt;</option>
+          <option value="lte">≤</option><option value="gt">&gt;</option><option value="gte">≥</option>
+          <option value="contains">contains</option><option value="isnull">is empty</option><option value="notnull">is not empty</option>
+        </select>
+        <input id="flt-val" aria-label="Filter value" size="8"></div>
+      <div class="row"><button class="mini" id="flt-apply">Apply</button><button class="mini ghost" id="flt-clear">Clear</button>
+        <span id="flt-count" class="diag" role="status"></span></div>
+      <div id="flt-note" class="diag" hidden></div>
+    </details>
     </section>
-    <section class="dock-pane" id="dock-issues" data-panel="issues" role="tabpanel" aria-labelledby="dtab-issues" hidden>
-      <div id="iss-fixer"></div>
+    <section class="dock-pane" id="dock-inspect" data-panel="inspect" role="tabpanel" aria-labelledby="dtab-inspect" hidden>
+    <div class="label">Details</div>
+    <div id="details"><span class="empty">Click a link or node on the map, or a row in the table.</span></div>
+    </section>
+    <section class="dock-pane" id="dock-edit" data-panel="edit" role="tabpanel" aria-labelledby="dtab-edit" hidden>
+      <p class="diag">Every change to this network since it was opened, newest first: your edits, Python's and any
+        plugin's. Undo reverses your newest edit. The strip at the bottom is the session history (every action).</p>
+      <div class="row wrap"><button class="iconbtn" id="ed-undo" data-icon="undo" data-tip="Undo last edit" aria-label="Undo last edit" disabled></button>
+        <button class="iconbtn" id="ed-redo" data-icon="redo" data-tip="Redo" aria-label="Redo" disabled></button>
+        <span class="diag" id="ed-undo-why"></span></div>
+      <div id="ed-status" class="diag" role="status"></div>
+      <div id="ed-list"><span class="empty">No edits yet.</span></div>
       <div class="label">Edit warnings <span id="iss-edit-count" class="pcount">0</span></div>
-      <div id="iss-edit"><span class="empty">No edit warnings.</span></div>
-      <div class="label">Validation</div>
-      <div class="row wrap"><button class="mini" id="iss-run">Run validation</button>
-        <a class="btn mini ghost off" id="iss-report" href="#" aria-disabled="true" tabindex="-1">Export report</a></div>
-      <div id="iss-status" class="diag" role="status">Not validated yet.</div>
+      <div id="iss-edit"></div>
+      <div class="label">Cards</div>
+      <div class="row wrap"><button class="mini ghost" id="ed-card" disabled data-tip="Needs the project-cards plugin">Save selection as card…</button></div>
+    </section>
+    <section class="dock-pane" id="dock-validate" data-panel="validate" role="tabpanel" aria-labelledby="dtab-validate" hidden>
+      <div id="iss-fixer"></div>
+      <div class="row wrap"><button class="iconbtn" id="iss-run" data-icon="play" data-tip="Run validation" aria-label="Run validation"></button>
+        <a class="iconbtn off" id="iss-report" data-icon="download" data-tip="Export report (HTML)" aria-label="Export report (HTML)" href="#" aria-disabled="true" tabindex="-1"></a>
+        <span id="iss-status" class="diag" role="status">Not validated yet.</span></div>
       <div class="iss-filters">
         <select id="iss-sev" aria-label="Severity"></select>
         <select id="iss-table" aria-label="Table"></select>
@@ -165,20 +192,6 @@
         <button class="mini ghost" id="iss-next" aria-label="Next issues" disabled>&#8594;</button></div>
       <div class="label">Unlocated <span id="iss-unloc-count" class="pcount">0</span></div>
       <div id="iss-unlocated"></div>
-    </section>
-    <section class="dock-pane" id="dock-edits" data-panel="edits" role="tabpanel" aria-labelledby="dtab-edits" hidden>
-      <p class="diag">Every change to this network since it was opened, newest first: your edits, Python's and any
-        plugin's. Undo reverses your newest edit. The strip at the bottom is the session history (every action).</p>
-      <div class="row wrap"><button class="mini ghost" id="ed-undo" disabled>Undo last</button>
-        <span class="diag" id="ed-undo-why"></span></div>
-      <div id="ed-status" class="diag" role="status"></div>
-      <div id="ed-list"><span class="empty">No edits yet.</span></div>
-      <div class="label">Save a copy</div>
-      <div class="row wrap"><input id="ed-save-name" placeholder="leavenworth-fixed" aria-label="Copy name">
-        <select id="ed-save-format" aria-label="Format"><option value="parquet">Parquet folder</option>
-          <option value="csv">CSV folder</option><option value="duckdb">DuckDB file</option><option value="zip">Zip</option></select>
-        <button class="mini ghost" id="ed-save" aria-expanded="false" aria-controls="ed-save-fb">Choose folder…</button></div>
-      <div class="fb" id="ed-save-fb" hidden></div>
     </section>
     <section class="dock-pane" id="dock-assistant" data-panel="assistant" role="tabpanel" aria-labelledby="dtab-assistant" hidden>
       <div id="as-note" class="diag"></div>
@@ -193,7 +206,7 @@
     <span id="hist-seq">—</span>
     <code id="hist-py">No actions yet.</code>
     <button class="mini ghost" id="hist-copy">Copy</button>
-    <button class="mini ghost" id="hist-all">Session as Python</button>
+    <button class="iconbtn" id="hist-all" data-icon="code" data-tip="Session as Python" aria-label="Session as Python"></button>
   </footer>
 </div>
 <div class="panel" id="hist-panel">
@@ -205,6 +218,33 @@
   <h4>Jobs</h4>
   <div id="jobs-list"><span class="empty">No jobs yet.</span></div>
 </div>
+<dialog id="save-dialog" aria-labelledby="save-title">
+  <form method="dialog" id="save-form" class="modal-card save-card">
+    <div class="modal-head"><h3 id="save-title">Save a copy</h3></div>
+    <div class="modal-body">
+      <p class="diag">Writes the active network, with every pending edit, as a new copy. The original is never changed.</p>
+      <div class="row wrap">
+        <label class="save-lbl" for="ed-save-name">Name</label>
+        <input id="ed-save-name" placeholder="leavenworth-fixed" aria-label="Copy name" autocomplete="off">
+        <label class="save-lbl" for="ed-save-format">Format</label>
+        <select id="ed-save-format" aria-label="Format"><option value="parquet">Parquet folder</option>
+          <option value="csv">CSV folder</option><option value="duckdb">DuckDB file</option><option value="zip">Zip</option></select>
+      </div>
+      <div class="label">Folder</div>
+      <div class="diag" id="save-folder">No folder chosen yet: pick one below.</div>
+      <div class="fb" id="ed-save-fb"></div>
+      <div id="save-warn" class="save-warn" hidden>
+        <pre id="save-warn-text"></pre>
+        <label class="save-accept"><input type="checkbox" id="save-accept"> Save anyway (recorded as an explicit choice)</label>
+      </div>
+      <div id="save-error" class="save-error" role="alert" hidden></div>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="mini ghost" id="save-cancel">Cancel</button>
+      <button type="button" class="mini" id="ed-save">Save</button>
+    </div>
+  </form>
+</dialog>
 <div id="wizard" class="modal" role="dialog" aria-modal="true" aria-labelledby="wz-title" hidden>
   <div class="modal-card">
     <div class="modal-head">
@@ -350,6 +390,7 @@
 </div>
 <!-- /actform -->
 <div id="ctxmenu" role="menu" aria-label="Commands" hidden></div>
+<div id="col-filter" role="dialog" aria-label="Column filter" hidden></div>
 <div id="toast" role="status"></div>
 </body>
 </html>

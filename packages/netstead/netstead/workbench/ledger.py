@@ -8,6 +8,7 @@ results of its edits: they are what :meth:`~netstead.workbench.session.Session.r
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from typing import Any
 
@@ -79,6 +80,9 @@ class EditLedger:
         #: (compared by identity). A reverse in place keeps the version but swaps the expression, so this
         #: catches what the version check cannot.
         self.exprs: dict[str, Any] = {}
+        #: The Workbench's undone edits, newest last: what ``redo_edit`` re-applies. Any other change to the
+        #: network (an add, or a pop that is not the Workbench's own undo) empties it.
+        self.redo: list[PendingEdit] = []
         self._seq = issued
 
     @property
@@ -96,6 +100,7 @@ class EditLedger:
         other.entries = [replace(e) for e in self.entries]
         other.check, other.diverged, other.version, other._seq = self.check, self.diverged, self.version, self._seq
         other.exprs = dict(self.exprs)
+        other.redo = list(self.redo)
         return other
 
     def add(
@@ -106,29 +111,36 @@ class EditLedger:
         results: list[EditResult],
         touched: dict[str, set[Any]],
         exprs: dict[str, Any],
+        redo: Sequence[PendingEdit] = (),
     ) -> PendingEdit:
-        """Record one applied mutation and return it; ``exprs`` maps each table it changed to its new expression."""
+        """Record one applied mutation and return it; ``exprs`` maps each table it changed to its new expression.
+
+        ``redo`` becomes the redo stack: empty, unless this is a redo putting the rest of the stack back.
+        """
         self._seq += 1
         entry = PendingEdit(self._seq, source, note, version, list(results), touched)
         self.entries.append(entry)
         self.version = version
         self.exprs.update(exprs)
+        self.redo = list(redo)
         return entry
 
     def last(self) -> PendingEdit | None:
         """The newest entry (``None`` when there is none)."""
         return self.entries[-1] if self.entries else None
 
-    def pop(self, version: int, exprs: dict[str, Any]) -> PendingEdit:
+    def pop(self, version: int, exprs: dict[str, Any], redo: Sequence[PendingEdit] = ()) -> PendingEdit:
         """Drop the newest entry (after its edits were reverted, leaving the network at ``version``); return it.
 
-        ``exprs`` maps each table the revert changed to its new expression.
+        ``exprs`` maps each table the revert changed to its new expression. ``redo`` becomes the redo stack: empty,
+        unless this is the Workbench's own undo, which keeps the stack with the entry on top.
         """
         entry = self.entries.pop()
         if entry.saved:
             self.diverged = True
         self.version = version
         self.exprs.update(exprs)
+        self.redo = list(redo)
         return entry
 
     def unseen_change(self, version: int, exprs: dict[str, Any]) -> bool:
@@ -167,4 +179,5 @@ class EditLedger:
             "truncated": self.check.truncated,
             "check_failed": self.check.failed,
             "last_source": last.source if last else None,
+            "redo_count": len(self.redo),
         }

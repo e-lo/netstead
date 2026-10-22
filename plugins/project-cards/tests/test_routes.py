@@ -169,3 +169,85 @@ def test_commit_check_reports_a_card_error_as_400(client, session, monkeypatch):
 def test_commit_check_limits_the_project_name_as_commit_does(client):
     assert client.get(CHECK, params={"project": "x" * 200}).status_code == 200
     assert client.get(CHECK, params={"project": "x" * 201}).status_code == 422
+
+
+CATALOG = "/api/plugins/project_cards/catalog"
+SUMMARY = "/api/plugins/project_cards/summary.txt"
+
+
+def _write_cards(folder, n_good=1):
+    from netstead_project_cards.actions import OpenCatalog
+
+    folder.mkdir()
+    for k in range(n_good):
+        (folder / f"good{k}.yml").write_text(
+            DraftCard(
+                project=f"Good {k}",
+                changes=[
+                    RoadwayPropertyChange(
+                        facility=Selection(ids=[1]), property_changes={"lanes": PropertyChange(set=2 + k)}
+                    )
+                ],
+            ).to_yaml(),
+            encoding="utf-8",
+        )
+    (folder / "bad.yml").write_text(
+        DraftCard(
+            project="Bad",
+            changes=[
+                RoadwayPropertyChange(
+                    facility=Selection(ids=[999999]), property_changes={"lanes": PropertyChange(set=2)}
+                )
+            ],
+        ).to_yaml(),
+        encoding="utf-8",
+    )
+    return OpenCatalog(path=str(folder))
+
+
+def test_the_catalog_route_lists_the_cards_with_their_applicability(client, session, tmp_path):
+    assert client.get(CATALOG).json() == {"path": None, "cards": [], "rejected": []}
+    session.dispatch(_write_cards(tmp_path / "cards"))
+    got = client.get(CATALOG).json()
+    assert got["path"] == str(tmp_path / "cards") and got["rejected"] == []
+    by_id = {c["card_id"]: c for c in got["cards"]}
+    assert by_id["good0.yml"]["applicability"]["ok"] is True
+    assert by_id["good0.yml"]["applicability"]["net_id"] == "leavenworth"
+    assert by_id["bad.yml"]["applicability"]["ok"] is False
+    assert by_id["bad.yml"]["applicability"]["changes"][0]["missing"] == [999999]
+    assert session.network("leavenworth").version == 0  # checked, not changed
+    # a later request reuses the checks (the state carries them)
+    assert session.state()["plugins"]["project_cards"]["catalog"]["cards"][0]["applicability"] is not None
+
+
+def test_the_catalog_route_checks_at_most_max_checks_cards_per_request(client, session, tmp_path, monkeypatch):
+    from netstead_project_cards import routes
+
+    monkeypatch.setattr(routes, "MAX_CHECKS", 2)
+    session.dispatch(_write_cards(tmp_path / "cards", n_good=3))
+    first = client.get(CATALOG).json()["cards"]
+    assert [c["applicability"] is None for c in first] == [False, False, True, True]
+    second = client.get(CATALOG).json()["cards"]
+    assert all(c["applicability"] is not None for c in second)
+
+
+def test_the_catalog_route_without_a_network_lists_the_cards_unchecked(client, session, tmp_path):
+    from netstead.workbench.actions import CloseNetwork
+
+    session.dispatch(_write_cards(tmp_path / "cards"))
+    session.dispatch(CloseNetwork(net_id="leavenworth"))
+    got = client.get(CATALOG).json()
+    assert len(got["cards"]) == 2 and all(c["applicability"] is None for c in got["cards"])
+
+
+def test_the_summary_route_is_plain_text(client, session, tmp_path):
+    from netstead_project_cards.actions import ApplyCard
+
+    session.dispatch(_write_cards(tmp_path / "cards"))
+    session.dispatch(ApplyCard(card_id="good0.yml"))
+    response = client.get(SUMMARY)
+    assert response.status_code == 200 and response.headers["content-type"].startswith("text/plain")
+    assert response.text.startswith("# Project cards: session summary\n\nNetwork: leavenworth\n")
+    assert "- Good 0 (good0.yml, catalog): 1 change, edit ids 1; " in response.text
+    assert "project_cards.apply_card card_id='good0.yml' (ok)" in response.text
+    assert "No network open." in client.get(SUMMARY, params={"net_id": "nope"}).text

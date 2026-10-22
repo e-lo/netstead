@@ -20,9 +20,12 @@ export const store = createStore({
   basemap: null,              // MapLibre style URL from /api/config (shared with the wizard's area map)
   netKey: null,               // "<id>@<version>" of the decoded active network
   net: null, attrs: null, properties: [], prop: null,
+  nodeProperties: [],         // the node table's styleable columns (GET /properties?table=node)
+  nodeProp: null,             // the `style.node_color_by` column's values (per tab, derived from the server's style)
   widthProp: null,            // the `style.width_by` column's values (per tab, derived from the server's style)
   filterIds: null,            // Set of link ids the active network's recorded Filter matches (per tab, derived), or null
   highlightMode: false, highlights: new Set(), marker: null,
+  highlightsKeep: false,      // a plugin's highlights (wb.highlight) survive the next network switch (a preview)
   focus: null,                // {table, id, from: "map" | "table"}: the one record last clicked (per tab, never recorded)
   related: null,              // last /related answer for focus + highlights (related.js)
   tableScope: "all",          // all | selection | highlighted | related | filtered

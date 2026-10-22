@@ -82,6 +82,7 @@ from .actions import (
     Navigate,
     OpenNetwork,
     PinAnchor,
+    RedoEdit,
     RunValidation,
     SaveNetwork,
     SaveSelection,
@@ -134,8 +135,11 @@ FILTER_CACHE_SIZE = 8
 #: session lock (``filter_ids``); held only around dict operations, never across a query.
 _FILTER_CACHE_LOCK = threading.Lock()
 
+#: ``color_by`` and ``node_color_by`` name the columns the map colours by when a network has them; opening a network
+#: that lacks one puts ``"none"`` in its place (:meth:`Session._reconcile_style`).
 DEFAULT_STYLE: dict[str, Any] = {
-    "color_by": "none",
+    "color_by": "facility_type",
+    "node_color_by": "ctrl_type",
     "width_by": "none",
     "ramp": "YlOrRd",
     "offset": True,
@@ -162,6 +166,7 @@ class _Loaded:
         handle = session.registry.add(self.net, source=self.source, label=self.label, net_id=self.net_id)
         handle.prime(**self.frames)
         session.active = handle.id
+        session._reconcile_style(handle)
         return {"net_id": handle.id, **self.extra}
 
 
@@ -403,6 +408,8 @@ class Session:
         self.saved: dict[str, dict[str, Any]] = {}  # name -> a saved selection payload (SaveSelection)
         self.filters: dict[str, dict[str, Any]] = {}  # net_id -> its Filter: {table, where}
         self.style: dict[str, Any] = copy.deepcopy(DEFAULT_STYLE)
+        #: Style keys a ``Style`` action set explicitly: an explicit ``"none"`` survives opening another network.
+        self._style_set: set[str] = set()
         self.history: list[HistoryEntry] = []
         self.edits: dict[str, EditLedger] = {}  # net_id -> its pending edits
         #: net_id -> the newest edit seq handed out on a ledger that is gone (a rolled-back Action dropped it, or the
@@ -985,8 +992,37 @@ class Session:
         with self._lock:
             handle = self.registry.add(net, source=source, label=label, net_id=net_id)
             self.active = self.active or handle.id
+            if self.active == handle.id:
+                self._reconcile_style(handle)
             self.events.publish({"type": "state", "state": self.state()})
         return handle
+
+    def _reconcile_style(self, handle: NetworkHandle) -> None:
+        """Point the colour-by columns at ones ``handle`` has, now that it is the active network.
+
+        Each of ``color_by`` (links) and ``node_color_by`` (nodes) keeps its column when the network has it, and
+        keeps an explicit ``"none"`` (one a ``Style`` action set); otherwise it takes the default column when that
+        exists, else ``"none"``. Never raises: a network without the default columns opens with single-colour
+        features. Called with the lock held, whenever the active network changes (open, add, switch, close).
+        """
+        tables = {"color_by": ("link", handle.links_df), "node_color_by": ("node", handle.nodes_df)}
+        for key, (table, frame) in tables.items():
+            try:
+                names = {c["name"] for c in styleable_columns(frame(), table)}
+            except Exception:  # boundary: an odd table must not stop the network opening
+                logger.exception("could not list %s columns of %s for styling", table, handle.id)
+                names = set()
+            current = self.style.get(key, "none")
+            if current in names or (current == "none" and key in self._style_set):
+                continue
+            self.style[key] = DEFAULT_STYLE[key] if DEFAULT_STYLE[key] in names else "none"
+            self._style_set.discard(key)  # the explicit choice no longer holds: a later network gets the default
+
+    def _reconcile_active_style(self) -> None:
+        """:meth:`_reconcile_style` for whichever network is active now (nothing without one)."""
+        handle = self.registry.get(self.active) if self.active else None
+        if handle is not None:
+            self._reconcile_style(handle)
 
     def mutate(
         self,
@@ -997,8 +1033,11 @@ class Session:
         origin: str | None = None,
         recheck: Mapping[str, Iterable[Any]] | None = None,
         expected_version: int | None = None,
+        _redo: Sequence[PendingEdit] = (),
     ) -> list[EditResult]:
         """Apply corral ``edits`` to a network's roadway, in order and all-or-nothing; return their results.
+
+        ``_redo`` is :meth:`redo_last`'s: the redo stack the ledger keeps after this edit (any other edit empties it).
 
         ``expected_version`` (an :class:`~netstead.workbench.editing.EditPlan`'s ``version``) makes it refuse,
         with :class:`ActionError` and nothing changed, when the network is no longer at that version: the
@@ -1041,14 +1080,24 @@ class Session:
                 touched.setdefault(table, set()).update(keys)
             tables, removed = {e.table for e in edits}, _removed_links(applied, reverted=False)
             exprs = _exprs(handle, tables)
-            self._ledger_for(handle.id).add(self._source(origin), note, handle.version, applied, touched, exprs)
+            self._ledger_for(handle.id).add(
+                self._source(origin), note, handle.version, applied, touched, exprs, redo=_redo
+            )
             self._settle(handle, note, origin, kind="mutate", first=touched, tables=tables, removed=removed)
         return applied
 
     def revert(
-        self, net_id: str | None, results: Sequence[EditResult], *, note: str, origin: str | None = None
+        self,
+        net_id: str | None,
+        results: Sequence[EditResult],
+        *,
+        note: str,
+        origin: str | None = None,
+        _redo: Sequence[PendingEdit] = (),
     ) -> None:
         """Reverse the network's newest pending edit, given its ``results``: :meth:`mutate` run backwards.
+
+        ``_redo`` is :meth:`undo_last`'s: the redo stack the ledger keeps after the revert (a plain revert empties it).
 
         The results are reversed newest first on a copy-on-write draft, which is swapped in the way a
         mutation is: the version is bumped, ``note`` extends the lineage (prefixed with ``origin``), the
@@ -1075,7 +1124,7 @@ class Session:
                 for result in reversed(last.results):
                     reverse_edit(draft, result)
             self._swap(handle, draft, tables, note, origin)
-            self._ledger_for(handle.id).pop(handle.version, _exprs(handle, tables))
+            self._ledger_for(handle.id).pop(handle.version, _exprs(handle, tables), redo=_redo)
             removed = _removed_links(last.results, reverted=True)
             self._settle(handle, note, origin, kind="revert", first=last.touched, tables=tables, removed=removed)
 
@@ -1095,8 +1144,44 @@ class Session:
                 who = "the Workbench" if last.source == CORE_SOURCE else last.source
                 raise ActionError(f"the last change to {handle.id} was made by {who} ({last.note}); undo it there")
             origin = None if source in (CORE_SOURCE, PYTHON_SOURCE) else source
-            self.revert(handle.id, last.results, note=f"undo: {last.note}", origin=origin)
+            # The Workbench's own undo is redoable; another source's undo empties the stack. The ledger takes the
+            # stack as it pops (inside an Action, after its rollback snapshot), so the state published then is right.
+            redo = [*ledger.redo, last] if source == CORE_SOURCE else []  # type: ignore[union-attr]  # ``last`` is set
+            self.revert(handle.id, last.results, note=f"undo: {last.note}", origin=origin, _redo=redo)
         return last
+
+    def redo_last(self, net_id: str | None) -> PendingEdit:
+        """Re-apply the network's newest undone Workbench edit (:meth:`mutate` of its edits); return the new entry.
+
+        The entry's edits run through :meth:`mutate` with note ``"redo: <its note>"``, so the redo is a pending
+        edit like any other (undoable, recorded, re-checked). Raises :class:`ActionError` ``"nothing to redo"``
+        when no undone edit is waiting (nothing was undone, or the network changed since the undo), and
+        ``"... changed outside the Workbench since; redo is unavailable"`` (the stack emptied) when the network
+        changed without the ledger since the undo, as :meth:`revert` refuses.
+        """
+        with self._lock:
+            handle = self._handle(net_id)
+            ledger = self.edits.get(handle.id)
+            if ledger is None or not ledger.redo:
+                raise ActionError(f"nothing to redo on {handle.id}")
+            *rest, entry = ledger.redo
+            tables = {r.edit.table for r in entry.results}
+            if ledger.unseen_change(handle.version, _exprs(handle, tables)):
+                ledger.redo = []  # the undone edits were planned against tables that are gone
+                raise ActionError(f"{handle.id} changed outside the Workbench since; redo is unavailable")
+            # ``mutate`` snapshots the ledger (inside an Action) and sets the stack as it adds: a failure leaves the
+            # stack as it was, a rollback restores the snapshot, and on success only the redone entry leaves it.
+            self.mutate(
+                handle.id,
+                [r.edit for r in entry.results],
+                note=f"redo: {entry.note}",
+                recheck=entry.touched,
+                expected_version=ledger.version,
+                _redo=rest,
+            )
+            redone = ledger.last()
+            assert redone is not None  # mutate just added it
+        return redone
 
     def edit_check(self, net_id: str | None) -> CheckResult:
         """The live edit warnings on a network now (empty before any edit)."""
@@ -1601,9 +1686,11 @@ class Session:
         if self.active == action.net_id:
             ids = self.registry.ids()
             self.active = ids[0] if ids else None
+            self._reconcile_active_style()
 
     def _do_set_active_network(self, action: SetActiveNetwork) -> None:
         self.active = self._handle(action.net_id).id
+        self._reconcile_active_style()
 
     def _prepare_select(self, action: Select) -> _ParsedSelect | None:
         """Parse and resolve an utterance WITHOUT the session lock (an LLM call can take seconds).
@@ -1918,16 +2005,23 @@ class Session:
 
     def _do_style(self, action: Style) -> dict[str, Any]:
         patch = action.model_dump(exclude_none=True, exclude={"type"})
-        wanted = {k: patch[k] for k in ("color_by", "width_by") if patch.get(k) not in (None, "none")}
-        if wanted:
+        wanted = {k: patch[k] for k in ("color_by", "node_color_by", "width_by") if patch.get(k) not in (None, "none")}
+        if "color_by" in wanted or "width_by" in wanted:
             kinds = {c["name"]: c["kind"] for c in styleable_columns(self._handle(None).links_df())}
             if "color_by" in wanted and wanted["color_by"] not in kinds:
                 raise ActionError(f"cannot color by {wanted['color_by']!r}; choose one of {sorted(kinds)}")
             numeric = sorted(n for n, k in kinds.items() if k == "continuous")
             if "width_by" in wanted and wanted["width_by"] not in numeric:
                 raise ActionError(f"cannot size by {wanted['width_by']!r}; choose a numeric column: {numeric}")
+        if "node_color_by" in wanted:
+            node_kinds = {c["name"] for c in styleable_columns(self._handle(None).nodes_df(), "node")}
+            if wanted["node_color_by"] not in node_kinds:
+                raise ActionError(
+                    f"cannot color nodes by {wanted['node_color_by']!r}; choose one of {sorted(node_kinds)}"
+                )
         for key, value in patch.items():
             self.style[key] = {**self.style[key], **value} if isinstance(value, dict) else value
+        self._style_set.update(k for k in ("color_by", "node_color_by") if k in patch)
         return copy.deepcopy(self.style)
 
     def _do_navigate(self, action: Navigate) -> None:
@@ -2034,6 +2128,16 @@ class Session:
             "net_id": handle.id,
             "version": handle.version,
             "undone": entry.view(),
+            "open_warnings": len(self.edit_check(handle.id).warnings),
+        }
+
+    def _do_redo_edit(self, action: RedoEdit) -> dict[str, Any]:
+        entry = self.redo_last(action.net_id)
+        handle = self._handle(action.net_id)
+        return {
+            "net_id": handle.id,
+            "version": handle.version,
+            "redone": entry.view(),
             "open_warnings": len(self.edit_check(handle.id).warnings),
         }
 

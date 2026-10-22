@@ -5,7 +5,7 @@
 // another tab can close one. One step runs at a time: a second click while an Action is in flight is refused, so a
 // change is never added (or a card committed) twice.
 import {
-  addition, changeAction, deletion, draftOf, needsSelection, openPreview, propertyChange, selectionKey,
+  addition, catalogOf, changeAction, deletion, draftOf, needsSelection, openPreview, propertyChange, selectionKey,
 } from "./cardmodel.js";
 
 const query = params => Object.entries(params)
@@ -14,7 +14,7 @@ const query = params => Object.entries(params)
   .join("&");
 
 export function createController(wb) {
-  const state = { compose: null, check: null };
+  const state = { compose: null, check: null, catalog: null };
   const previewOpen = () => openPreview(wb.store.get()) !== null;
   let running = false;
   const oneAtATime = fn => async (...args) => {
@@ -138,9 +138,69 @@ export function createController(wb) {
     return wb.api.dispatch({ type: "project_cards.import", path });
   }
 
+  // ------------------------------------------------------------------------------------------------ the catalog
+
+  // The /catalog listing, which checks unchecked cards against `netId` (so the badges fill in): kept in
+  // `state.catalog` until the open catalog changes. Reads only; the server's state is not touched.
+  async function loadCatalog(netId = null) {
+    state.catalog = await wb.api.get(`/catalog?${query({ net_id: netId })}`);
+    return state.catalog;
+  }
+
+  // The catalog to list: the loaded listing while it is the open catalog's (its checks are fresher than the
+  // snapshot's), else the server's snapshot (null when none is open).
+  function catalog() {
+    const open = catalogOf(wb.store.get());
+    if (!open) {
+      state.catalog = null;
+      return null;
+    }
+    const loaded = state.catalog;
+    return loaded && loaded.path === open.path ? loaded : open;
+  }
+
+  // Call on every server change: true when the open catalog's snapshot changed (opened, refreshed, a card applied
+  // or its check dropped), so the listing is loaded again.
+  let seenCatalog = null;
+  function catalogChanged() {
+    const now = JSON.stringify(catalogOf(wb.store.get()));
+    if (now === seenCatalog) return false;
+    seenCatalog = now;
+    return now !== "null";
+  }
+
+  const openCatalog = path => wb.api.dispatch({ type: "project_cards.open_catalog", path });
+  const refreshCatalog = () => wb.api.dispatch({ type: "project_cards.refresh_catalog" });
+
+  // A card shown on a copy of `netId` (the server publishes `card_selection` with the links it aims at).
+  const previewCard = (cardId, netId = null) =>
+    wb.api.dispatch({ type: "project_cards.preview_card", card_id: cardId, ...(netId ? { net_id: netId } : {}) });
+
+  // `options`: {existing_value_conflict, ignore_missing} (the Apply… dialog's). The card goes to the network itself,
+  // so an open preview has done its job: close it (a failure to close is only reported; the card was applied).
+  async function applyCard(cardId, options, netId = null) {
+    state.check = null;
+    const result = await wb.api.dispatch({
+      type: "project_cards.apply_card", card_id: cardId, ...options, ...(netId ? { net_id: netId } : {}),
+    });
+    if (previewOpen()) {
+      try { await closePreview(); } catch (e) { wb.toast(`The card was applied; the preview stayed open: ${e.message}`); }
+    }
+    return result;
+  }
+
+  // The session summary as text (GET /summary.txt).
+  async function summary(netId = null) {
+    const response = await wb.api.fetch(`/summary.txt?${query({ net_id: netId })}`);
+    if (response.ok === false) throw new Error(`summary: ${response.status}`);
+    return response.text();
+  }
+
   return {
-    state, start, changeFrom, check, serverChanged, selectionChanged,
-    ...Object.fromEntries(Object.entries({ preview, closePreview, add, cancel, undo, commit, importCard, reload })
-      .map(([name, step]) => [name, oneAtATime(step)])),
+    state, start, changeFrom, check, serverChanged, selectionChanged, loadCatalog, catalog, catalogChanged, summary,
+    ...Object.fromEntries(Object.entries({
+      preview, closePreview, add, cancel, undo, commit, importCard, reload, openCatalog, refreshCatalog, previewCard,
+      applyCard,
+    }).map(([name, step]) => [name, oneAtATime(step)])),
   };
 }

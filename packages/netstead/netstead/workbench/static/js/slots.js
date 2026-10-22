@@ -7,9 +7,15 @@ export const ALL_WORKSPACES = "*";
 export const CONTEXTS = ["palette", "feature", "row", "selection"];
 export const VIEWS = ["map", "split", "table"];
 
-// A plugin's ids are namespaced like its Action types ("hello.panel"); core's are bare ("inspect", "details").
+// Bare ids core reserves for one plugin: the dock's Cards tab is the project-cards plugin's panel, so core can
+// name it ("cards") in its own controls while the plugin owns the tab.
+export const RESERVED_IDS = { cards: "project_cards" };
+
+// A plugin's ids are namespaced like its Action types ("hello.panel"); core's are bare ("inspect", "find"), as is
+// an id reserved for that plugin (RESERVED_IDS).
 export function checkId(owner, id) {
   if (typeof id !== "string" || !id) throw new Error(`${owner}: an id is required`);
+  if (RESERVED_IDS[id] === owner) return;
   if (owner !== CORE && !id.startsWith(`${owner}.`)) {
     throw new Error(`${owner}: id ${JSON.stringify(id)} must start with "${owner}."`);
   }

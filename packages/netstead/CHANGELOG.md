@@ -21,6 +21,33 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Fixed
 
+- **Categorical cell edits in the Workbench grid are offered the spec's allowed
+  values, and an out-of-enum value is kept and flagged, never silently lost.**
+  Beta testers reported edits to `bike_facility`, `parking` and the like "did
+  not persist, with no message". The server always kept them (with an
+  `edit.enum` warning); the grid did not show that, and leaving the cell editor
+  with the mouse discarded the typed text without a word. Now a text cell's
+  editor completes from the spec's `enum` plus the column's existing values
+  (comma-list columns such as `allowed_uses` complete one token at a time and
+  say "comma-separated"); a cell with an open edit warning is outlined in red
+  with a warning icon and the message as its tooltip; and leaving a cell
+  applies the edit, as in a spreadsheet (Escape discards it).
+- **The Workbench map draws link shapes kept in the `geometry` table.** A
+  network whose links carry a `geometry_id` into a separate `geometry` table
+  (the bundled Leavenworth network, for one) drew every link as a straight
+  node-to-node line. `viz.buffers.pack_network` now takes the optional
+  `geometry` frame and resolves shapes in GMNS order: an inline `link.geometry`,
+  else the `geometry_id` row, else the straight from/to segment.
+- **Workbench map: a legible focus colour, and direction arrows that follow
+  their offset line.** The focused link is now a saturated magenta over a dark
+  casing (it was white: invisible on the light Positron basemap and over white
+  highway casings); highlights keep their cyan and get the same casing. With
+  "Offset directions" on, each link row's arrow now sits on that row's own
+  offset line instead of the centreline, so a two-way street shows one arrow
+  per direction rather than two crossed into an X. Arrows sit at the path's
+  midpoint by length (not its middle vertex), have a dark outline, and grow
+  from 8 px at zoom 13 to 18 px at zoom 18. The selection colour is still
+  yours to set (`style.colors.selection`).
 - **A Workbench build's engine failing to close no longer hides the result.**
   Since corral's `IbisEngine.close()` stopped swallowing errors, a failed
   disconnect in the build job's `finally` (or the estimate's) replaced the
@@ -113,6 +140,95 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Added
 
+- **Workbench: Find / Inspect / Edit / Cards / Validate panels; the map coloured
+  by default.** The side panel's tabs, in order: **Find** (the utterance box
+  with Select / Ask and the model picker, moved out of the header's second row,
+  which is gone; the selection's anchors, diagnostics, export and saved
+  selections; the highlighted links; and a **View** section with the layer
+  toggles, "Color links by", a new "Color nodes by", width, direction / offset
+  / legend and "Filter links", moved out of the map's Layers and Map-display
+  popovers, which are gone with their two buttons); **Inspect** (the focused
+  record's details); **Edit** (the edit list, Undo and Redo, the edit warnings,
+  moved here from Issues, and "Save selection as card…", enabled while the
+  project-cards plugin is loaded); **Cards** (the plugin's panel, when loaded);
+  **Validate** (run / export, the facets and the findings, with repeated
+  structural findings folded into one `▸ code (n)` row that expands, and a
+  "Zoom to" crosshair on every located finding); then **Assistant**. Plugins
+  may register the bare panel id `cards` only as `project_cards`
+  (`RESERVED_IDS` in `slots.js`). Opening a network colours links by
+  `facility_type` and nodes by `ctrl_type` when the tables have those columns
+  (`DEFAULT_STYLE`; a network without them opens with `"none"`), the legend
+  shows both, and `Style` gains `node_color_by` (validated against the node
+  table, replayed as `app.do(Style(node_color_by=...))`). `GET …/properties`
+  and `GET …/property/{name}` take `?table=node` for the node table's columns.
+- **Host API 1.7: reading inside the sandbox, and a view of history.** `host.readable(path)` resolves a file or
+  folder that exists inside `io.allowed_roots` (`PathNotAllowed` outside them, `ActionError` when nothing is there);
+  `host.list_dir(path)` lists a folder's entries (`{name, path, kind, is_dir}`, folders first, hidden entries
+  skipped), as core's file browser does; `host.history(prefix=None)` returns the session's history entries (the
+  `GET /api/history` shape) as read-only copies, filtered by Action-type prefix. The project cards plugin uses them
+  for its catalog and session summary.
+- **Workbench: Open menu, Save dialog and validity light in the header.** The
+  Recent select is gone: "Open…" drops a menu with the three most recent
+  networks (the path is the tooltip; re-opening is a normal `open_network`)
+  and "Browse / import…" for the wizard. "Save a copy…" is a header button
+  that opens a dialog (name, format, folder, and, when edit warnings are open
+  or the live check failed, the warning text with a "Save anyway" checkbox
+  that is `accept_warnings`); a save the server refuses reopens the dialog
+  with its reason instead of a browser confirm. The Edits panel keeps only
+  the edit list with Undo and Redo. A validity light before the counts
+  shows not validated / stale / valid / warnings / errors with the counts
+  in its tooltip, and opens the Issues panel.
+- **Workbench: Redo, and icon buttons with tooltips.** A new `redo_edit` Action
+  (`RedoEdit`, replayed as `app.do(RedoEdit())`) re-applies the edit the last
+  `undo_edit` took back; the session state's `edits[<net>]` gains `redo_count`,
+  and any other change to the network empties the redo stack. The Edits panel
+  has Undo and Redo icon buttons (a disabled one's tooltip says why); the header's
+  Commands, Settings and Jobs controls, the Issues panel's Run validation and
+  Export report, and the footer's Session as Python are icon buttons with
+  tooltips (inline SVG from `static/js/icons.js`); the model picker's tooltip
+  shows the full model label; the empty "No edit warnings." text is gone (the
+  count says so).
+- **Workbench: resizable table and side panels; map popovers scroll instead of
+  clipping in Split view** (2026-10-20 beta feedback, items 6, 8, 10). A drag
+  handle between the map and the table sets the map's share of the stage
+  (20–80 %), and one before the side panel sets its width (240–720 px); double-
+  click resets, arrow keys nudge, and the sizes are remembered per browser
+  (`localStorage` `wb.sizes`). The Layers and Map-display popovers, the map
+  buttons and the legend now sit in an overlay over the map rather than inside
+  MapLibre's clipping container, and a popover taller than the map scrolls, so
+  Layers → Filter links is reachable in Split view.
+- **Validation output reads at a glance** (2026-10-20 beta feedback).
+  `netstead validate` opens with a severity summary line
+  (`0 errors · 1 warning · 16 info`), names the source once, and folds the
+  sixteen `structural.missing_optional_resource` findings a partial network
+  produces into one row (`16 tables` / `optional resources absent: …`) so the
+  `fk.unverifiable` WARNING is no longer buried; `--all` expands them. The
+  table keeps every code readable at a narrow terminal width. The `--html`
+  report gains a "Resources" table (resource · required/optional · present
+  ✓/✗ · rows) above the findings, its "Unlocated findings" block is a
+  `<details>` collapsed by default with the count in the summary and grouped
+  codes on one line, and the `package source '…': ` lead-in is dropped from
+  every message. Its page title is now `validation report` with the source in
+  the subtitle. `--json` is unchanged.
+- **Workbench table filters: token and range operators, distinct values, spec
+  enums.** The filter language (the table rows routes and the `Filter` action)
+  gains `any_of`, `all_of` and `none_of`, which match a list of values against
+  a comma-separated cell such as `link.allowed_uses` (`"auto"` matches
+  `"auto,truck,walk,bike"`), and `between`, an inclusive `[low, high]` numeric
+  range. `GET .../table/{table}/distinct?col=<name>&limit=200` lists a column's
+  distinct values (its comma-split tokens when `list_like`, at most 500), and
+  the table schema route gives each column its spec `enum` (or `null`). This
+  is the server side of the column-filter popovers; the UI follows.
+- **Workbench table: typed column filters with popovers and chips.** The text
+  box under every column header is gone; each header has a funnel button that
+  opens one filter popover for that column, typed by the column: a numeric
+  column offers `= ≠ < ≤ > ≥ between is empty is not empty`; a text or boolean
+  column offers a checklist of its distinct values (with a search box past 12,
+  and *any of* / *all of* / *none of* for a comma-separated column such as
+  `allowed_uses`), a *contains* tab and the empty tests. Active filters show as
+  chips above the grid (`free_speed > 40`, `allowed_uses any of auto, truck`),
+  each with an x; "Clear all" appears from two on. The per-column model is the
+  pure module `static/js/gridfilter.js`.
 - **Quality rule `quality.overlapping_links`** ([#5](https://github.com/e-lo/netstead/issues/5)).
   Flags pairs of links whose shapes share a stretch longer than
   `min_overlap_units` (default `0`, in CRS units), such as a link drawn on top of

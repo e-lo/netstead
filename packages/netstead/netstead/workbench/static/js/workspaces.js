@@ -1,8 +1,10 @@
 // Workspace tabs (header) and the dock (the right drawer), rendered from the slots registry. Core's Inspect workspace
-// and Details panel register here exactly as a plugin's would. Each strip shows only with two or more tabs, so a
+// and Inspect panel register here exactly as a plugin's would (the dock's other core panels register from their own
+// modules: Find in selection.js, Edit and Validate in edits.js, Assistant in assistant.js). Each strip shows only with two or more tabs, so a
 // Workbench with no plugins looks as it always has. Both strips follow the WAI-ARIA tabs pattern (arrows, Home, End).
 import { commandContext } from "./commands.js";
 import { $, esc, toast } from "./dom.js";
+import { hub } from "./hub.js";
 import { ALL_WORKSPACES, CORE, panelsFor, slots } from "./slots.js";
 import { store } from "./store.js";
 import { currentViewMode, savedViews, setViewMode } from "./table.js";
@@ -18,7 +20,7 @@ const paneFor = id => document.getElementById(`dock-${id}`);
 
 export function registerCoreSlots() {
   slots.addWorkspace(CORE, { id: "inspect", title: "Inspect", order: 0 });
-  slots.addPanel(CORE, { id: "details", title: "Details", workspace: ALL_WORKSPACES, order: 0 }); // adopts #dock-details
+  slots.addPanel(CORE, { id: "inspect", title: "Inspect", workspace: ALL_WORKSPACES, order: 10 }); // adopts #dock-inspect
 }
 
 export function addWorkspace(owner, spec) {
@@ -134,6 +136,7 @@ export function renderStrips() {
     setPanelRole(pane, show.dock ? `dtab-${pane.dataset.panel}` : null);
   }
   if (current) showPane(current);
+  hub.emit("core.panels", slots.panels.list().map(p => p.id)); // core controls that need a plugin's panel listen
 }
 
 function showPane(p) {

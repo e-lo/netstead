@@ -17,6 +17,11 @@ network's draft card (badged with its count of uncommitted changes), and **Undo 
 **Commit…** shows the live edit warnings (confirmed with **Commit anyway**) and the card's YAML, then writes the card
 atomically inside `io.allowed_roots`. **Import** applies a card, or the offline report's edit log, all or nothing.
 
+The **Cards** panel has four sections, in order: **Catalog** (open a folder of cards; each card shows `✓` / `✗` / `?`
+for whether it applies to the open network, with **Preview**, **Apply…** and **Details**; files that are not cards
+are listed under "Not cards"), **Draft** (the compose, draft and commit UI above), **Applied this session** (cards
+committed or applied, newest first, marked `committed` or `catalog`) and **Session summary** (Copy and Download).
+
 The library the Workbench pieces build on:
 
 - **The change model** (`netstead_project_cards.types`): one pydantic record per ProjectCard change type
@@ -30,12 +35,30 @@ The library the Workbench pieces build on:
 - **`apply_change`** (`netstead_project_cards.lower`): plans a change with core's edit planner and applies it through
   the Workbench `Host` (`host.plan_*`, then `host.mutate`), so core's history and live warnings see it.
 
+**The catalog**: a folder of ProjectCard files (YAML or JSON, one level of sub-folders), opened with
+`project_cards.open_catalog` or the `catalog_dir` setting (`[plugins.project_cards]`). Each card is checked against
+the open network without changing it (`check_card`: the ids each change resolves, the ids the network lacks, and a
+reason when a change cannot be applied, such as a query selection without netstead provenance), previewed on a copy
+with the links it aims at highlighted (`preview_card`), and applied to the network through the same lowering as a
+draft change (`apply_card`, all or nothing, with `ignore_missing` and `existing_value_conflict` overrides). Cards
+applied this session, from the catalog or committed from the draft, are listed in `plugins.project_cards.applied`;
+`project_cards.session_summary` (and `GET /api/plugins/project_cards/summary.txt`) writes them up as plain text with
+the plugin's history for the session.
+
 **Actions** (`netstead_project_cards.actions`):
 
 - `project_cards.add_change`, `project_cards.undo_change`, `project_cards.commit`, `project_cards.import`,
-  `project_cards.preview`, `project_cards.close_preview`.
+  `project_cards.preview`, `project_cards.close_preview`, `project_cards.open_catalog`,
+  `project_cards.refresh_catalog`, `project_cards.check_card`, `project_cards.preview_card`,
+  `project_cards.apply_card`, `project_cards.session_summary`.
 - Usable from Python (`app.do(...)`), over HTTP (`/api/actions`), from the command palette, and by the assistant: opt
   in with `assistant.plugins`. A local model is offered every Action except commit and import (which need a path)
   unless `assistant.compact_tools = "off"`.
 
-**Routes** (read-only, for the panel): `GET /api/plugins/project_cards/form` and `/commit-check`.
+**Routes** (read-only, for the panel): `GET /api/plugins/project_cards/form`, `/commit-check`, `/catalog` (the open
+catalog, checking unchecked cards a few at a time) and `/summary.txt`.
+
+**Settings** (`[plugins.project_cards]`): `catalog_dir`, a folder inside `io.allowed_roots` opened as the catalog when
+the session starts.
+
+Needs Host API 1.7 (`host.readable`, `host.list_dir`, `host.history`).

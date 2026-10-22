@@ -176,6 +176,12 @@ class NetworkHandle:
         """The roadway ``node`` table as pandas (cached per version)."""
         return self.cached("nodes_df", lambda: as_pandas(self.roadway.nodes))
 
+    def geometry_df(self) -> pd.DataFrame | None:
+        """The roadway ``geometry`` table (link shapes by ``geometry_id``) as pandas, or ``None`` when absent."""
+        return self.cached(
+            "geometry_df", lambda: None if self.roadway.geometry is None else as_pandas(self.roadway.geometry)
+        )
+
     def node_xy(self) -> dict[Any, tuple[float, float]]:
         """``node_id -> (lon, lat)`` for anchor placement (cached per version)."""
         return self.cached(

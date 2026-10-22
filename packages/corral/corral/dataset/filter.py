@@ -45,7 +45,32 @@ def _ibis_backend_of(table: Table) -> Any | None:
         return None
 
 
+def _as_list(val: Any) -> list:
+    return list(val) if isinstance(val, (list, tuple, set)) else [val]
+
+
+def _token_condition(column: Any, op: str, val: Any):
+    """``any_of``/``all_of``/``none_of``: the cell's comma-separated tokens (stripped) against ``val``.
+
+    A null cell has no token: it never matches ``any_of``/``all_of`` and always matches ``none_of``.
+    """
+    tokens = column.cast("string").split(",").map(lambda t: t.strip())
+    hits = [tokens.contains(str(v)) for v in _as_list(val)]
+    if op == "all_of":
+        return column.notnull() & ibis.and_(*hits) if hits else column.notnull()
+    any_hit: Any = ibis.or_(*hits) if hits else ibis.literal(False)
+    if op == "any_of":
+        return column.notnull() & any_hit
+    return column.isnull() | ~any_hit
+
+
 def _condition(column: Any, op: str, val: Any):
+    if op in ("any_of", "all_of", "none_of"):
+        return _token_condition(column, op, val)
+    if op == "between":
+        if not (isinstance(val, (list, tuple)) and len(val) == 2 and None not in val):
+            raise FilterSpecError("'between' takes two values: [low, high]")
+        return column.between(val[0], val[1])
     if op == "eq":
         return column == val
     if op == "ne":
@@ -59,7 +84,7 @@ def _condition(column: Any, op: str, val: Any):
     if op == "gte":
         return column >= val
     if op == "in":
-        return column.isin(list(val) if isinstance(val, (list, tuple, set)) else [val])
+        return column.isin(_as_list(val))
     if op == "contains":
         return column.cast("string").lower().contains(str(val).lower())
     if op == "isnull":
@@ -87,8 +112,12 @@ def filter_rows(table: Table, conditions: list[dict]) -> Table:
     Args:
         table: The table to filter.
         conditions: A list of ``{"col", "op", "val"}`` dicts. Ops:
-            ``eq, ne, lt, lte, gt, gte, in, contains, isnull, notnull``.
-            ``contains`` is case-insensitive substring. Empty list is a no-op.
+            ``eq, ne, lt, lte, gt, gte, in, contains, isnull, notnull, any_of,
+            all_of, none_of, between``. ``contains`` is case-insensitive
+            substring. The token ops split the cell on commas (stripped) and
+            take a list of values (a bare value is a one-element list); a null
+            cell matches only ``none_of``. ``between`` takes ``[low, high]``,
+            inclusive. Empty list is a no-op.
 
     Raises:
         FilterSpecError: unknown column or operator.

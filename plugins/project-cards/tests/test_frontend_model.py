@@ -273,7 +273,7 @@ console.log(JSON.stringify({ calls, error, kept, addition, after: ctl.state }));
         ],
         ["dispatch", {"type": "project_cards.import", "path": "cards/a.yml"}],
     ]
-    assert got["after"] == {"compose": None, "check": None}
+    assert got["after"] == {"compose": None, "check": None, "catalog": None}
 
 
 def test_a_preview_closed_elsewhere_is_not_closed_again(run_js):
@@ -491,3 +491,149 @@ console.log(JSON.stringify({ sameLinks, changed, again, refused, outdated, reloa
         ["get", "/form?type=roadway_property_change&use_selection=true"],
     ]
     assert got["saved"] is False and got["addition"] is False
+
+
+CATALOG_SNAPSHOT = """
+const ok = { ok: true, net_id: "base", version: 3, changes: [{ describe: "lanes on 2 links", resolved: 2,
+  missing: [], reason: null }] };
+const missing = { ok: false, net_id: "base", version: 3, changes: [
+  { describe: "lanes on 3 links", resolved: 2, missing: [999999], reason: null },
+  { describe: "delete 1 link", resolved: 1, missing: [], reason: null }] };
+const reason = { ok: false, net_id: "base", version: 3, changes: [{ describe: "lanes on a query", resolved: 0,
+  missing: [], reason: "query without provenance; re-resolution not supported" }] };
+const entry = (card_id, applicability, extra = {}) => ({ card_id, path: `/cards/${card_id}`, project: card_id,
+  tags: [], change_count: 1, applicability, ...extra });
+const snapshot = { plugins: { project_cards: { drafts: {}, preview: null,
+  catalog: { path: "/cards", rejected: [], cards: [
+    entry("good.yml", ok, { project: "Good", tags: ["a", "b"], change_count: 2 }),
+    entry("bad.yml", missing), entry("query.yml", reason), entry("new.yml", null)] },
+  applied: [
+    { card_id: "first", net_id: "base", path: "/c/first.yml", project: "First", applied_at: "2026-10-21T09:05:00+00:00",
+      changes: 2, source: "committed", edit_ids: [1, 2] },
+    { card_id: "second", net_id: "base", path: "/c/second.yml", project: "Second",
+      applied_at: "2026-10-21T10:15:30+00:00", changes: 1, source: "catalog", edit_ids: [3] }] } } };
+"""
+
+
+def test_catalog_rows_badge_and_tip(run_js):
+    got = run_js(
+        MODEL,
+        'import { catalogRows, catalogOf } from "./cardmodel.js";'
+        + CATALOG_SNAPSHOT
+        + """
+const rows = catalogRows(snapshot);
+console.log(JSON.stringify({ rows, none: catalogRows({ plugins: { project_cards: { catalog: null } } }),
+  fresher: catalogRows(snapshot, { path: "/cards", cards: [entry("new.yml", ok)] }).map(r => r.badge),
+  open: catalogOf(snapshot).path }));
+""",
+    )
+    rows = {r["card_id"]: r for r in got["rows"]}
+    assert [r["card_id"] for r in got["rows"]] == ["good.yml", "bad.yml", "query.yml", "new.yml"]
+    assert rows["good.yml"]["badge"] == "✓" and rows["good.yml"]["tip"] == "Applies to base"
+    good = rows["good.yml"]
+    assert (good["project"], good["changes"], good["tags"]) == ("Good", 2, ["a", "b"])
+    assert rows["bad.yml"]["badge"] == "✗" and rows["bad.yml"]["tip"] == "lanes on 3 links: missing 999999"
+    assert rows["query.yml"]["badge"] == "✗"
+    assert rows["query.yml"]["tip"] == "lanes on a query: query without provenance; re-resolution not supported"
+    assert rows["new.yml"]["badge"] == "?" and rows["new.yml"]["tip"] == "Not checked yet"
+    assert got["none"] == [] and got["fresher"] == ["✓"] and got["open"] == "/cards"
+
+
+def test_apply_defaults_ignore_missing_only_for_missing_ids(run_js):
+    got = run_js(
+        MODEL,
+        'import { applyDefaults, catalogRows, fewIds } from "./cardmodel.js";'
+        + CATALOG_SNAPSHOT
+        + """
+const rows = catalogRows(snapshot);
+console.log(JSON.stringify({ defaults: rows.map(r => [r.card_id, applyDefaults(r)]),
+  none: applyDefaults(null), few: fewIds([1, 2, 3, 4, 5, 6, 7]) }));
+""",
+    )
+    assert got["defaults"] == [
+        ["good.yml", {"existing_value_conflict": "error", "ignore_missing": False}],
+        ["bad.yml", {"existing_value_conflict": "error", "ignore_missing": True}],
+        ["query.yml", {"existing_value_conflict": "error", "ignore_missing": False}],
+        ["new.yml", {"existing_value_conflict": "error", "ignore_missing": False}],
+    ]
+    assert got["none"] == {"existing_value_conflict": "error", "ignore_missing": False}
+    assert got["few"] == "1, 2, 3, 4, 5 (+2 more)"
+
+
+def test_applied_rows_newest_first(run_js):
+    got = run_js(
+        MODEL,
+        'import { appliedRows, summaryFileName } from "./cardmodel.js";'
+        + CATALOG_SNAPSHOT
+        + """
+console.log(JSON.stringify({ rows: appliedRows(snapshot), none: appliedRows({}),
+  name: [summaryFileName("leavenworth"), summaryFileName(null)] }));
+""",
+    )
+    assert [(r["card_id"], r["source"], r["time"], r["changes"]) for r in got["rows"]] == [
+        ("second", "catalog", "10:15", 1),
+        ("first", "committed", "09:05", 2),
+    ]
+    assert got["rows"][0]["project"] == "Second"
+    assert got["none"] == []
+    assert got["name"] == ["leavenworth-cards-session.txt", "network-cards-session.txt"]
+
+
+CATALOG_WB = STUB_WB.replace(
+    'get: async path => { calls.push(["get", path]);',
+    'get: async path => { calls.push(["get", path]);\n      if (path.startsWith("/catalog")) return listing;',
+).replace(
+    "const wb = {",
+    'const listing = { path: "/cards", cards: [{ card_id: "a.yml", applicability: { ok: true } }], rejected: [] };\n'
+    "const wb = {",
+)
+
+
+def test_controller_catalog_flow(run_js):
+    got = run_js(
+        BOTH,
+        CATALOG_WB
+        + """
+wb.api.fetch = async path => { calls.push(["fetch", path]); return { ok: true, text: async () => "SUMMARY" }; };
+const none = [ctl.catalog(), ctl.catalogChanged()];
+cards.catalog = { path: "/cards", cards: [{ card_id: "a.yml", applicability: null }], rejected: [] };
+const opened = ctl.catalogChanged();
+const again = ctl.catalogChanged();
+await ctl.loadCatalog("base");
+const fresher = ctl.catalog().cards[0].applicability;
+cards.catalog = { path: "/other", cards: [], rejected: [] };
+const other = ctl.catalog().path;
+cards.preview = { net_id: "net-2", base: "base", describe: "x", stale: false };
+await ctl.applyCard("a.yml", { existing_value_conflict: "warn", ignore_missing: true }, "base");
+const closed = cards.preview;
+await ctl.previewCard("a.yml", "base");
+const text = await ctl.summary("base");
+cards.catalog = null;
+const gone = [ctl.catalog(), ctl.catalogChanged()];
+console.log(JSON.stringify({ none, opened, again, fresher, other, closed, text, gone,
+  calls: calls.filter(c => c[0] !== "get" || c[1].startsWith("/catalog")) }));
+""",
+    )
+    assert got["none"] == [None, False]
+    assert got["opened"] is True and got["again"] is False
+    assert got["fresher"] == {"ok": True}  # the loaded listing's check, not the snapshot's null
+    assert got["other"] == "/other"  # a different catalog: the loaded listing no longer applies
+    assert got["closed"] is None  # applying closes an open preview
+    assert got["text"] == "SUMMARY"
+    assert got["gone"] == [None, False]
+    types = [c[1].get("type") if c[0] == "dispatch" else c[1] for c in got["calls"]]
+    assert types == [
+        "/catalog?net_id=base",
+        "project_cards.apply_card",
+        "project_cards.close_preview",
+        "project_cards.preview_card",
+        "/summary.txt?net_id=base",
+    ]
+    apply = next(c[1] for c in got["calls"] if c[0] == "dispatch" and c[1]["type"] == "project_cards.apply_card")
+    assert apply == {
+        "type": "project_cards.apply_card",
+        "card_id": "a.yml",
+        "existing_value_conflict": "warn",
+        "ignore_missing": True,
+        "net_id": "base",
+    }

@@ -18,6 +18,7 @@ from netstead.workbench.actions import (
     DeleteRows,
     EditCells,
     OpenNetwork,
+    RedoEdit,
     SaveNetwork,
     Select,
     UndoEdit,
@@ -62,6 +63,7 @@ def test_a_mutation_is_a_pending_edit(session):
         "truncated": False,
         "check_failed": False,
         "last_source": "python",
+        "redo_count": 0,
     }
     assert session.history[-1].action["type"] == "python.mutate"  # Part 1: recorded outside an Action
 
@@ -238,6 +240,25 @@ def test_an_edit_the_spec_disagrees_with_is_applied_and_warned(session):
     assert session.state()["edits"]["leavenworth"]["warnings"] == 1
 
 
+def test_an_out_of_enum_categorical_edit_persists_and_names_its_column(session):
+    # Beta report: categorical edits "did not persist, with no message". The server never refuses an out-of-enum
+    # value: it is applied and warned, naming the column so the grid can flag the cell.
+    result = session.dispatch(EditCells(ids=[1], values={"bike_facility": "boulevard"}))
+    assert cell(session, 1, "bike_facility") == ["boulevard"]
+    (warning,) = result["warnings"]
+    where = (warning["code"], warning["table"], warning["key"], warning["column"])
+    assert where == ("edit.enum", "link", 1, "bike_facility")
+    assert "'boulevard' is not one of" in warning["message"]
+    edits = session.edits_payload(handle(session))
+    assert [(w["code"], w["column"]) for w in edits["warnings"]] == [("edit.enum", "bike_facility")]
+
+
+def test_a_free_text_categorical_edit_persists_without_an_enum_warning(session):
+    result = session.dispatch(EditCells(ids=[1], values={"facility_type": "boulevard"}))  # GMNS: free text
+    assert cell(session, 1, "facility_type") == ["boulevard"]
+    assert result["warnings"] == [] and result["open_warnings"] == 0
+
+
 def test_what_storage_cannot_hold_is_refused_and_recorded(session):
     with pytest.raises(ActionError, match="does not fit"):
         session.dispatch(EditCells(ids=[1], values={"lanes": 1.5}))
@@ -321,6 +342,8 @@ def test_a_replayed_history_reproduces_the_edits(session, tmp_path):
     session.dispatch(EditCells(ids=[1], values={"free_speed": 30}))
     session.dispatch(EditCells(ids=[2], values={"lanes": 2}))
     session.dispatch(UndoEdit())
+    session.dispatch(RedoEdit())
+    session.dispatch(UndoEdit())
     from fastapi.testclient import TestClient
     from netstead.workbench import build_app
 
@@ -328,6 +351,7 @@ def test_a_replayed_history_reproduces_the_edits(session, tmp_path):
     assert history["imports"][1:] == [
         "from netstead.workbench import EditCells",
         "from netstead.workbench import UndoEdit",
+        "from netstead.workbench import RedoEdit",
     ]
     script = "\n".join([*history["imports"], *(e["python"] for e in history["entries"])])
     other = Session(project_dir=tmp_path, environ=session._environ, parser=StubParser(), plugins=[])
@@ -624,6 +648,108 @@ def test_undo_after_undo_still_works_with_the_recorded_tables(session):
     session.dispatch(UndoEdit())
     session.dispatch(UndoEdit())  # the first undo's own swap was recorded, so this one is not refused
     assert cell(session, 1) == [40.0] and session.edits["leavenworth"].entries == []
+
+
+def test_redo_re_applies_the_undone_edit(session):
+    session.dispatch(EditCells(ids=[17], values={"free_speed": 42.0}))
+    session.dispatch(UndoEdit())
+    assert cell(session, 17) != [42.0] and session.state()["edits"]["leavenworth"]["redo_count"] == 1
+    result = session.dispatch(RedoEdit())
+    assert cell(session, 17) == [42.0] and session.state()["edits"]["leavenworth"]["redo_count"] == 0
+    entry = session.edits["leavenworth"].last()
+    assert entry.note.startswith("redo: ") and entry.source == "workbench" and result["redone"]["seq"] == entry.seq
+    assert session.history[-1].action["type"] == "redo_edit" and session.history[-1].python == "app.do(RedoEdit())"
+
+
+def test_redo_with_nothing_to_redo_is_a_recorded_failure(session):
+    with pytest.raises(ActionError, match="nothing to redo"):
+        session.dispatch(RedoEdit())
+    assert not session.history[-1].ok
+
+
+def test_a_new_edit_after_an_undo_clears_the_redo_stack(session):
+    session.dispatch(EditCells(ids=[17], values={"free_speed": 42.0}))
+    session.dispatch(UndoEdit())
+    session.dispatch(EditCells(ids=[18], values={"lanes": 2}))
+    assert session.state()["edits"]["leavenworth"]["redo_count"] == 0
+    with pytest.raises(ActionError, match="nothing to redo"):
+        session.dispatch(RedoEdit())
+
+
+def test_undo_twice_then_redo_twice_restores_both_edits_in_order(session):
+    session.dispatch(EditCells(ids=[17], values={"free_speed": 42.0}))
+    session.dispatch(EditCells(ids=[18], values={"lanes": 2}))
+    session.dispatch(UndoEdit())
+    session.dispatch(UndoEdit())
+    assert session.state()["edits"]["leavenworth"]["redo_count"] == 2
+    session.dispatch(RedoEdit())
+    assert cell(session, 17) == [42.0] and cell(session, 18, "lanes") != [2]
+    session.dispatch(RedoEdit())
+    assert cell(session, 18, "lanes") == [2] and session.state()["edits"]["leavenworth"]["redo_count"] == 0
+
+
+def test_undoing_a_redo_puts_it_back_on_the_redo_stack(session):
+    session.dispatch(EditCells(ids=[17], values={"free_speed": 42.0}))
+    session.dispatch(UndoEdit())
+    session.dispatch(RedoEdit())
+    session.dispatch(UndoEdit())  # the redone edit is the newest pending edit again
+    assert cell(session, 17) != [42.0] and session.state()["edits"]["leavenworth"]["redo_count"] == 1
+
+
+def test_redo_refuses_after_a_change_the_ledger_did_not_see(session):
+    session.dispatch(EditCells(ids=[17], values={"free_speed": 42.0}))
+    session.dispatch(UndoEdit())
+    handle(session).bump()  # a version bump behind the ledger's back
+    with pytest.raises(ActionError, match="changed outside the Workbench since; redo is unavailable"):
+        session.dispatch(RedoEdit())
+    assert session.state()["edits"]["leavenworth"]["redo_count"] == 0 and cell(session, 17) != [42.0]
+
+
+def test_a_python_mutation_after_an_undo_empties_the_redo_stack(session):
+    session.dispatch(EditCells(ids=[17], values={"free_speed": 42.0}))
+    session.dispatch(UndoEdit())
+    mutate(session, plan_update(handle(session).roadway, "link", [18], {"lanes": 2}))  # from Python, not an Action
+    assert session.state()["edits"]["leavenworth"]["redo_count"] == 0
+
+
+def test_another_sources_undo_empties_the_redo_stack(session):
+    mutate(session, plan_update(handle(session).roadway, "link", [18], {"lanes": 2}), origin="cards")
+    session.dispatch(EditCells(ids=[17], values={"free_speed": 42.0}))
+    session.dispatch(UndoEdit())
+    assert session.state()["edits"]["leavenworth"]["redo_count"] == 1
+    session.undo_last("leavenworth", source="cards")  # the plugin takes back its own edit, now the newest
+    assert session.state()["edits"]["leavenworth"]["redo_count"] == 0
+
+
+class RedoThenFail(BaseAction):
+    type: Literal["rtf.go"] = "rtf.go"
+    mutates: ClassVar[bool] = True
+
+
+def _redo_then_fail(host, action: RedoThenFail) -> None:
+    host.dispatch({"type": "redo_edit"})
+    raise RuntimeError("after the redo")
+
+
+def test_a_failed_action_rolls_a_redo_back_to_the_earlier_redo_stack(tmp_path, isolated_env):
+    plugin = WorkbenchPlugin(
+        id="rtf",
+        name="Redo then fail",
+        version="0",
+        requires_api=HOST_API,
+        actions=(ActionSpec(RedoThenFail, _redo_then_fail),),
+    )
+    s = Session(project_dir=tmp_path, environ=isolated_env, parser=StubParser(), plugins=[plugin])
+    s.dispatch(OpenNetwork(source=SRC))
+    s.dispatch(EditCells(ids=[17], values={"free_speed": 42.0}))
+    s.dispatch(EditCells(ids=[18], values={"lanes": 2}))
+    s.dispatch(UndoEdit())
+    s.dispatch(UndoEdit())
+    assert s.state()["edits"]["leavenworth"]["redo_count"] == 2
+    assert not s.dispatch_recorded(RedoThenFail()).ok
+    assert s.state()["edits"]["leavenworth"]["redo_count"] == 2 and cell(s, 17) != [42.0]
+    s.dispatch(RedoEdit())  # the stack is intact: the same edit redoes again
+    assert cell(s, 17) == [42.0] and s.state()["edits"]["leavenworth"]["redo_count"] == 1
 
 
 def test_core_undo_last_refuses_a_python_entry(session):

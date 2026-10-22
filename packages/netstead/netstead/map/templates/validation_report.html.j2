@@ -15,6 +15,11 @@ Inputs:
   - filter_options     : {"severity": [...], "table": [...]}
   - located_count      : number of issues resolved to a coord
   - unlocated          : list of issue dicts with no coord
+  - unlocated_groups   : one dict per line of the collapsed "Unlocated findings"
+                         block — repeated structural codes folded into one entry
+                         ({issue_id, severity, code, count, grouped, message})
+  - resources          : resource inventory rows ({name, required, present, rows})
+  - resources_present  : how many of those rows are present
 -#}
 <!DOCTYPE html>
 <html lang="en">
@@ -38,14 +43,37 @@ Inputs:
 
   {{ body_fragment | safe }}
 
+  {% if resources %}
+  <details class="gv-resources" open>
+    <summary>Resources ({{ resources_present }} of {{ resources|length }} present)</summary>
+    <div class="gv-table-wrap">
+      <table class="gv-resource-table">
+        <thead>
+          <tr><th>Resource</th><th>Required</th><th>Present</th><th>Rows</th></tr>
+        </thead>
+        <tbody>
+          {% for r in resources %}
+          <tr data-resource="{{ r.name }}" data-present="{{ 'true' if r.present else 'false' }}">
+            <td><code>{{ r.name }}</code></td>
+            <td>{{ 'required' if r.required else 'optional' }}</td>
+            <td class="gv-present-{{ 'yes' if r.present else 'no' }}">{% if r.present %}&#10003;{% else %}&#10007;{% endif %}</td>
+            <td class="gv-num">{% if r.rows is not none %}{{ r.rows }}{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+  {% endif %}
+
   {% if unlocated %}
-  <details class="gv-unlocated" open>
+  <details class="gv-unlocated">
     <summary>Unlocated findings ({{ unlocated|length }})</summary>
     <ul>
-      {% for issue in unlocated %}
-      <li data-unlocated-issue-id="{{ issue.issue_id }}">
-        <span class="gv-sev severity-{{ issue.severity }}">{{ issue.severity|upper }}</span>
-        <code class="gv-code">{{ issue.code }}</code> — {{ issue.message }}
+      {% for entry in unlocated_groups %}
+      <li data-unlocated-issue-id="{{ entry.issue_id }}">
+        <span class="gv-sev severity-{{ entry.severity }}">{{ entry.severity|upper }}</span>
+        <code class="gv-code">{{ entry.code }}</code>{% if entry.grouped %} <span class="gv-chip gv-chip-muted">&times;{{ entry.count }}</span>{% endif %} — {{ entry.message }}
       </li>
       {% endfor %}
     </ul>

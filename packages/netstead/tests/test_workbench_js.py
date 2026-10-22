@@ -1,6 +1,7 @@
 """Unit tests for the workbench's pure (import-free) front-end modules, run under node."""
 
 import json
+import re
 import shutil
 
 import pytest
@@ -507,6 +508,32 @@ def test_only_non_key_scalar_cells_are_edited_in_place(node_module):
     assert node_module("editmodel.js", ["cellEditable"], expr) == [False, True, False, True, False]
 
 
+def test_cell_options_offer_the_spec_values_then_the_existing_ones(node_module):
+    expr = '[cellOptions({enum: ["b", "a"]}, ["b", "c"]), cellOptions({enum: null}, ["z", "y"]), cellOptions({}, null)]'
+    assert node_module("editmodel.js", ["cellOptions"], expr) == [["a", "b", "c"], ["y", "z"], []]
+
+
+def test_list_options_complete_the_last_token_of_a_comma_list(node_module):
+    expr = (
+        '[listOptions("", ["auto", "bike"]), listOptions("auto, b", ["auto", "bike"]),'
+        ' listOptions("auto,", ["auto", "bike"])]'
+    )
+    assert node_module("editmodel.js", ["listOptions"], expr) == [
+        ["auto", "bike"],
+        ["auto, auto", "auto, bike"],
+        ["auto,auto", "auto,bike"],
+    ]
+
+
+def test_leaving_a_cell_applies_only_changed_text(node_module):
+    expr = (
+        '[shouldApplyOnLeave("none", "none"), shouldApplyOnLeave(" none ", "none"),'
+        ' shouldApplyOnLeave("angle", "none"), shouldApplyOnLeave("", null), shouldApplyOnLeave("", "none"),'
+        ' shouldApplyOnLeave("30", 30)]'
+    )
+    assert node_module("editmodel.js", ["shouldApplyOnLeave"], expr) == [False, False, True, False, True, False]
+
+
 def test_an_empty_cell_parses_by_its_column_kind(node_module):
     expr = '[cellSample(null, "num"), cellSample(null, "bool"), cellSample(null, "str"), cellSample(3, "str")]'
     assert node_module("editmodel.js", ["cellSample"], expr) == [0, False, "", 3]
@@ -779,3 +806,456 @@ def test_settings_switches_save_what_is_on_screen_and_list_only_offerable_action
     ]
     got = node_module("assistmodel.js", ["offerableCore"], f"offerableCore({json.dumps(actions)}).map(a => a.type)")
     assert got == ["style"]
+
+
+# ---------------------------------------------------------------------------- icons.js
+
+
+ICON_NAMES = [
+    "undo", "redo", "gear", "terminal", "code", "save", "folder-open", "play", "download", "check-circle",
+    "alert-triangle", "x-circle", "circle", "filter", "x", "chevron-down", "layers", "crosshair", "grip",
+]  # fmt: skip
+
+
+def test_icon_renders_an_inline_svg_that_is_hidden_from_readers_by_default(node_module):
+    svg = node_module("icons.js", ["icon"], 'icon("undo")')
+    assert svg.startswith("<svg") and svg.endswith("</svg>")
+    assert 'aria-hidden="true"' in svg and 'viewBox="0 0 24 24"' in svg and 'stroke="currentColor"' in svg
+    assert 'width="18"' in svg and 'height="18"' in svg
+    assert 'width="22"' in node_module("icons.js", ["icon"], 'icon("undo", {size: 22})')
+
+
+def test_a_labelled_icon_is_an_image_for_readers(node_module):
+    svg = node_module("icons.js", ["icon"], 'icon("gear", {label: "Settings"})')
+    assert 'role="img"' in svg and 'aria-label="Settings"' in svg and "aria-hidden" not in svg
+
+
+def test_an_unknown_icon_throws(node_module):
+    expr = '(() => { try { icon("nope"); return null; } catch (e) { return e.message; } })()'
+    assert "nope" in node_module("icons.js", ["icon"], expr)
+
+
+def test_the_icon_set_has_every_name_the_workbench_uses(node_module):
+    names = node_module("icons.js", ["ICONS"], "Object.keys(ICONS)")
+    assert set(ICON_NAMES) <= set(names)
+
+
+def test_every_data_icon_in_index_is_in_the_set(node_module):
+    from netstead.workbench.server import STATIC_DIR
+
+    html = (STATIC_DIR / "index.html").read_text()
+    used = set(re.findall(r'data-icon="([\w-]+)"', html))
+    assert used  # the header, dock and footer carry icon buttons
+    assert used <= set(node_module("icons.js", ["ICONS"], "Object.keys(ICONS)"))
+
+
+def test_a_prototype_key_is_not_an_icon(node_module):
+    expr = '(() => { try { icon("toString"); return null; } catch (e) { return e.message; } })()'
+    assert "toString" in node_module("icons.js", ["icon"], expr)
+
+
+def test_redo_is_blocked_without_a_redo_stack(node_module):
+    def blocked(summary):
+        return node_module("editmodel.js", ["redoBlocked"], f"redoBlocked({summary})")
+
+    reason = blocked("{redo_count: 0}")
+    assert isinstance(reason, str) and reason
+    assert blocked("{redo_count: 2}") == ""  # like undoBlocked: "" when allowed
+    assert blocked("null") and blocked("{pending: 1}")  # no summary, or no redo_count
+
+
+# --- netbuf.js: direction arrows (beta item 16) ---------------------------------------------------------------
+
+
+def test_midpoint_by_length_halves_the_path_length_not_the_vertex_count(node_module):
+    mid = "midpointByLength"
+    assert node_module("netbuf.js", [mid], f"{mid}([[0,0],[10,0],[10,10]])") == [10, 0]
+    assert node_module("netbuf.js", [mid], f"{mid}([[0,0],[4,0]])") == [2, 0]
+    assert node_module("netbuf.js", [mid], f"{mid}([[0,0],[10,0],[10,30]])") == [10, 10]  # inside a segment
+    # Many short vertices then one long segment: the middle vertex would sit near the start.
+    assert node_module("netbuf.js", [mid], f"{mid}([[0,0],[1,0],[2,0],[3,0],[100,0]])") == [50, 0]
+    assert node_module("netbuf.js", [mid], f"{mid}([[5,5]])") is None
+    assert node_module("netbuf.js", [mid], f"{mid}([[5,5],[5,5]])") == [5, 5]  # zero length: the first point
+
+
+def test_build_arrows_places_one_arrow_per_link_row_on_its_offset_side(node_module):
+    paths = "[[[0,0],[4,0]], [[7,7]], [[0,0],[0,2],[0,4]]]"
+    on = node_module("netbuf.js", ["buildArrows"], f"buildArrows({paths}, {{offset: true}})")
+    off = node_module("netbuf.js", ["buildArrows"], f"buildArrows({paths}, {{offset: false}})")
+    bare = node_module("netbuf.js", ["buildArrows"], f"buildArrows({paths})")
+    assert [a["side"] for a in on] == [1, 1]
+    assert [a["side"] for a in off] == [0, 0]
+    assert [a["side"] for a in bare] == [0, 0]
+    # A one-point path has no arrow, but the others keep their link index.
+    assert [a["link"] for a in on] == [0, 2]
+    # The position is the midpoint by length; the angle turns an up-pointing icon along the travel direction.
+    assert [a["position"] for a in on] == [[2, 0], [0, 2]]
+    assert [a["angle"] for a in on] == [-90, 0]
+    mids = node_module(
+        "netbuf.js",
+        ["buildArrows", "midpointByLength"],
+        f"buildArrows({paths}).map(a => [a.position, midpointByLength({paths}[a.link])])",
+    )
+    assert all(pos == mid for pos, mid in mids)
+
+
+def test_link_paths_splits_the_flat_vertex_buffer_per_link(node_module):
+    expr = "linkPaths(3, [0, 2, 3, 5], new Float32Array([0,0, 1,1, 2,2, 3,3, 4,4]))"
+    assert node_module("netbuf.js", ["linkPaths"], expr) == [[[0, 0], [1, 1]], [[2, 2]], [[3, 3], [4, 4]]]
+
+
+def test_arrow_pixel_offset_follows_the_right_hand_offset_line(node_module):
+    # Screen pixels, +y down (deck's getPixelOffset). The offset is `amt` path widths to the right of travel,
+    # the side the PathStyleExtension draws a positive offset on.
+    def off(angle, side, width, amt=0.8):
+        got = node_module("netbuf.js", ["arrowPixelOffset"], f"arrowPixelOffset({angle}, {side}, {width}, {amt})")
+        return [round(v, 6) for v in got]
+
+    assert off(-90, 1, 10) == [0, 8]  # eastbound: right is south, i.e. down the screen
+    assert off(0, 1, 10) == [8, 0]  # northbound: right is east
+    assert off(90, 1, 10) == [0, -8]  # westbound: right is north
+    assert off(180, 1, 5) == [-4, 0]  # southbound: right is west
+    assert off(-90, 0, 10) == [0, 0]  # offsets off: on the centreline
+
+
+@pytest.mark.parametrize(("zoom", "size"), [(12, 8), (13, 8), (14, 10), (15, 12), (18, 18), (22, 18)])
+def test_arrow_size_grows_with_zoom_between_8_and_18_px(node_module, zoom, size):
+    assert node_module("netbuf.js", ["arrowSize"], f"arrowSize({zoom})") == size
+
+
+# ---- gridfilter.js: the table's per-column filter model and its chip text ----
+
+_GF = ["createGridFilter", "chipText"]
+
+
+def _gf(node_module, body: str):
+    """Evaluate ``body`` with ``f`` bound to a fresh model."""
+    return node_module("gridfilter.js", _GF, f"(() => {{ const f = createGridFilter(); {body} }})()")
+
+
+def test_grid_filter_conditions_map_each_spec_to_a_server_condition(node_module):
+    body = """
+      f.setFilter("free_speed", {kind: "num", op: "gt", val: 40});
+      f.setFilter("lanes", {kind: "num", op: "between", lo: 35, hi: 45});
+      f.setFilter("name", {kind: "text", val: "Pine"});
+      f.setFilter("shape", {kind: "empty", op: "isnull"});
+      f.setFilter("allowed_uses", {kind: "set", mode: "any_of", values: ["auto", "truck"], listLike: true});
+      f.setFilter("facility_type", {kind: "set", mode: "any_of", values: ["primary"], listLike: false});
+      f.setFilter("roadway", {kind: "set", mode: "none_of", values: ["residential"], listLike: false});
+      return [f.conditions(), f.active()];"""
+    conds, active = _gf(node_module, body)
+    assert conds == [
+        {"col": "free_speed", "op": "gt", "val": 40},
+        {"col": "lanes", "op": "between", "val": [35, 45]},
+        {"col": "name", "op": "contains", "val": "Pine"},
+        {"col": "shape", "op": "isnull", "val": None},
+        {"col": "allowed_uses", "op": "any_of", "val": ["auto", "truck"]},
+        {"col": "facility_type", "op": "in", "val": ["primary"]},  # a plain column: membership, not tokens
+        {"col": "roadway", "op": "none_of", "val": ["residential"]},  # none_of works on plain cells too
+    ]
+    assert active == ["free_speed", "lanes", "name", "shape", "allowed_uses", "facility_type", "roadway"]
+
+
+def test_grid_filter_bool_set_sends_booleans_not_their_names(node_module):
+    body = (
+        'f.setFilter("managed", {kind: "set", mode: "any_of", values: ["True"], listLike: false, bool: true});'
+        " return f.conditions();"
+    )
+    assert _gf(node_module, body) == [{"col": "managed", "op": "in", "val": [True]}]
+
+
+def test_grid_filter_remove_clear_get_and_a_replaced_column(node_module):
+    body = """
+      f.setFilter("a", {kind: "num", op: "eq", val: 1});
+      f.setFilter("b", {kind: "text", val: "x"});
+      f.setFilter("a", {kind: "num", op: "lt", val: 2});   // replaces, keeps its place
+      const afterReplace = f.conditions();
+      f.remove("b"); const afterRemove = f.active(); const gone = f.get("b"); const kept = f.get("a");
+      f.setFilter("c", null); // a null spec is a removal, not an error
+      f.setFilter("a", {kind: "num", op: "eq", val: 3}); f.clear();
+      return [afterReplace, afterRemove, gone, kept, f.active(), f.conditions()];"""
+    after_replace, after_remove, gone, kept, active, conds = _gf(node_module, body)
+    assert after_replace == [{"col": "a", "op": "lt", "val": 2}, {"col": "b", "op": "contains", "val": "x"}]
+    assert after_remove == ["a"] and gone is None and kept == {"kind": "num", "op": "lt", "val": 2}
+    assert active == [] and conds == []
+
+
+@pytest.mark.parametrize(
+    ("spec", "message"),
+    [
+        ('{kind: "num", op: "gt", val: "abc"}', "number"),
+        ('{kind: "num", op: "between", lo: 5, hi: 1}', "between"),
+        ('{kind: "num", op: "like", val: 1}', "operator"),
+        ('{kind: "set", mode: "any_of", values: [], listLike: true}', "value"),
+        ('{kind: "set", mode: "all_of", values: ["a"], listLike: false}', "all of"),
+        ('{kind: "text", val: "  "}', "text"),
+        ('{kind: "colour"}', "kind"),
+    ],
+)
+def test_grid_filter_refuses_a_malformed_spec(node_module, spec, message):
+    body = f'try {{ f.setFilter("c", {spec}); return null; }} catch (e) {{ return e.message; }}'
+    got = _gf(node_module, body)
+    assert got and message in got.lower()
+
+
+@pytest.mark.parametrize(
+    ("col", "spec", "text"),
+    [
+        ("free_speed", '{kind: "num", op: "gt", val: 40}', "free_speed > 40"),
+        ("free_speed", '{kind: "num", op: "gte", val: 40}', "free_speed ≥ 40"),
+        ("free_speed", '{kind: "num", op: "ne", val: 40}', "free_speed ≠ 40"),
+        ("free_speed", '{kind: "num", op: "between", lo: 35, hi: 45}', "free_speed 35–45"),  # noqa: RUF001 (an en dash)
+        ("name", '{kind: "text", val: "Pine"}', 'name contains "Pine"'),
+        (
+            "allowed_uses",
+            '{kind: "set", mode: "any_of", values: ["auto", "truck"], listLike: true}',
+            "allowed_uses any of auto, truck",
+        ),
+        (
+            "allowed_uses",
+            '{kind: "set", mode: "all_of", values: ["auto", "truck"], listLike: true}',
+            "allowed_uses all of auto, truck",
+        ),
+        (
+            "facility_type",
+            '{kind: "set", mode: "none_of", values: ["residential"]}',
+            "facility_type none of residential",
+        ),
+        ("lanes", '{kind: "empty", op: "isnull"}', "lanes is empty"),
+        ("lanes", '{kind: "empty", op: "notnull"}', "lanes is not empty"),
+    ],
+)
+def test_grid_filter_chip_text(node_module, col, spec, text):
+    assert node_module("gridfilter.js", _GF, f'chipText("{col}", {spec})') == text
+    assert _gf(node_module, f'f.setFilter("{col}", {spec}); return f.chipText("{col}");') == text
+
+
+def test_grid_filter_chip_text_elides_a_long_value_list(node_module):
+    spec = '{kind: "set", mode: "any_of", values: ["a", "b", "c", "d", "e", "f"], listLike: true}'
+    assert node_module("gridfilter.js", _GF, f'chipText("u", {spec})') == "u any of a, b, c, d +2"
+
+
+# ---- resize.js: panel sizes (the map/table split percentage, the side column width) ----
+
+SIZE_DEFAULTS = {"split": 55, "side": 330}
+
+
+@pytest.mark.parametrize(
+    ("kind", "value", "expected"),
+    [
+        ("split", 95, 80),
+        ("split", 5, 20),
+        ("split", 40, 40),
+        ("side", 100, 240),
+        ("side", 9999, 720),
+        ("side", 500, 500),
+    ],
+)
+def test_clamp_size_keeps_each_panel_within_its_range(node_module, kind, value, expected):
+    assert node_module("resize.js", ["clampSize"], f'clampSize("{kind}", {value})') == expected
+
+
+def parse_sizes(node_module, stored: str):
+    return node_module("resize.js", ["parseSizes"], f"parseSizes({stored})")
+
+
+def test_clamp_size_of_a_non_number_is_the_default(node_module):
+    assert node_module("resize.js", ["clampSize"], 'clampSize("split", NaN)') == 55
+    assert node_module("resize.js", ["clampSize"], 'clampSize("side", "wide")') == 330
+
+
+def test_size_defaults_match_the_stylesheet(node_module):
+    assert node_module("resize.js", ["DEFAULTS"], "DEFAULTS") == SIZE_DEFAULTS
+
+
+@pytest.mark.parametrize("stored", ['"garbage"', "null", '"[1,2]"', '"42"', '""'])
+def test_parse_sizes_falls_back_to_defaults_on_garbage(node_module, stored):
+    assert parse_sizes(node_module, stored) == SIZE_DEFAULTS
+
+
+def test_parse_sizes_reads_valid_fields(node_module):
+    assert parse_sizes(node_module, """'{"split":40,"side":500}'""") == {"split": 40, "side": 500}
+
+
+def test_parse_sizes_defaults_each_bad_field_on_its_own(node_module):
+    assert parse_sizes(node_module, """'{"split":"x","side":500}'""") == {"split": 55, "side": 500}
+    assert parse_sizes(node_module, """'{"split":40}'""") == {"split": 40, "side": 330}
+    # an out-of-range number is clamped, not dropped
+    assert parse_sizes(node_module, """'{"split":99,"side":1}'""") == {"split": 80, "side": 240}
+
+
+def test_serialize_sizes_round_trips(node_module):
+    expr = "parseSizes(serializeSizes({split: 40, side: 500}))"
+    assert node_module("resize.js", ["parseSizes", "serializeSizes"], expr) == {"split": 40, "side": 500}
+    raw = node_module("resize.js", ["serializeSizes"], "serializeSizes({split: 40, side: 500, extra: 1})")
+    assert json.loads(raw) == {"split": 40, "side": 500}
+
+
+# ---- recents.js: the Open menu's recent networks ----
+
+
+def recent_entries(node_module, stored, limit=None):
+    args = json.dumps(stored) + (f", {limit}" if limit is not None else "")
+    return node_module("recents.js", ["recentEntries"], f"recentEntries({args})")
+
+
+def test_recent_entries_keep_newest_first_and_cap_at_three(node_module):
+    stored = [{"source": f"/n/{i}", "label": f"net{i}"} for i in range(5)]
+    assert recent_entries(node_module, stored) == [
+        {"label": "net0", "path": "/n/0"},
+        {"label": "net1", "path": "/n/1"},
+        {"label": "net2", "path": "/n/2"},
+    ]
+    assert len(recent_entries(node_module, stored, 5)) == 5
+
+
+def test_recent_entries_dedupe_by_path_keeping_the_newest(node_module):
+    stored = [{"source": "/a", "label": "first"}, {"source": "/b", "label": "b"}, {"source": "/a", "label": "older"}]
+    assert recent_entries(node_module, stored) == [{"label": "first", "path": "/a"}, {"label": "b", "path": "/b"}]
+
+
+def test_recent_entries_tolerate_garbage(node_module):
+    assert recent_entries(node_module, None) == []
+    assert recent_entries(node_module, [{"label": "no source"}, None, {"source": "/x/"}]) == [
+        {"label": "x", "path": "/x/"}
+    ]
+
+
+# ---- validity.js: the header's validity light ----
+
+
+def validity(node_module, server):
+    return node_module("validity.js", ["validityState"], f"validityState({json.dumps(server)})")
+
+
+def _validated(counts, stale=False):
+    return {"active": "n", "issues": {"n": {"version": 2, "stale": stale, "counts": counts}}}
+
+
+def test_validity_unknown_without_a_validation(node_module):
+    assert validity(node_module, None) == {"level": "unknown", "icon": "circle", "tip": "Not validated yet"}
+    assert validity(node_module, {"active": "n", "issues": {}})["level"] == "unknown"
+    assert (
+        validity(node_module, {"active": "n", "issues": {"other": {"version": 1, "counts": {}}}})["level"] == "unknown"
+    )
+
+
+def test_validity_stale_after_the_network_changed(node_module):
+    v = validity(node_module, {"active": "n", "issues": {"n": {"version": 4, "stale": True, "counts": {"error": 2}}}})
+    assert v == {
+        "level": "stale",
+        "icon": "circle",
+        "tip": "Validated v4; the network changed since: re-run validation",
+    }
+
+
+def test_validity_error_warn_and_clean_with_plurals(node_module):
+    assert validity(node_module, _validated({"error": 3, "warning": 1, "info": 16})) == {
+        "level": "error",
+        "icon": "x-circle",
+        "tip": "3 errors, 1 warning, 16 info",
+    }
+    assert validity(node_module, _validated({"error": 1})) == {"level": "error", "icon": "x-circle", "tip": "1 error"}
+    assert validity(node_module, _validated({"warning": 1, "info": 16})) == {
+        "level": "warn",
+        "icon": "alert-triangle",
+        "tip": "1 warning, 16 info",
+    }
+    assert validity(node_module, _validated({"warning": 2})) == {
+        "level": "warn",
+        "icon": "alert-triangle",
+        "tip": "2 warnings",
+    }
+    assert validity(node_module, _validated({"info": 5})) == {
+        "level": "clean",
+        "icon": "check-circle",
+        "tip": "Valid: 0 errors, 0 warnings, 5 info",
+    }
+    assert validity(node_module, _validated({})) == {
+        "level": "clean",
+        "icon": "check-circle",
+        "tip": "Valid: 0 errors, 0 warnings",
+    }
+
+
+# ---- palette.js: node colours follow the links' palette rules
+
+_NODE_STYLE = 'ramp: "YlOrRd", colors: {nodes: [1, 2, 3]}'
+
+
+def test_node_colours_single_categorical_continuous_and_null(node_module):
+    expr = (
+        "(() => { const net = {N: {count: 3}}; const rows = c => [0, 1, 2].map(i => [...c.slice(i * 4, i * 4 + 4)]);"
+        f" const single = buildNodeColors(net, {{node_color_by: 'none', {_NODE_STYLE}}}, null);"
+        f" const cat = buildNodeColors(net, {{node_color_by: 'ctrl_type', {_NODE_STYLE}}},"
+        " {name: 'ctrl_type', kind: 'categorical', categories: ['stop', 'yield'], values: ['stop', null, 'yield']});"
+        f" const num = buildNodeColors(net, {{node_color_by: 'z', {_NODE_STYLE}}},"
+        " {name: 'z', kind: 'continuous', min: 0, max: 10, values: [0, 5, 10]});"
+        f" const other = buildNodeColors(net, {{node_color_by: 'ctrl_type', {_NODE_STYLE}}},"
+        " {name: 'z', kind: 'continuous', values: [1, 2, 3]});"
+        " return [rows(single), rows(cat), rows(num), rows(other)]; })()"
+    )
+    single, cat, num, other = node_module("palette.js", ["buildNodeColors"], expr)
+    assert single == [[1, 2, 3, 150]] * 3 and other == single  # no property, or the wrong one: the single colour
+    assert cat == [[228, 66, 62, 215], [205, 208, 214, 215], [57, 126, 184, 215]]  # palette, null, palette
+    assert num == [[255, 237, 160, 215], [254, 178, 76, 215], [240, 59, 32, 215]]  # the ramp's ends and middle
+
+
+# ---- issuegroups.js: the Validate panel's client-side grouping (mirrors corral.reports.grouping.group_issues)
+
+_STRUCTURAL = (
+    "[0, 1, 2].map(k => ({i: k, code: 'structural.missing_optional_resource', severity: 'info', "
+    "category: 'structural', table: ['zone', 'config', 'curb_seg'][k], row: null, anchor: null}))"
+)
+
+
+def test_structural_findings_without_a_row_fold_into_one_group(node_module):
+    got = node_module("issuegroups.js", ["groupIssues"], f"groupIssues({_STRUCTURAL})")
+    assert len(got) == 1 and got[0]["group"] is True
+    assert (got[0]["code"], got[0]["severity"], got[0]["count"]) == ("structural.missing_optional_resource", "info", 3)
+    assert got[0]["tables"] == ["zone", "config", "curb_seg"] and [i["i"] for i in got[0]["issues"]] == [0, 1, 2]
+
+
+def test_located_and_lone_findings_stand_alone_in_report_order(node_module):
+    expr = (
+        "groupIssues([{i: 0, code: 'fk.unverifiable', severity: 'warning', category: 'referential', table: 'link',"
+        " row: 3},"
+        " {i: 1, code: 'structural.unexpected_resource', severity: 'warning', category: 'structural', table: 'x',"
+        " row: null},"
+        " {i: 2, code: 'fk.unverifiable', severity: 'warning', category: 'referential', table: 'link', row: 4},"
+        " {i: 3, code: 'structural.missing_optional_resource', severity: 'info', table: 'a', row: null},"
+        " {i: 4, code: 'structural.missing_optional_resource', severity: 'info', table: 'b', row: null},"
+        " {i: 5, code: 'structural.missing_optional_resource', severity: 'warning', table: 'c', row: null}])"
+        ".map(g => g.group ? ['group', g.code, g.count] : ['one', g.issue.i])"
+    )
+    assert node_module("issuegroups.js", ["groupIssues"], expr) == [
+        ["one", 0],
+        ["one", 1],  # a group of one is not a group
+        ["one", 2],  # rows never group, even with a shared code
+        ["group", "structural.missing_optional_resource", 2],  # the category may be read from the code's prefix
+        ["one", 5],  # another severity is another key
+    ]
+    assert node_module("issuegroups.js", ["groupIssues"], "groupIssues(null)") == []
+
+
+def test_a_group_summarises_like_corral_with_a_name_limit(node_module):
+    expr = (
+        "(() => { const g = groupIssues(Array.from({length: 10}, (_, k) => ("
+        "{code: 'structural.missing_optional_resource', severity: 'info', category: 'structural', table: 't' + k,"
+        " row: null})))[0];"
+        " return [groupSummary(g), groupSummary(g, 2),"
+        " groupSummary({code: 'structural.odd', count: 2, tables: ['a', 'b']})]; })()"
+    )
+    assert node_module("issuegroups.js", ["groupIssues", "groupSummary"], expr) == [
+        "optional resources absent: t0, t1, t2, t3, t4, t5, t6, t7 (+2 more)",
+        "optional resources absent: t0, t1 (+8 more)",
+        "2 findings on: a, b",
+    ]
+
+
+def test_located_means_an_anchor_the_map_can_use(node_module):
+    expr = (
+        "[located({anchor: {link: 7}}), located({anchor: {node: 2}}), located({anchor: {lonlat: [1, 2]}}),"
+        " located({anchor: null}), located({key: 7}), located(null)]"
+    )
+    assert node_module("issuegroups.js", ["located"], expr) == [True, True, True, False, False, False]

@@ -2,8 +2,10 @@
 
 ``GET /form`` describes the form for a change type on the shared (or a saved) selection: the targets, each column
 with its current value, and the options. ``GET /commit-check`` returns the live edit warnings, the schema problems and
-the draft as YAML, for the commit dialog. Both only read; every change is an Action. They run outside the session
-lock: each Host call takes it, and the draft state has its own (:class:`~netstead_project_cards.state.CardsState`).
+the draft as YAML, for the commit dialog. ``GET /catalog`` lists the open catalog, checking unchecked cards against
+the network a few at a time; ``GET /summary.txt`` serves the session summary. All only read; every change is an
+Action. They run outside the session lock: each Host call takes it, and the draft state has its own
+(:class:`~netstead_project_cards.state.CardsState`).
 """
 
 from __future__ import annotations
@@ -13,18 +15,22 @@ from collections.abc import Collection
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import PlainTextResponse
 from netstead.workbench.plugins import ActionError, Host
 
 from .card import DraftCard
 from .errors import CardError, not_supported
-from .flow import SELECTABLE, selection_facility, selection_networks, target_network
+from .flow import SELECTABLE, check_entries, selection_facility, selection_networks, summary_text, target_network
 from .lower import KEYS, rows_by_key
 from .mapping import FieldMap
 from .state import CardsState
 from .types import ROADWAY_TYPES, TRANSIT_TYPES, Selection
 from .validate import card_problems
 
-__all__ = ["build_router", "column_schema", "current_values", "list_columns", "next_id"]
+__all__ = ["MAX_CHECKS", "build_router", "column_schema", "current_values", "list_columns", "next_id"]
+
+#: How many unchecked catalog cards one ``GET /catalog`` checks (the rest stay ``?`` until a later request).
+MAX_CHECKS = 50
 
 _NOTE = {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Why (written in the card's notes)"}
 PROPERTY_OPTIONS = {
@@ -203,5 +209,25 @@ def build_router(host: Host, state: CardsState, mapping: FieldMap) -> APIRouter:
         except (CardError, ActionError) as exc:
             raise HTTPException(400, str(exc)) from exc
         return {"net_id": net, "changes": len(card.changes), "warnings": warnings, "problems": problems, "yaml": text}
+
+    @api.get("/catalog")
+    def catalog(net_id: str | None = None) -> dict[str, Any]:
+        """The open catalog, checking up to ``MAX_CHECKS`` unchecked cards against the network (none open: none)."""
+        current = state.catalog()
+        if current is None:
+            return {"path": None, "cards": [], "rejected": []}
+        pending = state.unchecked(MAX_CHECKS)
+        if pending:
+            try:
+                net = target_network(host, state, net_id)
+            except (CardError, ActionError):
+                net = None
+            if net is not None:
+                check_entries(host, state, net, pending)
+        return current.to_dict()
+
+    @api.get("/summary.txt", response_class=PlainTextResponse)
+    def summary(net_id: str | None = None) -> str:
+        return summary_text(host, state, net_id)
 
     return api

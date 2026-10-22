@@ -1,8 +1,10 @@
 """The project cards plugin's Actions: recorded in history, replayable with "Copy as Python", dispatchable over HTTP.
 
-Each one changes a network, registers or closes a preview network, or writes a file, so each sets ``mutates``: the
+The ones that change a network, register or close a preview network, or write a file set ``mutates``: the
 natural-language assistant drafts them for the user to approve. The ones that need no file path (adding, undoing and
-previewing a change, closing the preview) set ``assistant_compact``, so a model on this machine is offered them too.
+previewing a change, closing the preview, previewing and applying a catalog card) set ``assistant_compact``, so a
+model on this machine is offered them too. Opening, refreshing and checking the catalog, and the session summary,
+read only (the catalog is the plugin's own state, not a network).
 """
 
 from __future__ import annotations
@@ -14,7 +16,20 @@ from pydantic import Field, model_validator
 
 from .types import NetworkChange
 
-__all__ = ["AddChange", "ClosePreview", "CommitCard", "ImportCard", "PreviewChange", "UndoChange"]
+__all__ = [
+    "AddChange",
+    "ApplyCard",
+    "CheckCard",
+    "ClosePreview",
+    "CommitCard",
+    "ImportCard",
+    "OpenCatalog",
+    "PreviewCard",
+    "PreviewChange",
+    "RefreshCatalog",
+    "SessionSummary",
+    "UndoChange",
+]
 
 
 class _ChangeAction(BaseAction):
@@ -85,9 +100,9 @@ class ImportCard(BaseAction):
     """Apply every change of a ProjectCard YAML or JSON file to a network's draft card, all or nothing.
 
     Also reads the offline validation report's edit log. A query selection is applied to the link ids recorded in
-    the card's notes when the plugin wrote it; a query without them is refused (re-resolving arrives with
-    ``apply_card``). ``path`` must be inside ``io.allowed_roots``. An empty draft takes the card's project, tags,
-    dependencies and notes.
+    the card's notes when the plugin wrote it; a query without them is refused ("query without provenance;
+    re-resolution not supported"). ``path`` must be inside ``io.allowed_roots``. An empty draft takes the card's
+    project, tags, dependencies and notes.
     """
 
     type: Literal["project_cards.import"] = "project_cards.import"
@@ -113,3 +128,79 @@ class ClosePreview(BaseAction):
     type: Literal["project_cards.close_preview"] = "project_cards.close_preview"
     mutates: ClassVar[bool] = True  # it closes (unregisters) the preview network
     assistant_compact: ClassVar[bool] = True
+
+
+class OpenCatalog(BaseAction):
+    """Open a folder of ProjectCard files (YAML or JSON, one level of sub-folders) as the catalog.
+
+    ``path`` must be inside ``io.allowed_roots``. Each card is listed with its id (the path relative to the folder),
+    project, tags and change count; files that are not cards are listed as rejected, with the reason. Whether a card
+    applies to the open network is checked on demand (``project_cards.check_card``, or the panel's listing). The
+    plugin setting ``catalog_dir`` opens a folder when the session starts.
+    """
+
+    type: Literal["project_cards.open_catalog"] = "project_cards.open_catalog"
+    path: str = Field(min_length=1, max_length=1000)
+
+
+class RefreshCatalog(BaseAction):
+    """Read the open catalog's folder again (new, changed and removed files); every card is checked afresh."""
+
+    type: Literal["project_cards.refresh_catalog"] = "project_cards.refresh_catalog"
+
+
+class CheckCard(BaseAction):
+    """Check whether a catalog card applies to a network as it is now, without changing anything.
+
+    Reports, per change, how many target records the network has, the ids it lacks, and a reason when the change
+    cannot be applied (a query without netstead provenance, a transit change, an added id already taken).
+    """
+
+    type: Literal["project_cards.check_card"] = "project_cards.check_card"
+    net_id: str | None = None
+    card_id: str = Field(min_length=1, max_length=1000)
+
+
+class PreviewCard(BaseAction):
+    """Preview a catalog card on a copy of a network, shown on the map; the network itself is untouched.
+
+    Every change of the card is applied to the copy (a change that fails closes the preview and reports why). The
+    links and nodes the card aims at are published as ``project_cards.card_selection`` so the map highlights them.
+    A second preview replaces the first; ``project_cards.close_preview`` returns to the network.
+    """
+
+    type: Literal["project_cards.preview_card"] = "project_cards.preview_card"
+    mutates: ClassVar[bool] = True
+    assistant_compact: ClassVar[bool] = True
+    net_id: str | None = None
+    card_id: str = Field(min_length=1, max_length=1000)
+
+
+class ApplyCard(BaseAction):
+    """Apply a catalog card to a network, all or nothing, and record it as applied; no file is written.
+
+    Each change goes through the same lowering as a draft change (one pending edit per ``host.mutate``), so core's
+    history, Edits panel and live warnings see it. The card is checked first (``project_cards.check_card``): a
+    missing id refuses it unless ``ignore_missing`` is true, which skips missing ids in every change; false refuses
+    any missing id, and the default (``null``) follows each selection's own ``ignore_missing``. A change that cannot
+    be applied at all (a query without provenance) is always refused. ``existing_value_conflict`` overrides every
+    property's ``existing_value_conflict`` for this application (``null``: as the card says).
+    """
+
+    type: Literal["project_cards.apply_card"] = "project_cards.apply_card"
+    mutates: ClassVar[bool] = True
+    assistant_compact: ClassVar[bool] = True
+    net_id: str | None = None
+    card_id: str = Field(min_length=1, max_length=1000)
+    existing_value_conflict: Literal["error", "warn", "skip"] | None = None
+    ignore_missing: bool | None = None
+
+
+class SessionSummary(BaseAction):
+    """The session summary as plain text: the network, the cards applied, the draft, and this plugin's Actions.
+
+    Returns ``{"text": ...}``; ``GET /api/plugins/project_cards/summary.txt`` serves the same text.
+    """
+
+    type: Literal["project_cards.session_summary"] = "project_cards.session_summary"
+    net_id: str | None = None

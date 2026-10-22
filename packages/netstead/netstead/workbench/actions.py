@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal, get_args, g
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
 from netstead.llm.secrets import has_url_userinfo, is_secret_name, looks_like_secret
-from netstead.viz.tables import MAX_FILTER_CONDITIONS, MAX_IN_VALUES
+from netstead.viz.tables import MAX_FILTER_CONDITIONS, MAX_IN_VALUES, TOKEN_OPS
 
 from .area import Area
 from .registry import Component, default_label
@@ -46,6 +46,7 @@ __all__ = [
     "OpenNetwork",
     "PinAnchor",
     "RecordRef",
+    "RedoEdit",
     "RunValidation",
     "SaveNetwork",
     "SaveSelection",
@@ -179,11 +180,14 @@ class ClearSelection(BaseAction):
 class Style(BaseAction):
     """Partially update the map style; omitted fields are unchanged.
 
-    ``width_by`` sizes links by a numeric column (``"none"`` for widths by lane count).
+    ``color_by`` colours links by a column of the link table and ``node_color_by`` nodes by one of the node
+    table (``"none"`` for a single colour); ``width_by`` sizes links by a numeric column (``"none"`` for widths
+    by lane count).
     """
 
     type: Literal["style"] = "style"
     color_by: str | None = None
+    node_color_by: str | None = None
     width_by: str | None = None
     ramp: Literal["YlOrRd", "Blues", "Viridis"] | None = None
     show: dict[Literal["links", "nodes", "labels", "selection"], bool] | None = None
@@ -426,6 +430,17 @@ class UndoEdit(BaseAction):
     net_id: str | None = None
 
 
+class RedoEdit(BaseAction):
+    """Re-apply the network's newest undone edit (the one ``undo_edit`` took back most recently).
+
+    Any other change to the network since the undo makes it unavailable.
+    """
+
+    type: Literal["redo_edit"] = "redo_edit"
+    mutates: ClassVar[bool] = True
+    net_id: str | None = None
+
+
 class SaveNetwork(BaseAction):
     """Write the open network, with its edits, as a new copy in ``output_dir``. The source is never written to.
 
@@ -502,11 +517,31 @@ class DeleteSelection(BaseAction):
 
 
 #: The operators a :class:`FilterCond` may use: exactly ``netstead.viz.tables.FILTER_OPS`` (a test pins it).
-FilterOp = Literal["eq", "ne", "lt", "lte", "gt", "gte", "in", "contains", "isnull", "notnull"]
+FilterOp = Literal[
+    "eq",
+    "ne",
+    "lt",
+    "lte",
+    "gt",
+    "gte",
+    "in",
+    "contains",
+    "isnull",
+    "notnull",
+    "any_of",
+    "all_of",
+    "none_of",
+    "between",
+]
 
 
 class FilterCond(BaseModel):
-    """One condition on a link column: ``col op val`` (``in`` takes a list; ``isnull``/``notnull`` take no value)."""
+    """One condition on a link column: ``col op val``.
+
+    ``in`` and the token operators (``any_of``/``all_of``/``none_of``, on comma-separated cells such as
+    ``allowed_uses``) take a list of values (a bare value is read as a one-element list); ``between`` takes
+    ``[low, high]``; ``isnull``/``notnull`` take no value; every other operator takes one value.
+    """
 
     model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
     col: str = Field(min_length=1, max_length=100)
@@ -518,13 +553,20 @@ class FilterCond(BaseModel):
         if self.op in ("isnull", "notnull"):
             if self.val is not None:
                 raise ValueError(f"'{self.op}' takes no value")
-        elif isinstance(self.val, list):
-            if self.op != "in":
-                raise ValueError(f"only 'in' takes a list of values; '{self.op}' takes one")
-            if len(self.val) > MAX_IN_VALUES:
-                raise ValueError(f"an 'in' condition lists too many values (over {MAX_IN_VALUES:,})")
-        elif self.val is None:
+            return self
+        if self.op == "between":
+            if not (isinstance(self.val, list) and len(self.val) == 2 and None not in self.val):
+                raise ValueError("'between' takes two values: [low, high]")
+            return self
+        if self.val is None:
             raise ValueError(f"'{self.op}' needs a value (to match empty cells, use 'isnull')")
+        if self.op in TOKEN_OPS and not isinstance(self.val, list):
+            self.val = [self.val]
+        if isinstance(self.val, list):
+            if self.op != "in" and self.op not in TOKEN_OPS:
+                raise ValueError(f"only 'in' takes a list of values (or any_of/all_of/none_of); '{self.op}' takes one")
+            if len(self.val) > MAX_IN_VALUES:
+                raise ValueError(f"an '{self.op}' condition lists too many values (over {MAX_IN_VALUES:,})")
         return self
 
 
@@ -559,7 +601,8 @@ Action = Annotated[
     | SaveSelection
     | UseSelection
     | DeleteSelection
-    | Filter,
+    | Filter
+    | RedoEdit,
     Field(discriminator="type"),
 ]
 #: The Actions every session understands, in registry order (``to_python`` imports them from ``netstead.workbench``).
@@ -585,6 +628,7 @@ CORE_ACTIONS: tuple[type[BaseAction], ...] = (
     UseSelection,
     DeleteSelection,
     Filter,
+    RedoEdit,
 )
 
 

@@ -132,3 +132,26 @@ def test_a_failed_action_rolls_back_the_filter_it_set(tmp_path, isolated_env):
     s.dispatch(Filter(where=[FilterCond(col="lanes", op="eq", val=1)]))
     assert not s.dispatch_recorded(FilterThenFail()).ok
     assert s.filter_entry("leavenworth")["where"] == [{"col": "lanes", "op": "eq", "val": 1}]
+
+
+def test_the_token_and_range_operators(session):
+    links = session.network().links_df()
+    tokens = links["allowed_uses"].str.split(",").explode().str.strip()
+    out = session.dispatch(Filter(where=[FilterCond(col="allowed_uses", op="any_of", val=["bike"])]))
+    assert out["count"] == int(tokens.eq("bike").groupby(level=0).any().sum()) > 0
+    none = session.dispatch(Filter(where=[FilterCond(col="allowed_uses", op="none_of", val=["auto"])]))
+    assert none["count"] == int((~tokens.eq("auto").groupby(level=0).any()).sum())
+    between = session.dispatch(Filter(where=[FilterCond(col="free_speed", op="between", val=["35", 45])]))
+    assert between["where"][0]["val"] == [35, 45]  # typed, like every other value
+    assert between["count"] == int(links["free_speed"].between(35, 45).sum()) > 0
+
+
+def test_the_token_and_range_operators_take_lists():
+    with pytest.raises(ValueError, match="'between' takes two values"):
+        FilterCond(col="free_speed", op="between", val=[20])
+    assert FilterCond(col="allowed_uses", op="all_of", val="bike").val == ["bike"]  # a bare value is one token
+    assert FilterCond(col="allowed_uses", op="any_of", val=["bike"]).val == ["bike"]
+    with pytest.raises(ValueError, match="takes one"):
+        FilterCond(col="lanes", op="gte", val=[1, 2])
+    with pytest.raises(ValueError):
+        FilterCond(col="allowed_uses", op="has_any", val=["bike"])  # still not free-form

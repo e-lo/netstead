@@ -30,6 +30,31 @@ export const cellEditable = (col, pk) => Boolean(col) && col.name !== pk && Bool
 // "yes" in an empty boolean cell is true and "maybe" is refused rather than sent as text).
 export const cellSample = (current, kind) => (current != null ? current : kind === "num" ? 0 : kind === "bool" ? false : "");
 
+const sortedStrings = values => [...new Set((values || []).map(String))].sort();
+
+// The values a text cell's editor offers (its datalist): the spec's allowed values (`col.enum`) first, then the
+// values the column already holds (`/distinct`), each sorted, without duplicates.
+export function cellOptions(col, distinct) {
+  const allowed = sortedStrings(col && col.enum);
+  const seen = new Set(allowed);
+  return [...allowed, ...sortedStrings(distinct).filter(v => !seen.has(v))];
+}
+
+// A comma-list cell's datalist as the text grows: each token completes the last segment, keeping what is typed
+// before the last comma (so "auto, b" offers "auto, bike"); with no comma yet, the tokens themselves.
+export function listOptions(value, tokens) {
+  const text = value == null ? "" : String(value), at = text.lastIndexOf(",");
+  const head = at < 0 ? "" : text.slice(0, at + 1) + (/^\s+/.test(text.slice(at + 1)) ? " " : "");
+  return tokens.map(t => head + t);
+}
+
+// Whether leaving a cell editor (its input losing the focus) applies what was typed, as a spreadsheet does: only
+// when the text no longer reads as the cell's value, so an untouched editor closes without sending anything.
+export function shouldApplyOnLeave(typed, current) {
+  const before = current == null ? "" : String(current);
+  return (typed == null ? "" : String(typed)).trim() !== before.trim();
+}
+
 // The EditCells action: one column of one or more rows of one table.
 export function cellAction({ table, ids, column, raw, current, note = null }) {
   const action = { type: "edit_cells", table, ids: [...ids], values: { [column]: parseCell(raw, current) } };
@@ -118,6 +143,9 @@ export function undoBlocked(summary) {
   if (summary.last_source !== "workbench") return `The last change was made by ${summary.last_source}; undo it there.`;
   return "";
 }
+
+// Why core's Redo is unavailable (no undone edit is waiting in the summary's `redo_count`), or "" when it can redo.
+export const redoBlocked = summary => (summary && summary.redo_count ? "" : "Nothing to redo.");
 
 // The confirmation before saving a copy, from the Edits data or a refused save's payload ({check_failed,
 // truncated, warnings, count?}); "" when there is nothing to confirm. A failed or cut-short live check is said

@@ -1,10 +1,23 @@
 """ProjectCard authoring in the netstead Workbench, as the Workbench plugin ``project_cards``."""
 
 from ._version import __version__
-from .actions import AddChange, ClosePreview, CommitCard, ImportCard, PreviewChange, UndoChange
+from .actions import (
+    AddChange,
+    ApplyCard,
+    CheckCard,
+    ClosePreview,
+    CommitCard,
+    ImportCard,
+    OpenCatalog,
+    PreviewCard,
+    PreviewChange,
+    RefreshCatalog,
+    SessionSummary,
+    UndoChange,
+)
 from .card import Dependencies, DraftCard, read_card_file
 from .errors import CardError, CardNotSupported
-from .plugin import plugin
+from .plugin import CardsSettings, plugin
 from .types import (
     CHANGE_TYPES,
     ROADWAY_TYPES,
@@ -26,20 +39,27 @@ __all__ = [
     "ROADWAY_TYPES",
     "TRANSIT_TYPES",
     "AddChange",
+    "ApplyCard",
     "CardError",
     "CardNotSupported",
+    "CardsSettings",
+    "CheckCard",
     "ClosePreview",
     "CommitCard",
     "Dependencies",
     "DraftCard",
     "ImportCard",
     "NetworkChange",
+    "OpenCatalog",
+    "PreviewCard",
     "PreviewChange",
     "PropertyChange",
+    "RefreshCatalog",
     "RoadwayAddition",
     "RoadwayDeletion",
     "RoadwayPropertyChange",
     "Selection",
+    "SessionSummary",
     "TransitPropertyChange",
     "TransitRouteAddition",
     "TransitRoutingChange",

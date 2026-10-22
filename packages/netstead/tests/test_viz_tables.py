@@ -6,7 +6,16 @@ import pandas as pd
 import pyarrow as pa
 import pytest
 from corral.engines.ibis_engine import IbisEngine
-from netstead.viz.tables import MAX_LIMIT, FilterError, locate_row, page_table, primary_key, table_schema
+from netstead.viz.tables import (
+    FILTER_OPS,
+    MAX_LIMIT,
+    FilterError,
+    distinct_values,
+    locate_row,
+    page_table,
+    primary_key,
+    table_schema,
+)
 
 
 @pytest.fixture
@@ -149,3 +158,104 @@ def test_locate_row_is_none_for_lazy_tables_and_missing_keys(tmp_path):
 
     assert locate_row(Table(name="link", expr=engine.scan(path), engine=engine), 1, pk="link_id") is None
     engine.close()
+
+
+# --- token and range operators (beta feedback: comma-separated categoricals such as allowed_uses) ---
+
+
+@pytest.fixture
+def uses():
+    return pd.DataFrame({"id": [0, 1, 2, 3], "allowed_uses": ["auto", "auto,truck", "walk", None]})
+
+
+def _ids(src, spec):
+    p = page_table(src, filter_spec=spec, sort="id")
+    return [r[p["columns"].index("id")] for r in p["rows"]]
+
+
+def test_any_of_matches_a_token_in_a_comma_list(uses):
+    assert _ids(uses, [{"col": "allowed_uses", "op": "any_of", "val": ["auto"]}]) == [0, 1]
+    assert _ids(uses, [{"col": "allowed_uses", "op": "any_of", "val": "auto"}]) == [0, 1]  # a bare string is one token
+
+
+def test_all_of_needs_every_token(uses):
+    assert _ids(uses, [{"col": "allowed_uses", "op": "all_of", "val": ["auto", "truck"]}]) == [1]
+
+
+def test_none_of_keeps_nulls(uses):
+    assert _ids(uses, [{"col": "allowed_uses", "op": "none_of", "val": ["auto"]}]) == [2, 3]
+
+
+def test_tokens_are_stripped_and_a_substring_is_not_a_token():
+    df = pd.DataFrame({"id": [0, 1], "u": ["auto , truck", "automobile"]})
+    assert _ids(df, [{"col": "u", "op": "any_of", "val": ["truck"]}]) == [0]
+    assert _ids(df, [{"col": "u", "op": "any_of", "val": ["auto"]}]) == [0]
+
+
+def test_between_is_inclusive():
+    df = pd.DataFrame({"id": [0, 1, 2, 3], "speed": [30, 40, 50, None]})
+    assert _ids(df, [{"col": "speed", "op": "between", "val": [35, 45]}]) == [1]
+    assert _ids(df, [{"col": "speed", "op": "between", "val": [40, 50]}]) == [1, 2]
+
+
+def test_between_needs_a_pair():
+    df = pd.DataFrame({"id": [0], "speed": [30]})
+    with pytest.raises(FilterError):
+        page_table(df, filter_spec=[{"col": "speed", "op": "between", "val": [35]}])
+    with pytest.raises(FilterError):
+        page_table(df, filter_spec=[{"col": "speed", "op": "between", "val": 35}])
+
+
+def test_new_operators_are_in_filter_ops():
+    assert {"any_of", "all_of", "none_of", "between"} <= set(FILTER_OPS)
+
+
+def test_token_and_range_ops_on_a_lazy_table_match_pandas(uses):
+    from corral.dataset import Table
+
+    df = uses.assign(speed=[30, 40, 50, None])
+    e = IbisEngine()
+    t = Table(name="t", expr=e.from_arrow(pa.Table.from_pandas(df, preserve_index=False)), engine=e)
+    for spec in (
+        [{"col": "allowed_uses", "op": "any_of", "val": ["auto"]}],
+        [{"col": "allowed_uses", "op": "all_of", "val": ["auto", "truck"]}],
+        [{"col": "allowed_uses", "op": "none_of", "val": ["auto"]}],
+        [{"col": "speed", "op": "between", "val": [35, 50]}],
+    ):
+        assert _ids(t, spec) == _ids(df, spec), spec
+    with pytest.raises(FilterError):
+        page_table(t, filter_spec=[{"col": "speed", "op": "between", "val": [35]}])
+
+
+# --- distinct values (the column-filter popover's value list) ---
+
+
+def test_distinct_values_splits_comma_lists():
+    out = distinct_values(pd.DataFrame({"u": ["auto", "auto,truck", "walk", None]}), "u")
+    assert out == {"values": ["auto", "truck", "walk"], "truncated": False, "list_like": True}
+
+
+def test_distinct_values_plain_text_and_numbers():
+    out = distinct_values(pd.DataFrame({"a": ["a", "b", "a"]}), "a")
+    assert out == {"values": ["a", "b"], "truncated": False, "list_like": False}
+    assert distinct_values(pd.DataFrame({"n": [3, 1, 1, None]}), "n")["values"] == ["1", "3"]
+
+
+def test_distinct_values_truncates():
+    out = distinct_values(pd.DataFrame({"a": ["a", "b", "a"]}), "a", limit=1)
+    assert out["values"] == ["a"] and out["truncated"] is True
+
+
+def test_distinct_values_unknown_column():
+    with pytest.raises(FilterError):
+        distinct_values(pd.DataFrame({"a": [1]}), "nope")
+
+
+def test_distinct_values_on_a_lazy_table():
+    t, df = _ibis_link_table()
+    lazy, eager = distinct_values(t, "facility_type"), distinct_values(df, "facility_type")
+    assert lazy == eager and "motorway" in lazy["values"]
+
+
+def test_schema_enum_is_none_without_a_spec(df):
+    assert all(c["enum"] is None for c in table_schema("link", df)["columns"])

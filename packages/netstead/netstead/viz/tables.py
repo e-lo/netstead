@@ -15,7 +15,7 @@ materialized frames.
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
 import numpy as np
@@ -27,11 +27,13 @@ __all__ = [
     "MAX_FILTER_CONDITIONS",
     "MAX_IN_VALUES",
     "MAX_LIMIT",
+    "TOKEN_OPS",
     "FilterError",
     "KeyTypeError",
     "coerce_filter_value",
     "coerce_keys",
     "column_dtype",
+    "distinct_values",
     "filter_frame",
     "locate_row",
     "page_table",
@@ -45,6 +47,44 @@ GEOM_COLS = {"geometry", "geom", "wkt"}
 #: Server-side cap on a single page.
 MAX_LIMIT = 500
 
+
+class FilterError(ValueError):
+    """An invalid filter spec (unknown column or operator, or a value the operator cannot take)."""
+
+
+def _as_list(v: Any) -> list:
+    return list(v) if isinstance(v, (list, tuple, set)) else [v]
+
+
+def _pair(v: Any) -> tuple[Any, Any]:
+    """``between``'s ``[low, high]`` (:class:`FilterError` for anything else)."""
+    if isinstance(v, (list, tuple)) and len(v) == 2 and None not in v:
+        return v[0], v[1]
+    raise FilterError("'between' takes two values: [low, high]")
+
+
+def _tokens(s: pd.Series) -> pd.Series:
+    """One row per comma-separated token of ``s``, stripped, indexed by the cell's *position* in ``s``.
+
+    A null cell contributes one null token (which no value equals), so it never has a token.
+    """
+    return s.astype("string").str.split(",").reset_index(drop=True).explode().str.strip()
+
+
+def _has_tokens(s: pd.Series, v: Any, *, every: bool) -> pd.Series:
+    """Per cell of ``s``: whether its tokens include any (or, with ``every``, all) of the values in ``v``.
+
+    Vectorised pandas string ops, never a regex and never per-row Python: the cells are split and exploded
+    once, the matching tokens counted per cell.
+    """
+    wanted = {str(x) for x in _as_list(v)}
+    tokens = _tokens(s)
+    hits = tokens.where(tokens.isin(wanted))  # a token outside ``wanted`` becomes null, which nunique skips
+    found = hits.groupby(level=0).nunique().reindex(range(len(s)), fill_value=0).to_numpy()
+    mask = (found >= len(wanted)) & s.notna().to_numpy() if every else found > 0
+    return pd.Series(mask, index=s.index)
+
+
 _OPS = {
     "eq": lambda s, v: s == v,
     "ne": lambda s, v: s != v,
@@ -52,21 +92,26 @@ _OPS = {
     "lte": lambda s, v: s <= v,
     "gt": lambda s, v: s > v,
     "gte": lambda s, v: s >= v,
-    "in": lambda s, v: s.isin(v if isinstance(v, (list, tuple, set)) else [v]),
+    "in": lambda s, v: s.isin(_as_list(v)),
     # A plain substring, never a regex: a bad pattern can't raise, and a catastrophic one can't hang the session.
     "contains": lambda s, v: s.astype("string").str.contains(str(v), case=False, na=False, regex=False),
     "isnull": lambda s, v: s.isna(),
     "notnull": lambda s, v: s.notna(),
+    # Comma-separated categoricals (``allowed_uses = "auto,truck,walk"``): the cell's tokens against a list of
+    # values (a bare value is a one-element list). A null cell matches none_of, never any_of/all_of.
+    "any_of": lambda s, v: _has_tokens(s, v, every=False),
+    "all_of": lambda s, v: _has_tokens(s, v, every=True),
+    "none_of": lambda s, v: ~_has_tokens(s, v, every=False),
+    # Inclusive numeric range, ``val = [low, high]``; a null cell never matches.
+    "between": lambda s, v: s.between(*_pair(v)),
 }
 #: The filter operators every table filter accepts (the rows routes, and the Workbench's ``Filter``).
 FILTER_OPS: tuple[str, ...] = tuple(_OPS)
-#: Conditions accepted in one filter, and values in one ``in`` condition.
+#: The operators whose value is a list of tokens to look for in a comma-separated cell.
+TOKEN_OPS: tuple[str, ...] = ("any_of", "all_of", "none_of")
+#: Conditions accepted in one filter, and values in one list-valued (``in``, token) condition.
 MAX_FILTER_CONDITIONS = 50
 MAX_IN_VALUES = 10_000
-
-
-class FilterError(ValueError):
-    """An invalid filter spec (unknown column or operator)."""
 
 
 def _scalar(v: Any) -> Any:
@@ -222,19 +267,71 @@ def table_list_entry(name: str, src: Any) -> dict:
     return {"name": name, "rows": rowcount_of(src), "columns": columns_of(src)}
 
 
-def table_schema(name: str, src: Any) -> dict:
-    """Column schema (name/dtype/kind) + primary key + row count for a table."""
+def table_schema(name: str, src: Any, enums: Mapping[str, Sequence[Any]] | None = None) -> dict:
+    """Column schema (name/dtype/kind/enum) + primary key + row count for a table.
+
+    ``enums`` maps a column to the values its spec field allows (``constraints.enum``); every other
+    column's ``enum`` is ``None``.
+    """
     cols = columns_of(src)
     sample = _schema_frame(src)
+    enums = enums or {}
     out = [
         {
             "name": c,
             "dtype": str(sample[c].dtype) if c in sample else "object",
             "kind": _column_kind(sample[c]) if c in sample else "str",
+            "enum": list(enums[c]) if enums.get(c) else None,
         }
         for c in cols
     ]
     return {"name": name, "rows": rowcount_of(src), "primary_key": primary_key(name, cols), "columns": out}
+
+
+def _distinct_column(src: Any, col: str) -> pd.Series:
+    """The distinct values of ``col`` (nulls included), the distinct pushed to the engine for a lazy table."""
+    if _is_frame(src):
+        return src[col].drop_duplicates()
+    import ibis
+
+    column = src.select(col)
+    if isinstance(column.expr, ibis.expr.types.Table):
+        column = column.filter(lambda expr: expr.distinct())
+    return column.to_pandas()[col].drop_duplicates()
+
+
+def distinct_values(src: Any, col: str, limit: int = 200) -> dict:
+    """The sorted distinct non-null values of ``col``, as strings, for a column-filter's value list.
+
+    A text column whose values contain a comma is ``list_like``: the values are then its distinct
+    comma-separated tokens (``"auto,truck"`` contributes ``auto`` and ``truck``), the tokens the
+    ``any_of``/``all_of``/``none_of`` operators match. At most ``limit`` values (capped at
+    :data:`MAX_LIMIT`) are returned, ``truncated`` saying whether more exist.
+
+    Raises:
+        FilterError: unknown column.
+
+    >>> distinct_values(pd.DataFrame({"u": ["auto", "auto,truck", None]}), "u")
+    {'values': ['auto', 'truck'], 'truncated': False, 'list_like': True}
+    """
+    if col not in columns_of(src):
+        raise FilterError(f"unknown column {col!r}")
+    limit = max(1, min(int(limit), MAX_LIMIT))
+    s = _distinct_column(src, col).dropna()
+    list_like = False
+    if _column_kind(s) == "str":
+        text = s.astype("string")
+        if text.str.contains(",", regex=False).any():
+            list_like = True
+            s = text.str.split(",").explode().str.strip()
+            s = s[s.notna() & (s != "")]
+    uniq = [_scalar(v) for v in s.unique()]
+    try:
+        uniq.sort()
+    except TypeError:  # mixed types in an object column
+        uniq.sort(key=str)
+    values = [str(int(v)) if isinstance(v, float) and v.is_integer() else str(v) for v in uniq]  # 40.0 reads as 40
+    return {"values": values[:limit], "truncated": len(values) > limit, "list_like": list_like}
 
 
 def _apply_filter(df: pd.DataFrame, spec: list[dict]) -> pd.DataFrame:

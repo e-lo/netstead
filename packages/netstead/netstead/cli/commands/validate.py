@@ -18,6 +18,8 @@ also wires up the four output flags users actually want from the CLI:
 * ``--xlsx`` — single-sheet findings workbook (requires
   ``openpyxl`` from the ``[reports]`` extra).
 * ``--json`` — unchanged stdout JSON of the full report.
+* ``--all`` — one row per finding; by default the rich table folds
+  structural findings that differ only by resource into one row.
 """
 
 from __future__ import annotations
@@ -59,6 +61,11 @@ def register(app: typer.Typer) -> None:
             False,
             "--json",
             help="Emit JSON on stdout instead of rich panels.",
+        ),
+        show_all: bool = typer.Option(
+            False,
+            "--all",
+            help="List every finding on its own row instead of folding repeated structural findings into one.",
         ),
         html_out: Path | None = typer.Option(
             None,
@@ -123,7 +130,13 @@ def register(app: typer.Typer) -> None:
         if xlsx_out is not None:
             _write_xlsx(report, xlsx_out)
 
-        render_issues(report.issues, json_out=json_out, header=f"validation report: {source}")
+        render_issues(
+            report.issues,
+            json_out=json_out,
+            header=f"validation report: {source}",
+            source=report.source,
+            all=show_all,
+        )
 
         # Exit non-zero on hard errors so CI / scripts can branch.
         if any(getattr(i, "severity", None) and i.severity.value == "error" for i in report.issues):

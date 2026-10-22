@@ -1,4 +1,7 @@
-"""The plugin's own nouns: one draft card per network, the cards committed this session, and the open preview.
+"""The plugin's own nouns: drafts, committed and applied cards, the open catalog and the open preview.
+
+One draft card per network; the cards committed or applied this session; the open catalog
+(:mod:`~netstead_project_cards.catalog`); the open preview.
 
 It lives in the plugin factory's closure (one per Workbench session) and is changed only by the plugin's Action
 handlers, after every Host call they make has succeeded: a failing handler's network changes are rolled back by the
@@ -28,14 +31,16 @@ import threading
 import weakref
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
+from typing import Any, Literal
 
 from .card import DraftCard
+from .catalog import Catalog, CatalogEntry
 from .lower import Applied, Mark, Pending, describe
 from .types import CHANGE_TYPES, ROADWAY_TYPES, NetworkChange
 
-__all__ = ["CardsState", "Draft", "Entry", "Preview", "Undone", "slug"]
+__all__ = ["AppliedCard", "CardsState", "Draft", "Entry", "Preview", "Undone", "slug", "timestamp"]
 
 
 def slug(text: str) -> str:
@@ -148,18 +153,47 @@ class Preview:
         return {"net_id": self.net_id, "base": self.base, "describe": self.describe, "stale": stale}
 
 
+@dataclass(frozen=True)
+class AppliedCard:
+    """A card this session put on a network: committed from the draft, or applied from the catalog.
+
+    ``edit_ids`` are the seqs of the ``host.mutate`` calls that applied its changes (a committed card's are its
+    draft's); ``applied_at`` is an ISO timestamp (UTC).
+    """
+
+    card_id: str
+    net_id: str
+    path: str
+    project: str
+    applied_at: str
+    changes: int
+    source: Literal["committed", "catalog"]
+    edit_ids: tuple[int, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        """JSON-safe, for ``state()`` and the summary."""
+        return {**asdict(self), "edit_ids": list(self.edit_ids)}
+
+
+def timestamp() -> str:
+    """Now, as an ISO timestamp in UTC without microseconds (an :class:`AppliedCard`'s ``applied_at``)."""
+    return datetime.now(UTC).replace(microsecond=0).isoformat()
+
+
 class CardsState:
-    """Drafts per network, committed cards and the open preview, behind one lock.
+    """Drafts per network, committed and applied cards, the open catalog and the open preview, behind one lock.
 
     Every read and write of the drafts and the preview goes through a method that holds the lock; none of them calls
     into the session (a handler holds the session lock and then this one, so the other order could deadlock).
     """
 
     def __init__(self) -> None:
-        """Start with no drafts, no committed cards and no preview."""
+        """Start with no drafts, no committed or applied cards, no catalog and no preview."""
         self._lock = threading.RLock()
         self._drafts: dict[str, Draft] = {}
         self.committed: list[dict[str, Any]] = []
+        self.applied: list[AppliedCard] = []
+        self._catalog: Catalog | None = None
         self._preview: Preview | None = None
         self._undoing: set[str] = set()  # networks whose draft's last change is being undone right now
         self._generation = 0  # undos so far (:meth:`pop`): a pending-edits read is trusted only for undos before it
@@ -179,6 +213,69 @@ class CardsState:
         with self._lock:
             if self._preview is preview:
                 self._preview = None
+
+    def catalog(self) -> Catalog | None:
+        """The open catalog (``None`` when none is open). Its entries are shared: read them, change them here."""
+        with self._lock:
+            return self._catalog
+
+    def set_catalog(self, catalog: Catalog | None) -> None:
+        """Make ``catalog`` the open one (``None`` closes it); every entry's applicability starts unknown."""
+        with self._lock:
+            self._catalog = catalog
+
+    def set_applicability(self, entry: CatalogEntry, result: dict[str, Any] | None) -> None:
+        """Record ``result`` on ``entry`` (``None``: unknown again), unless the catalog was replaced meanwhile."""
+        with self._lock:
+            if self._catalog is not None and any(c is entry for c in self._catalog.cards):
+                entry.applicability = result
+
+    def unchecked(self, limit: int) -> list[CatalogEntry]:
+        """Up to ``limit`` catalog entries whose applicability is not known yet."""
+        with self._lock:
+            if self._catalog is None:
+                return []
+            return [c for c in self._catalog.cards if c.applicability is None][:limit]
+
+    def record_applied(self, applied: AppliedCard) -> Callable[[], None]:
+        """Append ``applied`` to the applied cards; return the undo (for ``host.on_rollback``) that forgets it."""
+        with self._lock:
+            self.applied.append(applied)
+
+        def undo() -> None:
+            with self._lock:
+                self.applied = [a for a in self.applied if a is not applied]
+
+        return undo
+
+    def last_catalog_card(self, net_id: str) -> AppliedCard | None:
+        """The most recently applied catalog card (source ``"catalog"``) still recorded on ``net_id``, if any.
+
+        A committed card (source ``"committed"``) is never returned: :meth:`~netstead_project_cards.handlers.
+        Handlers.undo_change` only takes back a catalog card this way, and keeps the draft-undo behaviour for
+        everything else.
+        """
+        with self._lock:
+            for applied in reversed(self.applied):
+                if applied.net_id == net_id and applied.source == "catalog":
+                    return applied
+            return None
+
+    def forget_applied(self, applied: AppliedCard) -> Callable[[], None]:
+        """Remove ``applied`` from the applied cards; return the undo (for ``host.on_rollback``) that restores it.
+
+        Used by :meth:`~netstead_project_cards.handlers.Handlers.undo_change` when it undoes a whole applied
+        catalog card, the mirror of :meth:`record_applied`.
+        """
+        with self._lock:
+            self.applied = [a for a in self.applied if a is not applied]
+
+        def undo() -> None:
+            with self._lock:
+                if not any(a is applied for a in self.applied):
+                    self.applied.append(applied)
+
+        return undo
 
     def sync(self, net_id: str, handle: Any, pending: Pending) -> None:
         """Bring ``net_id``'s draft in line with its network ``handle`` and this plugin's ``pending`` edits on it.
@@ -272,11 +369,11 @@ class CardsState:
             return d.card.project if d is not None else ""
 
     def commit(self, net_id: str, card: DraftCard, path: str) -> tuple[str, Callable[[], None]]:
-        """Record ``card`` as committed to ``path`` and start a new empty draft; return the card's id and an undo.
+        """Record ``card`` as committed to ``path`` (and as applied, source ``committed``) and start a new empty draft.
 
-        The undo (for ``host.on_rollback``) forgets the committed card and puts the draft back as it was. Anything
-        done after the commit in the same rolled-back Action has been undone before it runs (rollback runs newest
-        first), so the draft it replaces is one that Action started.
+        Returns the card's id and an undo (for ``host.on_rollback``) that forgets the committed card and puts the
+        draft back as it was. Anything done after the commit in the same rolled-back Action has been undone before
+        it runs (rollback runs newest first), so the draft it replaces is one that Action started.
         """
         with self._lock:
             taken = {c["card_id"] for c in self.committed}
@@ -293,8 +390,16 @@ class CardsState:
             }
             self.committed.append(record)
             draft = self._drafts.pop(net_id, None)
+            seqs = tuple(
+                m.seq for e in (draft.entries if draft is not None else []) for m in e.marks if m.seq is not None
+            )
+            applied = AppliedCard(
+                card_id, net_id, path, card.project, timestamp(), len(card.changes), "committed", seqs
+            )
+            forget = self.record_applied(applied)
 
         def undo() -> None:
+            forget()
             with self._lock:
                 self.committed = [c for c in self.committed if c is not record]
                 if draft is None:
@@ -344,6 +449,8 @@ class CardsState:
             return {
                 "drafts": drafts,
                 "committed": [dict(c) for c in self.committed],
+                "applied": [a.to_dict() for a in self.applied],
+                "catalog": self._catalog.to_dict() if self._catalog is not None else None,
                 "preview": reported,
                 "change_types": list(CHANGE_TYPES),
                 "supported": sorted(ROADWAY_TYPES),

@@ -47,13 +47,14 @@ Everything below is on `main` and in the current beta.
   selection verification with pinned anchors, saved selections and export; style, filter and
   navigate actions; the natural-language assistant with approved drafts. Every action is recorded
   and replayable as Python.
-- **Plugins.** Python entry-point plugins with a versioned `Host` API (currently 1.5) and
+- **Plugins.** Python entry-point plugins with a versioned `Host` API (currently 1.7) and
   browser slots for workspaces, panels, commands and map layers.
 - **Project cards plugin.** Lives in the repository at `plugins/project-cards` and authors
   [ProjectCards](https://github.com/network-wrangler/projectcard) from Workbench edits: the change
   model, draft cards written as YAML or JSON in Wrangler names, import of card files and of the
-  offline edit log, the `project_cards.*` Actions (add a change, undo, commit, import, preview) and
-  the Card panel in the Workbench. See
+  offline edit log, the `project_cards.*` Actions (add a change, undo, commit, import, preview), a
+  catalog of cards checked against the open network and applied with a session summary, and the
+  Cards panel in the Workbench. See
   [Author ProjectCards in the Workbench](cookbook/workbench-project-cards.md).
 - **AI surface.** `--json` on every data command, `llms.txt`, an MCP server with seven tools,
   and Claude Code skills in the repository.
@@ -76,6 +77,10 @@ page describes them.
 - Applying cards and scenario management inside netstead (builds on the project-cards plugin).
 - Cross-linking and export in the data-table view (phase 2 of that scope).
 - A nightly performance-regression job for the benchmark suite.
+- Interactive geometry editing in the Workbench map (reshaping a link's path, moving a node) —
+  beta feedback item 20 from the 2026-10-20 quickstart walk.
+- A global filter expression box in the table view, compiled to the same predicate the per-column
+  filter popovers use, instead of setting each column separately.
 - A GeoLibre plugin that mirrors the Workbench selection; see
   [The Workbench and other tools](workbench-and-other-tools.md).
 

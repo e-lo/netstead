@@ -241,7 +241,7 @@ def test_a_single_change_card_without_a_changes_list_reads():
     assert DraftCard.from_card(card).changes == [RoadwayDeletion(links=[4])]
 
 
-def test_a_query_without_provenance_is_not_supported_yet():
+def test_a_query_without_provenance_reads_as_unresolved():
     card = {
         "project": "p",
         "changes": [
@@ -253,8 +253,9 @@ def test_a_query_without_provenance_is_not_supported_yet():
             }
         ],
     }
-    with pytest.raises(CardNotSupported, match="apply_card"):
-        DraftCard.from_card(card)
+    (change,) = DraftCard.from_card(card).changes
+    assert change.facility.unresolved and change.facility.target_ids() == []
+    assert "netstead.resolved" not in DraftCard.from_card(card).to_yaml()  # no provenance is invented
 
 
 @pytest.mark.parametrize("kind", ["transit_property_change", "pycode", "roadway_managed_lanes"])

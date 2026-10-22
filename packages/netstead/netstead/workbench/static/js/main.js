@@ -5,10 +5,11 @@ import { getBuffer, getJSON, netPath, subscribe } from "./api.js";
 import { wirePalette } from "./cmdpalette.js";
 import { registerCoreCommands } from "./corecmds.js";
 import { openContextMenu, wireContextMenus } from "./ctxmenu.js";
-import { $, toast } from "./dom.js";
+import { $, mountIcons, toast } from "./dom.js";
 import { registerEditCommands } from "./editcmds.js";
 import { onEditJob, onEditsState, registerEditPanels, renderEdits, wireEdits } from "./edits.js";
-import { rememberRecent, renderHeader, renderRecent, wireHeader } from "./header.js";
+import { wireHandles } from "./handles.js";
+import { rememberRecent, renderHeader, wireHeader } from "./header.js";
 import { showEntry, wireHistory } from "./history.js";
 import { hub } from "./hub.js";
 import { markFocusedIssue, onIssuesState, registerIssueLayer, reloadIssues, renderEditWarnings, wireIssues } from "./issues.js";
@@ -18,18 +19,19 @@ import { onHistoryEntry, onLLMEvent, onLLMJob, refreshLLM, renderLLMPanel, wireL
 import { layerRegistry } from "./layers.js";
 import { fitBbox, fitLinks, fitNetwork, flyToNode, initMap, render, setBasemap } from "./map.js";
 import { decodeNetwork } from "./netbuf.js";
-import { populateColorby, renderFilter, renderLegend, renderPluginLayers, syncControls, wireFilter, wirePanels } from "./panels.js";
+import { populateColorby, populateNodeColorby, renderFilter, renderLegend, renderPluginLayers, syncControls, wireFilter, wirePanels } from "./panels.js";
 import { commandReporters } from "./pluginload.js";
 import { loadPlugins, reportPluginError } from "./plugins.js";
 import { renderPluginsPanel, wirePluginsPanel } from "./pluginspanel.js";
 import { registerSelectionPanel, renderSelectionPanel, wireSelectionPanel } from "./selection.js";
 import { clearDetails, renderHighlights, showDetails, syncDetailsUndo, wireSide } from "./side.js";
 import { cancelRelated, renderRelatedBadges, scheduleRelated } from "./related.js";
+import { wireSaveDialog } from "./savedialog.js";
 import { onSettingsHistory, registerSection, wireSettings } from "./settings.js";
 import { activeSelection, store } from "./store.js";
 import { onFocusChanged, onNetworkChanged, onNetworkEdited, refreshRows, restoreViewMode, syncScopeControls, tableVisible, wireTable } from "./table.js";
 import { onWizardJob, wireWizard } from "./wizard.js";
-import { registerCoreSlots, wireWorkspaces } from "./workspaces.js";
+import { registerCoreSlots, showPanel, wireWorkspaces } from "./workspaces.js";
 
 const netKeyFor = server => {
   const h = server.networks.find(n => n.id === server.active);
@@ -41,28 +43,46 @@ async function loadActiveNetwork() {
   const { server, netKey } = store.get();
   const { h, key } = netKeyFor(server);
   if (key === netKey || inFlight.has(key)) return;
-  if (!h) { store.set({ netKey: null, net: null, attrs: null, properties: [], prop: null, marker: null }); return; }
+  if (!h) { store.set({ netKey: null, net: null, attrs: null, properties: [], nodeProperties: [], prop: null, nodeProp: null, marker: null }); return; }
   inFlight.add(key);
   try {
-    const [buf, attrs, props] = await Promise.all([
+    const [buf, attrs, props, nodeProps] = await Promise.all([
       getBuffer(netPath(h.id, "network.bin")), getJSON(netPath(h.id, "network.attrs.json")), getJSON(netPath(h.id, "properties")),
+      getJSON(netPath(h.id, "properties?table=node")),
     ]);
     if (netKeyFor(store.get().server).key !== key) return; // superseded while fetching
     const switched = !netKey || !netKey.startsWith(`${h.id}@`);
-    store.set({ netKey: key, net: decodeNetwork(buf), attrs, properties: props.properties, prop: null, marker: null });
+    store.set({ netKey: key, net: decodeNetwork(buf), attrs, properties: props.properties, nodeProperties: nodeProps.properties,
+      prop: null, nodeProp: null, marker: null });
     if (switched) fitNetwork({ animate: false });
   } finally {
     inFlight.delete(key);
   }
 }
 
+// A styled column the loaded table lacks (the state can name one for a moment around a switch) draws as "none":
+// no fetch, no 404.
+const has = (props, name) => props.some(p => p.name === name);
+
 async function loadColorProperty() {
-  const { server, net, netKey, prop } = store.get();
+  const { server, net, netKey, prop, properties } = store.get();
   const name = server.style.color_by;
-  if (!net || name === "none" || (prop && prop.name === name && prop.netKey === netKey)) return;
+  if (!net || name === "none" || !has(properties, name)) { if (prop) store.set({ prop: null }); return; }
+  if (prop && prop.name === name && prop.netKey === netKey) return;
   const p = await getJSON(netPath(server.active, `property/${encodeURIComponent(name)}`));
   const now = store.get();
   if (now.server.style.color_by === name && now.netKey === netKey) store.set({ prop: { ...p, netKey } });
+}
+
+// `style.node_color_by`'s column of the node table, fetched like the links' colour property.
+async function loadNodeColorProperty() {
+  const { server, net, netKey, nodeProp, nodeProperties } = store.get();
+  const name = server.style.node_color_by || "none";
+  if (!net || name === "none" || !has(nodeProperties, name)) { if (nodeProp) store.set({ nodeProp: null }); return; }
+  if (nodeProp && nodeProp.name === name && nodeProp.netKey === netKey) return;
+  const p = await getJSON(netPath(server.active, `property/${encodeURIComponent(name)}?table=node`));
+  const now = store.get();
+  if (now.server.style.node_color_by === name && now.netKey === netKey) store.set({ nodeProp: { ...p, netKey } });
 }
 
 // `style.width_by`'s column, fetched like the colour property (kept per decoded network version).
@@ -102,7 +122,7 @@ async function onState(server) {
   store.set({ server });
   try {
     await loadActiveNetwork();
-    await Promise.all([loadColorProperty(), loadWidthProperty(), loadFilterIds()]);
+    await Promise.all([loadColorProperty(), loadNodeColorProperty(), loadWidthProperty(), loadFilterIds()]);
   } catch (e) { toast(e.message); }
 }
 
@@ -129,13 +149,16 @@ function onNodeClick(nodeId) {
 function onBoxSelect() { if (tableVisible()) store.set({ tableScope: "highlighted" }); }
 
 // The focused record: details, its map feature (fly only when the click came from the table), its row.
+// `focus.from` says where the click came from: "map" (the feature is in view: no fly) or "table" bring Inspect
+// forward; "panel" (a finding or warning picked in Validate or Edit, which stay) only flies there.
 function onFocus(s) {
   const f = s.focus;
   store.set({ marker: null });
   if (f) {
     showDetails(f.table, f.id);
-    if (f.table === "link" && f.from === "table") fitLinks([f.id]);
-    if (f.table === "node") flyToNode(f.id, { fly: f.from === "table" });
+    if (f.from === "map" || f.from === "table") showPanel("inspect");
+    if (f.table === "link" && f.from !== "map") fitLinks([f.id]);
+    if (f.table === "node") flyToNode(f.id, { fly: f.from !== "map" });
   } else {
     clearDetails();
   }
@@ -158,7 +181,9 @@ function onNetKey(key) {
     return;
   }
   cancelRelated(); onNetworkChanged();
-  store.set({ highlights: new Set(), focus: null, related: null, fixTarget: null, issueFocus: null });
+  const keep = store.get().highlightsKeep; // a plugin set them for the network now opening (a card preview)
+  store.set({ highlights: keep ? store.get().highlights : new Set(), highlightsKeep: false,
+    focus: null, related: null, fixTarget: null, issueFocus: null });
   clearDetails(); $("iss-fixer").innerHTML = "";
 }
 
@@ -203,14 +228,14 @@ function onFilterMaybeChanged(s) {
 }
 
 function wireStore() {
-  store.subscribe(["server", "net", "prop", "widthProp", "filterIds", "highlights", "marker", "focus", "related", "hiddenLayers", "layerSeq"], () => render());
+  store.subscribe(["server", "net", "prop", "nodeProp", "widthProp", "filterIds", "highlights", "marker", "focus", "related", "hiddenLayers", "layerSeq"], () => render());
   store.subscribe(["layerSeq", "hiddenLayers"], s => renderPluginLayers(layerRegistry.toggleable(), s.hiddenLayers));
   store.subscribe(["server"], s => {
     renderHeader(s.server); syncControls(s.server.style); renderSelectionPanel(s);
     onSelectionMaybeChanged(activeSelection(s)); renderFilter(s.server); onFilterMaybeChanged(s);
   });
-  store.subscribe(["server", "prop"], s => renderLegend(s.server.style, s.prop));
-  store.subscribe(["properties"], s => { populateColorby(s.properties); syncControls(s.server.style); });
+  store.subscribe(["server", "prop", "nodeProp"], s => renderLegend(s.server.style, s.prop, s.nodeProp));
+  store.subscribe(["properties", "nodeProperties"], s => { populateColorby(s.properties); populateNodeColorby(s.nodeProperties); syncControls(s.server.style); });
   store.subscribe(["netKey"], s => onNetKey(s.netKey));
   store.subscribe(["focus"], s => onFocus(s));
   // New highlights change the rows of every scope but All (back to the first page); a focus only re-tints.
@@ -239,6 +264,7 @@ async function boot() {
   // Every plugin-code failure (and core's own, which only toasts) goes to the Plugins section: a passive one (a badge,
   // a layer, a `when`) once per message, a command the user ran every time.
   const { whenError, runError } = commandReporters(reportPluginError);
+  mountIcons();
   registerCoreSlots();
   registerSelectionPanel();
   registerEditPanels();
@@ -249,13 +275,12 @@ async function boot() {
   registerEditCommands();
   wirePalette({ onError: whenError, onRunError: runError });
   wireActionForm();
-  wireStore(); wirePanels(); wireFilter(); wireSide(); wireTable(); wireHeader(); wireHistory(); wireMapButtons(); wireJobs(); wireWizard(); wireLLM(); wireSettings(); wireIssues(); wireEdits(); wireSelectionPanel(); wireAssistant();
+  wireStore(); wirePanels(); wireFilter(); wireSide(); wireTable(); wireHandles(); wireHeader(); wireHistory(); wireMapButtons(); wireJobs(); wireWizard(); wireLLM(); wireSettings(); wireIssues(); wireEdits(); wireSaveDialog(); wireSelectionPanel(); wireAssistant();
   registerIssueLayer(); // after wireStore: the layerSeq subscription that renders Overlays is in place
   registerSection("llm", "Language models", "llm-panel", () => renderLLMPanel());
   registerAssistantSettings();
   registerSection("plugins", "Plugins", "plugins-panel", () => renderPluginsPanel());
   wirePluginsPanel();
-  renderRecent();
   const [cfg, server, history] = await Promise.all([getJSON("/api/config"), getJSON("/api/state"), getJSON("/api/history")]);
   store.set({ server, basemap: cfg.style });
   await loadJobs();

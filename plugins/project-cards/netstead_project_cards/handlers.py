@@ -15,22 +15,41 @@ from typing import Any
 
 from netstead.workbench.plugins import ActionError, ActionSpec, Host
 
-from .actions import AddChange, ClosePreview, CommitCard, ImportCard, PreviewChange, UndoChange
+from .actions import (
+    AddChange,
+    ApplyCard,
+    CheckCard,
+    ClosePreview,
+    CommitCard,
+    ImportCard,
+    OpenCatalog,
+    PreviewCard,
+    PreviewChange,
+    RefreshCatalog,
+    SessionSummary,
+    UndoChange,
+)
 from .card import Dependencies, read_card_file
+from .catalog import card_targets, with_options
 from .errors import CardError
 from .files import undo_write, write_file
 from .flow import (
     as_action_errors,
+    catalog_entry,
     check_card_shape,
+    check_entries,
     complete_change,
+    load_catalog,
     open_handle,
     refuse_transit,
     selection_networks,
+    summary_text,
     target_network,
 )
-from .lower import Applied, apply_change, describe
+from .lower import Applied, apply_change, describe, few
 from .mapping import FieldMap
-from .state import CardsState, Preview
+from .state import AppliedCard, CardsState, Preview, timestamp
+from .types import NetworkChange
 from .validate import card_problems
 
 __all__ = ["Handlers"]
@@ -54,6 +73,12 @@ class Handlers:
             ActionSpec(ImportCard, self.import_card),
             ActionSpec(PreviewChange, self.preview),
             ActionSpec(ClosePreview, self.close_preview),
+            ActionSpec(OpenCatalog, self.open_catalog),
+            ActionSpec(RefreshCatalog, self.refresh_catalog),
+            ActionSpec(CheckCard, self.check_card),
+            ActionSpec(PreviewCard, self.preview_card),
+            ActionSpec(ApplyCard, self.apply_card),
+            ActionSpec(SessionSummary, self.session_summary),
         )
 
     def add_change(self, host: Host, action: AddChange) -> dict[str, Any]:
@@ -77,17 +102,30 @@ class Handlers:
         return {"net_id": net, "count": count, "change": change.model_dump(mode="json"), **applied.summary()}
 
     def undo_change(self, host: Host, action: UndoChange) -> dict[str, Any]:
-        """Undo the draft's last change: as many ``host.undo`` calls as it made mutations (LIFO), then drop it.
+        """Undo whichever plugin change is newest on the network: an applied catalog card, or the draft's last change.
 
-        ``host.undo`` refuses (``ActionError``) when the network's newest edit is not this plugin's; a refusal part
-        way through a two-step change rolls the earlier step back with the Action. Each undone edit must be the
-        mutation the draft recorded (its seq), so a plugin edit the draft does not hold is refused rather than undone
-        in its place.
+        The network's newest pending edit decides which: when it is the last applied catalog card's newest edit
+        (``AppliedCard.edit_ids``), the whole card is undone (every edit, newest first) and dropped from
+        ``applied``; otherwise the draft's last change is undone as before (as many ``host.undo`` calls as it made
+        mutations, LIFO, then dropped). A committed card is never picked this way: its ``source`` is ``"committed"``,
+        so this handler falls through to the draft (empty after a commit, so a committed card stays un-undoable
+        here, as before). ``host.undo`` refuses (``ActionError``, naming what is on top) when the network's newest
+        edit is not this plugin's at all, so a core or another plugin's change on top is refused either way; a
+        refusal part way through a two-step change rolls the earlier step back with the Action. Each undone edit
+        must be the mutation the card or the draft recorded (its seq), so a plugin edit neither holds is refused
+        rather than undone in its place.
         """
         with as_action_errors():
             net = target_network(host, self.state, action.net_id)
+        pending = host.pending_edits(net)
+        newest = pending.edits[-1] if pending.edits else None
+        card = self.state.last_catalog_card(net)
+        if card is not None and card.edit_ids and newest is not None and newest["seq"] == card.edit_ids[-1]:
+            return self._undo_card(host, net, card)
         entry = self.state.last(net)
         if entry is None:
+            if newest is not None and newest["source"] != host.plugin_id:
+                host.undo(net)  # refuses, naming what is on top (e.g. a core edit over the applied card)
             raise ActionError("nothing to undo: the draft card has no changes (committed cards are not undone)")
         with self.state.undoing(net):
             for mark in reversed(entry.marks):
@@ -100,6 +138,25 @@ class Handlers:
             count = self.state.pop(net, entry)
         host.publish("changed", {"net_id": net, "count": count})
         return {"net_id": net, "undone": describe(entry.change), "count": count}
+
+    def _undo_card(self, host: Host, net: str, card: AppliedCard) -> dict[str, Any]:
+        """Undo every edit of an applied catalog card (newest first) and drop it from ``applied``.
+
+        Registers a ``host.on_rollback`` that restores the ``AppliedCard`` entry if an enclosing Action fails
+        afterwards, the mirror of how :meth:`apply_card` records it.
+        """
+        for seq in reversed(card.edit_ids):
+            undone = host.undo(net)
+            if undone["seq"] != seq:
+                raise ActionError(
+                    f"the newest project cards edit on {net} ({undone['note']}) is not {card.card_id}'s "
+                    f"last change; nothing was undone"
+                )
+        host.on_rollback(self.state.forget_applied(card))
+        draft = self.state.card(net)
+        count = len(draft.changes) if draft is not None else 0
+        host.publish("changed", {"net_id": net, "count": count})
+        return {"net_id": net, "undone": "card", "card_id": card.card_id, "edits": len(card.edit_ids)}
 
     def commit(self, host: Host, action: CommitCard) -> dict[str, Any]:
         """Check, write and record the draft as a card; dispatch ``catalog.add_card`` when a catalog is installed.
@@ -177,26 +234,17 @@ class Handlers:
         """
         with as_action_errors():
             net = target_network(host, self.state, action.net_id)
-        path = host.writable(action.path)  # the allowed-roots check (the Host has no read-only variant)
+        path = host.readable(action.path)  # PathNotAllowed outside io.allowed_roots; ActionError when nothing is there
         with as_action_errors():
-            try:
-                is_file = path.is_file()
-            except OSError as exc:  # a folder on the way that cannot be searched
-                raise CardError(f"could not read {path}: {exc.strerror or exc}") from exc
-            if not is_file:
+            if not path.is_file():
                 raise CardError(f"{action.path} is not a file")
             incoming = read_card_file(path, self.mapping)
             if not incoming.changes:
                 raise CardError(f"{action.path} has no changes to import")
-        total = len(incoming.changes)
-        applied: list[Applied] = []
-        for k, change in enumerate(incoming.changes, start=1):
-            with as_action_errors(f"change {k} of {total}: "):
-                check_card_shape(change, self.mapping)
-                applied.append(apply_change(host, net, change))
+        applied = self._apply_all(host, net, incoming.changes)
         count = self.state.extend(net, host.network(net), applied, name_from=incoming)
         host.publish("changed", {"net_id": net, "count": count})
-        return {"net_id": net, "imported": total, "project": self.state.project(net), "count": count}
+        return {"net_id": net, "imported": len(applied), "project": self.state.project(net), "count": count}
 
     def preview(self, host: Host, action: PreviewChange) -> dict[str, Any]:
         """Derive a copy of the base, apply the change to it, and make it active; then close any older preview.
@@ -217,20 +265,19 @@ class Handlers:
             base_version = base_handle.version
             copy_id = host.derive(base, label=f"Preview: {text}"[:120], note=f"preview {change.type}")
             applied = apply_change(host, copy_id, change)
+        self._show_preview(
+            host,
+            Preview(copy_id, weakref.ref(host.network(copy_id)), base, weakref.ref(base_handle), base_version, text),
+        )
+        return {"preview": copy_id, "base": base, **applied.summary(), "warnings": [*warnings, *applied.warnings]}
+
+    def _show_preview(self, host: Host, preview: Preview) -> None:
+        """Make the preview's network active, close any older preview (last: see :meth:`preview`), record it."""
         older = self.state.preview()
-        host.dispatch({"type": "set_active_network", "net_id": copy_id})
+        host.dispatch({"type": "set_active_network", "net_id": preview.net_id})
         if older is not None and older.is_copy(open_handle(host, older.net_id)):
             host.dispatch({"type": "close_network", "net_id": older.net_id})
-        preview = Preview(
-            net_id=copy_id,
-            copy=weakref.ref(host.network(copy_id)),
-            base=base,
-            base_handle=weakref.ref(base_handle),
-            base_version=base_version,
-            describe=text,
-        )
         self.state.set_preview(preview)
-        return {"preview": copy_id, "base": base, **applied.summary(), "warnings": [*warnings, *applied.warnings]}
 
     def close_preview(self, host: Host, action: ClosePreview) -> dict[str, Any]:
         """Close the preview network and make its base active again.
@@ -247,3 +294,110 @@ class Handlers:
         host.dispatch({"type": "close_network", "net_id": preview.net_id})
         self.state.clear_preview(preview)
         return {"closed": preview.net_id, "active": host.active}
+
+    # ---------------------------------------------------------------- the catalog
+
+    def open_catalog(self, host: Host, action: OpenCatalog) -> dict[str, Any]:
+        """Scan the folder and make it the open catalog (replacing any other); nothing on a network changes."""
+        catalog = load_catalog(host, action.path, self.mapping)
+        self.state.set_catalog(catalog)
+        host.publish("catalog", {"path": catalog.path, "cards": len(catalog.cards)})
+        return {"path": catalog.path, "cards": len(catalog.cards), "rejected": len(catalog.rejected)}
+
+    def refresh_catalog(self, host: Host, action: RefreshCatalog) -> dict[str, Any]:
+        """Scan the open catalog's folder again; every card's applicability is unknown again."""
+        current = self.state.catalog()
+        if current is None:
+            raise ActionError("no catalog is open: open a folder of cards first (project_cards.open_catalog)")
+        catalog = load_catalog(host, current.path, self.mapping)
+        self.state.set_catalog(catalog)
+        host.publish("catalog", {"path": catalog.path, "cards": len(catalog.cards)})
+        return {"path": catalog.path, "cards": len(catalog.cards), "rejected": len(catalog.rejected)}
+
+    def check_card(self, host: Host, action: CheckCard) -> dict[str, Any]:
+        """Compute (and keep, for the listing) whether the card applies to the network as it is now."""
+        with as_action_errors():
+            net = target_network(host, self.state, action.net_id)
+        entry = catalog_entry(self.state, action.card_id)
+        return {"card_id": entry.card_id, **check_entries(host, self.state, net, [entry])[0]}
+
+    def preview_card(self, host: Host, action: PreviewCard) -> dict[str, Any]:
+        """Derive a copy of the base, apply every change of the card to it, show it, and publish the card's targets.
+
+        As :meth:`preview`: a failing change fails the Action, whose rollback closes the copy. The published
+        ``card_selection`` (``{card_id, links, nodes}``) is the union of the ids the card's changes aim at.
+        """
+        with as_action_errors():
+            base = target_network(host, self.state, action.net_id)
+        entry = catalog_entry(self.state, action.card_id)
+        text = f"card {entry.card_id}: {entry.project}"
+        with as_action_errors():
+            base_handle = host.network(base)
+            base_version = base_handle.version
+            copy_id = host.derive(base, label=f"Preview: {text}"[:120], note=f"preview card {entry.card_id}")
+        applied = self._apply_all(host, copy_id, entry.card.changes)
+        self._show_preview(
+            host,
+            Preview(copy_id, weakref.ref(host.network(copy_id)), base, weakref.ref(base_handle), base_version, text),
+        )
+        host.publish("card_selection", {"card_id": entry.card_id, **card_targets(entry.card)})
+        return {
+            "preview": copy_id,
+            "base": base,
+            "card_id": entry.card_id,
+            "changes": [a.summary() for a in applied],
+            "warnings": [w for a in applied for w in a.warnings],
+        }
+
+    def apply_card(self, host: Host, action: ApplyCard) -> dict[str, Any]:
+        """Apply the card to the base network, all or nothing, and record it as applied (source ``catalog``).
+
+        The card is checked first; it is refused when a change cannot be applied at all, or lacks an id and
+        ``ignore_missing`` is not true. A failing change fails the Action, whose rollback undoes the ones already
+        applied; the record is made last and taken back by ``host.on_rollback`` if an enclosing Action fails. The
+        card's applicability is unknown again afterwards (the network changed).
+        """
+        with as_action_errors():
+            net = target_network(host, self.state, action.net_id)
+        entry = catalog_entry(self.state, action.card_id)
+        check = check_entries(host, self.state, net, [entry])[0]
+        problems = [
+            f"{c['describe']}: {c['reason'] or 'missing ' + few(c['missing'])}"
+            for c in check["changes"]
+            if c["reason"] or (c["missing"] and not action.ignore_missing)
+        ]
+        if problems and (not action.ignore_missing or any(c["reason"] for c in check["changes"])):
+            more = f" (+{len(problems) - 1} more)" if len(problems) > 1 else ""
+            hint = "" if any(c["reason"] for c in check["changes"]) else "; apply with ignore_missing=True to skip them"
+            raise ActionError(f"{entry.card_id} does not apply to {net}: {problems[0]}{more}{hint}")
+        changes = with_options(
+            entry.card, existing_value_conflict=action.existing_value_conflict, ignore_missing=action.ignore_missing
+        )
+        applied = self._apply_all(host, net, changes)
+        seqs = tuple(m.seq for a in applied for m in a.marks if m.seq is not None)
+        record = AppliedCard(entry.card_id, net, entry.path, entry.project, timestamp(), len(changes), "catalog", seqs)
+        host.on_rollback(self.state.record_applied(record))
+        self.state.set_applicability(entry, None)
+        host.publish("applied", {"net_id": net, "card_id": entry.card_id})
+        return {
+            "card_id": entry.card_id,
+            "net_id": net,
+            "changes": len(changes),
+            "edit_ids": list(seqs),
+            "warnings": [w for a in applied for w in a.warnings],
+            "skipped": [s for a in applied for s in a.skipped],
+        }
+
+    def _apply_all(self, host: Host, net: str, changes: list[NetworkChange]) -> list[Applied]:
+        """Apply every change to ``net`` in order; a refusal names the change (``change k of n: ...``)."""
+        applied: list[Applied] = []
+        total = len(changes)
+        for k, change in enumerate(changes, start=1):
+            with as_action_errors(f"change {k} of {total}: "):
+                check_card_shape(change, self.mapping)
+                applied.append(apply_change(host, net, change))
+        return applied
+
+    def session_summary(self, host: Host, action: SessionSummary) -> dict[str, Any]:
+        """The session summary text (see :mod:`~netstead_project_cards.summary`)."""
+        return {"text": summary_text(host, self.state, action.net_id)}

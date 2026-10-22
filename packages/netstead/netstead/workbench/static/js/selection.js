@@ -1,10 +1,14 @@
-// The Selection dock panel (every workspace): status, a stale-pin warning, anchors with their candidates (Pin /
-// Unpin), diagnostics, export, and saved selections; the "Anchor candidates" map layer; and the selection commands.
+// The Find dock panel (every workspace): the utterance box (Enter or Select resolves it; Ask, Ctrl+Enter or ⌘Enter
+// sends it to the assistant) with the model picker (llm.js), then the selection: status, a stale-pin warning, anchors
+// with their candidates (Pin / Unpin), diagnostics, export, and saved selections; the "Anchor candidates" map layer;
+// and the selection commands. The highlights and the View controls share the pane (side.js, panels.js).
 // Every server string is escaped. Pinning, saving, using and deleting are Actions, so each is recorded.
 import { dispatch, getJSON } from "./api.js";
+import { ask } from "./assistant.js";
+import { barRoute } from "./assistmodel.js";
 import { addCommandTo } from "./commands.js";
 import { $, esc, toast } from "./dom.js";
-import { addLayer } from "./map.js";
+import { addLayer, fitLinks } from "./map.js";
 import { anchorRows, candidatePoints, exportChoices, selectionBadge, staleNotes, unpinAfterPin } from "./selectmodel.js";
 import { ALL_WORKSPACES, CORE, slots } from "./slots.js";
 import { activeSelection, store } from "./store.js";
@@ -23,7 +27,7 @@ const selectionKey = s => {
 };
 
 export function registerSelectionPanel() {
-  panel = addPanel(CORE, { id: "selection", title: "Selection", workspace: ALL_WORKSPACES, order: 1,
+  panel = addPanel(CORE, { id: "find", title: "Find", workspace: ALL_WORKSPACES, order: 0,
     badge: ctx => selectionBadge(ctx.selection) });
   addLayer(CORE, "roadway", "candidates", c => {
     const pts = candidatePoints(c.selection);
@@ -35,8 +39,8 @@ export function registerSelectionPanel() {
   add({ id: "save_selection", title: "Save selection…", contexts: ["palette", "selection"],
     when: c => c.selectionCount > 0, run: () => saveSelection() });
   add({ id: "export_selection", title: "Export selection…", when: c => exportChoices(c.selection).resolved,
-    run: () => { showPanel("selection"); $("sel-export-what").focus(); } });
-  add({ id: "show_selection", title: "Show the selection panel", run: () => showPanel("selection") });
+    run: () => { showPanel("find"); $("sel-export-what").focus(); } });
+  add({ id: "show_selection", title: "Show the Find panel", run: () => showPanel("find") });
 }
 
 function saveSelection() {
@@ -134,7 +138,30 @@ async function download(name) {
   } catch (e) { toast(e.message); }
 }
 
+// The utterance box: Enter selects, as it always has; Ask, Ctrl+Enter or ⌘Enter sends the text to the assistant.
+function wireUtterance() {
+  const select = async () => {
+    const utterance = $("utterance").value.trim();
+    if (!utterance) return;
+    $("go").disabled = true;
+    try {
+      const sel = await dispatch({ type: "select", utterance });
+      fitLinks(sel.link_ids);
+    } catch (e) { toast(e.message); }
+    $("go").disabled = false;
+  };
+  $("go").onclick = select;
+  $("ask").onclick = () => ask($("utterance").value, { fromBar: true });
+  $("utterance").onkeydown = e => {
+    if (e.isComposing) return;
+    const route = barRoute(e);
+    if (route === "select") select();
+    else if (route === "ask") { e.preventDefault(); ask($("utterance").value, { fromBar: true }); }
+  };
+}
+
 export function wireSelectionPanel() {
+  wireUtterance();
   $("anchors").onclick = e => {
     const pin = e.target.closest("[data-pin]"), unpin = e.target.closest("[data-unpin]");
     if (pin) run({ type: "pin_anchor", role: pin.dataset.pin, node_id: JSON.parse(pin.dataset.node) });

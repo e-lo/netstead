@@ -1,4 +1,4 @@
-// Color palettes, ramps, and per-vertex link colors for color-by.
+// Color palettes, ramps, per-vertex link colors and per-node colors for color-by.
 export const FT_PALETTE = {
   motorway: [214, 69, 65], motorway_link: [242, 150, 120], trunk: [232, 119, 34], trunk_link: [245, 182, 132],
   primary: [236, 160, 20], primary_link: [249, 214, 120], secondary: [86, 158, 70], secondary_link: [160, 200, 130],
@@ -29,8 +29,10 @@ export function catColor(prop, cat, i) {
   return (prop && prop.name === "facility_type" && FT_PALETTE[cat]) || CAT_PALETTE[i % CAT_PALETTE.length];
 }
 
-function linkColor(i, style, prop) {
-  if (!prop) return style.colors.links;
+// Feature i's colour from `prop` (a categorical palette or the style's ramp), `single` without one, NULL_COLOR
+// for a missing value. The same rule colours links and nodes.
+function valueColor(i, style, prop, single) {
+  if (!prop) return single;
   const v = prop.values[i];
   if (v === null || v === undefined) return NULL_COLOR;
   if (prop.kind === "continuous") return ramp(style.ramp, prop.max > prop.min ? (v - prop.min) / (prop.max - prop.min) : 0.5);
@@ -41,8 +43,22 @@ export function buildLinkColors(net, style, prop) {
   const p = prop && style.color_by !== "none" && prop.name === style.color_by ? prop : null;
   const c = new Uint8Array(net.linkStart[net.L.count] * 4);
   for (let i = 0; i < net.L.count; i++) {
-    const [r, g, b] = linkColor(i, style, p);
+    const [r, g, b] = valueColor(i, style, p, style.colors.links);
     for (let v = net.linkStart[i]; v < net.linkStart[i + 1]; v++) { c[v * 4] = r; c[v * 4 + 1] = g; c[v * 4 + 2] = b; c[v * 4 + 3] = 222; }
+  }
+  return c;
+}
+
+const NODE_ALPHA = 150, NODE_ALPHA_COLORED = 215;
+
+// Per-node RGBA for `style.node_color_by` (the node table's property, index-aligned with the buffer's nodes), or the
+// single node colour without one; a coloured node is drawn more opaque so its category reads over the links.
+export function buildNodeColors(net, style, prop) {
+  const p = prop && style.node_color_by !== "none" && prop.name === style.node_color_by ? prop : null;
+  const c = new Uint8Array(net.N.count * 4), alpha = p ? NODE_ALPHA_COLORED : NODE_ALPHA;
+  for (let i = 0; i < net.N.count; i++) {
+    const [r, g, b] = valueColor(i, style, p, style.colors.nodes);
+    c[i * 4] = r; c[i * 4 + 1] = g; c[i * 4 + 2] = b; c[i * 4 + 3] = alpha;
   }
   return c;
 }

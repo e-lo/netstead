@@ -19,7 +19,7 @@ from typing import Any, Literal
 
 import duckdb
 import pandas as pd
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, HTTPException, Query, Response
 from ibis.common.exceptions import IbisTypeError
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -32,6 +32,7 @@ from netstead.viz.tables import (
     KeyTypeError,
     coerce_keys,
     column_dtype,
+    distinct_values,
     locate_row,
     page_table,
     parse_ids,
@@ -48,6 +49,7 @@ from ..related import (
     Relation,
     RelationGraph,
     count,
+    field_enums,
     ids_of,
     relate,
     relation_graph,
@@ -145,6 +147,11 @@ def network_router(session: Session) -> APIRouter:
     def handle(net_id: str, component: str) -> NetworkHandle:
         return network_handle(session, net_id, component)
 
+    def _styled_frame(net_id: str, component: str, table: str) -> pd.DataFrame:
+        """The frame whose columns colour or size the map: the ``link`` table's, or the ``node`` table's."""
+        h = handle(net_id, component)
+        return h.nodes_df() if table == "node" else h.links_df()
+
     def table(h: NetworkHandle, name: str) -> Any:
         tables = h.tables()
         if name not in tables:
@@ -206,7 +213,7 @@ def network_router(session: Session) -> APIRouter:
     @router.get("/network.bin")
     def network_bin(net_id: str, component: str) -> Response:
         h = handle(net_id, component)
-        data = h.cached("network.bin", lambda: pack_network(h.links_df(), h.nodes_df()))
+        data = h.cached("network.bin", lambda: pack_network(h.links_df(), h.nodes_df(), geometry=h.geometry_df()))
         return Response(data, media_type="application/octet-stream")
 
     @router.get("/network.attrs.json")
@@ -215,8 +222,9 @@ def network_router(session: Session) -> APIRouter:
         return h.cached("network.attrs", lambda: network_attrs(h.links_df()))
 
     @router.get("/properties")
-    def properties(net_id: str, component: str) -> dict[str, Any]:
-        return {"properties": styleable_columns(handle(net_id, component).links_df())}
+    def properties(net_id: str, component: str, table: Literal["link", "node"] = "link") -> dict[str, Any]:
+        """The columns that can colour (or size) the ``link`` table's features, or the ``node`` table's."""
+        return {"properties": styleable_columns(_styled_frame(net_id, component, table), table)}
 
     @router.get("/filter")
     def view_filter(net_id: str, component: str) -> dict[str, Any]:
@@ -232,8 +240,13 @@ def network_router(session: Session) -> APIRouter:
         return {"version": h.version, "where": entry["where"], "count": len(ids), "link_ids": ids}
 
     @router.get("/property/{name}")
-    def property_values(net_id: str, component: str, name: str) -> dict[str, Any]:
-        payload = property_payload(handle(net_id, component).links_df(), name)
+    def property_values(
+        net_id: str, component: str, name: str, table: Literal["link", "node"] = "link"
+    ) -> dict[str, Any]:
+        frame = _styled_frame(net_id, component, table)
+        if name not in {c["name"] for c in styleable_columns(frame, table)}:  # never geometry or an id column
+            raise HTTPException(404, f"unknown property {name!r}")
+        payload = property_payload(frame, name)
         if payload is None:
             raise HTTPException(404, f"unknown property {name!r}")
         return payload
@@ -264,7 +277,7 @@ def network_router(session: Session) -> APIRouter:
     def table_schema_ep(net_id: str, component: str, table_name: str) -> dict[str, Any]:
         h = handle(net_id, component)
         g = graph(h)
-        payload = table_schema(table_name, table(h, table_name))
+        payload = table_schema(table_name, table(h, table_name), field_enums(h.roadway.spec, table_name))
         payload["primary_key"] = g.pks.get(table_name)
         payload["foreign_keys"] = [
             {
@@ -277,6 +290,15 @@ def network_router(session: Session) -> APIRouter:
             if fk.table == table_name
         ]
         return payload
+
+    @router.get("/table/{table_name}/distinct")
+    def table_distinct(
+        net_id: str, component: str, table_name: str, col: str, limit: int = Query(default=200, ge=1)
+    ) -> dict[str, Any]:
+        """The distinct values of one column (a column filter's value list); ``limit`` is capped at MAX_LIMIT."""
+        h = handle(net_id, component)
+        with _bad_request():
+            return distinct_values(table(h, table_name), col, limit=limit)
 
     @router.get("/table/{table_name}/rows")
     def table_rows(

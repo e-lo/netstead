@@ -2,25 +2,32 @@
 import { $, esc } from "./dom.js";
 import { createClickGuard } from "./gesture.js";
 import { layerRegistry } from "./layers.js";
-import { widthForLanes } from "./netbuf.js";
-import { buildLinkColors, buildLinkWidths, dimUnmatched } from "./palette.js";
+import { arrowPixelOffset, arrowSize, buildArrows, linkPaths, widthForLanes } from "./netbuf.js";
+import { buildLinkColors, buildLinkWidths, buildNodeColors, dimUnmatched } from "./palette.js";
 import { commandContext, frozenCopy } from "./commands.js";
 import { CORE } from "./slots.js";
 import { activeSelection, store } from "./store.js";
 
 const OFFSET_EXT = typeof deck.PathStyleExtension === "function" ? new deck.PathStyleExtension({ offset: true }) : null;
-const OFFSET_AMT = 0.8, ARROW_ZOOM = 13;
+// "Offset directions" draws each link row this many path widths to its right (PathStyleExtension's unit is the
+// row's own clamped pixel width, so LINK_MIN_PX is part of that width); the row's arrow is placed on the same line.
+const OFFSET_AMT = 0.8, LINK_MIN_PX = 1, ARROW_ZOOM = 13;
 const HIGHLIGHT_COLOR = [45, 210, 230];
-const FOCUS_COLOR = [255, 255, 255, 235];
+const FOCUS_COLOR = [255, 0, 200, 240];
 const RELATED_COLOR = [45, 210, 230, 110]; // the highlight hue, lighter
+// Under the focus and highlight strokes, so they read on the light Positron basemap and over white highway casings.
+const CASING_COLOR = [20, 20, 30, 220];
+// A white arrowhead with a dark outline, for the same reason as the casing.
 const ARROW_SVG = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><polygon points="12,3 20,21 12,16 4,21" fill="white"/></svg>');
+  '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">' +
+  '<polygon points="12,2 21,22 12,16.5 3,22" fill="white" stroke="#14141e" stroke-width="1.5" stroke-linejoin="round"/></svg>');
 const TOOLTIP_STYLE = { background: "#11151a", color: "#e6e8ec", fontSize: "12px", padding: "6px 8px",
   borderRadius: "6px", border: "1px solid #2a2f3a" };
 
 let map = null, overlay = null;
 let handlers = { onLinkClick() {}, onNodeClick() {}, onBoxSelect() {}, onContextMenu() {}, onLayerError(e) { console.error(e); } };
-let colorCache = { key: null, colors: null }, widthCache = { key: null, widths: null };
+let colorCache = { key: null, colors: null }, widthCache = { key: null, widths: null }, nodeColorCache = { key: null, colors: null };
+let pathsCache = { key: null, paths: null }, arrowCache = { key: null, arrows: null };
 let labelsShown = true;
 // Whether the current style's layers exist (style.load fired). Not map.isStyleLoaded(): that also waits for
 // every tile source, so a label toggle right after a basemap swap would be dropped.
@@ -75,6 +82,14 @@ function linkColors(s) {
   return colorCache.colors;
 }
 
+// Per-node colours for `style.node_color_by` (or the single node colour), cached like the links'.
+function nodeColors(s) {
+  const st = s.server.style, np = s.nodeProp;
+  const key = JSON.stringify([s.netKey, st.node_color_by, st.ramp, st.colors.nodes, np && np.name, np && np.netKey]);
+  if (nodeColorCache.key !== key) nodeColorCache = { key, colors: buildNodeColors(s.net, st, np) };
+  return nodeColorCache.colors;
+}
+
 // Per-vertex widths for `style.width_by`, or null (the lane-count widths).
 function linkWidths(s) {
   const st = s.server.style, wp = s.widthProp;
@@ -83,28 +98,48 @@ function linkWidths(s) {
   return widthCache.widths;
 }
 
-function baseLayers(net, style, colors, widths) {
+// One direction arrow per link row, on the line the row is drawn on (offset on: its right-hand line).
+function linkArrows(s, offsetOn) {
+  const net = s.net;
+  if (pathsCache.key !== s.netKey) pathsCache = { key: s.netKey, paths: linkPaths(net.L.count, net.linkStart, net.linkPositions) };
+  const key = JSON.stringify([s.netKey, offsetOn]);
+  if (arrowCache.key !== key) arrowCache = { key, arrows: buildArrows(pathsCache.paths, { offset: offsetOn }) };
+  return arrowCache.arrows;
+}
+
+function baseLayers(s) {
+  const net = s.net, style = s.server.style, colors = linkColors(s), widths = linkWidths(s) || net.linkWidths;
   const layers = [];
   if (style.show.links) {
+    const offsetOn = Boolean(OFFSET_EXT && style.offset);
     const props = { id: "links", _pathType: "open",
       data: { length: net.L.count, startIndices: net.linkStart,
-        attributes: { getPath: { value: net.linkPositions, size: 2 }, getWidth: { value: widths || net.linkWidths, size: 1 },
+        attributes: { getPath: { value: net.linkPositions, size: 2 }, getWidth: { value: widths, size: 1 },
                       getColor: { value: colors, size: 4 } } },
-      widthUnits: "pixels", widthMinPixels: 1, capRounded: true, jointRounded: true,
+      widthUnits: "pixels", widthMinPixels: LINK_MIN_PX, capRounded: true, jointRounded: true,
       pickable: true, autoHighlight: true, highlightColor: [255, 140, 59, 235],
       onClick: info => { if (info && info.index >= 0) handlers.onLinkClick(store.get().attrs.link_id[info.index]); } };
-    if (OFFSET_EXT) { props.extensions = [OFFSET_EXT]; props.getOffset = style.offset ? OFFSET_AMT : 0; }
+    if (OFFSET_EXT) { props.extensions = [OFFSET_EXT]; props.getOffset = offsetOn ? OFFSET_AMT : 0; }
     layers.push(new deck.PathLayer(props));
-    if (style.show_direction && map.getZoom() >= ARROW_ZOOM) layers.push(new deck.IconLayer({ id: "arrows",
-      data: net.arrows, getIcon: () => ({ url: ARROW_SVG, width: 24, height: 24, anchorY: 12 }),
-      getPosition: d => d.position, getAngle: d => d.angle, getSize: 13, sizeUnits: "pixels",
-      getColor: [40, 52, 78, 230], pickable: false }));
+    const zoom = map.getZoom();
+    if (style.show_direction && zoom >= ARROW_ZOOM) {
+      // A row's drawn width in pixels, as the PathLayer clamps it (widths are per vertex; a row's vertices share one).
+      const widthPx = d => Math.max(LINK_MIN_PX, widths[net.linkStart[d.link]]);
+      layers.push(new deck.IconLayer({ id: "arrows", data: linkArrows(s, offsetOn),
+        getIcon: () => ({ url: ARROW_SVG, width: 24, height: 24, anchorY: 12 }),
+        getPosition: d => d.position, getAngle: d => d.angle,
+        getPixelOffset: d => arrowPixelOffset(d.angle, d.side, widthPx(d), OFFSET_AMT),
+        getSize: arrowSize(zoom), sizeUnits: "pixels", getColor: [255, 255, 255, 240], pickable: false,
+        updateTriggers: { getPixelOffset: [offsetOn, widthCache.key] } }));
+    }
   }
-  // Nodes draw above links, and are pickable, so a map click can focus a node.
+  // Nodes draw above links, and are pickable, so a map click can focus a node. Their colours come from the node
+  // table's `node_color_by` column (nodeColors), the single node colour without one.
   if (style.show.nodes) layers.push(new deck.ScatterplotLayer({ id: "nodes",
-    data: { length: net.N.count, attributes: { getPosition: { value: net.nodePositions, size: 2 } } },
+    data: { length: net.N.count, attributes: { getPosition: { value: net.nodePositions, size: 2 },
+                                               getFillColor: { value: nodeColors(s), size: 4 } } },
     getRadius: 1.8, radiusUnits: "pixels", radiusMinPixels: 2,
-    getFillColor: [...style.colors.nodes, 150], pickable: true, autoHighlight: true, highlightColor: [255, 140, 59, 235],
+    pickable: true, autoHighlight: true, highlightColor: [255, 140, 59, 235],
     onClick: info => { if (info && info.index >= 0) handlers.onNodeClick(net.nodeIds[info.index]); } }));
   return layers;
 }
@@ -127,6 +162,13 @@ function idPathLayer(net, layerId, ids, color, extraWidth) {
       attributes: { getPath: { value: new Float32Array(positions), size: 2 }, getWidth: { value: new Float32Array(widths), size: 1 } } },
     getColor: color, widthUnits: "pixels", widthMinPixels: 3, capRounded: true, jointRounded: true,
     parameters: { depthTest: false } });
+}
+
+// idPathLayer twice: a 2 px wider dark casing under the coloured stroke, so the focus and highlights stay legible
+// whatever the basemap draws beneath them.
+function casedPathLayers(net, layerId, ids, color, extraWidth) {
+  const stroke = idPathLayer(net, layerId, ids, color, extraWidth);
+  return stroke && [idPathLayer(net, layerId + "-casing", ids, CASING_COLOR, extraWidth + 2), stroke];
 }
 
 function selectionLayers(net, style, sel) {
@@ -172,11 +214,11 @@ function setLabels(show) {
 // Core's layer groups, bottom to top (layers.js CORE_ORDER). Each returns what render() used to push, or nothing.
 function registerCoreLayers() {
   const reg = (id, factory) => layerRegistry.register(CORE, "roadway", id, factory);
-  reg("base", c => baseLayers(c.net, c.style, linkColors(c.state), linkWidths(c.state)));
+  reg("base", c => baseLayers(c.state));
   reg("selection", c => (c.style.show.selection && c.selection ? selectionLayers(c.net, c.style, c.selection) : null));
   reg("related", c => (c.related ? relatedLayers(c.net, c.related) : null));
-  reg("highlighted", c => (c.highlights.size ? idPathLayer(c.net, "highlighted", c.highlights, [...HIGHLIGHT_COLOR, 255], 2.5) : null));
-  reg("focus", c => (c.focus && c.focus.table === "link" ? idPathLayer(c.net, "focus", [c.focus.id], FOCUS_COLOR, 4) : null));
+  reg("highlighted", c => (c.highlights.size ? casedPathLayers(c.net, "highlighted", c.highlights, [...HIGHLIGHT_COLOR, 255], 2.5) : null));
+  reg("focus", c => (c.focus && c.focus.table === "link" ? casedPathLayers(c.net, "focus", [c.focus.id], FOCUS_COLOR, 4) : null));
   reg("marker", c => (c.marker ? markerLayer(c.marker) : null));
 }
 

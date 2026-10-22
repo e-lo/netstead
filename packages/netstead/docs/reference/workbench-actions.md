@@ -2,7 +2,7 @@
 title: Workbench Actions reference
 audience: both
 kind: reference
-summary: The 20 core Workbench Actions — fields, defaults, whether each mutates or runs as a job, and the replay snippet form — plus how to dispatch them from Python.
+summary: The 21 core Workbench Actions — fields, defaults, whether each mutates or runs as a job, and the replay snippet form — plus how to dispatch them from Python.
 ---
 
 # Workbench Actions reference
@@ -11,13 +11,13 @@ summary: The 20 core Workbench Actions — fields, defaults, whether each mutate
 
 Every state change in a Workbench session — a click in the browser, a line of Python, a step the assistant drafts — is one typed Action: a pydantic model in `netstead.workbench.actions`, discriminated on its `type` string. The session validates the Action, applies it under its lock, records a `HistoryEntry` and publishes the new state. Because the vocabulary is the same everywhere, anything the UI did can be copied as Python and replayed.
 
-This page lists the 20 core Actions in `netstead.workbench.actions.CORE_ACTIONS` (plugins register more). For each: the fields with their types and defaults (a field with no default is required), the class flags, and the snippet `to_python` writes for it. The flags are class attributes:
+This page lists the 21 core Actions in `netstead.workbench.actions.CORE_ACTIONS` (plugins register more). For each: the fields with their types and defaults (a field with no default is required), the class flags, and the snippet `to_python` writes for it. The flags are class attributes:
 
 * **mutates** — the assistant must draft the Action and get approval before applying it; it also marks what `undo` and rollback care about.
 * **runs as job** — the slow work runs on a background job thread; `Session.dispatch` waits for it, `Session.submit` returns the `Job`.
 * **replay** — what the "copy as Python" snippet does with the fields: fields equal to their default are omitted; `replay_omits` fields are left out (`expected_version`, a guard that only means something in the live session); `replay_overrides` are forced (`BuildNetwork` always replays with `approved=True`).
 
-All 20 core Actions have `assistant = True`, the class flag that lets an Action be offered to the natural-language assistant at all. The flag matters for plugin Actions: a plugin that is opted in through `assistant.plugins` can still keep one of its Actions out of the assistant's tools by setting `assistant = False` on that class. Which *core* Actions the assistant may call is a setting, `assistant.actions` (14 by default; `open_network` and `close_network` are never offered) — see the [Settings reference](settings.md#assistant-the-natural-language-assistant).
+All 21 core Actions have `assistant = True`, the class flag that lets an Action be offered to the natural-language assistant at all. The flag matters for plugin Actions: a plugin that is opted in through `assistant.plugins` can still keep one of its Actions out of the assistant's tools by setting `assistant = False` on that class. Which *core* Actions the assistant may call is a setting, `assistant.actions` (14 by default; `open_network` and `close_network` are never offered) — see the [Settings reference](settings.md#assistant-the-natural-language-assistant).
 
 ## Actions
 
@@ -122,11 +122,15 @@ Replay: `app.do(DeleteSelection(name='ski hill'))`
 
 #### `Style` — `style`
 
-Partially update the map style; omitted fields are unchanged. `width_by` sizes links by a numeric column (`"none"` for widths by lane count).
+Partially update the map style; omitted fields are unchanged. `color_by` colours links by a column of the link
+table and `node_color_by` colours nodes by one of the node table (`"none"` for a single colour); `width_by`
+sizes links by a numeric column (`"none"` for widths by lane count). A fresh session defaults `color_by` to
+`"facility_type"` and `node_color_by` to `"ctrl_type"` when those columns exist (`"none"` otherwise).
 
 | Field | Type | Default |
 |---|---|---|
 | `color_by` | `str \| None` | `None` |
+| `node_color_by` | `str \| None` | `None` |
 | `width_by` | `str \| None` | `None` |
 | `ramp` | `"YlOrRd" \| "Blues" \| "Viridis" \| None` | `None` |
 | `show` | `dict[("links" \| "nodes" \| "labels" \| "selection"), bool] \| None` | `None` |
@@ -146,7 +150,7 @@ Show only the links matching every condition; the map dims the rest and the tabl
 | `net_id` | `str \| None` | `None` |
 | `where` | `list[FilterCond] \| None` | `None` |
 
-A `FilterCond` is `{col: str, op: FilterOp, val}` with `op` one of `eq ne lt lte gt gte in contains isnull notnull`; `in` takes a list, `isnull` / `notnull` take no value.
+A `FilterCond` is `{col: str, op: FilterOp, val}` with `op` one of `eq ne lt lte gt gte in contains isnull notnull any_of all_of none_of between`; `in` takes a list, `isnull` / `notnull` take no value. The token operators `any_of` / `all_of` / `none_of` match a list of values against a comma-separated cell such as `allowed_uses` (`"auto"` matches `"auto,truck,walk"`; a bare value is read as a one-element list; an empty cell matches only `none_of`). `between` takes `[low, high]`, inclusive.
 
 Replay: `app.do(Filter(where=[{'col': 'lanes', 'op': 'gte', 'val': 2}]))`
 
@@ -234,6 +238,18 @@ Revert the network's last edit, when the Workbench made it (a plugin undoes its 
 | `net_id` | `str \| None` | `None` |
 
 Replay: `app.do(UndoEdit())`
+
+#### `RedoEdit` — `redo_edit`
+
+Re-apply the network's newest undone edit (the one `undo_edit` took back most recently). Any other change to
+the network since the undo makes it unavailable, and it is refused with "nothing to redo" when there is
+nothing to redo. Mutates.
+
+| Field | Type | Default |
+|---|---|---|
+| `net_id` | `str \| None` | `None` |
+
+Replay: `app.do(RedoEdit())`
 
 #### `SaveNetwork` — `save_network`
 

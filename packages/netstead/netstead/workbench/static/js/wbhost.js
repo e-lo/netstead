@@ -89,6 +89,14 @@ export function createWb(pluginId, deps) {
     on(name, fn) { open(); return track(deps.events.on(eventName(pluginId, name), safe(fn, `event ${name}`))); },
     showPanel: id => deps.dock.showPanel(id),
     toast: message => deps.toast(`${pluginId}: ${message}`),
+    // Replace the page's highlights (the cyan links of the highlight tool, the Find panel's list) with `links`;
+    // `highlight()` clears them. Core highlights links only: `nodes` is accepted and ignored for now.
+    // They survive the next network switch once, so a plugin can highlight the links of a network it is about to open.
+    highlight({ links = [] } = {}) {
+      deps.store.set({ highlights: new Set(links), highlightsKeep: links.length > 0 });
+    },
+    // Core's inline SVG icon `name` (icons.js) as markup, for a plugin's icon buttons; "" where the host has none.
+    icon: name => (deps.icon ? deps.icon(name) : ""),
   };
   const rollback = () => {
     closed = true;

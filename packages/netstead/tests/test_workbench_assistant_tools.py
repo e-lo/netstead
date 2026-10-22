@@ -196,6 +196,7 @@ def test_the_catalog_says_which_actions_may_be_offered(session):
         "set_setting",
         "build_network",
         "delete_selection",
+        "redo_edit",
     }  # offerable = offered once allowed
 
 

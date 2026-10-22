@@ -1,23 +1,30 @@
-// The Issues and Edits dock panels (registered like a plugin's, in every workspace), and the active network's pending
-// edits and live edit warnings (GET /edits), kept in `store.edits`; the Edits panel: pending edits, Undo, and Save a
-// copy. Notes and table names are data: every one is escaped.
+// The Edit and Validate dock panels (registered like a plugin's, in every workspace), and the active network's pending
+// edits and live edit warnings (GET /edits), kept in `store.edits`; the Edit panel: pending edits, Undo and Redo
+// (Save a copy is the header's Save dialog, savedialog.js), the edit warnings (issues.js renders them) and "Save
+// selection as card…", live only while the project-cards plugin's Cards panel is registered. Notes and table names
+// are data: every one is escaped.
 import { dispatch, getJSON, netPath } from "./api.js";
+import { commandContext, runCommand } from "./commands.js";
 import { $, esc, toast } from "./dom.js";
-import { dirtyBadge, editsBadge, pendingLine, savedText, savePrompt, undoBlocked, validatedText } from "./editmodel.js";
-import { createFileBrowser } from "./filebrowser.js";
+import { dirtyBadge, editsBadge, pendingLine, redoBlocked, undoBlocked, validatedText } from "./editmodel.js";
+import { hub } from "./hub.js";
 import { issuesBadge } from "./issuelist.js";
-import { ALL_WORKSPACES, CORE } from "./slots.js";
+import { ALL_WORKSPACES, CORE, slots } from "./slots.js";
 import { store } from "./store.js";
-import { addPanel } from "./workspaces.js";
+import { addPanel, showPanel } from "./workspaces.js";
 
-let seq = 0, feedKey = null, saver = null;
+// The project-cards plugin's panel (a bare id core reserves for it: slots.js RESERVED_IDS) and its command that
+// starts a card change from the selection.
+const CARDS_PANEL = "cards", NEW_CARD_CHANGE = "project_cards.new_roadway_property_change";
+
+let seq = 0, feedKey = null;
 const fail = e => toast(e.message);
 const activeId = () => { const s = store.get().server; return s && s.active; };
 
 // Badges read the server state (ctx.state), so the dock refreshes them on every state event.
 export function registerEditPanels() {
-  addPanel(CORE, { id: "issues", title: "Issues", workspace: ALL_WORKSPACES, order: 10, badge: c => issuesBadge(c.state) });
-  addPanel(CORE, { id: "edits", title: "Edits", workspace: ALL_WORKSPACES, order: 20, badge: c => editsBadge(c.state) });
+  addPanel(CORE, { id: "edit", title: "Edit", workspace: ALL_WORKSPACES, order: 20, badge: c => editsBadge(c.state) });
+  addPanel(CORE, { id: "validate", title: "Validate", workspace: ALL_WORKSPACES, order: 30, badge: c => issuesBadge(c.state) });
 }
 
 export async function loadEdits() {
@@ -36,15 +43,23 @@ export function onEditsState(server) {
   loadEdits().catch(e => toast(e.message));
 }
 
+// An icon button is enabled, or disabled with the reason as its tooltip.
+function setBlocked(id, reason, tip) {
+  const b = $(id);
+  b.disabled = Boolean(reason);
+  b.dataset.tip = reason || tip;
+}
+
 // The Edits panel: pending edits (newest first), why Undo is unavailable, dirty state and the save controls. The
 // panel's tab badge comes from editsBadge (registered in registerEditPanels).
 export function renderEdits(edits) {
   const e = edits && edits.net_id === activeId() ? edits : null;
   const why = undoBlocked(e);
-  $("ed-undo").disabled = Boolean(why);
+  setBlocked("ed-undo", why, "Undo last edit");
+  setBlocked("ed-redo", redoBlocked(e), "Redo");
   $("ed-undo-why").textContent = e && e.pending ? why : "";
   const parts = e ? [dirtyBadge(e) || (e.pending ? "Every edit is in a saved copy." : ""),
-    e.warnings.length ? `${e.warnings.length} open warning(s): see Issues.` : "",
+    e.warnings.length ? `${e.warnings.length} open warning(s): see Edit warnings below.` : "",
     e.check_failed ? "The live check failed: run validation." :
       e.truncated ? "The live check was cut short: run validation." : ""] : [];
   $("ed-status").textContent = parts.filter(Boolean).join(" · ");
@@ -54,66 +69,58 @@ export function renderEdits(edits) {
     : '<span class="empty">No edits yet. Click a row, then a cell, to edit it; or fix an issue.</span>';
 }
 
-// Jobs this tab started and reports on when they end (job id → action), and recently ended jobs, for a job that
-// ends before its dispatch resolves.
+// Jobs this tab started and reports on when they end (job id → {action, onEnd}), and recently ended jobs, for a
+// job that ends before its dispatch resolves.
 const mine = new Map(), ended = new Map();
 
-// Dispatch a job action (save_network, run_validation) and report its outcome here when it ends.
-export async function dispatchJob(action) {
+// A validation ended: say what it found, or that a newer one overtook it.
+function onValidationEnded(job) {
+  if (job.status !== "done") return;
+  const text = validatedText(job.result);
+  if (text) toast(text, "info");
+}
+
+// Dispatch a job action (run_validation here; a save from the Save dialog) and call `onEnd(job, action)` when it
+// ends.
+export async function dispatchJob(action, onEnd = onValidationEnded) {
   const r = await dispatch(action);
   const id = r && r.job_id;
   if (!id) return r;
-  mine.set(id, action);
+  mine.set(id, { action, onEnd });
   if (ended.has(id)) onEditJob(ended.get(id));
   return r;
 }
 
-// A job ended: a save's result (where, and what was or was not marked saved), a refused save's confirmation (save
-// anyway, explicitly), and a validation that a newer one overtook.
+// A job ended: hand it to whoever dispatched it from this tab.
 export function onEditJob(job) {
   if (job.status === "running") return;
   ended.set(job.id, job);
   if (ended.size > 20) ended.delete(ended.keys().next().value);
-  const action = mine.get(job.id);
-  if (!action) return;
+  const tracked = mine.get(job.id);
+  if (!tracked) return;
   mine.delete(job.id);
-  if (action.type === "run_validation" && job.status === "done") {
-    const text = validatedText(job.result);
-    if (text) toast(text, "info");
-  } else if (action.type === "save_network" && job.status === "done") {
-    toast(savedText(job.result), "info");
-  } else if (action.type === "save_network" && job.status === "failed" && job.payload && "check_failed" in job.payload) {
-    const prompt = savePrompt(job.payload);
-    if (prompt && window.confirm(prompt)) dispatchJob({ ...action, accept_warnings: true }).catch(fail);
-  }
+  tracked.onEnd(job, tracked.action);
 }
 
-// Save a copy into `folder`. Open warnings, or a live check that failed or stopped early, are confirmed first, and
-// saving anyway is an explicit, recorded choice. The server checks again, so a refusal is confirmed then too.
-function save(folder) {
-  const e = store.get().edits;
-  const action = { type: "save_network", output_dir: folder, name: $("ed-save-name").value.trim(),
-    output_format: $("ed-save-format").value };
-  const prompt = savePrompt(e && e.net_id === activeId() ? e : null);
-  if (prompt) {
-    if (!window.confirm(prompt)) return;
-    action.accept_warnings = true;
-  }
-  toast("Saving a copy… (see Jobs)", "info");
-  dispatchJob(action).catch(fail);
+// "Save selection as card…": the plugin's new-change command when it applies (it needs a selection), else just its
+// Cards panel. Enabled only while a panel with the reserved id is registered.
+function saveAsCard() {
+  const command = slots.commands.get(NEW_CARD_CHANGE), s = store.get();
+  const ctx = commandContext({ server: s.server, focus: s.focus, highlights: s.highlights, workspace: s.workspace });
+  if (command && (!command.when || command.when(ctx))) runCommand(command, ctx, (c, e) => fail(e));
+  else showPanel(CARDS_PANEL);
+}
+
+function syncCardButton(ids) {
+  const on = ids.includes(CARDS_PANEL), b = $("ed-card");
+  b.disabled = !on;
+  b.dataset.tip = on ? "Start a project card change from the selection" : "Needs the project-cards plugin";
 }
 
 export function wireEdits() {
   $("ed-undo").onclick = () => dispatch({ type: "undo_edit" }).catch(fail);
-  $("ed-save").onclick = () => {
-    if (!$("ed-save-name").value.trim()) { toast("Name the copy first."); $("ed-save-name").focus(); return; }
-    const fb = $("ed-save-fb");
-    fb.hidden = !fb.hidden;
-    $("ed-save").setAttribute("aria-expanded", String(!fb.hidden));
-    if (fb.hidden) return;
-    saver ||= createFileBrowser(fb, { kinds: [], pickFolder: true, onPick: entry => {
-      fb.hidden = true; $("ed-save").setAttribute("aria-expanded", "false"); save(entry.path);
-    } });
-    saver.show();
-  };
+  $("ed-redo").onclick = () => dispatch({ type: "redo_edit" }).catch(fail);
+  $("ed-card").onclick = saveAsCard;
+  hub.on("core.panels", syncCardButton);
+  syncCardButton(slots.panels.list().map(p => p.id));
 }

@@ -1,12 +1,15 @@
-// Issues panel: the live edit warnings, then validation: run it (a background job), list issues by filter, and link
-// issue <-> map marker <-> row. The list, markers and report are read-only views of the last RunValidation and of
-// GET /edits; nothing here is recorded. The markers are a core layer in the layer registry ("Issues" in Overlays).
-// Issue messages quote data values: every one goes through esc().
+// The Validate panel: run validation (a background job), list its findings by filter (repeated structural findings
+// folded into one row each: issuegroups.js), and link finding <-> map marker <-> row, with an explicit Zoom to on
+// each located finding; plus the live edit warnings the Edit panel shows. The list, markers and report are read-only
+// views of the last RunValidation and of GET /edits; nothing here is recorded. The markers are a core layer in the
+// layer registry ("Issues" in Overlays). Issue messages quote data values: every one goes through esc().
 import { getJSON, netPath } from "./api.js";
 import { $, esc, toast } from "./dom.js";
 import { runCore } from "./editcmds.js";
+import { icon } from "./icons.js";
+import { groupIssues, groupSummary, located } from "./issuegroups.js";
 import { SEVERITIES, SEVERITY_RGB, issueMeta, issuesQuery, markerPoints, rangeLabel, statusLine } from "./issuelist.js";
-import { addLayer, flyTo } from "./map.js";
+import { addLayer, fitLinks, flyTo, flyToNode } from "./map.js";
 import { CORE } from "./slots.js";
 import { store } from "./store.js";
 import { jumpTo, tableVisible } from "./table.js";
@@ -35,7 +38,9 @@ export function reloadIssues({ restart = false } = {}) {
 function renderStatus(meta) {
   const id = activeId(), current = Boolean(meta && !meta.stale && id);
   $("iss-status").textContent = statusLine(meta);
-  $("iss-run").textContent = meta && meta.stale ? "Re-run validation" : "Run validation";
+  const run = $("iss-run"), label = meta && meta.stale ? "Re-run validation" : "Run validation";
+  run.dataset.tip = label;
+  run.setAttribute("aria-label", label);
   const report = $("iss-report");
   report.classList.toggle("off", !current);
   report.setAttribute("aria-disabled", String(!current));
@@ -70,10 +75,11 @@ function fix(target) {
   runCore("fix_issue");
 }
 
-// Focus a record: in the table too when it shows (switching to the record's table), else on the map and in Details.
+// Focus a record from this panel: in the table too when it shows (switching to the record's table), on the map and
+// in Inspect's details; the panel itself stays in front (from: "panel").
 function focusRecord(table, id) {
-  if (tableVisible()) jumpTo(table, id).catch(fail);
-  else store.set({ focus: { table, id, from: "table" } });
+  if (tableVisible()) jumpTo(table, id, "panel").catch(fail);
+  else store.set({ focus: { table, id, from: "panel" } });
 }
 
 // Enter or Space on a focused list row does what a click does.
@@ -88,7 +94,7 @@ export function renderEditWarnings(edits) {
     `<div class="iss sev-warning" data-w="${k}" tabindex="0"><span class="sev-dot" aria-hidden="true"></span><div class="iss-body">` +
     `<div><b>${esc(w.code)}</b> <span class="diag">${esc(w.table)} ${esc(w.key)}${w.column ? ` · ${esc(w.column)}` : ""}</span></div>` +
     `<div class="iss-msg">${esc(w.message)}</div></div><button class="mini ghost iss-fix">Fix</button></div>`).join("")
-    : '<span class="empty">No edit warnings.</span>';
+    : "";  // the count beside the label says there are none
   for (const row of $("iss-edit").querySelectorAll(".iss")) {
     const w = list[Number(row.dataset.w)], target = { table: w.table, id: w.key, column: w.column, note: w.message };
     const pick = () => { store.set({ fixTarget: target }); focusRecord(w.table, w.key); };
@@ -120,13 +126,13 @@ async function loadList() {
   ]);
   if (mine !== seq) return;
   renderFacets(page.facets, f);
-  $("iss-list").innerHTML = page.issues.map(issueHTML).join("") || '<span class="empty">No issues match.</span>';
+  $("iss-list").innerHTML = listHTML(page.issues, "iss-list") || '<span class="empty">No issues match.</span>';
   $("iss-range").textContent = rangeLabel(offset, page.issues.length, page.total);
   $("iss-prev").disabled = offset <= 0;
   $("iss-next").disabled = offset + PAGE >= page.total;
   $("iss-unloc-count").textContent = unlocated.total;
   const more = unlocated.total - unlocated.issues.length;
-  $("iss-unlocated").innerHTML = unlocated.issues.map(issueHTML).join("") + (more > 0 ? `<div class="empty">and ${more} more</div>` : "");
+  $("iss-unlocated").innerHTML = listHTML(unlocated.issues, "iss-unlocated") + (more > 0 ? `<div class="empty">and ${more} more</div>` : "");
   wireRows($("iss-list"), page.issues);
   wireRows($("iss-unlocated"), unlocated.issues);
   markFocusedIssue();
@@ -145,22 +151,61 @@ function renderFacets(facets, f) {
 
 function issueHTML(i) {
   const where = i.key != null ? `${i.table} ${i.key}` : i.table || "";
+  const zoom = located(i) ? `<button class="iconbtn iss-zoom" data-tip="Zoom to" aria-label="${esc(zoomLabel(i, where))}">` +
+    `${icon("crosshair", { size: 14 })}</button>` : "";
   const button = i.fixable ? `<button class="mini ghost iss-fix">Fix</button>` : "";
   return `<div class="iss sev-${esc(i.severity)}" data-i="${esc(i.i)}" tabindex="0"><span class="sev-dot" aria-hidden="true"></span>` +
     `<div class="iss-body"><div><b>${esc(i.code)}</b> <span class="diag">${esc(where)}${i.column ? ` · ${esc(i.column)}` : ""}</span></div>` +
-    `<div class="iss-msg">${esc(i.message)}</div>${i.fix_hint ? `<div class="diag">${esc(i.fix_hint)}</div>` : ""}</div>${button}</div>`;
+    `<div class="iss-msg">${esc(i.message)}</div>${i.fix_hint ? `<div class="diag">${esc(i.fix_hint)}</div>` : ""}</div>${zoom}${button}</div>`;
+}
+
+const zoomLabel = (i, where) => `Zoom to ${i.code}${where ? ` on ${where}` : ""}`;
+
+// A page of findings: a group of repeated structural findings is one collapsed row (▸ code (n), its summary) that
+// expands to its members; everything else is its own row. `prefix` (the list's id) keeps the group ids unique
+// across the located and unlocated lists.
+function listHTML(issues, prefix) {
+  return groupIssues(issues).map((g, k) => {
+    if (!g.group) return issueHTML(g.issue);
+    const id = `${prefix}-grp-${k}`;
+    return `<div class="iss grp sev-${esc(g.severity)}" data-g="${k}" tabindex="0" role="button" aria-expanded="false" aria-controls="${id}">` +
+      `<span class="sev-dot" aria-hidden="true"></span><div class="iss-body"><div><span class="iss-tog" aria-hidden="true">▸</span> ` +
+      `<b>${esc(g.code)}</b> <span class="pcount">${esc(g.count)}</span></div><div class="iss-msg">${esc(groupSummary(g))}</div></div></div>` +
+      `<div class="iss-members" id="${id}" hidden>${g.issues.map(issueHTML).join("")}</div>`;
+  }).join("");
+}
+
+function toggleGroup(row) {
+  const members = document.getElementById(row.getAttribute("aria-controls")), open = members.hidden;
+  members.hidden = !open;
+  row.setAttribute("aria-expanded", String(open));
+  row.querySelector(".iss-tog").textContent = open ? "▾" : "▸";
+}
+
+// Zoom the map to a finding's anchor (a link, a node, or a coordinate) without changing the focus.
+function zoomTo(issue) {
+  const a = issue.anchor || {};
+  if (a.link != null) fitLinks([a.link]);
+  else if (a.node != null) flyToNode(a.node);
+  else if (a.lonlat) flyTo(a.lonlat[0], a.lonlat[1]);
 }
 
 const fixTargetOf = i => (i.fixable ? { table: i.table, id: i.key, column: i.column, note: `${i.code}: ${i.message}` } : null);
 
 function wireRows(el, issues) {
   const byI = new Map(issues.map(i => [String(i.i), i]));
-  for (const row of el.querySelectorAll(".iss")) {
+  for (const row of el.querySelectorAll(".iss.grp")) {
+    row.onclick = () => toggleGroup(row);
+    onRowKey(row, () => toggleGroup(row));
+  }
+  for (const row of el.querySelectorAll(".iss[data-i]")) {
     const issue = byI.get(row.dataset.i);
-    row.onclick = e => { if (!e.target.closest(".iss-fix")) selectIssue(issue); };
+    row.onclick = e => { if (!e.target.closest(".iss-fix, .iss-zoom")) selectIssue(issue); };
     onRowKey(row, () => selectIssue(issue));
     const button = row.querySelector(".iss-fix");
     if (button) button.onclick = () => fix(fixTargetOf(issue));
+    const zoom = row.querySelector(".iss-zoom");
+    if (zoom) zoom.onclick = () => { store.set({ issueFocus: issue.i }); zoomTo(issue); };
   }
 }
 
@@ -175,9 +220,9 @@ function selectIssue(issue) {
   else if (a.lonlat) flyTo(a.lonlat[0], a.lonlat[1]);
 }
 
-// A marker clicked on the map: open the Issues panel filtered to that record, with the issue marked.
+// A marker clicked on the map: open the Validate panel filtered to that record, with the issue marked.
 export function onIssueMarker(m) {
-  showPanel("issues");
+  showPanel("validate");
   const patch = { issueFocus: m.i };
   if (m.key != null) {
     patch.focus = { table: m.table, id: m.key, from: "map" };
@@ -188,10 +233,13 @@ export function onIssueMarker(m) {
 
 export function markFocusedIssue() {
   const i = store.get().issueFocus;
-  for (const row of document.querySelectorAll("#dock-issues .iss[data-i]")) {
+  for (const row of document.querySelectorAll("#dock-validate .iss[data-i]")) {
     const on = row.dataset.i === String(i);
     row.classList.toggle("on", on);
-    if (on) row.scrollIntoView({ block: "nearest" });
+    if (!on) continue;
+    const members = row.closest(".iss-members");
+    if (members && members.hidden) toggleGroup(document.querySelector(`[aria-controls="${members.id}"]`));
+    row.scrollIntoView({ block: "nearest" });
   }
 }
 

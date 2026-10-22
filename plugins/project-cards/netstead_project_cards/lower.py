@@ -29,6 +29,7 @@ from .errors import CardError, CardNotSupported, not_supported
 from .mapping import load_mapping
 from .types import (
     TRANSIT_TYPES,
+    UNRESOLVED_QUERY,
     NetworkChange,
     PropertyChange,
     RoadwayAddition,
@@ -129,7 +130,8 @@ def apply_change(host: Host, net_id: str, change: NetworkChange) -> Applied:
     missing id refuses the change.
 
     Raises:
-        CardNotSupported: a transit change, or an added record field with no column in the network.
+        CardNotSupported: a transit change, a query selection without provenance (:data:`UNRESOLVED_QUERY`), or an
+            added record field with no column in the network.
         CardError: an incomplete change, a conflict with ``existing``, a missing record or column, a node still in
             use, a network that changed between reading it and planning, or anything core's planner refuses.
         ActionError: (the Workbench's, from ``host.mutate``) the network changed between planning and the mutation.
@@ -146,7 +148,12 @@ def describe(change: Any) -> str:
     """A short description of ``change``, for the lineage, the Edits panel and the draft card's list."""
     if isinstance(change, RoadwayPropertyChange):
         sel = change.facility
-        target = f"{sel.table} {few(sel.target_ids())}" if sel is not None else "the selection"
+        if sel is None:
+            target = "the selection"
+        elif sel.unresolved:
+            target = "links matching a query (unresolved)"
+        else:
+            target = f"{sel.table} {few(sel.target_ids())}"
         parts = [f"{name} {_what(pc)}" for name, pc in change.property_changes.items()]
         return f"roadway_property_change {target}: {', '.join(parts)}"
     if isinstance(change, RoadwayDeletion):
@@ -263,6 +270,10 @@ def _groups(
 
 def _property_change(host: Host, net_id: str, change: RoadwayPropertyChange, note: str) -> Applied:
     sel = change.facility
+    if sel is None:  # apply_change refused it already (incomplete); said again here for the type checker
+        raise CardError(incomplete(change) or "a roadway_property_change needs a facility")
+    if sel.unresolved:
+        raise CardNotSupported(UNRESOLVED_QUERY)
     pk = KEYS[sel.table]
     version = host.network(net_id).version  # before the frame: it decides the conflicts and the deltas
     frame = _frame(host, net_id, sel.table)

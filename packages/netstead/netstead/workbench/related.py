@@ -32,6 +32,7 @@ __all__ = [
     "Relation",
     "RelationGraph",
     "count",
+    "field_enums",
     "foreign_keys",
     "ids_of",
     "primary_keys",
@@ -107,6 +108,18 @@ def _schemas(spec: Any) -> dict[str, Any]:
         for r in spec.resources
         if r.table_schema is not None and not isinstance(r.table_schema, str)
     }
+
+
+def field_enums(spec: Any, table: str) -> dict[str, list[Any]]:
+    """``column -> allowed values`` for the fields of ``table`` that the spec constrains with an ``enum``.
+
+    Shared categories are already inlined into ``constraints.enum`` by the spec loader. Empty for a
+    table the spec does not describe.
+    """
+    schema = _schemas(spec).get(table)
+    if schema is None:
+        return {}
+    return {f.name: list(f.constraints.enum) for f in schema.fields if f.constraints is not None and f.constraints.enum}
 
 
 def foreign_keys(spec: Any, columns: Mapping[str, Sequence[str]], *, self_refs: bool = False) -> list[ForeignKey]:

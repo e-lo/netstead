@@ -8,6 +8,7 @@ import { editSummary, undoBlocked } from "./editmodel.js";
 import { dispatchJob } from "./edits.js";
 import { deleteRecord, openFixEditor } from "./fixeditor.js";
 import { recordIssues } from "./issuelist.js";
+import { openSaveDialog } from "./savedialog.js";
 import { detailsSettled } from "./side.js";
 import { CORE, slots } from "./slots.js";
 import { store } from "./store.js";
@@ -38,7 +39,7 @@ function recordFixTarget(t) {
 
 // Focus the record (Details shows it), then open the record editor in Details.
 async function editRecord(table, id) {
-  showPanel("details");
+  showPanel("inspect");
   const f = store.get().focus;
   if (!f || f.table !== table || f.id !== id) store.set({ focus: { table, id, from: "table" } });
   await detailsSettled();
@@ -48,15 +49,15 @@ async function editRecord(table, id) {
 
 export function registerEditCommands() {
   add({ id: "run_validation", group: "Issues", title: "Run validation", when: c => Boolean(c.network),
-    run: () => { showPanel("issues"); return dispatchJob({ type: "run_validation" }); } });
+    run: () => { showPanel("validate"); return dispatchJob({ type: "run_validation" }); } });
   add({ id: "fix_issue", group: "Issues", title: "Fix the picked issue…", when: () => Boolean(store.get().fixTarget),
-    run: () => { showPanel("issues"); return openFixEditor($("iss-fixer"), store.get().fixTarget); } });
+    run: () => { showPanel("validate"); return openFixEditor($("iss-fixer"), store.get().fixTarget); } });
   // The only core context-menu command (R8): on a record with an issue, focus it, filter Issues to it, and fix.
   // The record is already in view (it was right-clicked, or is focused), so the focus does not move the map.
   add({ id: "fix_record", title: "Fix…", contexts: ["feature", "row"], when: c => Boolean(recordFixTarget(c.target)),
     run: c => {
       const { table, id } = c.target;
-      store.set({ fixTarget: recordFixTarget(c.target), focus: { table, id, from: "map" },
+      store.set({ fixTarget: recordFixTarget(c.target), focus: { table, id, from: "panel" },
         issueFilter: { ...store.get().issueFilter, thisRecord: true } });
       runCore("fix_issue");
     } });
@@ -67,6 +68,5 @@ export function registerEditCommands() {
     run: c => deleteRecord(c.focus.table, c.focus.id) });
   add({ id: "undo_edit", group: "Edits", title: "Undo last edit", when: c => !undoBlocked(editSummary(c.state)),
     run: () => dispatch({ type: "undo_edit" }) });
-  add({ id: "save_copy", group: "Edits", title: "Save a copy…", when: c => Boolean(c.network),
-    run: () => { showPanel("edits"); $("ed-save-name").focus(); } });
+  add({ id: "save_copy", group: "Edits", title: "Save a copy…", when: c => Boolean(c.network), run: () => openSaveDialog() });
 }
