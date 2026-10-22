@@ -34,15 +34,16 @@ const slots = createSlots(), hub = createHub(), calls = [], panels = [];
 const drafts = { base: { count: 2, project: "", changes: [] } };
 const preview = { net_id: "base-2", base: "base", describe: "x", stale: false };
 const server = { networks: [], active: "base", selection: null,
-                 plugins: { project_cards: { drafts, preview: null } } };
+                 plugins: { project_cards: { drafts, preview: null, catalog: null, applied: [] } } };
 const store = createStore({ server });
 const deps = {
-  hostApi: "1.6", store, activeSelection, events: hub, actionTypes: new Set(), actionSchema: () => null,
+  hostApi: "1.7", store, activeSelection, events: hub, actionTypes: new Set(), actionSchema: () => null,
   frozenCopy: x => JSON.parse(JSON.stringify(x)),
   getJSON: async p => { calls.push(["get", p]);
     return p.includes("transit") ? { supported: false, message: "transit_routing_change is not yet supported" }
                                  : { supported: true, existing: {}, targets: { label: "2 picked links" } }; },
-  postJSON: async () => ({}), fetch: async () => ({}),
+  postJSON: async () => ({}),
+  fetch: async p => { calls.push(["fetch", p]); return { ok: true, text: async () => "SUMMARY TEXT" }; },
   dispatch: async a => { calls.push(["dispatch", a.type, ...(a.net_id ? [a.net_id] : [])]); return {}; },
   addCommand: (owner, spec) => slots.addCommand(owner, spec), layers: createLayerRegistry(),
   dock: { addWorkspace: (o, s) => slots.addWorkspace(o, s),
@@ -158,6 +159,7 @@ const walk = el => [el, ...el.children.filter(c => c instanceof El).flatMap(walk
 const find = (root, tag, text) =>
   walk(root).find(e => e.tagName === tag && (text === undefined || e.textContent === text));
 const button = (root, text) => find(root, "BUTTON", text);
+const elById = (root, id) => walk(root).find(e => e.id === id);
 """
 
 PANEL_HARNESS = (
@@ -171,8 +173,24 @@ PANEL_HARNESS = (
         "getJSON: async p => {",
         """getJSON: async p => { if (p.includes("commit-check")) {
       return { net_id: "base", warnings: [{ table: "link", key: 3, message: "x" }], problems: [], yaml: "" }; }
+    if (p.includes("/catalog")) return LISTING;
     if (p.includes("roadway")) return { supported: true, net_id: "base", existing: {}, targets: { label: "2" },
                                          columns: {}, options: {} };""",
+    )
+    .replace(
+        "const slots = createSlots()",
+        """const CHECKS = {
+  good: { ok: true, net_id: "base", version: 1,
+          changes: [{ describe: "lanes on 2 links", resolved: 2, missing: [], reason: null }] },
+  bad: { ok: false, net_id: "base", version: 1,
+         changes: [{ describe: "lanes on 3 links", resolved: 2, missing: [999999], reason: null }] },
+};
+const entry = (card_id, project, applicability) => ({ card_id, path: `/cards/${card_id}`, project, tags: ["t"],
+                                                      change_count: 1, applicability });
+const CATALOG = { path: "/cards", rejected: [{ card_id: "notes.yml", path: "/cards/notes.yml", error: "not a card" }],
+                  cards: [entry("good.yml", "Good", null), entry("bad.yml", "Bad", null)] };
+const LISTING = { ...CATALOG, cards: [entry("good.yml", "Good", CHECKS.good), entry("bad.yml", "Bad", CHECKS.bad)] };
+const slots = createSlots()""",
     )
     .replace("schemaForm: () => ({ value: () => ({}),", "schemaForm: () => ({ value: () => ({ lanes: 3 }),")
     + FAKE_DOM
@@ -190,7 +208,9 @@ const got = {};
 
 // 1. An unsupported command leaves the open form on screen, and working.
 await byId["project_cards.new_roadway_property_change"].run(two);  // the first show draws the panel
-const [compose, , draftBox, commitBox, status, dialog] = root.children;
+const [compose, draftBox, commitBox, status] =
+  ["pc-compose", "pc-draft", "pc-commit", "pc-status"].map(id => elById(root, id));
+const dialog = find(root, "DIALOG");
 await byId["project_cards.new_transit_routing_change"].run(two);
 got.formKept = compose.textContent.startsWith("New change: Property change");
 await button(compose, "Preview").onclick();
@@ -250,7 +270,50 @@ got.outdated = [...shown(), document.activeElement.textContent];
 const read = deps.getJSON, reads = [];
 deps.getJSON = p => { reads.push(p); return read(p); };
 await button(compose, "Reload form").onclick();
-got.reloaded = [reads, ...shown()];
+got.reloaded = [[...reads], ...shown()];
+
+// 8. The four sections, in order; the catalog lists its cards with badges once the listing is read.
+got.sections = root.children.filter(e => e.tagName === "H3").map(e => e.textContent);
+const catalogBox = elById(root, "pc-catalog"), appliedBox = elById(root, "pc-applied");
+got.noCatalog = catalogBox.textContent.includes("No catalog open");
+const applied = [{ card_id: "lanes", net_id: "base", path: "cards/lanes.yml", project: "Lanes",
+                   applied_at: "2026-10-21T09:05:00+00:00", changes: 2, source: "committed", edit_ids: [1, 2] }];
+setServer({ plugins: { project_cards: { drafts: {}, preview: null, catalog: CATALOG, applied } } });
+const settle = () => new Promise(r => setTimeout(r, 0));
+await settle(); await settle();  // the listing is read after the store change
+const cards = walk(catalogBox).filter(e => e.getAttribute("data-card"));
+got.cards = cards.map(c => [c.getAttribute("data-card"), find(c, "SPAN").getAttribute("data-badge"),
+                            find(c, "SPAN").getAttribute("title")]);
+got.catalogLine = elById(root, "pc-catalog-line").textContent;
+got.rejected = find(catalogBox, "SUMMARY", "Not cards (1)") !== undefined;
+got.applied = walk(appliedBox).filter(e => e.tagName === "LI").map(e => e.textContent);
+
+// 9. Apply… on a ✗ card opens the options dialog with ignore_missing checked; Apply dispatches apply_card.
+await button(cards[1], "Apply…").onclick();
+const ignore = elById(dialog, "pc-ignore"), conflict = elById(dialog, "pc-conflict");
+got.applyDialog = [dialog.open, ignore.checked, conflict.value, find(dialog, "H3").textContent];
+await button(dialog, "Apply").onclick();
+const applyAction = calls.find(c => c[0] === "dispatch" && c[1] === "project_cards.apply_card");
+got.applied2 = [dialog.open, Boolean(applyAction), status.textContent.startsWith("Applied")];
+await button(cards[0], "Apply…").onclick();
+got.applyGood = [dialog.open, elById(dialog, "pc-ignore").checked];
+dialog.close();
+
+// 10. Preview highlights the card's links through wb.highlight; closing the preview clears them.
+hub.emit("project_cards.card_selection", { card_id: "good.yml", links: [1, 2], nodes: [] });
+setServer({ plugins: { project_cards: { drafts: {}, preview: { net_id: "base-2", base: "base", describe: "card",
+  stale: false }, catalog: CATALOG, applied } } });
+got.highlighted = [...store.get().highlights];
+got.backLine = Boolean(button(elById(root, "pc-preview"), "Back to the network"));
+setServer({ plugins: { project_cards: { drafts: {}, preview: null, catalog: CATALOG, applied } } });
+got.cleared = [...store.get().highlights];
+
+// 11. Copy reads the summary route and writes it to the clipboard.
+const copied = [];
+Object.defineProperty(globalThis, "navigator", { value: { clipboard: { writeText: async t => copied.push(t) } },
+                                                  configurable: true });
+await find(elById(root, "pc-summary"), "BUTTON", "⎘").onclick();
+got.copied = [copied, calls.filter(c => c[0] === "fetch").map(c => c[1]), status.textContent];
 got.errors = calls.filter(c => c[0] === "error");
 console.log(JSON.stringify(got));
 """
@@ -275,6 +338,25 @@ def test_the_panel_under_a_fake_dom(run_js):
     assert got["outdated"] == [True, True, True, True, "Reload form"]  # focus left the now disabled Add
     reread = ["/api/plugins/project_cards/form?type=roadway_property_change&use_selection=true"]
     assert got["reloaded"] == [reread, False, False, False, False]
+    # The catalog, applied and summary sections.
+    assert got["sections"] == ["Catalog", "Draft", "Applied this session", "Session summary"]
+    assert got["noCatalog"] is True
+    assert got["cards"] == [
+        ["good.yml", "✓", "Applies to base"],
+        ["bad.yml", "✗", "lanes on 3 links: missing 999999"],
+    ]
+    assert got["catalogLine"] == "/cards" and got["rejected"] is True
+    assert got["applied"] == ["Lanes [committed] 2 change(s) on base at 09:05"]
+    assert got["applyDialog"] == [True, True, "error", 'Apply "Bad"']
+    assert got["applied2"] == [False, True, True]
+    assert got["applyGood"] == [True, False]
+    assert got["highlighted"] == [1, 2] and got["backLine"] is True
+    assert got["cleared"] == []
+    assert got["copied"] == [
+        ["SUMMARY TEXT"],
+        ["/api/plugins/project_cards/summary.txt?net_id=base"],
+        "Copied the session summary",
+    ]
 
 
 # The real addition form (from GET /form) through core's real schemaform.js: field parsing and formErrors as the
@@ -309,7 +391,7 @@ const { wb } = createWb("project_cards", deps);
 activate(wb);
 const byId = Object.fromEntries(slots.commands.list().map(c => [c.id, c]));
 await byId["project_cards.new_roadway_addition"].run({ selectionCount: 0, state: server, network: { id: "base" } });
-const [compose, , , , status] = root.children;
+const compose = elById(root, "pc-compose"), status = elById(root, "pc-status");
 const [link, node] = made;  // the link, node and options forms, in that order
 link.set({ ...link.value(), from_node_id: 1, to_node_id: 2, name: "New St", facility_type: "local", lanes: 1,
            allowed_uses: "all" });

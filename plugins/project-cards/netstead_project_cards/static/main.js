@@ -1,10 +1,14 @@
-// The project cards plugin's front end: the "Cards" dock panel (compose a change, preview it, the draft card's
-// changes, commit and import; its id is the bare `cards` core reserves for this plugin) and "New change ▸ …" commands. Everything goes through `wb` (see the cookbook page "Write a
-// Workbench plugin"); the flow lives in controller.js and the rules in cardmodel.js, both tested under node.
-// Card and user text is only ever set as text (`h`'s `text`, or a string child), never parsed as markup.
+// The project cards plugin's front end: the "Cards" dock panel (its id is the bare `cards` core reserves for this
+// plugin) and the "New change ▸ …" commands. The panel has four sections: the catalog (a folder of cards, each with
+// its applicability badge, previewed or applied), the draft card (compose a change, preview it, the draft's changes,
+// commit and import), the cards applied this session, and the session summary (copied or downloaded). Everything
+// goes through `wb` (see the cookbook page "Write a Workbench plugin"); the flow lives in controller.js and the rules
+// in cardmodel.js, both tested under node. Card and user text is only ever set as text (`h`'s `text`, or a string
+// child), never parsed as markup.
 import {
-  ROADWAY_TYPES, TRANSIT_TYPES, TYPE_TITLES, commitFields, commitView, draftBadge, draftNet, draftOf, hasNode,
-  importPath, needsSelection, openPreview, previewLine,
+  ROADWAY_TYPES, TRANSIT_TYPES, TYPE_TITLES, appliedRows, applyDefaults, catalogOf, catalogRows, commitFields,
+  commitView, draftBadge, draftNet, draftOf, hasNode, importPath, needsSelection, openPreview, previewLine,
+  summaryFileName,
 } from "./cardmodel.js";
 import { createController } from "./controller.js";
 
@@ -61,6 +65,7 @@ export function activate(wb) {
     render(el) {
       view = createView(wb, ctl, el);
       view.draw();
+      view.loadCatalog(); // the badges of a catalog opened before the panel first showed (the catalog_dir setting)
     },
     onShow: () => view && view.draw(),
   });
@@ -100,13 +105,30 @@ export function activate(wb) {
     run: ctx => ctl.undo({ netId: draftNet(ctx.state, ctxNet(ctx)) }),
   });
 
-  // Core redraws the badge on every server change; the panel follows the draft and the preview here.
-  wb.store.subscribe(["plugins.project_cards", "active"], () => {
+  // The links a previewed card aims at are highlighted on the map (the server publishes them with the preview) and
+  // cleared once the preview closes, whoever closed it (the panel, the palette, the assistant).
+  let cardShown = null;
+  const highlight = ids => { if (typeof wb.highlight === "function") wb.highlight(ids || {}); };
+  wb.on("card_selection", payload => {
+    cardShown = payload.card_id;
+    highlight({ links: payload.links || [], nodes: payload.nodes || [] });
+  });
+
+  // Core redraws the badge on every server change; the panel follows the draft, the preview and the catalog here.
+  wb.store.subscribe(["plugins.project_cards", "active"], state => {
     const stale = ctl.serverChanged();
+    const catalogMoved = ctl.catalogChanged();
+    if (cardShown && !openPreview(state)) {
+      cardShown = null;
+      highlight();
+    }
     if (!view) return;
     view.draw();
     if (stale) view.checkWentStale();
+    if (catalogMoved) view.loadCatalog(); // opened, refreshed, or a card's check dropped: fill the badges again
   });
+  // The server says when the catalog was (re)scanned or a card applied: the listing is read again either way.
+  for (const event of ["catalog", "applied"]) wb.on(event, () => view && view.loadCatalog());
   // A form read from the shared selection is outdated once it changes. Watched as the server's `selection`, not
   // wb.selection: that follows the active network, which opening (or closing) a preview changes.
   wb.store.subscribe(["selection"], () => {
@@ -115,16 +137,26 @@ export function activate(wb) {
 }
 
 function createView(wb, ctl, el) {
-  const composeBox = h("section");
-  const previewBox = h("section");
-  const draftBox = h("section");
-  const commitBox = h("section");
-  const status = h("p", { class: "muted", role: "status" });
+  const catalogBox = h("section", { id: "pc-catalog" });
+  const previewBox = h("section", { id: "pc-preview" });
+  const composeBox = h("section", { id: "pc-compose" });
+  const draftBox = h("section", { id: "pc-draft" });
+  const commitBox = h("section", { id: "pc-commit" });
+  const appliedBox = h("section", { id: "pc-applied" });
+  const summaryBox = h("section", { id: "pc-summary" });
+  const status = h("p", { class: "muted", role: "status", id: "pc-status" });
   const dialog = h("dialog", { "aria-labelledby": "pc-dialog-title" });
   // A native <dialog> (so its own closed state hides it), drawn like core's modal cards.
   dialog.style.cssText = "background:var(--panel);color:var(--ink);border:1px solid var(--edge);border-radius:12px;"
     + "padding:16px;width:min(760px, calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto";
-  el.append(composeBox, previewBox, draftBox, commitBox, status, dialog);
+  const heading = text => h("h3", { class: "label", style: "font-size:12px;margin:18px 0 6px", text });
+  el.append(
+    heading("Catalog"), catalogBox, previewBox,
+    heading("Draft"), composeBox, draftBox, commitBox,
+    heading("Applied this session"), appliedBox,
+    heading("Session summary"), summaryBox,
+    status, dialog,
+  );
 
   const say = text => { status.textContent = text; };
   const guard = fn => async () => {
@@ -312,9 +344,179 @@ function createView(wb, ctl, el) {
     );
   }
 
+  // ------------------------------------------------------------------------------------------------ the catalog
+
+  // The folder controls are drawn once (a redraw would wipe the path being typed); the listing is redrawn.
+  const catalogPath = h("input", { type: "text", id: "pc-catalog-path", placeholder: "folder of cards" });
+  const catalogLine = h("p", { class: "muted", id: "pc-catalog-line" });
+  const catalogList = h("div", { id: "pc-catalog-list" });
+  function drawCatalogControls() {
+    const open = act("mini", "Open", async () => {
+      const path = catalogPath.value.trim();
+      if (!path) { say("Give a folder of cards"); return; }
+      const result = await ctl.openCatalog(path);
+      say(`Opened ${result.path}: ${result.cards} card(s)`);
+    });
+    const refresh = h("button", { class: "iconbtn", "data-tip": "Rescan the folder", "aria-label": "Rescan the folder" },
+      "↻");
+    refresh.onclick = guard(() => busy([refresh], async () => {
+      const result = await ctl.refreshCatalog();
+      say(`Rescanned ${result.path}: ${result.cards} card(s)`);
+    }));
+    catalogPath.onkeydown = e => { if (e.key === "Enter") open.onclick(); };
+    catalogBox.append(
+      h("div", { style: "display:flex;gap:6px;align-items:center" }, catalogPath, open, refresh),
+      catalogLine, catalogList,
+    );
+  }
+
+  // A listing is read when one is open (the route checks unchecked cards, so the `?` badges fill in).
+  let loading = null;
+  function loadCatalog() {
+    if (loading) return loading;
+    loading = (async () => {
+      if (catalogOf(server())) {
+        try { await ctl.loadCatalog(baseNet()); } catch (e) { say(e.message); }
+      }
+      drawCatalog();
+    })().finally(() => { loading = null; });
+    return loading;
+  }
+
+  // The applicability rows a card's Details expand to.
+  function detailRows(row) {
+    const a = row.applicability;
+    if (!a) return [h("p", { class: "muted", text: "Not checked yet." })];
+    const list = h("ul");
+    for (const c of a.changes || []) {
+      const what = c.reason ? c.reason : c.missing && c.missing.length ? `missing ${c.missing.join(", ")}` : "";
+      list.append(h("li", { text: `${c.describe}: ${c.resolved} resolved${what ? `; ${what}` : ""}` }));
+    }
+    return [h("p", { class: "muted", text: `Checked on ${a.net_id}` }), list];
+  }
+
+  function cardRow(row) {
+    const tags = row.tags.length ? ` · ${row.tags.join(", ")}` : "";
+    const badge = h("span", {
+      class: "pc-badge", title: row.tip, "aria-label": row.tip, "data-badge": row.badge,
+      style: "display:inline-block;width:1.4em;font-weight:700", text: row.badge,
+    });
+    const preview = act("mini", "Preview", async () => {
+      const result = await ctl.previewCard(row.card_id, baseNet());
+      say(`Previewing ${row.card_id} on ${result.preview}`);
+    });
+    const apply = act("mini", "Apply…", () => openApplyDialog(row));
+    const details = h("details", {}, h("summary", { class: "muted", text: "Details" }), ...detailRows(row));
+    return h("div", { class: "pc-card", "data-card": row.card_id, style: "margin:6px 0 8px" },
+      h("div", {}, badge, " ", h("strong", { text: row.project }),
+        h("span", { class: "muted", text: ` · ${row.changes} change(s)${tags}` })),
+      h("div", { style: "margin:4px 0 0 1.4em" }, preview, " ", apply),
+      details,
+    );
+  }
+
+  function drawCatalog() {
+    const listing = ctl.catalog();
+    if (!listing) {
+      catalogLine.textContent = "";
+      redraw(catalogList, [h("p", { class: "empty", tabindex: -1, text: "No catalog open: open a folder of cards." })]);
+      return;
+    }
+    catalogLine.textContent = listing.path;
+    const rows = catalogRows(server(), listing);
+    const nodes = rows.length ? rows.map(cardRow) : [h("p", { class: "empty", tabindex: -1, text: "No cards in this folder." })];
+    const rejected = listing.rejected || [];
+    if (rejected.length) {
+      nodes.push(h("details", {}, h("summary", { class: "muted", text: `Not cards (${rejected.length})` }),
+        h("ul", {}, ...rejected.map(r => h("li", { class: "muted", text: `${r.card_id}: ${r.error}` })))));
+    }
+    redraw(catalogList, nodes);
+  }
+
+  // The options apply_card takes, then the card goes to the network (all or nothing); a refusal shows in the dialog.
+  function openApplyDialog(row) {
+    const defaults = applyDefaults(row);
+    const conflict = h("select", { id: "pc-conflict" },
+      ...["error", "warn", "skip"].map(v => h("option", { value: v, text: v })));
+    conflict.value = defaults.existing_value_conflict;
+    const ignore = h("input", { type: "checkbox", id: "pc-ignore", checked: defaults.ignore_missing });
+    const note = h("p", { role: "status" });
+    const apply = h("button", { class: "mini" }, "Apply");
+    const cancel = h("button", { class: "mini ghost", onclick: () => dialog.close() }, "Cancel");
+    apply.onclick = async () => {
+      try {
+        const options = { existing_value_conflict: conflict.value, ignore_missing: ignore.checked };
+        const result = await busy([apply, cancel], () => ctl.applyCard(row.card_id, options, baseNet()));
+        dialog.close();
+        say(`Applied ${result.card_id}: ${result.changes} change(s) on ${result.net_id}`);
+        draw();
+      } catch (e) {
+        note.textContent = e.message;
+      }
+    };
+    dialog.replaceChildren(
+      h("h3", { id: "pc-dialog-title", text: `Apply "${row.project}"` }),
+      h("p", { class: "muted", text: `${row.badge} ${row.tip}` }),
+      field("When a property's current value differs from the card's", conflict),
+      field("Skip ids the network does not have", ignore),
+      note,
+      h("div", { style: "display:flex;gap:8px;justify-content:flex-end" }, cancel, apply),
+    );
+    if (!dialog.open) dialog.showModal();
+    apply.focus();
+  }
+
+  // ------------------------------------------------------------------------------- applied, and the summary
+
+  function drawApplied() {
+    const rows = appliedRows(server());
+    if (!rows.length) {
+      redraw(appliedBox, [h("p", { class: "empty", tabindex: -1, text: "No cards applied this session yet." })]);
+      return;
+    }
+    const list = h("ul", { id: "pc-applied-list" });
+    for (const r of rows) {
+      list.append(h("li", { "data-card": r.card_id },
+        h("strong", { text: r.project }), " ",
+        h("span", { class: "muted", "data-source": r.source, text: `[${r.source}]` }), " ",
+        h("span", { class: "muted", text: `${r.changes} change(s) on ${r.net_id} at ${r.time}` })));
+    }
+    redraw(appliedBox, [list]);
+  }
+
+  function drawSummary() {
+    const iconButton = (tip, glyph, fn) => {
+      const b = h("button", { class: "iconbtn", "data-tip": tip, "aria-label": tip }, glyph);
+      b.onclick = guard(() => busy([b], fn));
+      return b;
+    };
+    const copy = iconButton("Copy the session summary", "⎘", async () => {
+      const text = await ctl.summary(baseNet());
+      const clipboard = globalThis.navigator && globalThis.navigator.clipboard;
+      if (!clipboard) throw new Error("The clipboard is not available here: download the summary instead");
+      await clipboard.writeText(text);
+      say("Copied the session summary");
+    });
+    const download = iconButton("Download the session summary", "⤓", async () => {
+      const text = await ctl.summary(baseNet());
+      const url = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+      const a = h("a", { href: url, download: summaryFileName(baseNet()) });
+      document.body.append(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      say(`Downloaded ${summaryFileName(baseNet())}`);
+    });
+    summaryBox.append(h("div", { style: "display:flex;gap:6px;align-items:center" },
+      h("span", { class: "muted", text: "The cards applied, the draft and this session's card actions, as text." },
+      ), copy, download));
+  }
+
   function draw() {
+    drawCatalog();
     drawCompose();
     drawDraft(drawPreview());
+    drawApplied();
   }
 
   // The controller dropped the dialog's check: Commit stays disabled until the user checks again.
@@ -322,6 +524,8 @@ function createView(wb, ctl, el) {
   // The controller marked the open form outdated: Preview and Add stay disabled until the user reloads it.
   const composeWentStale = () => markComposeOutdated();
 
+  drawCatalogControls();
   drawCommit();
-  return { draw, checkWentStale, composeWentStale };
+  drawSummary();
+  return { draw, loadCatalog, checkWentStale, composeWentStale };
 }
