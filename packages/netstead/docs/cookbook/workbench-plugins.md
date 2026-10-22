@@ -321,7 +321,7 @@ def retag(host: Host, action: Retag) -> list[dict]:
   to delete a node a link still uses; `plan.rows` says what would go.
 - What the spec says about the new values (required, enum, type, foreign keys, duplicate keys) is never
   a refusal: it comes back as a live warning from `host.edit_warnings()`.
-- Every `host.mutate` is a pending edit whose source is your plugin id. Core lists it in its Edits panel
+- Every `host.mutate` is a pending edit whose source is your plugin id. Core lists it in its Edit tab
   with that id and never undoes it.
 - Undo is strict last-in, first-out across sources. `host.undo()` reverts your newest change only when it
   is the network's newest change; core's Undo and `host.undo` each refuse the other's change, naming who
@@ -348,7 +348,7 @@ gone = [seq for seq in my_edits if seq <= pending.issued and seq not in mine]
   Action spent it, and not after the network is closed and opened again under the same id (numbering goes on).
   So an edit a rollback took away never comes back under the same id. (The handle still changes when a network is
   reopened; checking it too costs nothing.)
-- Because rolled-back edits keep their seqs, the seqs in the Edits panel can have gaps.
+- Because rolled-back edits keep their seqs, the seqs in the Edit tab can have gaps.
 - `issued` is the newest seq handed out when the edits were read. An edit you hold with a seq above it was made
   after the read, so the read says nothing about it: don't drop it. This matters when you read outside an Action
   handler (a route), where an Action can land between your read and what you do with it.
@@ -589,8 +589,8 @@ wb.registerLayer("roadway", "hello.pins", ctx =>
 - Core's layers, bottom to top: `base` 100, `selection` 200, `related` 300, `highlighted` 400,
   `focus` 500, `marker` 600. A plugin layer defaults to 350: above related records, under the user's
   highlights, focus and marker.
-- A `title` lists the layer under Layers → **Overlays**, with a show/hide switch (per browser tab,
-  not recorded).
+- A `title` lists the layer under the **Find** tab's **View** section, with a show/hide switch (per browser
+  tab, not recorded).
 - `"transit"` is accepted as a component and not drawn yet.
 
 ### Forms
@@ -704,7 +704,7 @@ A minor bump only adds to the API and a major bump breaks it.
 |---|---|
 | `1.0` | The Python plugin core: Actions, `Host`, settings, state, routes, static files. |
 | `1.1` | The browser API: `activate(wb)` and the `wb` object (workspaces, dock panels, commands, map layers, `schemaForm`), and `GET /api/actions`. A plugin with a front end should pass `requires_api="1.1"` (or `HOST_API`); a `1.0` plugin still runs. |
-| `1.2` | Editing: `host.undo`, `host.edit_warnings` and `host.plan_update` / `plan_delete` / `plan_add` (with `EditPlan` and `EditRefused` exported from `netstead.workbench.plugins`), and `host.mutate(..., expected_version=plan.version)`, which refuses a stale plan. Every `host.mutate` becomes a pending edit with the plugin's id as its source, re-checked live (`host.edit_warnings`), and listed in core's Edits panel. `host.selection` adds `anchors_unplaced`. |
+| `1.2` | Editing: `host.undo`, `host.edit_warnings` and `host.plan_update` / `plan_delete` / `plan_add` (with `EditPlan` and `EditRefused` exported from `netstead.workbench.plugins`), and `host.mutate(..., expected_version=plan.version)`, which refuses a stale plan. Every `host.mutate` becomes a pending edit with the plugin's id as its source, re-checked live (`host.edit_warnings`), and listed in core's Edit tab. `host.selection` adds `anchors_unplaced`. |
 | `1.3` | Saved selections: `host.saved_selections()` and `host.saved_selection(name)`. `host.selection`'s anchors carry `anchor`, `confidence`, `pinned` and `candidates`, and the payload carries `stale_pins`. New core Actions a plugin may dispatch: `PinAnchor`, `SaveSelection`, `UseSelection`, `DeleteSelection`, `Filter`, `Style(width_by=…)` and `Navigate(record=…)`. |
 | `1.4` | The assistant: `assistant: ClassVar[bool] = False` on an Action keeps it out of the NL assistant's tools; a plugin's Actions are offered as tools once the plugin is listed in `assistant.plugins`. `GET /api/actions` entries carry `assistant`. |
 | `1.5` | `ActionError` and `NotSupportedYet` are exported from `netstead.workbench.plugins`: a handler raises them to refuse with a message the user sees. |

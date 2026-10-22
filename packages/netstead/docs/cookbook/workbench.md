@@ -22,8 +22,9 @@ validate, fix, replay and save on the bundled Leavenworth network in ten minutes
 uv run netstead app ./my-network
 ```
 
-Open <http://127.0.0.1:8850>. Open more networks with **Open / Import…** in the header (see below) or
-the **Recent** list, and switch between them with the network picker. `netstead viz` and `netstead select-serve`
+Open <http://127.0.0.1:8850>. Open more networks with **Open…** in the header: it opens a menu with up to
+three recent networks, then **Browse / import…** for the full wizard (see below). Switch between open
+networks with the network picker. `netstead viz` and `netstead select-serve`
 are aliases of `netstead app` (the old standalone apps they used to start are gone).
 
 ```bash
@@ -53,7 +54,7 @@ shared network.
 
 ## Open or import a network
 
-**Open / Import…** opens a wizard with four sources:
+**Open… → Browse / import…** opens a wizard with four sources:
 
 - **GMNS on this machine**: a server-side file browser. Entries are tagged (GMNS folder, `.zip`, `.duckdb`,
   `datapackage.json`); pick one and it opens in place. Nothing is uploaded.
@@ -93,8 +94,8 @@ Credentials never go in the URL: a source with `user:password@` in it is refused
 credential cascade looks instead (environment variables, the system keyring, or `~/.netrc`). A presigned URL's
 query string (`?X-Amz-Signature=…`, an Azure SAS token) is accepted and kept in the session history, because
 the replay script needs it to open the same object; it is stripped from error messages, job labels, the network
-summary, and the **Recent** list. Treat a copied **Session as Python** script that opened a signed URL as
-holding that (expiring) signature.
+summary, and the **Open…** menu's recents list. Treat a copied **Session as Python** script that opened a
+signed URL as holding that (expiring) signature.
 
 ```toml
 # ./netstead.toml
@@ -170,8 +171,8 @@ provider = "anthropic"
 
 ### The Settings dialog
 
-**Settings…** in the header opens a form built from the same settings model. Each field has a badge showing where
-its current value comes from: `default`, `user`, `project`, `env` or `session`.
+The gear icon in the header (tooltip "Settings") opens a form built from the same settings model. Each field
+has a badge showing where its current value comes from: `default`, `user`, `project`, `env` or `session`.
 
 - **Save to** chooses the layer a change is written to: **User (all projects)** (your user file, the default), **This project**
   (`./netstead.toml`), or **This session only** (nothing is written to disk). Every change is a `SetSetting`
@@ -186,7 +187,8 @@ its current value comes from: `default`, `user`, `project`, `env` or `session`.
 - `io.allowed_roots` is read-only here. The folders the app may read and write can only be widened in a
   config file, an environment variable, or on the command line.
 - A basemap change applies at once, without reloading the page.
-- **Language models** is a section of the same dialog. **Models…** in the header opens it too.
+- **Language models** is a section of the same dialog. **Models…**, next to the provider/model picker in
+  the **Find** tab, opens it too.
 - The dialog is keyboard-friendly: focus starts in it, Tab stays inside it, and Esc closes it and returns focus to
   where you were.
 
@@ -220,45 +222,60 @@ Focus is a view. Clicking never changes the selection.
 
 ## Workspaces, panels and commands
 
-- **Command palette.** Press **Ctrl+K** (**⌘K** on a Mac), or click **Commands…** in the header when it shows,
-  to search every command: open a network, Settings, zoom, the view modes. With a record focused it also lists
-  that record's commands ("For link 123"), and the selection's ("Selection (3 links)"). Arrow keys pick, Enter
-  runs, Escape closes.
+- **Command palette.** Press **Ctrl+K** (**⌘K** on a Mac), or click the `>_` terminal icon in the header
+  (tooltip "Commands (⌘K / Ctrl+K)") when it shows, to search every command: open a network, Settings, zoom,
+  the view modes. With a record focused it also lists that record's commands ("For link 123"), and the
+  selection's ("Selection (3 links)"). Arrow keys pick, Enter runs, Escape closes.
 - **Right-click** a link or node on the map, or a table row, for its commands. Core puts one command there:
   **Fix…**, on a record that has an issue or an edit warning (see [Validate and fix](#validate-and-fix)). Edit
-  and Delete are in the palette (**Edit record…**, **Delete record…**) and in Details, not in the menu. With no
+  and Delete are in the palette (**Edit record…**, **Delete record…**) and in Inspect, not in the menu. With no
   command for a record (no issue, and no plugin command), right-click opens no menu: the map keeps its right-drag
   rotate and the row the browser's own menu.
 - **Workspaces and the dock.** When a plugin adds a workspace, tabs for each appear in the header; each keeps the
-  map / split / table view you left it in. The right drawer is a dock, with a tab per panel at its top: core's
-  **Details**, **Selection**, **Issues**, **Edits** and **Assistant**, then any a plugin adds.
+  map / split / table view you left it in. The right drawer is a dock, with a tab per panel at its top, in order:
+  **Find** (the selection box, anchors, diagnostics, export, saved selections, highlighted links and the **View**
+  controls — layers, colour and width, direction, filter links), **Inspect** (the focused record; comes forward
+  automatically when you click a map feature or a table row), **Edit** (the edit list, undo/redo, edit warnings and
+  "Save selection as card…"), **Cards** (the project-cards plugin's panel, when it's installed) and **Validate**
+  (run / export, status, facets and the grouped findings list), then **Assistant**, then any panel another plugin
+  adds. The map itself keeps only its zoom/highlight/fit buttons and the legend — the old Layers and Map display
+  popovers are gone; their controls live in the Find tab's **View** section, which scrolls if the panel is short.
+  Draggable handles between the map and the table, and between the map/table and the side panel, resize them
+  (double-click a handle to reset; sizes are remembered per browser).
 - **Settings → Plugins** lists the installed [Workbench plugins](workbench-plugins.md): version, the plugin API
   each needs and whether it fits, and any error loading it. Its switch turns a plugin on or off; that applies the
   next time `netstead app` starts.
 
 ## Validate and fix
 
-- **Run validation** (in the **Issues** panel, or in the command palette, Ctrl+K / ⌘K) checks the spec, the
-  keys and the quality rules as a background job; the Jobs badge counts it while it runs. The quality rules
-  read **Settings → Validation** (`validation.rules`, keyed by rule code, such as
-  `quality.high_speed_residential`).
+- **Run validation**: the play icon in the **Validate** tab (tooltip "Run validation"), or in the command
+  palette, Ctrl+K / ⌘K, checks the spec, the keys and the quality rules as a background job; the Jobs badge
+  counts it while it runs. The quality rules read **Settings → Validation** (`validation.rules`, keyed by rule
+  code, such as `quality.high_speed_residential`).
 - When it finishes, the panel reads `Validated v0: 272 warnings, 16 info` (for the Leavenworth fixture), the
-  **Issues** tab badge counts the issues plus any open edit warnings, and each located issue is a dot on the
-  map. **Layers → Overlays → Issues** hides the dots.
+  header's validity light turns green / amber / red with the counts on hover, the **Validate** tab badge
+  counts the issues plus any open edit warnings, and each located issue is a dot on the map.
 - **Click an issue:** its record is focused, the map flies to it, and when the table shows that table its row is
-  scrolled into view and marked. **Click a dot** on the map: the Issues panel opens on **This record**, that
-  record's issues. Rows with issues carry a mark in the table.
+  scrolled into view and marked. **Click a dot** on the map: the Validate panel opens on **This record**, that
+  record's issues. Rows with issues carry a mark in the table. A located finding also carries a crosshair
+  "zoom to" icon as an explicit affordance.
 - Filter by severity, table and code. **This record** lists only the focused record's issues. Issues with
-  no place on the map (a table-level check, a row whose node has no coordinates) are listed under **Unlocated**.
+  no place on the map (a table-level check, a row whose node has no coordinates) are grouped: findings that
+  share a code and differ only by resource (such as the sixteen `structural.missing_optional_resource` lines
+  a partial GMNS package produces) collapse into one row under **Unlocated findings**, expandable to the
+  individual findings.
 - **Fix** on an issue opens the record editor on that issue's record, on the column the issue names (or the
   whole record when it names none), prefilled with the current value and with the issue as the note. Apply sends
   one edit with only the values you changed.
 - **Stale results.** An edit makes the stored validation stale: the panel says
-  `the network changed since: re-run`, and the button becomes **Re-run validation**. The list and the dots
-  stay until you re-run, so you can work down them. If two runs overlap, the newer one wins; the older one
-  finishing later says so and leaves the panel alone.
-- **Export report** downloads the offline HTML validation report (`<network>-validation.html`) for a current
-  (not stale) validation. It needs the reports extra.
+  `the network changed since: re-run`, the button's tooltip becomes **Re-run validation**, and the validity
+  light turns amber-outlined. The list and the dots stay until you re-run, so you can work down them. If two
+  runs overlap, the newer one wins; the older one finishing later says so and leaves the panel alone.
+- **Export report**: the download icon next to the run icon (tooltip "Export report (HTML)") downloads the
+  offline HTML validation report (`<network>-validation.html`) for a current (not stale) validation. It needs
+  the reports extra. The report itself opens with a severity summary line, the source path once, a
+  **Resources** table of every spec resource (required/optional, present, row count), and the grouped
+  structural findings collapsed under **Unlocated findings**.
 
 The same from Python:
 
@@ -274,29 +291,34 @@ app.do(RunValidation())  # a job; the result has counts, version, stale and supe
 Edits change the network you opened **in memory**. Nothing is written to disk until you
 [save a copy](#save-a-copy), and the source is never overwritten.
 
-- **A cell.** Click a row to focus it, then click one of its cells, type, and press Enter (Escape cancels; an
-  empty value clears the cell). The key column and geometry are not edited in place. A value the column cannot
-  hold (`1.5` lanes) is refused with a toast, and nothing changes.
-- **A record.** **Edit…** in Details, or **Edit record…** in the palette for the focused record, opens a form
+- **A cell.** Click a row to focus it, then click one of its cells, type, and press Enter (Escape cancels and
+  discards; an empty value clears the cell). Leaving the cell — clicking elsewhere, tabbing away — applies the
+  edit too, as in a spreadsheet. A text column completes from the spec's allowed values plus the column's
+  existing values (a `<datalist>` under the cell); a comma-list column such as `allowed_uses` completes one
+  token at a time and says "comma-separated". The key column and geometry are not edited in place. A value the
+  column cannot hold (`1.5` lanes) is refused with a toast, and nothing changes; a value outside the spec's
+  allowed list (an out-of-enum categorical, such as `facility_type = "boulevard"`) is **kept**, not dropped,
+  and the cell is outlined in red with a warning icon, the reason as its tooltip.
+- **A record.** **Edit…** in Inspect, or **Edit record…** in the palette for the focused record, opens a form
   for every editable column. When the record is a link in a multi-link selection, a checkbox applies the same
   values to every selected link. The note you type is kept with the edit.
 - **Fix…** opens the same editor from an issue, or from right-clicking a record that has one.
-- **Delete…** (Details, the record editor, or **Delete record…** in the palette) first runs a dry run and says
+- **Delete…** (Inspect, the record editor, or **Delete record…** in the palette) first runs a dry run and says
   what goes with the record: a link takes its lanes and time-of-day rows (`Delete 1 link row? This also deletes
-  2 lane rows, 1 link_tod row. Undo is in the Edits panel.`). Confirm to delete. A node a link still uses cannot
+  2 lane rows, 1 link_tod row. Undo is in the Edit tab.`). Confirm to delete. A node a link still uses cannot
   be deleted: the refusal names the links. The delete runs against the network version the dry run planned on:
   if another Workbench action (or a plugin's or your Python's `mutate`) changed the network in between, it is
   refused and you confirm again. A replayed delete has no dry run: it deletes the ids and whatever depends on
   them in the network it runs against.
 - **Adding rows** is Python or the API only: `app.do(AddRows(table="node", rows=[{...}]))`.
 - Each edit is one action in the session history (so "copy as Python" replays it), bumps the network's version,
-  and is listed in the **Edits** panel with what it changed.
+  and is listed in the **Edit** tab with what it changed.
 
-### Undo
+### Undo and redo
 
-**Undo last** in the Edits panel (or Details, or **Undo last edit** in the palette) reverses your newest edit.
-Undo is last-in, first-out across everything that changed the network, and the Workbench only undoes **its own**
-edits:
+The undo icon in the **Edit** tab (tooltip "Undo last edit"; also in Inspect, or **Undo last edit** in the
+palette) reverses your newest edit. Undo is last-in, first-out across everything that changed the network, and
+the Workbench only undoes **its own** edits:
 
 - If the newest change came from Python (`session.mutate(...)` outside an action), Undo is unavailable and
   says `The last change was made from Python; undo it there.` Undo it with
@@ -306,12 +328,16 @@ edits:
   earlier version of a row you changed. Row order carries no meaning in GMNS, but an unsorted table shows those
   rows last. (An edit itself keeps the row where it is.)
 
+The redo icon next to it (tooltip "Redo") re-applies the edit `undo_edit` most recently took back —
+`app.do(RedoEdit())` — and is disabled ("nothing to redo") until there is an undone edit waiting, or whenever
+any other change to the network clears it.
+
 ### Live warnings
 
 An edit the spec disagrees with is still applied, and warned about at once: a foreign key that is not in the
 referenced table, a required field left empty, a value of the wrong type or outside the allowed list, or a
-duplicate key. The cell is underlined (hover for why), the row is marked, and the warning is listed under
-**Edit warnings** at the top of the Issues panel, with **Fix**. A later edit that puts it right clears the
+duplicate key. The cell is outlined (hover for why), the row is marked, and the warning is listed under
+**Edit warnings** in the **Edit** tab, with **Fix**. A later edit that puts it right clears the
 warning. The live check covers the rows an edit touched; after a very large edit it stops early and says so,
 and **Run validation** checks everything.
 
@@ -327,22 +353,23 @@ An edit of lanes or time-of-day rows leaves the selection alone. Undo restores t
 does not take back a link it lost.
 
 A query selection with a [pinned anchor](#verify-a-selection) whose node the edit takes off the facility is not
-lost: it keeps the links it had (minus any you deleted) and its `resolved` status, and keeps the pin. The Selection
-panel says **Stale pin** at its top: those links are no longer what the query gives. Re-pin the anchor, or Unpin it.
+lost: it keeps the links it had (minus any you deleted) and its `resolved` status, and keeps the pin. The Find
+tab says **Stale pin** at its top: those links are no longer what the query gives. Re-pin the anchor, or Unpin it.
 
 ### Save a copy
 
-**Edits → Save a copy** (or **Save a copy…** in the palette): name the copy, pick a format, then **Choose
-folder…** inside your allowed folders. The save runs as a job and writes a **new** folder or file; the network
-you opened, local or remote, is never written to, and a copy inside the source folder is refused.
+The **Save** icon in the header (tooltip "Save a copy…"; or **Save a copy…** in the palette) opens the save
+dialog: name the copy, pick a format, then **Choose folder…** inside your allowed folders, and **Save**. The
+save runs as a job and writes a **new** folder or file; the network you opened, local or remote, is never
+written to, and a copy inside the source folder is refused.
 
 - **It never overwrites.** If the name already exists in that folder, the save fails with `… already exists`.
-- **Warnings are confirmed.** With edit warnings open, the save lists them and asks whether to save anyway. If the
-  live check failed or stopped early, it says that instead (the warning count may be 0, and proves nothing) and
-  asks the same. Saving anyway is recorded as `SaveNetwork(..., accept_warnings=True)`. The server checks again
-  when the job runs, and asks again if something changed.
+- **Warnings are confirmed.** With edit warnings open, the dialog lists them and a checkbox asks whether to
+  save anyway. If the live check failed or stopped early, it says that instead (the warning count may be 0, and
+  proves nothing) and asks the same. Saving anyway is recorded as `SaveNetwork(..., accept_warnings=True)`. The
+  server checks again when the job runs, and asks again if something changed.
 - When the job ends, a toast says where the copy went and which tables differ from the source. The badge on the
-  Edits tab and in the network switcher (`• 1 unsaved`) counts edits no saved copy holds yet, and clears. If
+  Edit tab and in the network switcher (`• 1 unsaved`) counts edits no saved copy holds yet, and clears. If
   the network was edited while saving, the copy holds the version the save started from and the later edits stay
   unsaved; if it was closed while saving, nothing is marked saved.
 - **Replay.** A replayed `SaveNetwork` writes the copy again (and fails if it is still there), and its
@@ -351,11 +378,11 @@ you opened, local or remote, is never written to, and a copy inside the source f
 
 ## Verify a selection
 
-- The **Selection** panel (every workspace) shows the selection's status, its anchors and diagnostics.
+- The **Find** tab shows the selection's status, its anchors and diagnostics.
 - An **ambiguous** selection lists the other nodes each anchor could be, also drawn on the map as rings
-  (**Layers → Overlays → Anchor candidates**). To pin the anchor to one, click one in the Selection panel, or
-  **Pin node N** to keep the resolver's own choice; the selection is resolved again. **Unpin** goes back to the
-  resolver's choice. In Python: `app.do(PinAnchor(role="to", node_id=60))`.
+  (the anchor-candidates overlay draws automatically; there is no separate toggle). To pin the anchor to one,
+  click one in the Find tab, or **Pin node N** to keep the resolver's own choice; the selection is resolved
+  again. **Unpin** goes back to the resolver's choice. In Python: `app.do(PinAnchor(role="to", node_id=60))`.
 - A pin that resolves nothing (a node off the facility, or one with no path to the other anchor) is refused, and
   the selection you were checking stays as it was.
 - A pin is part of the selection's query, so it survives an edit and a saved selection's reuse. When an edit takes
@@ -374,19 +401,46 @@ you opened, local or remote, is never written to, and a copy inside the source f
 
 ## Style, filter and navigate
 
-- **Map display → Width by** sizes links by a numeric column (`app.do(Style(width_by="lanes"))`).
-- **Layers → Filter links** dims every link that doesn't match (`app.do(Filter(where=[{"col": "lanes", "op": "gte",
-  "val": 2}]))`); the table's **Filtered** scope lists the matching links (the filter applies to links: on the node
-  table it lists every node). `Filter(where=None)` clears it. Filters are fields and operators only, never free
-  text or SQL: `contains` matches a plain substring, and each value is read as its column's type (`"2"` on `lanes` is 2; a value the column can't hold is refused). The `in` operator (a list of values) is available from Python and the API only.
+The map's style and link filter are set from the **Find** tab's **View** section (its layer toggles, colour
+and width pickers, direction controls and **Filter links** replace the old map popovers).
+
+- **Color links by** / **Color nodes by** pick a categorical or numeric column for links and nodes
+  independently (`app.do(Style(color_by="facility_type"))`, `app.do(Style(node_color_by="ctrl_type"))`). A
+  fresh network defaults to colouring links by `facility_type` and nodes by `ctrl_type` when those columns
+  exist, falling back to a single colour otherwise.
+- **Width by** sizes links by a numeric column (`app.do(Style(width_by="lanes"))`).
+- **Filter links**, in the same View section, dims every link that doesn't match
+  (`app.do(Filter(where=[{"col": "lanes", "op": "gte", "val": 2}]))`); the table's **Filtered** scope lists the
+  matching links (the filter applies to links: on the node table it lists every node). `Filter(where=None)`
+  clears it. Filters are fields and operators only, never free text or SQL: `contains` matches a plain
+  substring, `between` takes an inclusive `[low, high]` range, and `any_of` / `all_of` / `none_of` match a list
+  of values against a comma-separated cell such as `allowed_uses` (so "auto" matches "auto,truck,walk"); each
+  value is read as its column's type (`"2"` on `lanes` is 2; a value the column can't hold is refused). The
+  `in` operator (a list of values) is available from Python and the API only.
 - `app.do(Navigate(record={"table": "link", "id": 170}))` flies the map to one link or node.
+
+## Column filters in the table
+
+Each table column header carries a funnel icon instead of a text box. Click it to open a popover whose body
+depends on the column's kind:
+
+- a **numeric** column offers `= ≠ < ≤ > ≥ between is empty is not empty`, with one or two number inputs;
+- a **text** or **boolean** column offers a checklist of its distinct values (searchable past 12), under
+  **any of / all of / none of** (**all of** only for a comma-list column such as `allowed_uses`), plus a
+  **contains** text tab and **is empty / is not empty**.
+
+**Apply** turns the popover into a removable chip in the strip above the grid (for example `free_speed > 40` or
+`allowed_uses any of auto, truck`); a **Clear all** chip appears once two or more are active. The strip is
+hidden when there are no filters, so it takes no space. Column filters and the **Filter links** map filter are
+independent: the grid's filters only narrow what the table shows.
 
 ## Ask the assistant
 
-- Type a request in the header box and press **Ask** (or Ctrl+Enter / ⌘Enter); Enter alone still selects. The
+- Type a request in the **Find** tab's box and press **Ask** (or Ctrl+Enter / ⌘Enter); Enter alone still selects. The
   **Assistant** panel (every workspace, or **Ask the assistant…** in the palette) keeps the conversation, for this
   session only: **Clear** empties it, and it is gone when the Workbench stops.
-- It uses the provider and model chosen in the header. With **Offline (pattern)** it understands a few fixed commands
+- It uses the provider and model chosen next to the Find tab's selection box (hover the model to see its full
+  name when it's truncated). With **Offline (pattern)** it understands a few fixed commands
   (`colour by lanes`, `width by lanes`, `filter lanes >= 2`, `clear the filter`, `zoom to the selection`,
   `zoom to link 170`, `select <street>`, `save the selection as <name>`, `set lanes to 3 on the selection`).
 - Steps that only change the view or the selection run at once, and each is listed with its `app.do(...)` line.
@@ -580,15 +634,15 @@ uv run netstead select "I-40 EB between South Miami Boulevard and Airport Boulev
 | `2` | Invalid settings (an unknown provider, for example) | the error |
 | `3` | Ambiguous: an anchor could be more than one node | `status`, the provisional `link_ids`, each anchor with its `candidates`, and `diagnostics` |
 
-An ambiguous selection is the same one the Workbench's Selection panel shows with its candidate rings
+An ambiguous selection is the same one the Workbench's Find tab shows with its candidate rings
 (see [Verify a selection](#verify-a-selection)); the CLI has no pin, so narrow the utterance or pin the
 anchor in the Workbench and export from there. `--json` puts the same fields on stdout as one JSON object.
 
 ## Every action is replayable
 
 Everything you do in the browser is a typed action: open, select, style, navigate, change a setting.
-The strip at the bottom shows the last action as Python. **Session as Python** shows the whole session as
-a script you can copy. Networks added from Python via `Session.add_network` aren't recorded as actions
+The strip at the bottom shows the last action as Python. The code icon in the footer (tooltip "Copy session
+as Python") shows the whole session as a script you can copy. Networks added from Python via `Session.add_network` aren't recorded as actions
 and so aren't replayed in that script. A replayed delete has no dry run: it deletes the ids and whatever depends on
 them in the network it runs against, which may be more (or fewer) rows than you confirmed in the browser.
 

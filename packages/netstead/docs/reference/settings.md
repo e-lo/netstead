@@ -216,6 +216,12 @@ The default `assistant.actions` list is `select`, `clear_selection`, `pin_anchor
 |---|---|---|---|---|
 | `plugins` | `dict[str, dict]` | `{}` | One free-form table per Workbench plugin id, validated by that plugin's own settings model when it installs. Secret-named keys are refused in every layer. | per plugin |
 
+For example, the bundled project-cards plugin reads `[plugins.project_cards]`:
+
+| Key | Type | Default | Meaning | Applies |
+|---|---|---|---|---|
+| `plugins.project_cards.catalog_dir` | `str \| None` | `None` | A folder of ProjectCard files to open as the Cards panel's catalog on load (equivalent to calling `project_cards.open_catalog` once at startup). Must resolve inside `io.allowed_roots`. | next open |
+
 ## See also
 
 * [Explore in the Workbench](../cookbook/workbench.md#settings) — the Settings dialog, scopes and badges.

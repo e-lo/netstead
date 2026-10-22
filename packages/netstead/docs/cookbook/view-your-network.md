@@ -49,9 +49,11 @@ report = net.validate()
 open("net.html", "w").write(render_validation_html(net, report))
 ```
 
-Each finding becomes a clickable marker, colour-coded by severity. Cross-cutting
-findings (no row, no coords) appear in an "Unlocated findings" sidebar — still
-clickable for the row-sync.
+Each finding becomes a clickable marker, colour-coded by severity. A **Resources** table above the findings
+lists every spec resource (required/optional, present, row count). Cross-cutting findings (no row, no coords)
+sit in a collapsed "Unlocated findings" `<details>` block, with its count in the summary — still clickable for
+the row-sync when expanded. Findings that share a code and differ only by resource (such as the sixteen
+`structural.missing_optional_resource` lines a partial GMNS package produces) are grouped into one line there.
 
 ### 2. Overlay anything else
 
