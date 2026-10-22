@@ -248,6 +248,35 @@ class CardsState:
 
         return undo
 
+    def last_catalog_card(self, net_id: str) -> AppliedCard | None:
+        """The most recently applied catalog card (source ``"catalog"``) still recorded on ``net_id``, if any.
+
+        A committed card (source ``"committed"``) is never returned: :meth:`~netstead_project_cards.handlers.
+        Handlers.undo_change` only takes back a catalog card this way, and keeps the draft-undo behaviour for
+        everything else.
+        """
+        with self._lock:
+            for applied in reversed(self.applied):
+                if applied.net_id == net_id and applied.source == "catalog":
+                    return applied
+            return None
+
+    def forget_applied(self, applied: AppliedCard) -> Callable[[], None]:
+        """Remove ``applied`` from the applied cards; return the undo (for ``host.on_rollback``) that restores it.
+
+        Used by :meth:`~netstead_project_cards.handlers.Handlers.undo_change` when it undoes a whole applied
+        catalog card, the mirror of :meth:`record_applied`.
+        """
+        with self._lock:
+            self.applied = [a for a in self.applied if a is not applied]
+
+        def undo() -> None:
+            with self._lock:
+                if not any(a is applied for a in self.applied):
+                    self.applied.append(applied)
+
+        return undo
+
     def sync(self, net_id: str, handle: Any, pending: Pending) -> None:
         """Bring ``net_id``'s draft in line with its network ``handle`` and this plugin's ``pending`` edits on it.
 
