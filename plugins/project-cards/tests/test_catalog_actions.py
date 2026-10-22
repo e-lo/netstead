@@ -139,6 +139,7 @@ def test_check_card_needs_a_catalog_and_a_network(session, make_session, folder)
 
 
 def test_apply_card_changes_the_network_and_records_it(session, folder, published):
+    before = [cell(session, k, "lanes") for k in (1, 2, 3)]
     session.dispatch(OpenCatalog(path=str(folder)))
     result = session.dispatch(ApplyCard(card_id="good.yml"))
     assert result == {
@@ -160,8 +161,59 @@ def test_apply_card_changes_the_network_and_records_it(session, folder, publishe
     assert [e["name"] for e in published if e.get("type") == "plugin"] == ["catalog", "applied"]
     assert session.history[-1].python == "app.do(ApplyCard(card_id='good.yml'))"
     assert sorted(folder.iterdir()) == sorted([folder / "good.yml", folder / "bad.yml", folder / "notes.yml"])
-    with pytest.raises(ActionError, match="nothing to undo"):
-        session.dispatch(UndoChange())  # an applied card is not a draft change
+    undone = session.dispatch(UndoChange())  # an applied card is undone as a whole, not as a draft change
+    assert undone == {"net_id": NET, "undone": "card", "card_id": "good.yml", "edits": 2}
+    assert [cell(session, k, "lanes") for k in (1, 2, 3)] == before
+    assert cards_state(session)["applied"] == []
+    assert [e for e in session.edits[NET].entries if e.source == "project_cards"] == []
+
+
+def test_undo_change_refuses_a_core_edit_on_top_of_an_applied_card_then_undoes_the_card(session, folder):
+    from netstead.workbench.actions import UndoEdit
+
+    before = cell(session, 1, "lanes")
+    session.dispatch(OpenCatalog(path=str(folder)))
+    session.dispatch(ApplyCard(card_id="good.yml"))
+    session.dispatch(EditCells(ids=[5], values={"lanes": 9}))
+    with pytest.raises(ActionError, match="was made by"):
+        session.dispatch(UndoChange())
+    assert cell(session, 1, "lanes") == [3] and cards_state(session)["applied"] != []  # the card is still there
+    session.dispatch(UndoEdit())  # core undoes its own edit
+    undone = session.dispatch(UndoChange())
+    assert undone == {"net_id": NET, "undone": "card", "card_id": "good.yml", "edits": 2}
+    assert cell(session, 1, "lanes") == before and cards_state(session)["applied"] == []
+
+
+def test_undo_change_undoes_the_newest_plugin_change_first_card_then_draft(session, folder):
+    before1, before5 = cell(session, 1, "lanes"), cell(session, 5, "lanes")
+    session.dispatch(AddChange(change=lanes(5, value=2)))
+    session.dispatch(OpenCatalog(path=str(folder)))
+    session.dispatch(ApplyCard(card_id="good.yml"))
+    first = session.dispatch(UndoChange())
+    assert first == {"net_id": NET, "undone": "card", "card_id": "good.yml", "edits": 2}
+    assert cell(session, 1, "lanes") == before1 and cell(session, 5, "lanes") == [2]  # the draft change is still there
+    second = session.dispatch(UndoChange())
+    assert second["count"] == 0 and cell(session, 5, "lanes") == before5
+
+
+def test_a_rolled_back_parent_restores_the_applied_card_after_undoing_it(make_session, folder):
+    from netstead.workbench.plugins import HOST_API, ActionSpec, WorkbenchPlugin
+
+    def wrap(host, action):
+        host.dispatch(UndoChange())
+        raise ActionError("the parent failed")
+
+    wrapper = WorkbenchPlugin(
+        id="wrap", name="W", version="0", requires_api=HOST_API, actions=(ActionSpec(Wrap, wrap),)
+    )
+    session = make_session(wrapper)
+    session.dispatch(OpenCatalog(path=str(folder)))
+    session.dispatch(ApplyCard(card_id="good.yml"))
+    assert not session.dispatch_recorded(Wrap()).ok
+    state = cards_state(session)
+    (applied,) = state["applied"]
+    assert applied["card_id"] == "good.yml" and applied["edit_ids"] == [1, 2]
+    assert cell(session, 1, "lanes") == [3] and cell(session, 2, "lanes") == [4]
 
 
 def test_apply_card_refuses_a_card_with_a_missing_id_unless_told_to_skip_it(session, folder):

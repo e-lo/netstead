@@ -102,17 +102,30 @@ class Handlers:
         return {"net_id": net, "count": count, "change": change.model_dump(mode="json"), **applied.summary()}
 
     def undo_change(self, host: Host, action: UndoChange) -> dict[str, Any]:
-        """Undo the draft's last change: as many ``host.undo`` calls as it made mutations (LIFO), then drop it.
+        """Undo whichever plugin change is newest on the network: an applied catalog card, or the draft's last change.
 
-        ``host.undo`` refuses (``ActionError``) when the network's newest edit is not this plugin's; a refusal part
-        way through a two-step change rolls the earlier step back with the Action. Each undone edit must be the
-        mutation the draft recorded (its seq), so a plugin edit the draft does not hold is refused rather than undone
-        in its place.
+        The network's newest pending edit decides which: when it is the last applied catalog card's newest edit
+        (``AppliedCard.edit_ids``), the whole card is undone (every edit, newest first) and dropped from
+        ``applied``; otherwise the draft's last change is undone as before (as many ``host.undo`` calls as it made
+        mutations, LIFO, then dropped). A committed card is never picked this way: its ``source`` is ``"committed"``,
+        so this handler falls through to the draft (empty after a commit, so a committed card stays un-undoable
+        here, as before). ``host.undo`` refuses (``ActionError``, naming what is on top) when the network's newest
+        edit is not this plugin's at all, so a core or another plugin's change on top is refused either way; a
+        refusal part way through a two-step change rolls the earlier step back with the Action. Each undone edit
+        must be the mutation the card or the draft recorded (its seq), so a plugin edit neither holds is refused
+        rather than undone in its place.
         """
         with as_action_errors():
             net = target_network(host, self.state, action.net_id)
+        pending = host.pending_edits(net)
+        newest = pending.edits[-1] if pending.edits else None
+        card = self.state.last_catalog_card(net)
+        if card is not None and card.edit_ids and newest is not None and newest["seq"] == card.edit_ids[-1]:
+            return self._undo_card(host, net, card)
         entry = self.state.last(net)
         if entry is None:
+            if newest is not None and newest["source"] != host.plugin_id:
+                host.undo(net)  # refuses, naming what is on top (e.g. a core edit over the applied card)
             raise ActionError("nothing to undo: the draft card has no changes (committed cards are not undone)")
         with self.state.undoing(net):
             for mark in reversed(entry.marks):
@@ -125,6 +138,25 @@ class Handlers:
             count = self.state.pop(net, entry)
         host.publish("changed", {"net_id": net, "count": count})
         return {"net_id": net, "undone": describe(entry.change), "count": count}
+
+    def _undo_card(self, host: Host, net: str, card: AppliedCard) -> dict[str, Any]:
+        """Undo every edit of an applied catalog card (newest first) and drop it from ``applied``.
+
+        Registers a ``host.on_rollback`` that restores the ``AppliedCard`` entry if an enclosing Action fails
+        afterwards, the mirror of how :meth:`apply_card` records it.
+        """
+        for seq in reversed(card.edit_ids):
+            undone = host.undo(net)
+            if undone["seq"] != seq:
+                raise ActionError(
+                    f"the newest project cards edit on {net} ({undone['note']}) is not {card.card_id}'s "
+                    f"last change; nothing was undone"
+                )
+        host.on_rollback(self.state.forget_applied(card))
+        draft = self.state.card(net)
+        count = len(draft.changes) if draft is not None else 0
+        host.publish("changed", {"net_id": net, "count": count})
+        return {"net_id": net, "undone": "card", "card_id": card.card_id, "edits": len(card.edit_ids)}
 
     def commit(self, host: Host, action: CommitCard) -> dict[str, Any]:
         """Check, write and record the draft as a card; dispatch ``catalog.add_card`` when a catalog is installed.

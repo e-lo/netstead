@@ -52,6 +52,15 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
   it in network_wrangler does the same. Import keeps a deletion's links flag (it used to drop it); its nodes are still
   written with `false`.
 
+### Fixed
+
+- **`project_cards.undo_change` undoes an applied catalog card.** Core's Edit panel refuses its own Undo on a card
+  applied from the catalog ("the last change was made by project_cards; undo it there"), pointing at this plugin's
+  undo — but it used to answer "nothing to undo" for it (it only ever took back the draft's last change), leaving
+  the card stuck on the network. It now undoes whichever plugin change is newest: an applied catalog card (every
+  one of its edits, newest first, dropped from `applied`) or the draft's last change, as before. A core (or other
+  plugin's) change on top is still refused, naming it; a committed card is still never undone this way.
+
 ### Added
 
 - The Workbench UI (`static/main.js`, with the rules in `cardmodel.js` and the flow in `controller.js`):
