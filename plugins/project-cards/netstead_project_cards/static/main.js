@@ -137,6 +137,12 @@ export function activate(wb) {
 }
 
 function createView(wb, ctl, el) {
+  // Core's SVG icon in `button` (Host API 1.7's wb.icon), else the text glyph an older host still shows.
+  const glyph = (button, name, fallback) => {
+    const svg = typeof wb.icon === "function" ? wb.icon(name) : "";
+    if (svg) button.innerHTML = svg; else button.textContent = fallback;
+    return button;
+  };
   const catalogBox = h("section", { id: "pc-catalog" });
   const previewBox = h("section", { id: "pc-preview" });
   const composeBox = h("section", { id: "pc-compose" });
@@ -357,8 +363,8 @@ function createView(wb, ctl, el) {
       const result = await ctl.openCatalog(path);
       say(`Opened ${result.path}: ${result.cards} card(s)`);
     });
-    const refresh = h("button", { class: "iconbtn", "data-tip": "Rescan the folder", "aria-label": "Rescan the folder" },
-      "↻");
+    const refresh = glyph(h("button", { class: "iconbtn", "data-tip": "Rescan the folder",
+      "aria-label": "Rescan the folder" }), "refresh", "↻");
     refresh.onclick = guard(() => busy([refresh], async () => {
       const result = await ctl.refreshCatalog();
       say(`Rescanned ${result.path}: ${result.cards} card(s)`);
@@ -485,19 +491,19 @@ function createView(wb, ctl, el) {
   }
 
   function drawSummary() {
-    const iconButton = (tip, glyph, fn) => {
-      const b = h("button", { class: "iconbtn", "data-tip": tip, "aria-label": tip }, glyph);
+    const iconButton = (tip, name, fallback, fn) => {
+      const b = glyph(h("button", { class: "iconbtn", "data-tip": tip, "aria-label": tip }), name, fallback);
       b.onclick = guard(() => busy([b], fn));
       return b;
     };
-    const copy = iconButton("Copy the session summary", "⎘", async () => {
+    const copy = iconButton("Copy the session summary", "copy", "⎘", async () => {
       const text = await ctl.summary(baseNet());
       const clipboard = globalThis.navigator && globalThis.navigator.clipboard;
       if (!clipboard) throw new Error("The clipboard is not available here: download the summary instead");
       await clipboard.writeText(text);
       say("Copied the session summary");
     });
-    const download = iconButton("Download the session summary", "⤓", async () => {
+    const download = iconButton("Download the session summary", "download", "⤓", async () => {
       const text = await ctl.summary(baseNet());
       const url = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
       const a = h("a", { href: url, download: summaryFileName(baseNet()) });

@@ -25,6 +25,7 @@ export const store = createStore({
   widthProp: null,            // the `style.width_by` column's values (per tab, derived from the server's style)
   filterIds: null,            // Set of link ids the active network's recorded Filter matches (per tab, derived), or null
   highlightMode: false, highlights: new Set(), marker: null,
+  highlightsKeep: false,      // a plugin's highlights (wb.highlight) survive the next network switch (a preview)
   focus: null,                // {table, id, from: "map" | "table"}: the one record last clicked (per tab, never recorded)
   related: null,              // last /related answer for focus + highlights (related.js)
   tableScope: "all",          // all | selection | highlighted | related | filtered

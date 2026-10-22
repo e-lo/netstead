@@ -304,9 +304,11 @@ hub.emit("project_cards.card_selection", { card_id: "good.yml", links: [1, 2], n
 setServer({ plugins: { project_cards: { drafts: {}, preview: { net_id: "base-2", base: "base", describe: "card",
   stale: false }, catalog: CATALOG, applied } } });
 got.highlighted = [...store.get().highlights];
+got.keep = store.get().highlightsKeep; // survives the preview network's switch once
 got.backLine = Boolean(button(elById(root, "pc-preview"), "Back to the network"));
 setServer({ plugins: { project_cards: { drafts: {}, preview: null, catalog: CATALOG, applied } } });
 got.cleared = [...store.get().highlights];
+got.keepCleared = store.get().highlightsKeep;
 
 // 11. Copy reads the summary route and writes it to the clipboard.
 const copied = [];
@@ -352,6 +354,7 @@ def test_the_panel_under_a_fake_dom(run_js):
     assert got["applyGood"] == [True, False]
     assert got["highlighted"] == [1, 2] and got["backLine"] is True
     assert got["cleared"] == []
+    assert got["keep"] is True and got["keepCleared"] is False
     assert got["copied"] == [
         ["SUMMARY TEXT"],
         ["/api/plugins/project_cards/summary.txt?net_id=base"],

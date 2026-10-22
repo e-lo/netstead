@@ -7,6 +7,7 @@ import { dispatch, getJSON, postJSON } from "./api.js";
 import { actionCommands, addCommandTo, frozenCopy } from "./commands.js";
 import { toast } from "./dom.js";
 import { schemaForm } from "./formview.js";
+import { icon } from "./icons.js";
 import { hub } from "./hub.js";
 import { addLayer } from "./map.js";
 import { activatePlugins, createErrorReporter } from "./pluginload.js";
@@ -43,6 +44,6 @@ function hostDeps({ hostApi, actionTypes, schemas }) {
     hostApi, store, activeSelection, getJSON, postJSON, dispatch, fetch: (url, init) => fetch(url, init),
     events: hub, addCommand, layers: { register: addLayer }, dock: { addWorkspace, addPanel, showPanel },
     schemaForm, actionTypes, actionSchema: type => schemas.get(type) || null, toast, onError: reportPluginError,
-    frozenCopy,
+    frozenCopy, icon,
   };
 }

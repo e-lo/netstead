@@ -181,7 +181,9 @@ function onNetKey(key) {
     return;
   }
   cancelRelated(); onNetworkChanged();
-  store.set({ highlights: new Set(), focus: null, related: null, fixTarget: null, issueFocus: null });
+  const keep = store.get().highlightsKeep; // a plugin set them for the network now opening (a card preview)
+  store.set({ highlights: keep ? store.get().highlights : new Set(), highlightsKeep: false,
+    focus: null, related: null, fixTarget: null, issueFocus: null });
   clearDetails(); $("iss-fixer").innerHTML = "";
 }
 
