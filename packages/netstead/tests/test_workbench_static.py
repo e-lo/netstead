@@ -870,5 +870,5 @@ def test_the_robot_shows_status_by_color_and_dot_shape():
     llm = (JS_DIR / "llm.js").read_text()
     for state in ("ready", "offline", "unavailable"):
         assert f"#nl-btn.llm-{state}" in css and f"#nl-btn .dot.llm-{state}" in css
-    assert "llmStatus(" in llm and 'btn.className = `iconbtn llm-${status.state}`' in llm
+    assert "llmStatus(" in llm and "btn.className = `iconbtn llm-${status.state}`" in llm
     assert "import " not in (JS_DIR / "llmstatus.js").read_text()  # pure

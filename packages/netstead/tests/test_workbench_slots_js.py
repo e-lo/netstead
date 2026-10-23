@@ -428,7 +428,13 @@ def test_badges_normalise_roll_up_and_read_aloud(node_module):
         {"text": "3", "dirty": False, "tone": "", "quiet": False, "title": ""},
         {"text": "", "dirty": True, "tone": "", "quiet": False, "title": "2 unsaved"},
         None,
-        {"text": "", "dirty": True, "tone": "", "quiet": False, "title": "Draft card"},  # a dirty panel marks its workspace tab
+        {
+            "text": "",
+            "dirty": True,
+            "tone": "",
+            "quiet": False,
+            "title": "Draft card",
+        },  # a dirty panel marks its workspace tab
         None,  # a count alone doesn't
         {"text": "!", "dirty": False, "tone": "", "quiet": False, "title": ""},
         "Edits — 2 unsaved",
