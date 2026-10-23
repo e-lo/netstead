@@ -187,8 +187,8 @@ has a badge showing where its current value comes from: `default`, `user`, `proj
 - `io.allowed_roots` is read-only here. The folders the app may read and write can only be widened in a
   config file, an environment variable, or on the command line.
 - A basemap change applies at once, without reloading the page.
-- **Language models** is a section of the same dialog. **Models…**, next to the provider/model picker in
-  the **Find** tab, opens it too.
+- **Language models** is a section of the same dialog. **Models…**, in the model picker (the robot icon in the
+  header), opens it too.
 - The dialog is keyboard-friendly: focus starts in it, Tab stays inside it, and Esc closes it and returns focus to
   where you were.
 
@@ -493,7 +493,7 @@ To set up a local model (install Ollama, pull `qwen3:4b`, troubleshoot), see
 `select.provider` accepts `anthropic`, `openai`, `gemini`, `ollama` or `stub`. `claude` is still
 accepted as an alias for `anthropic` (existing config files keep working).
 
-Pick a provider and model with the picker next to the utterance box. The choice is
+Pick a provider and model with the picker under the robot icon in the header. The choice is
 `SetSetting(scope="session")` — it applies to this session only; **Make default** saves the same
 pair with `scope="user"`, and warns first if a project setting or a `NETSTEAD_SELECT__*` /
 `NETSTEAD_SELECT__MODEL` environment variable would still override it. **Models…** opens the
@@ -544,7 +544,7 @@ quietly switches to another provider.
 
 Every selection sends your utterance and the selection tool's schema (GMNS field names such as
 `lanes`), never your network tables or files. The `[llm.quality]` settings add more, and the
-privacy note next to the picker always lists exactly what the chosen provider receives. Every part
+privacy note in the picker's tooltip always lists exactly what the chosen provider receives. Every part
 of the prompt that is network- or project-sourced data (not an instruction) is fenced in its own
 tagged block (for example `<network_vocabulary>…</network_vocabulary>`) so a street name or
 project note can never be mistaken for a new instruction to the model.

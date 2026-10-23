@@ -21,6 +21,10 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Changed
 
+- **The Workbench model picker is a header icon.** A robot button in the header opens the provider and model
+  picker as a popover (the privacy dot is a badge on it; the tooltip names the provider and model). The picker no
+  longer sits in the Find tab.
+
 - **Workbench: a map button for the View settings, Open as an icon, nodes styled by control type.** The map
   gets a layers button that opens the Find tab's View section; the header's Open is an icon button with the
   same recents menu; and nodes colored by `ctrl_type` use red (large) signals, orange/amber stop signs, yellow

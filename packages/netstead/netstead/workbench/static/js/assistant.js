@@ -115,7 +115,7 @@ function pendingElement(q) {
 function noteText(st) {
   if (st.error) return st.error;
   if (st.provider === "stub") {
-    return "Offline assistant (a few fixed commands). Choose a language model in the header for more.";
+    return "Offline assistant (a few fixed commands). Choose a language model with the robot icon in the header for more.";
   }
   const sends = (st.sends || []).length ? st.sends.join("; ") : "nothing beyond your question";
   const compact = st.compact ? ` It is offered a compact tool set (${(st.tools || []).length} tools: ` +

@@ -203,8 +203,10 @@ def test_header_has_the_llm_picker_and_panel():
     for marker in ('id="nl-provider"', 'id="nl-model"', 'id="nl-dot"', 'id="nl-default"', 'id="nl-manage"'):
         assert marker in html
     assert 'id="llm-panel"' in html
-    # The picker sits under the utterance box and its Select / Ask buttons, in the Find panel's bar.
-    assert html.index('id="utterance"') < html.index('id="go"') < html.index('id="nl-picker"')
+    # The picker is a popover under the robot button in header row 1, not part of the Find panel's bar.
+    header = html[html.index("<header>") : html.index("</header>")]
+    assert 'id="nl-btn"' in header and 'aria-haspopup="dialog"' in header and 'id="nl-picker"' in header
+    assert 'id="nl-dot"' in header.split('id="nl-btn"', 1)[1].split('id="nl-picker"', 1)[0]
     main = (JS_DIR / "main.js").read_text()
     assert 'from "./llm.js"' in main and "llm:" in main  # wired, and subscribed to the `llm` SSE event
 
@@ -254,18 +256,22 @@ def test_settings_module_is_wired_from_main():
     assert 'from "./settings.js"' in main and "registerSection(" in main and "wireSettings()" in main
 
 
-def test_the_header_is_one_row_and_the_find_panel_holds_the_utterance_box_and_picker():
+def test_the_header_is_one_row_and_the_find_panel_holds_the_utterance_box_not_the_picker():
     html = (STATIC_DIR / "index.html").read_text()
     header = html[html.index("<header>") : html.index("</header>")]
     assert header.count('class="hrow"') == 1 and 'id="nl-row"' not in html
     for element_id in ("net-select", "open-wizard", "save-btn", "valid-light", "viewmode", "jobs-btn", "settings-btn"):
         assert f'id="{element_id}"' in header
     assert 'id="cmd-btn"' in header
-    for element_id in ("utterance", "nl-picker", "go", "ask"):
+    for element_id in ("utterance", "go", "ask"):
         assert f'id="{element_id}"' not in header
+    for element_id in ("nl-btn", "nl-picker", "nl-provider", "nl-model", "nl-default", "nl-manage"):
+        assert f'id="{element_id}"' in header
     bar = html[html.index('id="find-bar"') : html.index('id="status-wrap"')]
-    for element_id in ("utterance", "go", "ask", "nl-picker", "nl-provider", "nl-model"):
+    for element_id in ("utterance", "go", "ask"):
         assert f'id="{element_id}"' in bar
+    for element_id in ("nl-picker", "nl-provider", "nl-model"):
+        assert f'id="{element_id}"' not in bar
     selection = (JS_DIR / "selection.js").read_text()
     assert "barRoute(e)" in selection and '$("ask").onclick' in selection  # Enter selects; Ctrl/⌘+Enter asks
     header_js = (JS_DIR / "header.js").read_text()
@@ -731,7 +737,7 @@ def test_the_assistant_panel_and_the_ask_button_exist():
         'id="as-usage"',
     ):
         assert el in pane
-    assert 'id="ask"' in html.split('id="find-bar"', 1)[1].split('id="nl-picker"', 1)[0]
+    assert 'id="ask"' in html.split('id="find-bar"', 1)[1].split('id="status-wrap"', 1)[0]
     js = (JS_DIR / "assistant.js").read_text()
     assert 'addPanel(CORE, { id: "assistant"' in js and "workspace: ALL_WORKSPACES" in js
     assert 'id: "ask_assistant", title: "Ask the assistant…"' in js
