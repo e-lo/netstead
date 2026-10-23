@@ -118,22 +118,21 @@ didn't check by hand.
 ### 5. What validation severities mean
 
 ![The Validate panel after Run validation](assets/screenshots/workbench-05-issues.png){ .screenshot }
-*After Run validation: 272 warnings and 16 info, and a dot on the map for every issue with a place. (screenshot predates the panel restructure)*
+*After Run validation: 271 warnings and 16 info, and a dot on the map for every issue with a place. (screenshot predates the panel restructure)*
 
 **Run validation** (the play icon in the **Validate** tab) runs two kinds of check and lists them together,
 each with a severity:
 
 - **error** — the network breaks the spec in a way a consumer can't work around: a required table or field is
   missing, a value has the wrong type, a foreign key points at a row that doesn't exist. Leavenworth has none.
-- **warning** — something is wrong or can't be shown to be right. The spec check finds one: `fk.unverifiable`,
-  because `node.zone_id` references a `zone` table the fixture doesn't ship, so the key can't be checked. The
-  quality rules add 271: `quality.high_speed_residential`, a residential link whose `free_speed` (40) is above
+- **warning** — something is wrong or can't be shown to be right. The spec check finds none on Leavenworth.
+  The quality rules add 271: `quality.high_speed_residential`, a residential link whose `free_speed` (40) is above
   the 35 mph threshold. The spec allows it; the rule says it is probably a coding mistake, and its `fix_hint`
   says what to do if the speed is right (raise the facility class instead).
 - **info** — worth knowing, not wrong: 16 `structural.missing_optional_resource` findings, one per optional
   GMNS table (`movement`, `segment`, `signal_*`, `zone`, ...) that this network doesn't include.
 
-The status line sums them: `Validated v0: 272 warnings, 16 info`, the `v0` being the version of the network
+The status line sums them: `Validated v0: 271 warnings, 16 info`, the `v0` being the version of the network
 that was checked. Spec checks are about whether the file is valid GMNS; quality rules are about whether the
 network is plausible, and they are configurable (**Settings → Validation**, keyed by rule code), so a region
 with 40 mph residential streets can raise the threshold instead of silencing the rule.

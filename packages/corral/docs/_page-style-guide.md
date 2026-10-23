@@ -161,7 +161,7 @@ For pages where the output *is* visual (a card-rendered `_repr_html_`, an HTML v
 
 ```markdown
 ![Validation report card for the Leavenworth fixture](assets/screenshots/leavenworth-validation-report.png){ .screenshot }
-*Validation report card. No ERRORs; one `fk.unverifiable` WARNING (`node.zone_id`, no `zone` table) and 16 INFO findings for optional tables the fixture doesn't ship.*
+*Validation report card. No ERRORs, no WARNINGs and 16 INFO findings for optional tables the fixture doesn't ship.*
 ```
 
 The `{ .screenshot }` class applies a subtle border + shadow. `mkdocs-glightbox` adds click-to-zoom automatically.

@@ -47,16 +47,16 @@ def test_issues_before_any_validation(fresh):
 
 def test_a_page_with_facets(client):
     j = client.get(f"{BASE}/issues?limit=10").json()
-    assert (j["total"], len(j["issues"]), j["unlocated"], j["stale"]) == (288, 10, 17, False)
+    assert (j["total"], len(j["issues"]), j["unlocated"], j["stale"]) == (287, 10, 16, False)
     assert j["facets"]["code"]["quality.high_speed_residential"] == 271
-    assert j["facets"]["severity"] == {"error": 0, "warning": 272, "info": 16}
+    assert j["facets"]["severity"] == {"error": 0, "warning": 271, "info": 16}
 
 
 def test_filters(client):
     assert client.get(f"{BASE}/issues?severity=info").json()["total"] == 16
     assert client.get(f"{BASE}/issues?severity=error,info").json()["total"] == 16
-    assert client.get(f"{BASE}/issues?code=fk.unverifiable").json()["total"] == 1
-    assert client.get(f"{BASE}/issues?located=no").json()["total"] == 17
+    assert client.get(f"{BASE}/issues?code=fk.unverifiable").json()["total"] == 0
+    assert client.get(f"{BASE}/issues?located=no").json()["total"] == 16
     first = client.get(f"{BASE}/issues?located=yes&limit=1").json()["issues"][0]
     rec = client.get(f"{BASE}/issues?record=link:{first['key']}").json()
     assert rec["total"] >= 1 and all(i["key"] == first["key"] for i in rec["issues"])

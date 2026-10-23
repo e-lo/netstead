@@ -98,7 +98,7 @@ print(f"issues: {len(report.issues)} ({report.spec_version})")
 In a notebook, `report` on its own renders an HTML card grouped by severity.
 
 ![Validation report card](assets/screenshots/leavenworth-validation-report.png){ .screenshot }
-*Validation report card (report._repr_html_() in a notebook) — 0 ERRORs, 1 WARNING fk.unverifiable, 16 INFO structural.missing_optional_resource*
+*Validation report card (report._repr_html_() in a notebook) — 0 ERRORs, 0 WARNINGs, 16 INFO structural.missing_optional_resource*
 
 ### 4. Run data-quality checks
 

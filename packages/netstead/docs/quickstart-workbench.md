@@ -135,9 +135,8 @@ recorded selection, not a one-off click.
 Open the **Validate** tab in the dock and press the run icon (**Run validation**). It runs as a background job (the **Jobs**
 count in the header ticks while it works) and takes a few seconds on Leavenworth.
 
-When it finishes the status line reads `Validated v0: 272 warnings, 16 info`. That is two reports in one
-list. The spec checks find **0 errors, 1 warning and 16 info**: the warning is `fk.unverifiable` (`node.zone_id`
-points at a `zone` table the fixture doesn't ship, so the key can't be checked) and the 16 info findings are
+When it finishes the status line reads `Validated v0: 271 warnings, 16 info`. That is two reports in one
+list. The spec checks find **0 errors, 0 warnings and 16 info**: the 16 info findings are
 `structural.missing_optional_resource`, one per optional GMNS table that is absent. The quality rules add
 **271 warnings** of `quality.high_speed_residential`: residential links whose `free_speed` of 40 is above the
 default 35 mph threshold. The **Severity**, **Table** and **Code** filters show the same counts, for example
@@ -145,12 +144,12 @@ default 35 mph threshold. The **Severity**, **Table** and **Code** filters show 
 
 Every located issue is a dot on the map. Click an issue in the list: the map flies to its link (or use the
 crosshair "zoom to" icon on a located finding), Inspect shows the record, and the table scrolls to its row and
-marks it. The 17 table-level findings have no place on the map, so they sit grouped under a collapsed
+marks it. The 16 table-level findings have no place on the map, so they sit grouped under a collapsed
 **Unlocated findings** group at the bottom of the panel (expand with **`--all`**-style grouping, or the group's
 disclosure triangle).
 
 ![The Validate panel after Run validation](assets/screenshots/workbench-05-issues.png){ .screenshot }
-*The Validate panel after Run validation: 272 warnings and 16 info, each located issue a dot on the map. (screenshot predates the panel restructure)*
+*The Validate panel after Run validation: 271 warnings and 16 info, each located issue a dot on the map. (screenshot predates the panel restructure)*
 
 ### 6. Fix a finding
 
