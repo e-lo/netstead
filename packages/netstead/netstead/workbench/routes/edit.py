@@ -156,6 +156,26 @@ def edit_router(session: Session) -> APIRouter:
             "records": s.by_record(),
         }
 
+    @router.get("/issues/anchors")
+    def anchors(net_id: str, component: str, code: str, severity: str | None = None) -> dict[str, Any]:
+        """Where one finding type sits on the map: its link ids, node ids and bare coordinates (all of them)."""
+        h = network_handle(session, net_id, component)
+        s = session.issue_set(h.id)
+        links: list[Any] = []
+        nodes: list[Any] = []
+        points: list[Any] = []
+        for i in s.issues if s is not None else []:
+            a = i["anchor"]
+            if i["code"] != code or (severity and i["severity"] != severity) or a is None:
+                continue
+            if a.get("link") is not None:
+                links.append(a["link"])
+            elif a.get("node") is not None:
+                nodes.append(a["node"])
+            elif a.get("lonlat") is not None:
+                points.append(a["lonlat"])
+        return {"links": list(dict.fromkeys(links)), "nodes": list(dict.fromkeys(nodes)), "points": points}
+
     @router.get("/report.html")
     def report(net_id: str, component: str) -> HTMLResponse:
         """The offline validation report (the ``render_validation_html`` page) for the last, still-current run.

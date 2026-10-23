@@ -68,8 +68,9 @@ export const groupTitle = g => `${g.code} · ${g.severity} · ${g.count.toLocale
 // The line under a group's title: structural groups name their resources (as before); every other type shows the
 // rule's fix hint once, which would otherwise repeat on each of its members.
 export function groupBlurb(g) {
-  if (typeof g.code === "string" && g.code.startsWith("structural.")) return groupSummary({ ...g, tables: g.tables || [] });
-  return g.fix_hint || "";
+  const text = typeof g.code === "string" && g.code.startsWith("structural.")
+    ? groupSummary({ ...g, tables: g.tables || [] }) : g.fix_hint || "";
+  return g.located === 0 && g.count > 0 ? `${text}${text ? " " : ""}(not on the map)` : text;
 }
 
 // The members still to load for a group that has `loaded` of its `count`.

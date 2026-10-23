@@ -455,14 +455,14 @@ def test_the_dock_tabs_are_find_inspect_edit_cards_validate_assistant():
 
 def test_validate_groups_repeated_structural_findings_and_offers_zoom_to():
     issues = (JS_DIR / "issues.js").read_text()
-    assert 'from "./issuegroups.js"' in issues and "groupIssues(issues)" in issues and "groupSummary(g)" in issues
-    assert 'class="iss grp' in issues and 'aria-expanded="false"' in issues and 'class="iss-members"' in issues
+    assert 'from "./issuegroups.js"' in issues and "groupBlurb(g)" in issues and "issues/summary?" in issues
+    assert 'class="iss grp type' in issues and 'aria-expanded="false"' in issues and 'class="iss-members"' in issues
     assert (
         'icon("crosshair"' in issues
         and 'class="iconbtn iss-zoom" data-tip="Zoom to" aria-label="${esc(zoomLabel(i, where))}"' in issues
     )
-    assert 'listHTML(unlocated.issues, "iss-unlocated")' in issues
-    assert "const id = `${prefix}-grp-${k}`" in issues  # group ids never collide across the two lists
+    # One list: unlocated findings sit in their type's group (no separate Unlocated section listing them again).
+    assert "iss-unlocated" not in issues and 'located: "no"' not in issues
     for zoom in ("fitLinks([a.link])", "flyToNode(a.node)", "flyTo(a.lonlat[0], a.lonlat[1])"):
         assert zoom in issues
     assert '"#dock-validate .iss[data-i]"' in issues and 'showPanel("validate")' in issues
@@ -665,8 +665,9 @@ def test_issue_markers_and_validation_commands_use_the_slots():
     assert "registerIssueLayer()" in main and "registerEditCommands()" in main
     html = (STATIC_DIR / "index.html").read_text()
     pane = html[html.index('id="dock-validate"') : html.index('id="dock-assistant"')]
-    for element_id in ("iss-run", "iss-report", "iss-status", "iss-list", "iss-unlocated", "iss-fixer"):
+    for element_id in ("iss-run", "iss-report", "iss-status", "iss-list", "iss-fixer"):
         assert f'id="{element_id}"' in pane
+    assert 'id="iss-unlocated"' not in pane and 'id="iss-unloc-count"' not in pane
     assert 'id="iss-edit"' in html[html.index('id="dock-edit"') : html.index('id="dock-validate"')]  # warnings: Edit
     assert 'id="tg-issues"' not in html  # hidden through View → Overlays, not a toggle of its own
 
@@ -964,3 +965,10 @@ def test_wizard_back_is_a_header_chevron_and_the_first_step_has_no_footer():
     assert '$("wz-back").hidden = wz.step === "source"' in wizard
     assert '$("wz-foot").hidden = wz.step === "source"' in wizard
     assert '"chevron-left"' in (JS_DIR / "icons.js").read_text()
+
+
+def test_a_finding_group_can_show_all_its_links_on_the_map():
+    issues = (JS_DIR / "issues.js").read_text()
+    assert 'data-tip="Show all on the map"' in issues and "issues/anchors?" in issues
+    assert "store.set({ highlights: new Set(a.links) }); fitLinks(a.links);" in issues
+    assert "g.located > 0" in issues  # no button for a type that has nothing on the map

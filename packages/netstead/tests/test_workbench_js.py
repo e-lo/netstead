@@ -1637,3 +1637,15 @@ def test_examples_list_renders_one_open_button_per_example(node_module):
     assert html.count("data-example-source=") == 2 and 'data-example-source="/x/a b"' in html
     assert "Alpha &lt;WA&gt;" in html and "A &amp; B" in html and "1,234 links, 56 nodes" in html
     assert node_module("examplesmodel.js", ["examplesHTML"], "examplesHTML([])") == ""
+
+
+def test_a_group_with_no_finding_on_the_map_says_so(node_module):
+    blurbs = node_module(
+        "issuegroups.js",
+        ["groupBlurb"],
+        "[groupBlurb({code: 'quality.x', fix_hint: 'Fix it.', count: 3, located: 0}),"
+        " groupBlurb({code: 'quality.x', fix_hint: 'Fix it.', count: 3, located: 2}),"
+        " groupBlurb({code: 'quality.y', count: 2, located: 0}),"
+        " groupBlurb({code: 'quality.z', fix_hint: 'Hint.', count: 1})]",
+    )
+    assert blurbs == ["Fix it. (not on the map)", "Fix it.", "(not on the map)", "Hint."]

@@ -242,3 +242,19 @@ def test_edit_reads_are_not_recorded(edited):
     c.get(f"{BASE}/edits")
     c.post(f"{BASE}/table/link/delete-plan", json={"ids": [1]})
     assert len(s.history) == before
+
+
+def test_each_summary_group_counts_its_findings_on_the_map(client):
+    groups = {g["code"]: g for g in client.get(f"{BASE}/issues/summary").json()["groups"]}
+    assert groups["structural.missing_optional_resource"]["located"] == 0  # table-level: no map anchor
+    speed = groups["quality.high_speed_residential"]
+    assert speed["located"] == speed["count"]  # every finding sits on a link
+
+
+def test_anchors_lists_every_link_of_one_finding_type(client):
+    a = client.get(f"{BASE}/issues/anchors", params={"code": "quality.high_speed_residential", "severity": "warning"})
+    assert a.status_code == 200
+    body = a.json()
+    assert len(body["links"]) == len(set(body["links"])) > 200 and body["nodes"] == [] and body["points"] == []
+    none = client.get(f"{BASE}/issues/anchors", params={"code": "structural.missing_optional_resource"}).json()
+    assert none == {"links": [], "nodes": [], "points": []}  # table-level findings have no map anchor

@@ -100,7 +100,8 @@ class IssueSet:
     def summary(self, rows: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
         """``rows`` (a :meth:`query` result) folded into one entry per code and severity.
 
-        Each entry is ``{code, severity, count, fix_hint, tables}``: ``fix_hint`` is the rule's (the first member's),
+        Each entry is ``{code, severity, count, located, fix_hint, tables}``: ``located`` counts the members with a
+        map anchor, ``fix_hint`` is the rule's (the first member's),
         ``tables`` the distinct tables of its members (at most :data:`SUMMARY_TABLES`, in order of appearance, so a
         group of ``structural`` findings can name the resources). Ordered by severity (error, warning, info), then
         by count (largest first), then code. Built from the whole result, so the Validate list never depends on a page.
@@ -109,9 +110,17 @@ class IssueSet:
         for i in rows:
             g = groups.setdefault(
                 (i["code"], i["severity"]),
-                {"code": i["code"], "severity": i["severity"], "count": 0, "fix_hint": i.get("fix_hint"), "tables": []},
+                {
+                    "code": i["code"],
+                    "severity": i["severity"],
+                    "count": 0,
+                    "located": 0,
+                    "fix_hint": i.get("fix_hint"),
+                    "tables": [],
+                },
             )
             g["count"] += 1
+            g["located"] += i.get("anchor") is not None
             if g["fix_hint"] is None:
                 g["fix_hint"] = i.get("fix_hint")
             if i["table"] and i["table"] not in g["tables"] and len(g["tables"]) < SUMMARY_TABLES:

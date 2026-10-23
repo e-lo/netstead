@@ -7,7 +7,7 @@ import { getJSON, netPath } from "./api.js";
 import { $, esc, toast } from "./dom.js";
 import { runCore } from "./editcmds.js";
 import { icon } from "./icons.js";
-import { MEMBER_PAGE, groupBlurb, groupIssues, groupSummary, groupTitle, located, orderGroups, remaining, totalsLine,
+import { MEMBER_PAGE, groupBlurb, groupTitle, located, orderGroups, remaining, totalsLine,
   typeKey, typeOptionLabel } from "./issuegroups.js";
 import { SEVERITIES, SEVERITY_RGB, issueMeta, issuesQuery, markerPoints, statusLine } from "./issuelist.js";
 import { addLayer, fitLinks, flyTo, flyToNode } from "./map.js";
@@ -117,26 +117,19 @@ async function loadList() {
   const id = activeId(), mine = ++seq, s = store.get();
   if (!id || !issueMeta(s.server)) {
     $("iss-list").innerHTML = '<span class="empty">Run validation to list issues.</span>';
-    $("iss-unlocated").innerHTML = ""; $("iss-range").textContent = ""; $("iss-unloc-count").textContent = "0";
+    $("iss-range").textContent = "";
     members.clear();
     return;
   }
   const f = s.issueFilter, record = f.thisRecord && s.focus ? s.focus : null;
-  const [summary, unlocated] = await Promise.all([
-    getJSON(netPath(id, `issues/summary?${issuesQuery({ ...f, record }, 0, 1)}`)),
-    getJSON(netPath(id, `issues?${issuesQuery({ located: "no" }, 0, 50)}`)),
-  ]);
+  const summary = await getJSON(netPath(id, `issues/summary?${issuesQuery({ ...f, record }, 0, 1)}`));
   if (mine !== seq) return;
   renderFacets(summary.facets, f);
   const groups = orderGroups(summary.groups);
   members.clear();
   $("iss-list").innerHTML = groups.map(typeHTML).join("") || '<span class="empty">No issues match.</span>';
   $("iss-range").textContent = totalsLine(summary.total, groups);
-  $("iss-unloc-count").textContent = unlocated.total;
-  const more = unlocated.total - unlocated.issues.length;
-  $("iss-unlocated").innerHTML = listHTML(unlocated.issues, "iss-unlocated") + (more > 0 ? `<div class="empty">and ${more} more</div>` : "");
   wireTypes(groups, { filter: f, record, mine, open: Boolean(record) });
-  wireRows($("iss-unlocated"), unlocated.issues);
   markFocusedIssue();
 }
 
@@ -166,13 +159,31 @@ function issueHTML(i, hint = true) {
 // the resources they name) once, then its members, which load when it opens.
 function typeHTML(g, k) {
   const id = `iss-type-${k}`, blurb = groupBlurb(g);
+  const all = g.located > 0
+    ? `<button class="iconbtn iss-all" data-all="${k}" data-tip="Show all on the map" ` +
+      `aria-label="Show all ${esc(g.located)} ${esc(g.code)} findings on the map">${icon("crosshair")}</button>` : "";
   return `<div class="iss grp type sev-${esc(g.severity)}" data-t="${k}" tabindex="0" role="button" aria-expanded="false" aria-controls="${id}">` +
     `<span class="sev-dot" aria-hidden="true"></span><div class="iss-body"><div><span class="iss-tog" aria-hidden="true">▸</span> ` +
-    `<b>${esc(g.code)}</b> <span class="diag">${esc(g.severity)}</span> <span class="pcount">${esc(g.count.toLocaleString("en-US"))}</span></div>` +
+    `<b>${esc(g.code)}</b> <span class="diag">${esc(g.severity)}</span> <span class="pcount">${esc(g.count.toLocaleString("en-US"))}</span>${all}</div>` +
     `${blurb ? `<div class="iss-msg">${esc(blurb)}</div>` : ""}</div></div><div class="iss-members" id="${id}" hidden></div>`;
 }
 
+// Highlight every link a finding type points at and fit the map to them; a type on nodes only flies to its first.
+async function showAll(g) {
+  const id = activeId();
+  const q = `code=${encodeURIComponent(g.code)}&severity=${encodeURIComponent(g.severity)}`;
+  const a = await getJSON(netPath(id, `issues/anchors?${q}`));
+  if (activeId() !== id) return;
+  if (a.links.length) { store.set({ highlights: new Set(a.links) }); fitLinks(a.links); }
+  else if (a.nodes.length) flyToNode(a.nodes[0]);
+  else if (a.points.length) flyTo(a.points[0][0], a.points[0][1]);
+}
+
 function wireTypes(groups, ctx) {
+  for (const b of $("iss-list").querySelectorAll(".iss-all")) {
+    b.onclick = e => { e.stopPropagation(); showAll(groups[Number(b.dataset.all)]).catch(err => toast(err.message)); };
+    b.onkeydown = e => e.stopPropagation(); // Enter/Space press the button, not the group row
+  }
   for (const row of $("iss-list").querySelectorAll(".iss.type")) {
     const g = groups[Number(row.dataset.t)], key = typeKey(g), box = document.getElementById(row.getAttribute("aria-controls"));
     members.set(key, { issues: [], total: g.count, box, group: g, ctx });
@@ -212,20 +223,6 @@ function renderMembers(key) {
 }
 
 const zoomLabel = (i, where) => `Zoom to ${i.code}${where ? ` on ${where}` : ""}`;
-
-// A page of findings: a group of repeated structural findings is one collapsed row (▸ code (n), its summary) that
-// expands to its members; everything else is its own row. `prefix` (the list's id) keeps the group ids unique
-// across the located and unlocated lists.
-function listHTML(issues, prefix) {
-  return groupIssues(issues).map((g, k) => {
-    if (!g.group) return issueHTML(g.issue);
-    const id = `${prefix}-grp-${k}`;
-    return `<div class="iss grp sev-${esc(g.severity)}" data-g="${k}" tabindex="0" role="button" aria-expanded="false" aria-controls="${id}">` +
-      `<span class="sev-dot" aria-hidden="true"></span><div class="iss-body"><div><span class="iss-tog" aria-hidden="true">▸</span> ` +
-      `<b>${esc(g.code)}</b> <span class="pcount">${esc(g.count)}</span></div><div class="iss-msg">${esc(groupSummary(g))}</div></div></div>` +
-      `<div class="iss-members" id="${id}" hidden>${g.issues.map(issueHTML).join("")}</div>`;
-  }).join("");
-}
 
 function toggleGroup(row) {
   const members = document.getElementById(row.getAttribute("aria-controls")), open = members.hidden;
