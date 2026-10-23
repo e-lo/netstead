@@ -64,6 +64,11 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
 
 ### Changed
 
+- **"This session", not "Applied this session".** The panel's third section lists what the session did with cards,
+  newest first with the time and an icon: "Saved <file>" (a commit), the catalog file actions (renamed, duplicated,
+  deleted, restored, metadata edited) and "Applied <card> to <network>" only while `enable_apply` is on. It reads
+  `plugins.project_cards.session` (`{kind, verb, text, detail, card_id, at}` each), a log kept with the commit and
+  file records and taken back with them on a rollback. A committed record now carries `at`.
 - **Applying cards is off by default.** The new setting `[plugins.project_cards] enable_apply` (default `false`)
   gates `project_cards.apply_card`: off, it is refused with "applying cards is turned off
   (plugins.project_cards.enable_apply)", the panel offers no **Apply…** (`plugins.project_cards.enable_apply` in the

@@ -1,14 +1,15 @@
 // The project cards plugin's front end: the "Cards" dock panel (its id is the bare `cards` core reserves for this
 // plugin) and the "New change ▸ …" commands. The panel has four sections: the catalog (a folder of cards, each with
 // its applicability badge, previewed or applied), the draft card (compose a change, preview it, the draft's changes,
-// commit and import), the cards applied this session, and the session summary (copied or downloaded). Everything
+// commit and import), this session's card actions (saved, applied, catalog files), and the session summary (copied
+// or downloaded). Everything
 // goes through `wb` (see the cookbook page "Write a Workbench plugin"); the flow lives in controller.js and the rules
 // in cardmodel.js, both tested under node. Card and user text is only ever set as text (`h`'s `text`, or a string
 // child), never parsed as markup.
 import {
-  ROADWAY_TYPES, TRANSIT_TYPES, TYPE_TITLES, appliedRows, applyDefaults, applyEnabled, catalogOf, catalogRows, commitChoices,
+  ROADWAY_TYPES, TRANSIT_TYPES, TYPE_TITLES, applyDefaults, applyEnabled, catalogOf, catalogRows, commitChoices,
   commitFields, commitView, draftBadge, editPrompt, fileLine, metaFields, metaForm, renameName, draftNet, draftOf, hasNode, importPath, inspectHeader, inspectRows, needsSelection,
-  openPreview, previewLine, savedChoices, selectionStatus, stepIndicator, summaryFileName, typeChoices,
+  openPreview, previewLine, savedChoices, selectionStatus, sessionRows, stepIndicator, summaryFileName, typeChoices,
 } from "./cardmodel.js";
 import { createController } from "./controller.js";
 
@@ -188,7 +189,7 @@ function createView(wb, ctl, el) {
   const composeBox = h("section", { id: "pc-compose" });
   const draftBox = h("section", { id: "pc-draft" });
   const commitBox = h("section", { id: "pc-commit" });
-  const appliedBox = h("section", { id: "pc-applied" });
+  const sessionBox = h("section", { id: "pc-session" });
   const summaryBox = h("section", { id: "pc-summary" });
   const status = h("p", { class: "muted", role: "status", id: "pc-status" });
   const dialog = h("dialog", { "aria-labelledby": "pc-dialog-title" });
@@ -200,7 +201,7 @@ function createView(wb, ctl, el) {
   el.append(
     heading("Catalog"), catalogBox, previewBox, inspectBox,
     heading("Draft"), createBox, composeBox, draftBox, commitBox,
-    heading("Applied this session"), appliedBox,
+    heading("This session"), sessionBox,
     heading("Session summary"), summaryBox,
     status, dialog,
   );
@@ -831,22 +832,27 @@ function createView(wb, ctl, el) {
     apply.focus();
   }
 
-  // ------------------------------------------------------------------------------- applied, and the summary
+  // ---------------------------------------------------------------------------- this session, and the summary
 
-  function drawApplied() {
-    const rows = appliedRows(server());
+  // What this session did with cards, newest first: each entry an icon, its sentence ("Saved main.yml") and the time.
+  function drawSession() {
+    const rows = sessionRows(server());
     if (!rows.length) {
-      redraw(appliedBox, [h("p", { class: "empty", tabindex: -1, text: "No cards applied this session yet." })]);
+      redraw(sessionBox, [h("p", { class: "empty", tabindex: -1,
+        text: "Nothing yet: saved cards and catalog file changes are listed here." })]);
       return;
     }
-    const list = h("ul", { id: "pc-applied-list" });
+    const list = h("ul", { id: "pc-session-list", style: "list-style:none;padding:0;margin:0" });
     for (const r of rows) {
-      list.append(h("li", { "data-card": r.card_id },
-        h("strong", { text: r.project }), " ",
-        h("span", { class: "muted", "data-source": r.source, text: `[${r.source}]` }), " ",
-        h("span", { class: "muted", text: `${r.changes} change(s) on ${r.net_id} at ${r.time}` })));
+      const mark = glyph(h("span", { "aria-hidden": "true", style: "display:inline-flex;width:16px;flex:none" }),
+        r.icon, "•");
+      list.append(h("li", { "data-card": r.card_id, "data-kind": r.kind, title: r.at,
+        style: "display:flex;gap:6px;align-items:baseline;margin:3px 0" },
+      mark, h("span", { style: "flex:1", text: r.text },
+        ...(r.detail ? [h("span", { class: "muted", text: ` · ${r.detail}` })] : [])),
+      h("span", { class: "muted", text: r.time })));
     }
-    redraw(appliedBox, [list]);
+    redraw(sessionBox, [list]);
   }
 
   function drawSummary() {
@@ -877,7 +883,7 @@ function createView(wb, ctl, el) {
     drawCreate();
     drawCompose();
     drawDraft(drawPreview());
-    drawApplied();
+    drawSession();
   }
 
   // The controller dropped the dialog's check: Commit stays disabled until the user checks again.

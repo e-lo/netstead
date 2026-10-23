@@ -208,16 +208,22 @@ export const clockTime = iso => {
   return m ? m[1] : String(iso || "");
 };
 
-// The cards applied this session, newest first, with the time of day they were applied.
-export function appliedRows(state) {
-  return [...(cards(state).applied || [])].reverse().map(a => ({
-    card_id: a.card_id,
-    net_id: a.net_id,
-    project: a.project || a.card_id,
-    source: a.source,
-    changes: a.changes || 0,
-    applied_at: a.applied_at,
-    time: clockTime(a.applied_at),
+// The icon each kind of session entry shows (core's names, or the panel's own: rename, trash, tag).
+export const SESSION_ICONS = { saved: "save", applied: "check-circle", renamed: "rename", duplicated: "copy",
+  deleted: "trash", restored: "undo", updated: "tag" };
+
+// The "This session" list: what this session did with cards (saved, applied when apply is on, a catalog file
+// renamed, duplicated, deleted, restored or its metadata edited), newest first as state() lists them, with the time
+// of day and the icon for its kind.
+export function sessionRows(state) {
+  return (cards(state).session || []).map(r => ({
+    kind: r.kind,
+    icon: SESSION_ICONS[r.kind] || "info",
+    text: r.text,
+    detail: r.detail || "",
+    card_id: r.card_id,
+    at: r.at,
+    time: clockTime(r.at),
   }));
 }
 

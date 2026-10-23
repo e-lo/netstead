@@ -48,7 +48,7 @@ def test_apply_card_works_with_the_setting_on(make_session, catalog):
 
 
 @pytest.mark.parametrize(("enable_apply", "fits"), [(False, True), (True, False)])
-def test_a_card_saved_this_session_reads_as_already_applied_only_with_apply_on(make_session, catalog, enable_apply, fits):
+def test_a_saved_card_reads_as_already_applied_only_with_apply_on(make_session, catalog, enable_apply, fits):
     # Saving the draft over a catalog card records it; with apply off that is not "applied", so the card still fits.
     session = make_session(enable_apply=enable_apply)
     session.dispatch(AddChange(change=LANES_3.model_copy(update={"facility": Selection(ids=[2])})))

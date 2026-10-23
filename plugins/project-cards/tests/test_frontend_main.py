@@ -283,21 +283,25 @@ got.reloaded = [[...reads], ...shown()];
 
 // 8. The four sections, in order; the catalog lists its cards with badges once the listing is read.
 got.sections = root.children.filter(e => e.tagName === "H3").map(e => e.textContent);
-const catalogBox = elById(root, "pc-catalog"), appliedBox = elById(root, "pc-applied");
+const catalogBox = elById(root, "pc-catalog"), sessionBox = elById(root, "pc-session");
 got.noCatalog = catalogBox.textContent.includes("No catalog open");
 const applied = [{ card_id: "lanes", net_id: "base", path: "cards/lanes.yml", project: "Lanes",
                    applied_at: "2026-10-21T09:05:00+00:00", changes: 2, source: "committed", edit_ids: [1, 2] }];
-setServer({ plugins: { project_cards: { drafts: {}, preview: null, catalog: CATALOG, applied } } });
+const session = [{ kind: "saved", verb: "Saved", text: "Saved lanes.yml", detail: "2 change(s) from base",
+                   card_id: "lanes", at: "2026-10-21T09:05:00+00:00" }];
+got.noSession = sessionBox.textContent;
+setServer({ plugins: { project_cards: { drafts: {}, preview: null, catalog: CATALOG, applied, session } } });
 await settle(); await settle();  // the listing is read after the store change
 got.noApply = walk(catalogBox).filter(e => e.getAttribute("data-card")).map(c => Boolean(button(c, "Apply…")));
-setServer({ plugins: { project_cards: { drafts: {}, preview: null, catalog: CATALOG, applied, enable_apply: true } } });
+setServer({ plugins: { project_cards: { drafts: {}, preview: null, catalog: CATALOG, applied, session,
+  enable_apply: true } } });
 await settle(); await settle();
 const cards = walk(catalogBox).filter(e => e.getAttribute("data-card"));
 got.cards = cards.map(c => [c.getAttribute("data-card"), find(c, "SPAN").getAttribute("data-badge"),
                             find(c, "SPAN").getAttribute("title")]);
 got.catalogLine = elById(root, "pc-catalog-line").textContent;
 got.rejected = find(catalogBox, "SUMMARY", "Not cards (1)") !== undefined;
-got.applied = walk(appliedBox).filter(e => e.tagName === "LI").map(e => e.textContent);
+got.session = walk(sessionBox).filter(e => e.tagName === "LI").map(e => [e.getAttribute("data-kind"), e.textContent]);
 
 // 9. Apply… on a ✗ card opens the options dialog with ignore_missing checked; Apply dispatches apply_card.
 await button(cards[1], "Apply…").onclick();
@@ -313,11 +317,11 @@ dialog.close();
 // 10. Preview highlights the card's links through wb.highlight; closing the preview clears them.
 hub.emit("project_cards.card_selection", { card_id: "good.yml", links: [1, 2], nodes: [] });
 setServer({ plugins: { project_cards: { drafts: {}, preview: { net_id: "base-2", base: "base", describe: "card",
-  stale: false }, catalog: CATALOG, applied } } });
+  stale: false }, catalog: CATALOG, applied, session } } });
 got.highlighted = [...store.get().highlights];
 got.keep = store.get().highlightsKeep; // survives the preview network's switch once
 got.backLine = Boolean(button(elById(root, "pc-preview"), "Back to the network"));
-setServer({ plugins: { project_cards: { drafts: {}, preview: null, catalog: CATALOG, applied } } });
+setServer({ plugins: { project_cards: { drafts: {}, preview: null, catalog: CATALOG, applied, session } } });
 got.cleared = [...store.get().highlights];
 got.keepCleared = store.get().highlightsKeep;
 
@@ -352,14 +356,16 @@ def test_the_panel_under_a_fake_dom(run_js):
     reread = ["/api/plugins/project_cards/form?type=roadway_property_change&use_selection=true"]
     assert got["reloaded"] == [reread, False, False, False, False]
     # The catalog, applied and summary sections.
-    assert got["sections"] == ["Catalog", "Draft", "Applied this session", "Session summary"]
+    assert got["sections"] == ["Catalog", "Draft", "This session", "Session summary"]
     assert got["noCatalog"] is True
     assert got["cards"] == [
         ["good.yml", "✓", "Applies to base"],
         ["bad.yml", "✗", "lanes on 3 links: missing 999999"],
     ]
     assert got["catalogLine"] == "/cards" and got["rejected"] is True
-    assert got["applied"] == ["Lanes [committed] 2 change(s) on base at 09:05"]
+    assert got["noSession"] == "Nothing yet: saved cards and catalog file changes are listed here."
+    # A saved card reads "Saved <file>", never "applied" (the icon's text stand-in is the bullet).
+    assert got["session"] == [["saved", "•Saved lanes.yml · 2 change(s) from base09:05"]]
     assert got["noApply"] == [False, False]  # enable_apply is off: no Apply…
     assert got["applyDialog"] == [True, True, "error", 'Apply "Bad"']
     assert got["applied2"] == [False, True, True]

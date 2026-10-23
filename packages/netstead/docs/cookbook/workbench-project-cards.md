@@ -146,8 +146,10 @@ distinct from the draft you build above.
   is written, since the card already exists. Its dialog offers **If a current value differs when the card is
   applied** (`existing_value_conflict`: error / warn / skip) and, for a `✗` card, **ignore missing ids**: with it
   checked, a missing id is skipped and listed instead of refusing the whole card.
-- **Applied this session** lists every card applied this session, from the catalog or committed from the draft,
-  with its project name, change count and edit ids.
+- **This session** lists what this session did with cards, newest first, each with an icon, a verb and the time:
+  **Saved <file>** for a draft committed to a file, **Renamed**, **Duplicated**, **Deleted**, **Restored** and
+  **Edited the metadata of** for the catalog file actions, and **Applied <card> to <network>** when `enable_apply`
+  is on. Saving a card does not apply it to anything: its changes were already on the network as the draft.
 - **Session summary** builds a plain-text summary (network, source, spec version; the applied cards with their
   edit ids; the draft, if any; and this plugin's actions in order, each ok or failed) with **Copy** and
   **Download** buttons. `GET /api/plugins/project_cards/summary.txt` serves the same text.

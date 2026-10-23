@@ -33,6 +33,7 @@ from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
+from pathlib import PurePath
 from typing import Any, Literal
 
 from .card import DraftCard
@@ -40,7 +41,27 @@ from .catalog import Catalog, CatalogEntry
 from .lower import Applied, Mark, Pending, describe
 from .types import CHANGE_TYPES, ROADWAY_TYPES, NetworkChange
 
-__all__ = ["AppliedCard", "CardsState", "Draft", "Entry", "Preview", "Undone", "slug", "timestamp"]
+__all__ = [
+    "FILE_VERBS",
+    "AppliedCard",
+    "CardsState",
+    "Draft",
+    "Entry",
+    "Preview",
+    "Undone",
+    "session_row",
+    "slug",
+    "timestamp",
+]
+
+#: What the session list says for each catalog file Action (its record's ``action``): the verb and how ``to`` reads.
+FILE_VERBS = {
+    "renamed": ("Renamed", "{card_id} to {to}"),
+    "duplicated": ("Duplicated", "{card_id} as {to}"),
+    "deleted": ("Deleted", "{card_id} (moved to {to})"),
+    "restored": ("Restored", "{card_id}"),
+    "updated": ("Edited the metadata of", "{card_id} ({to})"),
+}
 
 
 def slug(text: str) -> str:
@@ -177,6 +198,31 @@ class AppliedCard:
         return {**asdict(self), "edit_ids": list(self.edit_ids)}
 
 
+def session_row(entry: dict[str, Any]) -> dict[str, Any]:
+    """One session-log entry as the panel's "This session" list shows it: ``{kind, verb, text, detail, card_id, at}``.
+
+    ``kind`` is ``saved``, ``applied``, or the catalog file Action (``renamed``, ``duplicated``, ``deleted``,
+    ``restored``, ``updated``); ``text`` starts with the verb.
+
+    >>> session_row({"kind": "saved", "card_id": "q", "path": "/cards/q.yml", "net_id": "n", "changes": 2, "at": "t"})
+    {'kind': 'saved', 'verb': 'Saved', 'text': 'Saved q.yml', 'detail': '2 change(s) from n', 'card_id': 'q', 'at': 't'}
+    >>> session_row({"kind": "file", "action": "renamed", "card_id": "a.yml", "to": "b.yml", "at": "t"})["text"]
+    'Renamed a.yml to b.yml'
+    """
+    kind = entry["kind"]
+    if kind == "saved":
+        verb, text = "Saved", f"Saved {PurePath(entry['path']).name}"
+        detail = f"{entry['changes']} change(s) from {entry['net_id']}"
+    elif kind == "applied":
+        verb, text = "Applied", f"Applied {entry['card_id']} to {entry['net_id']}"
+        detail = f"{entry['changes']} change(s)"
+    else:
+        kind = entry["action"]
+        verb, pattern = FILE_VERBS.get(kind, (kind.capitalize(), "{card_id}"))
+        text, detail = f"{verb} {pattern.format(card_id=entry['card_id'], to=entry['to'])}", ""
+    return {"kind": kind, "verb": verb, "text": text, "detail": detail, "card_id": entry["card_id"], "at": entry["at"]}
+
+
 def timestamp() -> str:
     """Now, as an ISO timestamp in UTC without microseconds (an :class:`AppliedCard`'s ``applied_at``)."""
     return datetime.now(UTC).replace(microsecond=0).isoformat()
@@ -199,6 +245,10 @@ class CardsState:
         self._preview: Preview | None = None
         self.files: list[dict[str, Any]] = []  # catalog files changed this session: ``{action, card_id, to, at}``
         self.trash: list[dict[str, str]] = []  # cards deleted this session, newest last: ``{card_id, path, trash}``
+        #: What this session did with cards, oldest first: a card saved (committed), applied (from the catalog) or a
+        #: catalog file changed. Each is ``{kind, card_id, at, ...}``; :meth:`session_rows` reads it newest first.
+        self._log: list[dict[str, Any]] = []
+        self._applied_log: dict[int, dict[str, Any]] = {}  # ``id(AppliedCard)`` -> its log entry (catalog cards)
         self._undoing: set[str] = set()  # networks whose draft's last change is being undone right now
         self._generation = 0  # undos so far (:meth:`pop`): a pending-edits read is trusted only for undos before it
 
@@ -245,12 +295,37 @@ class CardsState:
         """Append ``applied`` to the applied cards; return the undo (for ``host.on_rollback``) that forgets it."""
         with self._lock:
             self.applied.append(applied)
+            if applied.source == "catalog":
+                entry = {
+                    "kind": "applied",
+                    "card_id": applied.card_id,
+                    "net_id": applied.net_id,
+                    "path": applied.path,
+                    "changes": applied.changes,
+                    "at": applied.applied_at,
+                }
+                self._log.append(entry)
+                self._applied_log[id(applied)] = entry
 
         def undo() -> None:
             with self._lock:
                 self.applied = [a for a in self.applied if a is not applied]
+                self._unlog(self._applied_log.pop(id(applied), None))
 
         return undo
+
+    def session_rows(self, apply_enabled: bool = False) -> list[dict[str, Any]]:
+        """What this session did with cards, newest first (:func:`session_row`); applied cards only with apply on."""
+        with self._lock:
+            return self._session_rows(apply_enabled)
+
+    def _session_rows(self, apply_enabled: bool) -> list[dict[str, Any]]:
+        return [session_row(e) for e in reversed(self._log) if apply_enabled or e["kind"] != "applied"]
+
+    def _unlog(self, entry: dict[str, Any] | None) -> None:
+        """Take ``entry`` out of the session log (nothing for ``None``). Call it under the lock."""
+        if entry is not None:
+            self._log = [e for e in self._log if e is not entry]
 
     def applied_card(self, net_id: str, path: str) -> AppliedCard | None:
         """The newest card from the file at ``path`` that this session put on ``net_id`` (and still has there)."""
@@ -278,11 +353,15 @@ class CardsState:
         """
         with self._lock:
             self.applied = [a for a in self.applied if a is not applied]
+            entry = self._applied_log.get(id(applied))
+            self._unlog(entry)
 
         def undo() -> None:
             with self._lock:
                 if not any(a is applied for a in self.applied):
                     self.applied.append(applied)
+                if entry is not None and not any(e is entry for e in self._log):
+                    self._log.append(entry)
 
         return undo
 
@@ -477,12 +556,15 @@ class CardsState:
     def record_file(self, record: dict[str, Any]) -> Callable[[], None]:
         """Note a catalog file change (``{action, card_id, to}``; ``at`` is added); return the undo that forgets it."""
         entry = {**record, "at": timestamp()}
+        logged = {"kind": "file", **entry}
         with self._lock:
             self.files.append(entry)
+            self._log.append(logged)
 
         def undo() -> None:
             with self._lock:
                 self.files = [f for f in self.files if f is not entry]
+                self._unlog(logged)
 
         return undo
 
@@ -557,8 +639,11 @@ class CardsState:
                 "path": path,
                 "project": card.project,
                 "changes": len(card.changes),
+                "at": timestamp(),
             }
             self.committed.append(record)
+            saved = {"kind": "saved", **record}
+            self._log.append(saved)
             draft = self._drafts.pop(net_id, None)
             seqs = tuple(
                 m.seq for e in (draft.entries if draft is not None else []) for m in e.marks if m.seq is not None
@@ -572,6 +657,7 @@ class CardsState:
             forget()
             with self._lock:
                 self.committed = [c for c in self.committed if c is not record]
+                self._unlog(saved)
                 if draft is None:
                     self._drafts.pop(net_id, None)
                 else:
@@ -628,6 +714,7 @@ class CardsState:
                 "applied": [a.to_dict() for a in self.applied],
                 "catalog": self._catalog.to_dict() if self._catalog is not None else None,
                 "files": [dict(f) for f in self.files],
+                "session": self._session_rows(apply_enabled),
                 "trash": [dict(t) for t in self.trash],
                 "preview": reported,
                 "change_types": list(CHANGE_TYPES),

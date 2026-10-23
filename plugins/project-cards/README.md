@@ -27,8 +27,9 @@ description run through core's natural-language **Select**, or a saved selection
 The **Cards** panel has four sections, in order: **Catalog** (open a folder of cards; each card shows `✓` / `✗` / `?`
 for whether it applies to the open network, with **Preview**, **Apply…** (only with `enable_apply` on) and
 **Details**; files that are not cards
-are listed under "Not cards"), **Draft** (the compose, draft and commit UI above), **Applied this session** (cards
-committed or applied, newest first, marked `committed` or `catalog`) and **Session summary** (Copy and Download).
+are listed under "Not cards"), **Draft** (the compose, draft and commit UI above), **This session** (what the
+session did with cards, newest first with the time: "Saved <file>", the catalog file actions, and "Applied …" when
+`enable_apply` is on; `plugins.project_cards.session`) and **Session summary** (Copy and Download).
 
 **Edit** (on a catalog card) loads the card into the draft, as Import does, and remembers its file (a draft with
 uncommitted changes is replaced only when you confirm). **Remove** takes out any change of the draft (the later ones

@@ -585,21 +585,32 @@ console.log(JSON.stringify({ defaults: rows.map(r => [r.card_id, applyDefaults(r
     assert got["few"] == "1, 2, 3, 4, 5 (+2 more)"
 
 
-def test_applied_rows_newest_first(run_js):
+def test_session_rows_carry_the_verb_the_icon_and_the_time(run_js):
     got = run_js(
         MODEL,
-        'import { appliedRows, summaryFileName } from "./cardmodel.js";'
-        + CATALOG_SNAPSHOT
+        'import { sessionRows, summaryFileName } from "./cardmodel.js";'
         + """
-console.log(JSON.stringify({ rows: appliedRows(snapshot), none: appliedRows({}),
+const at = t => `2026-10-21T${t}+00:00`;
+const session = [
+  { kind: "renamed", verb: "Renamed", text: "Renamed a.yml to b.yml", detail: "", card_id: "a.yml",
+    at: at("10:20:00") },
+  { kind: "applied", verb: "Applied", text: "Applied c.yml to base", detail: "1 change(s)", card_id: "c.yml",
+    at: at("10:15:30") },
+  { kind: "saved", verb: "Saved", text: "Saved q.yml", detail: "2 change(s) from base", card_id: "q",
+    at: at("09:05:00") },
+  { kind: "someday", verb: "Did", text: "Did x", card_id: "x", at: at("08:00:00") },
+];
+const state = { plugins: { project_cards: { session } } };
+console.log(JSON.stringify({ rows: sessionRows(state), none: sessionRows({}),
   name: [summaryFileName("leavenworth"), summaryFileName(null)] }));
 """,
     )
-    assert [(r["card_id"], r["source"], r["time"], r["changes"]) for r in got["rows"]] == [
-        ("second", "catalog", "10:15", 1),
-        ("first", "committed", "09:05", 2),
+    assert [(r["kind"], r["icon"], r["text"], r["detail"], r["time"]) for r in got["rows"]] == [
+        ("renamed", "rename", "Renamed a.yml to b.yml", "", "10:20"),
+        ("applied", "check-circle", "Applied c.yml to base", "1 change(s)", "10:15"),
+        ("saved", "save", "Saved q.yml", "2 change(s) from base", "09:05"),
+        ("someday", "info", "Did x", "", "08:00"),  # a kind this panel does not know yet still shows
     ]
-    assert got["rows"][0]["project"] == "Second"
     assert got["none"] == []
     assert got["name"] == ["leavenworth-cards-session.txt", "network-cards-session.txt"]
 
