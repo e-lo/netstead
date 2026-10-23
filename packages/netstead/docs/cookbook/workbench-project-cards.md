@@ -84,6 +84,26 @@ still runs (see [Write a Workbench plugin](workbench-plugins.md#startup-outcomes
 Committing writes the card, not the network: the edits stay pending in the **Edit** tab until you save the
 network, as with any edit.
 
+### New card mode
+
+**New card**, at the top of the **Draft** section, walks through steps 1 to 5 as a guided mode. A step indicator
+reads **Type → Select → Details → Add** (done steps are ticked); **Back** returns one step and **Cancel** leaves the
+mode, closing its form and any preview.
+
+1. **Type:** Property change, Deletion or Addition. The transit types are listed, disabled: not yet supported.
+2. **Select** (skipped for an Addition, which needs no selection): select the facility with the shared selection.
+   Turn on **Highlight links**, click links or shift-drag a box over them and press **Set as selection** (as in
+   step 1), or describe them in the mode's own box and press **Select** (core's natural-language selection), or
+   pick a saved selection and
+   press **Use saved**. The mode shows a live count ("3 links selected."); **Use these 3 links** opens the form. A
+   selection that is not resolved yet (an ambiguous anchor) must be pinned in the **Selection** panel first.
+3. **Details:** the same form as step 3 above, prefilled from the selection.
+4. **Add:** **Preview** shows the change on a copy; **Add to card** adds it to the draft. Then **Add another
+   change** starts again at **Type**, or **Done** leaves the mode; commit as in step 7.
+
+The mode dispatches the same Actions as the right-click entry point (`project_cards.preview`,
+`project_cards.add_change`), so history, undo and commit work the same way.
+
 ### Undo
 
 **Undo last change** in the panel (or **Undo the draft card's last change** in the command palette) takes back the

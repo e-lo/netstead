@@ -200,6 +200,13 @@ const root = document.createElement("div");
 const { wb } = createWb("project_cards", deps);
 activate(wb);
 const byId = Object.fromEntries(slots.commands.list().map(c => [c.id, c]));
+const settle = () => new Promise(r => setTimeout(r, 0));
+"""
+)
+PANEL_SETUP = PANEL_HARNESS
+PANEL_HARNESS = (
+    PANEL_SETUP
+    + """
 const two = { selectionCount: 2, state: server, network: { id: "base" } };
 const dispatched = () => calls.filter(c => c[0] === "dispatch").map(c => c[1]);
 const setServer = patch => store.set({ server: { ...store.get().server, ...patch } });
@@ -279,7 +286,6 @@ got.noCatalog = catalogBox.textContent.includes("No catalog open");
 const applied = [{ card_id: "lanes", net_id: "base", path: "cards/lanes.yml", project: "Lanes",
                    applied_at: "2026-10-21T09:05:00+00:00", changes: 2, source: "committed", edit_ids: [1, 2] }];
 setServer({ plugins: { project_cards: { drafts: {}, preview: null, catalog: CATALOG, applied } } });
-const settle = () => new Promise(r => setTimeout(r, 0));
 await settle(); await settle();  // the listing is read after the store change
 const cards = walk(catalogBox).filter(e => e.getAttribute("data-card"));
 got.cards = cards.map(c => [c.getAttribute("data-card"), find(c, "SPAN").getAttribute("data-badge"),
@@ -433,3 +439,62 @@ def test_an_addition_needs_no_node_but_a_half_filled_node_is_reported(run_js, se
         }
     ]
     assert got["status"].startswith("Added")
+
+
+CREATE_HARNESS = (
+    PANEL_SETUP
+    + """
+panels[0].render(root);
+const create = elById(root, "pc-create"), compose = elById(root, "pc-compose");
+const setServer = patch => store.set({ server: { ...store.get().server, ...patch } });
+const steps = () => walk(create).filter(e => e.getAttribute("data-step"))
+  .map(e => `${e.getAttribute("data-step")}:${e.getAttribute("data-state")}`);
+const got = {};
+await button(create, "New card").onclick();
+got.types = walk(create).filter(e => e.tagName === "BUTTON").map(b => [b.textContent, b.disabled]);
+got.typeSteps = steps();
+await button(create, "Property change").onclick();
+got.selectSteps = steps();
+got.none = [elById(create, "pc-select-count").textContent, button(create, "Use these 0 links").disabled];
+setServer({ selection: { net_id: "base", status: "resolved", link_ids: [4, 5], projectcard: { picked: true } },
+            saved_selections: [{ name: "ski", net_id: "base", links: 3 }] });
+got.live = [elById(create, "pc-select-count").textContent, button(create, "Use these 2 links").disabled,
+            Boolean(button(create, "Use saved"))];
+elById(create, "pc-utterance").value = "main street";
+await button(create, "Select").onclick();
+await button(create, "Use these 2 links").onclick();
+got.detailsSteps = steps();
+got.form = compose.textContent.startsWith("New change: Property change");
+await button(compose, "Preview").onclick();
+got.addSteps = steps();
+await button(compose, "Add to card").onclick();
+got.added = [steps(), create.textContent.includes("Added to the draft card")];
+await button(create, "Add another change").onclick();
+await button(create, "Addition").onclick();
+got.addition = [steps(), compose.textContent.startsWith("New change: Addition")];
+await button(create, "Cancel").onclick();
+got.cancelled = [Boolean(button(create, "New card")), compose.children.length];
+got.dispatched = calls.filter(c => c[0] === "dispatch").map(c => c[1]);
+got.errors = calls.filter(c => c[0] === "error");
+console.log(JSON.stringify(got));
+"""
+)
+
+
+def test_the_new_card_mode_under_a_fake_dom(run_js):
+    got = run_js(FILES, CREATE_HARNESS)
+    assert got["errors"] == []
+    assert got["types"][:3] == [["Property change", False], ["Deletion", False], ["Addition", False]]
+    assert ["Transit routing change (not yet supported)", True] in got["types"]
+    assert got["types"][-1] == ["Cancel", False]
+    assert got["typeSteps"] == ["type:current", "select:todo", "details:todo", "add:todo"]
+    assert got["selectSteps"] == ["type:done", "select:current", "details:todo", "add:todo"]
+    assert got["none"] == ["Nothing selected on this network yet.", True]
+    assert got["live"] == ["2 links selected.", False, True]  # the count follows the shared selection
+    assert got["detailsSteps"] == ["type:done", "select:done", "details:current", "add:todo"]
+    assert got["form"] is True
+    assert got["addSteps"] == ["type:done", "select:done", "details:done", "add:current"]
+    assert got["added"] == [["type:done", "select:done", "details:done", "add:done"], True]
+    assert got["addition"] == [["type:done", "select:skipped", "details:current", "add:todo"], True]
+    assert got["cancelled"] == [True, 0]
+    assert got["dispatched"] == ["select", "project_cards.preview", "project_cards.add_change"]

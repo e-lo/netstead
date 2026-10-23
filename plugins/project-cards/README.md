@@ -17,6 +17,13 @@ network's draft card (badged with its count of uncommitted changes), and **Undo 
 **Commit…** shows the live edit warnings (confirmed with **Commit anyway**) and the card's YAML, then writes the card
 atomically inside `io.allowed_roots`. **Import** applies a card, or the offline report's edit log, all or nothing.
 
+**New card** (in the panel's **Draft** section) walks through the same steps as a guided mode, with a step indicator
+(**Type → Select → Details → Add**) and **Back** / **Cancel**: pick a change type (the transit types are shown, not
+yet supported), select the facility with the shared selection (links clicked or box-selected in Highlight mode and set as the selection, a
+description run through core's natural-language **Select**, or a saved selection; the count updates live), press
+**Use these N links**, then fill in the form, **Preview** and **Add to card**. It dispatches the same Actions
+(`project_cards.preview`, `project_cards.add_change`) as the right-click entry point, which stays.
+
 The **Cards** panel has four sections, in order: **Catalog** (open a folder of cards; each card shows `✓` / `✗` / `?`
 for whether it applies to the open network, with **Preview**, **Apply…** and **Details**; files that are not cards
 are listed under "Not cards"), **Draft** (the compose, draft and commit UI above), **Applied this session** (cards

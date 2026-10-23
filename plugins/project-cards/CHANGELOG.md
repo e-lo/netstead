@@ -7,6 +7,13 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
 
 ### Added
 
+- **New card mode.** A **New card** button in the Cards panel's Draft section starts a guided mode with a step
+  indicator (Type → Select → Details → Add), Back and Cancel: pick a change type (roadway property change, deletion,
+  addition; the transit types are shown disabled, "not yet supported"), select the facility with the shared
+  selection (links clicked or box-selected in Highlight mode and set as the selection, a description run through core's `select` Action, or
+  a saved selection) with a live count and **Use these N links**, then the change form, Preview and Add to card. It
+  dispatches the existing `project_cards.preview` and `project_cards.add_change`; an addition skips Select. The
+  right-click "New change ▸ …" entry point stays.
 - **A catalog of cards, checked against the network, previewed and applied.** `project_cards.open_catalog(path)`
   (or the new `catalog_dir` setting) lists the ProjectCard files of a folder and one level of its sub-folders, with
   the files that are not cards and why; `refresh_catalog` rescans. `check_card(card_id)` says whether a card applies

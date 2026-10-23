@@ -5,7 +5,8 @@
 // another tab can close one. One step runs at a time: a second click while an Action is in flight is refused, so a
 // change is never added (or a card committed) twice.
 import {
-  addition, catalogOf, changeAction, deletion, draftOf, needsSelection, openPreview, propertyChange, selectionKey,
+  addition, catalogOf, changeAction, chooseType, createAfter, deletion, draftOf, needsSelection, openPreview,
+  propertyChange, selectionKey, startCreate,
 } from "./cardmodel.js";
 
 const query = params => Object.entries(params)
@@ -14,7 +15,7 @@ const query = params => Object.entries(params)
   .join("&");
 
 export function createController(wb) {
-  const state = { compose: null, check: null, catalog: null };
+  const state = { compose: null, check: null, catalog: null, create: null };
   const previewOpen = () => openPreview(wb.store.get()) !== null;
   let running = false;
   const oneAtATime = fn => async (...args) => {
@@ -76,7 +77,11 @@ export function createController(wb) {
   };
 
   // A preview goes to a copy of the network; a second one replaces the first (the server closes the older copy).
-  const preview = values => dispatchChange("preview", values);
+  async function preview(values) {
+    const result = await dispatchChange("preview", values);
+    if (state.create) state.create = createAfter(state.create, "previewed");
+    return result;
+  }
 
   const closePreview = () => wb.api.dispatch({ type: "project_cards.close_preview" });
 
@@ -86,6 +91,7 @@ export function createController(wb) {
     const result = await dispatchChange("add_change", values);
     state.compose = null;
     state.check = null;
+    if (state.create) state.create = createAfter(state.create, "added");
     if (previewOpen()) {
       try { await closePreview(); } catch (e) { wb.toast(`The change was added; the preview stayed open: ${e.message}`); }
     }
@@ -95,8 +101,66 @@ export function createController(wb) {
   async function cancel() {
     state.compose = null;
     state.check = null;
+    state.create = null;
     if (previewOpen()) await closePreview();
   }
+
+  // ---------------------------------------------------------------------------------------------- creation mode
+
+  // "New card": the guided mode (cardmodel's startCreate). A form already open (from the right-click menu) is
+  // closed first, with its preview: the mode draws its own.
+  async function beginCreate() {
+    if (state.compose) await cancel();
+    state.create = startCreate();
+    return state.create;
+  }
+
+  const openMode = () => {
+    if (!state.create) throw new Error("the New card mode is not open");
+    return state.create;
+  };
+
+  // Read the form for the mode's type: on the shared selection, or the saved one `saved`. A form that could not be
+  // read (say, the selection is not resolved) leaves the mode where it was.
+  async function openModeForm(saved = null) {
+    const mode = openMode();
+    const form = await start(mode.type, { saved });
+    if (form && state.create === mode) state.create = createAfter(mode, "form", saved);
+    return form;
+  }
+
+  // Pick the change type: an addition needs no selection, so its form opens at once.
+  async function chooseCreateType(type) {
+    const mode = chooseType(openMode(), type);
+    state.create = mode;
+    if (mode.step === "details") await openModeForm();
+    return state.create;
+  }
+
+  // "Use these N links" (the shared selection), or a saved selection by name.
+  const useFacility = ({ saved = null } = {}) => openModeForm(saved);
+
+  // One step back; leaving the form closes it (and its preview).
+  async function backCreate() {
+    const mode = openMode();
+    if (state.compose) {
+      state.compose = null;
+      if (previewOpen()) await closePreview();
+    }
+    state.create = createAfter(mode, "back");
+    return state.create;
+  }
+
+  // The Select step's "describe them": core's natural-language selection (the `select` Action), on `netId`.
+  const selectByText = (utterance, netId = null) => {
+    const text = String(utterance || "").trim();
+    if (!text) throw new Error("Describe the links to select, say “Main Street from 1st to 5th”");
+    return wb.api.dispatch({ type: "select", utterance: text, ...(netId ? { net_id: netId } : {}) });
+  };
+
+  // After "Add to card": start the next change of the same card, or leave the mode.
+  const anotherChange = () => { openMode(); state.create = startCreate(); return state.create; };
+  const endCreate = () => { state.create = null; };
 
   // `netId`: the network whose draft to undo (by default the server's choice: the active one, or a preview's base).
   function undo({ netId = null } = {}) {
@@ -198,9 +262,10 @@ export function createController(wb) {
 
   return {
     state, start, changeFrom, check, serverChanged, selectionChanged, loadCatalog, catalog, catalogChanged, summary,
+    anotherChange, endCreate,
     ...Object.fromEntries(Object.entries({
       preview, closePreview, add, cancel, undo, commit, importCard, reload, openCatalog, refreshCatalog, previewCard,
-      applyCard,
+      applyCard, beginCreate, chooseCreateType, useFacility, backCreate, selectByText,
     }).map(([name, step]) => [name, oneAtATime(step)])),
   };
 }

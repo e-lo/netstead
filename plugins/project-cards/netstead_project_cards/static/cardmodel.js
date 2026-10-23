@@ -217,3 +217,72 @@ export function appliedRows(state) {
 
 // The file name the session summary downloads as.
 export const summaryFileName = netId => `${netId || "network"}-cards-session.txt`;
+
+// ------------------------------------------------------------------------------------------------- creation mode
+
+// The guided "New card" mode: a change type, then the facility (the shared selection, or a saved one), then the
+// change form, then Add to card. It is the panel's state, never the server's: `{step, type, saved}`, where `step` is
+// "type", "select", "details" (the form is open), "add" (a preview of the form's change is on the map) or "added".
+export const CREATE_STEPS = [["type", "Type"], ["select", "Select"], ["details", "Details"], ["add", "Add"]];
+
+export const startCreate = () => ({ step: "type", type: null, saved: null });
+
+// The change types the mode offers, in order: the roadway ones, then the transit ones (shown, not offered yet).
+export const typeChoices = () => [
+  ...ROADWAY_TYPES.map(type => ({ type, title: TYPE_TITLES[type], enabled: true, note: "" })),
+  ...TRANSIT_TYPES.map(type => ({ type, title: TYPE_TITLES[type], enabled: false, note: "not yet supported" })),
+];
+
+// After picking `type`: a change that acts on a selection goes to "select", an addition straight to "details".
+export function chooseType(mode, type) {
+  if (TRANSIT_TYPES.includes(type)) throw new Error(`${TYPE_TITLES[type]} is not yet supported`);
+  if (!ROADWAY_TYPES.includes(type)) throw new Error(`no change type ${type}`);
+  return { ...mode, type, saved: null, step: needsSelection(type) ? "select" : "details" };
+}
+
+// The mode after `event`: "form" (the form opened, for the shared selection or the saved one `saved`), "previewed",
+// "added", or "back" (one step back: from the form to Select, or to Type for an addition; from Select to Type).
+export function createAfter(mode, event, saved = null) {
+  if (event === "form") return { ...mode, step: "details", saved };
+  if (event === "previewed") return { ...mode, step: "add" };
+  if (event === "added") return { ...mode, step: "added" };
+  if (event === "back") {
+    if ((mode.step === "details" || mode.step === "add") && needsSelection(mode.type)) {
+      return { ...mode, step: "select", saved: null };
+    }
+    return startCreate();
+  }
+  throw new Error(`no creation step event ${event}`);
+}
+
+// The step indicator: each step's label and state ("done", "current", "todo", or "skipped": an addition selects
+// nothing). "added" marks every step done.
+export function stepIndicator(mode) {
+  const order = CREATE_STEPS.map(([key]) => key);
+  const at = mode.step === "added" ? order.length : order.indexOf(mode.step);
+  return CREATE_STEPS.map(([key, label], i) => {
+    if (key === "select" && mode.type && !needsSelection(mode.type)) return { key, label, state: "skipped" };
+    return { key, label, state: i < at ? "done" : i === at ? "current" : "todo" };
+  });
+}
+
+// What the Select step says about the shared selection (server state's `selection`) for the network `netId` (or the
+// base a preview stands for): `{count, ready, label}`. Only a resolved selection on that network can be used.
+export function selectionStatus(state, netId) {
+  const sel = state && state.selection;
+  const nets = [netId, draftNet(state, netId)];
+  if (!sel || !nets.includes(sel.net_id) || !(sel.link_ids || []).length) {
+    return { count: 0, ready: false, label: "Nothing selected on this network yet." };
+  }
+  const count = sel.link_ids.length;
+  const links = `${count} link${count === 1 ? "" : "s"}`;
+  if (sel.status !== "resolved" || !sel.projectcard) {
+    return { count, ready: false, label: `${links} selected, not resolved yet: pin its anchors in the Selection panel.` };
+  }
+  return { count, ready: true, label: `${links} selected.` };
+}
+
+// The saved selections a Select step offers: those of the network (or of the base a preview stands for).
+export const savedChoices = (state, netId) => ((state && state.saved_selections) || [])
+  .filter(s => s.net_id === netId || s.net_id === draftNet(state, netId))
+  .map(s => ({ name: s.name, label: `${s.name} (${s.links} link${s.links === 1 ? "" : "s"})` }));

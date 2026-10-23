@@ -8,7 +8,7 @@
 import {
   ROADWAY_TYPES, TRANSIT_TYPES, TYPE_TITLES, appliedRows, applyDefaults, catalogOf, catalogRows, commitFields,
   commitView, draftBadge, draftNet, draftOf, hasNode, importPath, needsSelection, openPreview, previewLine,
-  summaryFileName,
+  savedChoices, selectionStatus, stepIndicator, summaryFileName, typeChoices,
 } from "./cardmodel.js";
 import { createController } from "./controller.js";
 
@@ -72,6 +72,7 @@ export function activate(wb) {
   });
 
   async function compose(type) {
+    ctl.endCreate(); // the right-click form replaces the New card mode's steps
     if (!(await ctl.start(type))) return; // a transit type: the controller said "not yet supported"; any form stays
     wb.showPanel(PANEL); // the first show renders the panel, which draws the form
     if (view) view.draw();
@@ -132,8 +133,9 @@ export function activate(wb) {
   for (const event of ["catalog", "applied"]) wb.on(event, () => view && view.loadCatalog());
   // A form read from the shared selection is outdated once it changes. Watched as the server's `selection`, not
   // wb.selection: that follows the active network, which opening (or closing) a preview changes.
-  wb.store.subscribe(["selection"], () => {
+  wb.store.subscribe(["selection", "saved_selections"], () => {
     if (ctl.selectionChanged() && view) view.composeWentStale();
+    if (view) view.drawCreate(); // the New card mode's live count
   });
 }
 
@@ -146,6 +148,7 @@ function createView(wb, ctl, el) {
   };
   const catalogBox = h("section", { id: "pc-catalog" });
   const previewBox = h("section", { id: "pc-preview" });
+  const createBox = h("section", { id: "pc-create" });
   const composeBox = h("section", { id: "pc-compose" });
   const draftBox = h("section", { id: "pc-draft" });
   const commitBox = h("section", { id: "pc-commit" });
@@ -159,7 +162,7 @@ function createView(wb, ctl, el) {
   const heading = text => h("h3", { class: "label", style: "font-size:12px;margin:18px 0 6px", text });
   el.append(
     heading("Catalog"), catalogBox, previewBox,
-    heading("Draft"), composeBox, draftBox, commitBox,
+    heading("Draft"), createBox, composeBox, draftBox, commitBox,
     heading("Applied this session"), appliedBox,
     heading("Session summary"), summaryBox,
     status, dialog,
@@ -177,6 +180,78 @@ function createView(wb, ctl, el) {
   };
   const server = () => wb.store.get();
   const baseNet = () => draftNet(server(), server().active); // the network whose draft the panel shows
+
+  // The New card mode: the step indicator, then the step's own controls (the form itself is the compose box's).
+  // The description input and the saved-selection list are made once, so a redraw keeps what the user typed.
+  const utterance = h("input", { type: "text", id: "pc-utterance", placeholder: "Main Street from 1st to 5th" });
+  const savedPick = h("select", { id: "pc-saved" });
+  const step = (cls, label, fn) => act(cls, label, async () => { await fn(); draw(); });
+  function selectStep() {
+    const s = server();
+    const status = selectionStatus(s, s.active);
+    const use = step("mini", `Use these ${status.count} link${status.count === 1 ? "" : "s"}`, () => ctl.useFacility());
+    use.disabled = !status.ready;
+    utterance.onkeydown = e => { if (e.key === "Enter") describe.onclick(); };
+    const describe = act("mini", "Select", async () => {
+      await ctl.selectByText(utterance.value);
+      say(`Selected: ${utterance.value.trim()}`);
+    });
+    const choices = savedChoices(s, s.active);
+    const picked = savedPick.value;
+    savedPick.replaceChildren(...choices.map(c => h("option", { value: c.name, text: c.label })));
+    if (choices.some(c => c.name === picked)) savedPick.value = picked;
+    const useSaved = step("mini", "Use saved", () => ctl.useFacility({ saved: savedPick.value }));
+    const nodes = [
+      h("p", { id: "pc-select-count", role: "status", text: status.label }), use,
+      h("p", { class: "muted", text: "Select the facility: turn on Highlight links, click links or shift-drag a box "
+        + "over them and press Set as selection (Find tab), or describe them:" }),
+      h("div", { style: "display:flex;gap:6px;align-items:center" }, utterance, describe),
+    ];
+    if (choices.length) nodes.push(field("Or a saved selection", savedPick), useSaved);
+    return nodes;
+  }
+  function drawCreate() {
+    const mode = ctl.state.create;
+    if (!mode) {
+      redraw(createBox, [step("mini", "New card", () => ctl.beginCreate()),
+        h("span", { class: "muted", text: " a guided change: type, facility, details, add." })]);
+      return;
+    }
+    const steps = h("ol", { class: "pc-steps", "aria-label": "New card steps",
+      style: "display:flex;gap:10px;list-style:none;padding:0;margin:4px 0" },
+    ...stepIndicator(mode).map(st => h("li", {
+      "data-step": st.key, "data-state": st.state, ...(st.state === "current" ? { "aria-current": "step" } : {}),
+      style: st.state === "current" ? "font-weight:700" : st.state === "todo" ? "" : "opacity:.6",
+      text: `${st.state === "done" ? "✓ " : ""}${st.label}${st.state === "skipped" ? " (not needed)" : ""}`,
+    })));
+    const nodes = [h("div", { class: "label", text: "New card" }), steps];
+    if (mode.step === "type") {
+      for (const c of typeChoices()) {
+        const b = step("mini", c.enabled ? c.title : `${c.title} (${c.note})`, () => ctl.chooseCreateType(c.type));
+        b.disabled = !c.enabled;
+        nodes.push(b, " ");
+      }
+    } else if (mode.step === "select") {
+      nodes.push(...selectStep());
+    } else if (mode.step === "added") {
+      nodes.push(h("p", { text: "Added to the draft card. Commit it below, or add another change." }),
+        step("mini", "Add another change", () => ctl.anotherChange()), " ",
+        step("mini ghost", "Done", () => ctl.endCreate()));
+    } else {
+      nodes.push(h("p", { class: "muted", text: mode.step === "add"
+        ? "The preview is on the map: Add to card when it looks right."
+        : "Fill in the change below, Preview it, then Add to card." }));
+    }
+    if (mode.step !== "added") {
+      nodes.push(h("div", { style: "margin-top:6px" },
+        ...(mode.step === "type" ? [] : [step("mini ghost", "Back", () => ctl.backCreate()), " "]),
+        step("mini ghost", "Cancel", async () => { await ctl.cancel(); say(""); })));
+    }
+    const typing = [utterance, savedPick].find(el => el === document.activeElement);
+    if (!typing) { redraw(createBox, nodes); return; }
+    createBox.replaceChildren(...nodes); // a redraw while typing (the live count moved) keeps the caret there
+    if (createBox.contains(typing)) typing.focus();
+  }
 
   // The form is redrawn only for a new compose: redrawing on every state change would wipe what the user typed.
   let drawn = null;
@@ -255,7 +330,8 @@ function createView(wb, ctl, el) {
     const draft = draftOf(server(), server().active);
     if (!draft) {
       redraw(draftBox, [h("p", { class: "empty", tabindex: -1,
-        text: "No draft card for this network yet. Select links, then right-click: New change ▸ …" })], takeFocus);
+        text: "No draft card for this network yet: start one with New card, or select links and right-click: "
+          + "New change ▸ …" })], takeFocus);
       return;
     }
     const name = draft.project ? `: ${draft.project}` : "";
@@ -521,6 +597,7 @@ function createView(wb, ctl, el) {
 
   function draw() {
     drawCatalog();
+    drawCreate();
     drawCompose();
     drawDraft(drawPreview());
     drawApplied();
@@ -534,5 +611,5 @@ function createView(wb, ctl, el) {
   drawCatalogControls();
   drawCommit();
   drawSummary();
-  return { draw, loadCatalog, checkWentStale, composeWentStale };
+  return { draw, drawCreate, loadCatalog, checkWentStale, composeWentStale };
 }

@@ -273,7 +273,7 @@ console.log(JSON.stringify({ calls, error, kept, addition, after: ctl.state }));
         ],
         ["dispatch", {"type": "project_cards.import", "path": "cards/a.yml"}],
     ]
-    assert got["after"] == {"compose": None, "check": None, "catalog": None}
+    assert got["after"] == {"compose": None, "check": None, "catalog": None, "create": None}
 
 
 def test_a_preview_closed_elsewhere_is_not_closed_again(run_js):
@@ -637,3 +637,133 @@ console.log(JSON.stringify({ none, opened, again, fresher, other, closed, text, 
         "ignore_missing": True,
         "net_id": "base",
     }
+
+
+# ------------------------------------------------------------------------------------------- the New card mode
+
+
+def test_the_step_rules(run_js):
+    got = run_js(
+        MODEL,
+        """
+import { chooseType, createAfter, startCreate, stepIndicator, typeChoices } from "./cardmodel.js";
+const states = m => stepIndicator(m).map(s => `${s.key}:${s.state}`);
+const start = startCreate();
+const prop = chooseType(start, "roadway_property_change");
+const add = chooseType(start, "roadway_addition");
+const form = createAfter(prop, "form", "ski");
+const previewed = createAfter(form, "previewed");
+const added = createAfter(previewed, "added");
+const errors = [];
+for (const t of ["transit_routing_change", "nope"]) {
+  try { chooseType(start, t); } catch (e) { errors.push(e.message); }
+}
+try { createAfter(start, "jump"); } catch (e) { errors.push(e.message); }
+console.log(JSON.stringify({
+  start: states(start), prop: [prop.step, states(prop)], add: [add.step, states(add)],
+  form: [form.step, form.saved, states(form)], previewed: [previewed.step, states(previewed)],
+  added: states(added),
+  back: [createAfter(previewed, "back"), createAfter(prop, "back").step,
+         createAfter(createAfter(add, "form"), "back").step],
+  choices: typeChoices().map(c => [c.type, c.enabled, c.note]),
+  errors,
+}));
+""",
+    )
+    assert got["start"] == ["type:current", "select:todo", "details:todo", "add:todo"]
+    assert got["prop"] == ["select", ["type:done", "select:current", "details:todo", "add:todo"]]
+    # An addition selects nothing: its form opens at once and Select is skipped.
+    assert got["add"] == ["details", ["type:done", "select:skipped", "details:current", "add:todo"]]
+    assert got["form"] == ["details", "ski", ["type:done", "select:done", "details:current", "add:todo"]]
+    assert got["previewed"] == ["add", ["type:done", "select:done", "details:done", "add:current"]]
+    assert got["added"] == ["type:done", "select:done", "details:done", "add:done"]
+    back, from_select, from_addition_form = got["back"]
+    assert back == {"step": "select", "type": "roadway_property_change", "saved": None}
+    assert from_select == "type" and from_addition_form == "type"
+    assert [c[1] for c in got["choices"]] == [True, True, True, False, False, False, False]
+    assert got["choices"][3] == ["transit_property_change", False, "not yet supported"]
+    assert got["errors"] == [
+        "Transit routing change is not yet supported",
+        "no change type nope",
+        "no creation step event jump",
+    ]
+
+
+def test_the_select_step_counts_the_shared_selection_and_lists_saved_ones(run_js):
+    got = run_js(
+        MODEL,
+        """
+import { savedChoices, selectionStatus } from "./cardmodel.js";
+const preview = { net_id: "base-2", base: "base", describe: "x", stale: false };
+const at = (selection, extra = {}) => ({ selection, plugins: { project_cards: { preview } }, ...extra });
+const resolved = { net_id: "base", status: "resolved", link_ids: [1, 2, 3], projectcard: { picked: true } };
+const saved = [{ name: "ski", net_id: "base", links: 4 }, { name: "one", net_id: "base", links: 1 },
+               { name: "far", net_id: "other", links: 2 }];
+console.log(JSON.stringify({
+  none: selectionStatus(at(null), "base"),
+  ready: selectionStatus(at(resolved), "base"),
+  onPreview: selectionStatus(at({ ...resolved, net_id: "base-2" }), "base-2").ready,
+  baseFromPreview: selectionStatus(at(resolved), "base-2").ready,
+  elsewhere: selectionStatus(at({ ...resolved, net_id: "other" }), "base").ready,
+  one: selectionStatus(at({ ...resolved, link_ids: [5] }), "base").label,
+  unresolved: selectionStatus(at({ ...resolved, status: "ambiguous", projectcard: null }), "base"),
+  saved: savedChoices(at(null, { saved_selections: saved }), "base-2"),
+  noSaved: savedChoices(null, "base"),
+}));
+""",
+    )
+    assert got["none"] == {"count": 0, "ready": False, "label": "Nothing selected on this network yet."}
+    assert got["ready"] == {"count": 3, "ready": True, "label": "3 links selected."}
+    assert got["onPreview"] is True and got["baseFromPreview"] is True and got["elsewhere"] is False
+    assert got["one"] == "1 link selected."
+    assert got["unresolved"]["ready"] is False and "not resolved yet" in got["unresolved"]["label"]
+    assert got["saved"] == [{"name": "ski", "label": "ski (4 links)"}, {"name": "one", "label": "one (1 link)"}]
+    assert got["noSaved"] == []
+
+
+def test_the_controller_walks_the_steps_with_the_existing_actions(run_js):
+    got = run_js(
+        BOTH,
+        STUB_WB
+        + """
+const steps = [];
+const at = () => steps.push(ctl.state.create && ctl.state.create.step);
+let refused = null;
+try { await ctl.useFacility(); } catch (e) { refused = e.message; }
+await ctl.start("roadway_deletion", { saved: "ski" });  // a right-click form is open: New card closes it
+await ctl.preview({ options: {} });
+await ctl.beginCreate(); at();
+await ctl.chooseCreateType("roadway_property_change"); at();
+await ctl.useFacility(); at();
+await ctl.preview({ columns: { lanes: 3 }, options: {} }); at();
+await ctl.backCreate(); at();  // leaving the form closes it and its preview
+await ctl.useFacility({ saved: "ski" }); at();
+await ctl.add({ columns: { lanes: 3 }, options: {} }); at();
+ctl.anotherChange(); at();
+await ctl.chooseCreateType("roadway_addition"); at();
+await ctl.cancel(); at();
+let empty = null;
+try { await ctl.selectByText("  "); } catch (e) { empty = e.message; }
+await ctl.selectByText("main street", "base");
+ctl.endCreate();
+console.log(JSON.stringify({ steps, refused, empty, compose: ctl.state.compose,
+  calls: calls.map(c => c[0] !== "dispatch" ? c
+    : [c[1].type, c[1].saved_selection || c[1].use_selection || c[1].utterance || null]) }));
+""",
+    )
+    assert got["refused"] == "the New card mode is not open"
+    assert got["steps"] == ["type", "select", "details", "add", "select", "details", "added", "type", "details", None]
+    assert got["empty"].startswith("Describe the links to select")
+    assert got["calls"] == [
+        ["get", "/form?type=roadway_deletion&saved=ski"],
+        ["project_cards.preview", "ski"],
+        ["project_cards.close_preview", None],  # New card closed the right-click form and its preview
+        ["get", "/form?type=roadway_property_change&use_selection=true"],
+        ["project_cards.preview", True],
+        ["project_cards.close_preview", None],  # Back from the form
+        ["get", "/form?type=roadway_property_change&saved=ski"],
+        ["project_cards.add_change", "ski"],
+        ["get", "/form?type=roadway_addition"],  # an addition's form opens with its type
+        ["select", "main street"],
+    ]
+    assert got["compose"] is None
