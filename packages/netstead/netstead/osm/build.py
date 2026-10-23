@@ -49,7 +49,7 @@ def network_from_records(
         link_records: GMNS ``link`` rows.
         spec_version: GMNS spec version to validate against
             (default :data:`netstead.spec.DEFAULT_SPEC`).
-        engine: Engine to materialise through. Defaults to the corral
+        engine: Engine to materialize through. Defaults to the corral
             default (ibis).
 
     Returns:
@@ -89,7 +89,7 @@ def build_network_from_osm(
         network_type: One of ``drive``/``walk``/``bike``/``all``.
         extra_tags: OSM tag keys to carry onto each link as extra columns.
         spec_version: GMNS spec version (default :data:`netstead.spec.DEFAULT_SPEC`).
-        engine: Engine to materialise through (default: corral ibis).
+        engine: Engine to materialize through (default: corral ibis).
         endpoint: Overpass API endpoint URL.
         session: HTTP session (injectable for tests). Defaults to ``requests``.
         user_agent: ``User-Agent`` header value.
@@ -135,7 +135,7 @@ def build_network_from_osm_file(
         network_type: One of ``drive``/``walk``/``bike``/``all``; applied locally to the ``highway`` tag.
         extra_tags: OSM tag keys to carry onto each link as extra columns.
         spec_version: GMNS spec version (default :data:`netstead.spec.DEFAULT_SPEC`).
-        engine: Engine to materialise through (default: corral ibis).
+        engine: Engine to materialize through (default: corral ibis).
 
     Returns:
         A populated :class:`~netstead.network.Network`.

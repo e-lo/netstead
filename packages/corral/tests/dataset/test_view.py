@@ -212,7 +212,7 @@ def test_from_bbox_explain_pushdown(tmp_path: Path) -> None:
        references ST_INTERSECTS — so the engine sees it as a pushdown
        candidate.
     """
-    # Materialise the geometry fixture as a partitioned parquet dataset
+    # Materialize the geometry fixture as a partitioned parquet dataset
     # so the EXPLAIN plan exercises the partitioned read path. We split
     # by geometry_id parity — a trivial partitioning that's enough to
     # let duckdb show one Filter node per partition.

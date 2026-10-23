@@ -205,7 +205,7 @@ class FormatAdapter(Protocol):
 
         Most adapters can answer this from on-disk metadata alone and
         don't need an engine — single-file csv/parquet read the file
-        stem; duckdb opens the file's system catalogue directly; zipcsv
+        stem; duckdb opens the file's system catalog directly; zipcsv
         reads the zip's central directory. The ``engine`` parameter is
         therefore optional and defaults to ``None``; an adapter that
         truly needs an engine for cheap metadata reads documents that

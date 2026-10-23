@@ -8,7 +8,7 @@ A :class:`Table` is the unit of "one logical resource" inside a
 * an engine-native lazy ``expr`` (``ibis.expr.types.Table`` /
   ``polars.LazyFrame`` / ``pandas.DataFrame``);
 * a back-pointer to the :class:`~corral.engines.base.Engine` that
-  produced the expression (so materialisation always goes back through
+  produced the expression (so materialization always goes back through
   the same engine);
 * an optional Frictionless :class:`~corral.spec.model.Schema` used
   by the validation layer;
@@ -20,7 +20,7 @@ A :class:`Table` is the unit of "one logical resource" inside a
 Design rules:
     * **Lazy by default.** ``head``, ``select``, ``filter`` return a new
       :class:`Table` wrapping a transformed expression. Nothing touches
-      the engine backend until the caller asks for materialisation via
+      the engine backend until the caller asks for materialization via
       :meth:`Table.to_pandas`, :meth:`Table.to_polars`,
       :meth:`Table.collect`, or :meth:`Table.count`.
     * **Each transform returns a new Table** — the original is
@@ -78,7 +78,7 @@ class Table:
             the engine (``ibis.expr.types.Table`` for ibis,
             ``polars.LazyFrame`` for polars, ``pandas.DataFrame`` for
             pandas — pandas is eager by design).
-        engine: The engine that produced ``expr``. Materialisation
+        engine: The engine that produced ``expr``. Materialization
             always routes back through this same engine to preserve
             the cross-engine dtype contract.
         schema: Optional resolved Frictionless schema. Carried so the
@@ -179,7 +179,7 @@ class Table:
         """Return a new :class:`Table` containing only the first ``n`` rows.
 
         Lazy — the underlying engine builds a head expression, but no
-        materialisation runs until the caller asks for it.
+        materialization runs until the caller asks for it.
 
         Args:
             n: Row count to keep (default 5).
@@ -203,7 +203,7 @@ class Table:
         Lazy — the engine builds an ORDER BY expression (ibis/polars) or
         sorts the frame (pandas). With :meth:`limit` this is the
         server-side paging primitive the viewer's data-table view uses, so
-        a single page is fetched without materialising the whole table.
+        a single page is fetched without materializing the whole table.
 
         Args:
             *columns: Column names to sort by, in priority order.
@@ -248,7 +248,7 @@ class Table:
         return self._derived(self.engine.limit(self.expr, n, offset))
 
     # ------------------------------------------------------------------
-    # Materialisation
+    # Materialization
     # ------------------------------------------------------------------
 
     def count(self) -> int:
@@ -258,7 +258,7 @@ class Table:
         backend's native cheap-count path (``ibis`` pushes a
         ``SELECT COUNT(*)`` to duckdb; ``polars`` selects ``pl.len()``
         inside the lazy plan; ``pandas`` calls ``len`` on the already-
-        materialised frame). No table is materialised just to count it.
+        materialized frame). No table is materialized just to count it.
 
         Examples:
             >>> from corral.engines.ibis_engine import IbisEngine
@@ -270,7 +270,7 @@ class Table:
         return self.engine.count(self.expr)
 
     def to_pandas(self) -> pd.DataFrame:
-        """Materialise as a ``pandas.DataFrame`` using the engine's converter.
+        """Materialize as a ``pandas.DataFrame`` using the engine's converter.
 
         The returned frame uses the cross-engine **nullable numpy-backed
         dtype** family (``Int64`` / ``Float64`` / ``string`` /
@@ -289,7 +289,7 @@ class Table:
         return self.engine.to_pandas(self.expr)
 
     def to_polars(self) -> pl.DataFrame:
-        """Materialise as a ``polars.DataFrame`` using the engine's converter.
+        """Materialize as a ``polars.DataFrame`` using the engine's converter.
 
         Raises :class:`~corral.engines.errors.EngineNotAvailableError`
         if polars is not installed and the engine cannot satisfy the
@@ -308,7 +308,7 @@ class Table:
         return self.engine.to_polars(self.expr)
 
     def collect(self) -> TableExpr:
-        """Force eager materialisation; return the engine-native frame.
+        """Force eager materialization; return the engine-native frame.
 
         For ibis this triggers backend execution and returns a pyarrow
         ``Table``; for polars this collects the ``LazyFrame`` to a
@@ -359,7 +359,7 @@ class Table:
         Delegates to :meth:`Engine.columns`, which uses the engine's
         lazy schema introspection (ibis ``expr.schema().names``, polars
         ``expr.collect_schema().names()``, pandas ``list(expr.columns)``).
-        No row materialisation runs.
+        No row materialization runs.
 
         Examples:
             >>> from corral.engines.ibis_engine import IbisEngine
@@ -381,7 +381,7 @@ class Table:
         return f"Table({', '.join(bits)})"
 
     def _repr_html_(self) -> str:
-        """Render a Jupyter-friendly card summarising the table.
+        """Render a Jupyter-friendly card summarizing the table.
 
         Header carries the table name plus a ``dirty`` / ``clean``
         badge; the body shows the engine, the row count

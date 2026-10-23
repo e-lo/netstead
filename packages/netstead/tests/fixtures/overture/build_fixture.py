@@ -65,7 +65,7 @@ SEGMENTS = [
             {"connector_id": "cc", "at": 0.0},
             {"connector_id": "cd", "at": 1.0},
         ],
-        # km/h unit -> normalised to mph by the reader's transform
+        # km/h unit -> normalized to mph by the reader's transform
         "speed_limits": [{"max_speed": {"value": 100, "unit": "km/h"}}],
         "routes": [{"ref": "US 1", "network": "US"}],
         # one-way forward: travelling backward is denied

@@ -68,7 +68,7 @@ function wireContextMenu() {
 
 export function resizeSoon() { if (map) setTimeout(() => map.resize(), 60); }
 
-// Per-vertex link colours; links the recorded Filter does not match are dimmed. The Set is replaced (never changed)
+// Per-vertex link colors; links the recorded Filter does not match are dimmed. The Set is replaced (never changed)
 // when the filter or the network changes, so it can key the cache.
 let filterSeq = 0, lastFilterIds = null;
 function linkColors(s) {
@@ -82,7 +82,7 @@ function linkColors(s) {
   return colorCache.colors;
 }
 
-// Per-node colours and radii (semantic for ctrl_type), with positions in draw order (larger markers last), cached
+// Per-node colors and radii (semantic for ctrl_type), with positions in draw order (larger markers last), cached
 // like the links'. `order` maps a drawn index back to the node's index (null: the same).
 function nodeStyle(s) {
   const st = s.server.style, np = s.nodeProp;
@@ -143,8 +143,8 @@ function baseLayers(s) {
         updateTriggers: { getPixelOffset: [offsetOn, widthCache.key] } }));
     }
   }
-  // Nodes draw above links, and are pickable, so a map click can focus a node. Their colours come from the node
-  // table's `node_color_by` column (nodeColors), the single node colour without one.
+  // Nodes draw above links, and are pickable, so a map click can focus a node. Their colors come from the node
+  // table's `node_color_by` column (nodeColors), the single node color without one.
   if (style.show.nodes) layers.push(new deck.ScatterplotLayer({ id: "nodes",
     data: { length: net.N.count, attributes: { getPosition: { value: nodeStyle(s).positions, size: 2 },
                                                getFillColor: { value: nodeStyle(s).colors, size: 4 },
@@ -177,7 +177,7 @@ function idPathLayer(net, layerId, ids, color, extraWidth) {
     parameters: { depthTest: false } });
 }
 
-// idPathLayer twice: a 2 px wider dark casing under the coloured stroke, so the focus and highlights stay legible
+// idPathLayer twice: a 2 px wider dark casing under the colored stroke, so the focus and highlights stay legible
 // whatever the basemap draws beneath them.
 function casedPathLayers(net, layerId, ids, color, extraWidth) {
   const stroke = idPathLayer(net, layerId, ids, color, extraWidth);

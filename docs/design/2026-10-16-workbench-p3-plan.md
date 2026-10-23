@@ -39,7 +39,7 @@ Status: **accepted** (decisions recorded 2026-10-16); **P3a implemented** (#226)
 >   timed-out call is charged what it sent.
 > - **Task 26:** `run_eval` / `report` / `EvalResult` split out of `main` (tested offline with a scripted provider),
 >   `Plan.attempts`, and `io.allowed_roots` set for the fixture. **qwen2.5:7b, local Ollama, 3 runs: 27/42 correct
->   (64%), 36/42 valid, 6 repairs, 88k tokens.** Weak intents: a field the model invents (`style.show` on "colour …
+>   (64%), 36/42 valid, 6 repairs, 88k tokens.** Weak intents: a field the model invents (`style.show` on "color …
 >   and zoom …", failing validation twice), a second step left out ("select …, then save it as …"), a column name
 >   guessed (`speed_limit` for `free_speed`), `navigate` with `link:` instead of `record:`, and a request for
 >   something never offered ("open my network from the desktop") answered with an invalid `set_active_network`
@@ -48,7 +48,7 @@ Status: **accepted** (decisions recorded 2026-10-16); **P3a implemented** (#226)
 >   "select Ski Hill Drive" into a `filter`, so it was not kept. Next levers: fewer default tools, and a
 >   `free_speed`-style column glossary in the grounding.
 > - **Accuracy pass (after P3b review), qwen2.5:7b, local Ollama, 15 requests (the walk-through's "select Ski Hill
->   Drive and colour by lanes" added) x 3 runs, temperature 0 (every request scores 0/3 or 3/3):**
+>   Drive and color by lanes" added) x 3 runs, temperature 0 (every request scores 0/3 or 3/3):**
 >
 >   | step | correct | valid | repairs |
 >   |---|---|---|---|
@@ -59,10 +59,10 @@ Status: **accepted** (decisions recorded 2026-10-16); **P3a implemented** (#226)
 >   | round 3: a key another offered read-only tool owns is split into its own call | **39/45 (87%)** | **45/45** | 6 |
 >
 >   The guard cost nothing ("fly to link 170" failed on the argument shape, not the guard; the speed-limit edit was
->   refused for an invented id 123 either way). Round 1 fixed "colour … and zoom …" (`style.show` left out); round 2
+>   refused for an invented id 123 either way). Round 1 fixed "color … and zoom …" (`style.show` left out); round 2
 >   fixed "fly to link 170" (`record`) and "set the speed limit to 25 on the selected links" (`on_selection`,
 >   `free_speed`). No request that passed before failed after either round, so both were kept. Still wrong: the two-part
->   requests ("select Ski Hill Drive and colour by lanes" comes back as one `select` carrying `color_by`, which is
+>   requests ("select Ski Hill Drive and color by lanes" comes back as one `select` carrying `color_by`, which is
 >   left out and listed; "select Cherry …, then save it as cherry" drops the save), and "open my network from the
 >   desktop" (now a harmless `clear_selection` instead of an invalid call).
 >
@@ -71,7 +71,7 @@ Status: **accepted** (decisions recorded 2026-10-16); **P3a implemented** (#226)
 >   that tool is read-only, the reply doesn't call it already and the new call fits its schema; anything else (two
 >   owners, a drafted owner such as `edit_cells`, a misfit) goes back for repair naming the owner. The turn lists it
 >   ("Split: call 1 (select): split color_by into a style call", key names only). It fixed the walk-through's "select
->   Ski Hill Drive and colour by lanes" (now a `Select` and a recorded `Style`) at no extra tokens or round trips
+>   Ski Hill Drive and color by lanes" (now a `Select` and a recorded `Style`) at no extra tokens or round trips
 >   (106,164 tokens and 6 repairs, as in round 2); nothing that passed before failed, so it was kept. Still wrong:
 >   "select Cherry …, then save it as cherry" (the model omits the save altogether: no `name` or `save_as` key to
 >   split, and it picks the wrong street) and "open my network from the desktop".
@@ -94,7 +94,7 @@ plan's recommendation. Each question carries its decision line.
 *Recommendation: split.*
 **Decided 2026-10-16:** split into P3a and P3b (the recommendation).
 - **P3a** = Tasks 0–14. It is useful alone: a modeller can pin an ambiguous anchor, save and export a selection, and
-  colour, size, filter and navigate the map, all recorded and replayable.
+  color, size, filter and navigate the map, all recorded and replayable.
 - **P3b** = Tasks 15–27. It needs P3a's Actions as tools, and it carries all the LLM and privacy risk, so it gets its
   own review.
 - Both parts live in this one plan, so their decisions stay consistent.
@@ -196,8 +196,8 @@ bar, sharing one conversation.
 - An agent loop (for example "find the busiest link, then zoom to it") is a later follow-up.
 
 **Q10. Which UI controls dispatch `Style` / `Filter` / `Navigate`?** *Recommendation:*
-**Decided 2026-10-16:** colour-by, width-by and the filter row dispatch Actions (the recommendation).
-- The Layers panel's **colour-by** (already a `style` action), the new **width-by**, and the new **filter** row
+**Decided 2026-10-16:** color-by, width-by and the filter row dispatch Actions (the recommendation).
+- The Layers panel's **color-by** (already a `style` action), the new **width-by**, and the new **filter** row
   dispatch their Actions, so they are recorded and shared.
 - The zoom buttons and zoom commands stay per-tab view changes, unrecorded, as they are today. A camera move per tab
   isn't worth a history entry. `Navigate` is for Python, scripts and the assistant.
@@ -225,7 +225,7 @@ bar, sharing one conversation.
   `DeleteSelection`), for Python, plugins (Host 1.3) and, later, Compare.
 - **Map Actions.** `Style` gains `width_by`; `Navigate` gains `record` (fly to a link or node); a new `Filter`
   (a constrained predicate over link fields) dims what doesn't match on the map and narrows the table's **Filtered**
-  scope. All three are recorded and replayable; the map's colour-by, width-by and filter controls dispatch them.
+  scope. All three are recorded and replayable; the map's color-by, width-by and filter controls dispatch them.
 - **Assistant (P3b).** A chat panel plus a command bar. The model sees the session's allowed Actions as JSON-schema
   tools (core, plus opted-in plugins), with scoped grounding:
   - the open networks;
@@ -421,7 +421,7 @@ bar, sharing one conversation.
     - `assistant_disclosure(registry, name)` lists exactly this, for the panel's privacy note.
 16. **An offline `StubPlanner`** handles a small grammar so tests and the browser walk-through run without a model:
     - `select …`;
-    - `colour by X` / `width by X`;
+    - `color by X` / `width by X`;
     - `filter X op V`;
     - `clear the filter`;
     - `zoom to the selection` / `zoom to link N`;
@@ -2635,8 +2635,8 @@ Expected: FAIL.
 
 - [ ] **Step 3: The markup**
 
-In `#settings-panel` (Map display), after the colour-by row, add a `Width by` row with `<select id="widthby">`. In
-`#layers-panel`, after the colour rows, add:
+In `#settings-panel` (Map display), after the color-by row, add a `Width by` row with `<select id="widthby">`. In
+`#layers-panel`, after the color rows, add:
 
 ```html
         <h4 style="margin-top:14px">Filter links</h4>
@@ -2696,7 +2696,7 @@ In `map.js`:
   `dimUnmatched(colors, s.net, s.attrs.link_id, s.filterIds)` when `s.filterIds` is set;
 - `baseLayers` takes `widths` and uses it in place of `net.linkWidths` when non-null. The `base` factory passes
   `buildLinkWidths(c.net, c.style, c.state.widthProp)` (cached on `[netKey, width_by, widthProp.name]` like the
-  colours);
+  colors);
 - re-render on `store.subscribe(["widthProp", "filterIds"], render)` in `main.js`'s `wireStore`.
 
 In `table.js`, the request uses `combinedFilter(columnFilters, s.tableScope, TBL.name, viewFilter)`, where
@@ -3893,7 +3893,7 @@ from netstead.workbench.assistant.stub import StubPlanner
 
 
 def test_describe_is_plain_words():
-    assert describe(Style(color_by="lanes")) == "colour links by lanes"
+    assert describe(Style(color_by="lanes")) == "color links by lanes"
     assert describe(Filter(where=[FilterCond(col="lanes", op="gte", val=2)])) == "show only links where lanes ≥ 2"
     assert describe(Navigate(record={"table": "link", "id": 5})) == "fly to link 5"
     assert describe(EditCells(ids=[1, 2], values={"lanes": 3})) == "set lanes = 3 on 2 links"
@@ -3911,7 +3911,7 @@ def test_the_model_echo_carries_no_values():
     ("text", "calls"),
     [
         ("select Ski Hill Drive", [("select", {"utterance": "Ski Hill Drive", "facility": {"name": "Ski Hill Drive"}})]),
-        ("colour by lanes", [("style", {"color_by": "lanes"})]),
+        ("color by lanes", [("style", {"color_by": "lanes"})]),
         ("width by lanes", [("style", {"width_by": "lanes"})]),
         ("filter lanes >= 2", [("filter", {"where": [{"col": "lanes", "op": "gte", "val": 2}]})]),
         ("clear the filter", [("filter", {})]),
@@ -3919,7 +3919,7 @@ def test_the_model_echo_carries_no_values():
         ("zoom to link 170", [("navigate", {"record": {"table": "link", "id": 170}})]),
         ("save the selection as cherry", [("save_selection", {"name": "cherry"})]),
         ("set lanes to 3 on the selection", [("edit_cells", {"on_selection": True, "values": {"lanes": 3}})]),
-        ("colour by lanes and zoom to the selection", [("style", {"color_by": "lanes"}), ("navigate", {"to_selection": True})]),
+        ("color by lanes and zoom to the selection", [("style", {"color_by": "lanes"}), ("navigate", {"to_selection": True})]),
     ],
 )
 def test_the_stub_planner_grammar(text, calls):
@@ -3964,7 +3964,7 @@ def describe(action: BaseAction) -> str:
     if t == "select":
         return f"select “{a.utterance}”" if a.utterance else f"select {_plural(len(a.link_ids or []), 'link')}"
     if t == "style":
-        bits = [f"colour links by {a.color_by}" if a.color_by else "", f"size links by {a.width_by}" if a.width_by else ""]
+        bits = [f"color links by {a.color_by}" if a.color_by else "", f"size links by {a.width_by}" if a.width_by else ""]
         return " and ".join(b for b in bits if b) or "change the map style"
     if t == "filter":
         if not a.where:
@@ -4040,7 +4040,7 @@ __all__ = ["StubPlan", "StubPlanner"]
 
 _OPS = {">=": "gte", "<=": "lte", ">": "gt", "<": "lt", "=": "eq", "!=": "ne"}
 _HELP = (
-    "The offline assistant understands: select <street>; colour by <column>; width by <column>; "
+    "The offline assistant understands: select <street>; color by <column>; width by <column>; "
     "filter <column> <op> <value>; clear the filter; zoom to the selection; zoom to link <id>; "
     "save the selection as <name>; set <column> to <value> on the selection. Choose a language model for more."
 )
@@ -4173,9 +4173,9 @@ def _reply(*calls, text="", tokens=(100, 20)):
 
 def test_read_only_steps_run_at_once_and_are_recorded_via_the_assistant(tmp_path, isolated_env):
     p = Scripted(_reply(("select", {"utterance": "Ski Hill", "facility": {"name": "Ski Hill Drive"}}),
-                        ("style", {"color_by": "lanes"}), text="Selected and coloured."))
+                        ("style", {"color_by": "lanes"}), text="Selected and colored."))
     s = _session(tmp_path, isolated_env, p)
-    turn = s.assistant.ask("select ski hill drive and colour by lanes")
+    turn = s.assistant.ask("select ski hill drive and color by lanes")
     assert [st["status"] for st in turn["steps"]] == ["done", "done"] and turn["draft_id"] is None
     assert turn["steps"][0]["result"] == "resolved: 20 links"
     assert [e.via for e in s.history[-2:]] == ["assistant", "assistant"]
@@ -4204,7 +4204,7 @@ def test_a_text_only_answer_has_no_steps(tmp_path, isolated_env):
 def test_a_failed_read_only_step_stops_the_turn(tmp_path, isolated_env):
     p = Scripted(_reply(("navigate", {"to_selection": True}), ("style", {"color_by": "lanes"})))
     s = _session(tmp_path, isolated_env, p)
-    turn = s.assistant.ask("zoom to the selection and colour by lanes")
+    turn = s.assistant.ask("zoom to the selection and color by lanes")
     assert [st["status"] for st in turn["steps"]] == ["failed", "skipped"]
     assert "nothing is selected" in turn["steps"][0]["result"]
 
@@ -4243,7 +4243,7 @@ def test_one_question_at_a_time(tmp_path, isolated_env):
 
 def test_the_stub_provider_plans_offline(tmp_path, isolated_env):
     s = _session(tmp_path, isolated_env)  # select.provider is "stub" by default
-    turn = s.assistant.ask("colour by lanes")
+    turn = s.assistant.ask("color by lanes")
     assert turn["steps"][0]["status"] == "done" and s.style["color_by"] == "lanes"
 
 
@@ -4664,7 +4664,7 @@ def setup(tmp_path):
 
 def test_ask_then_read(setup):
     s, client = setup
-    turn = client.post("/api/assistant/ask", json={"text": "colour by lanes"}).json()
+    turn = client.post("/api/assistant/ask", json={"text": "color by lanes"}).json()
     assert turn["steps"][0]["status"] == "done"
     j = client.get("/api/assistant").json()
     assert [t["role"] for t in j["turns"]] == ["user", "assistant"] and j["status"]["provider"] == "stub"
@@ -4693,7 +4693,7 @@ def test_bad_bodies_and_busy(setup):
 
 def test_clear(setup):
     _, client = setup
-    client.post("/api/assistant/ask", json={"text": "colour by lanes"})
+    client.post("/api/assistant/ask", json={"text": "color by lanes"})
     assert client.post("/api/assistant/clear").status_code == 200
     assert client.get("/api/assistant").json()["turns"] == []
 
@@ -4938,7 +4938,7 @@ short sentence. Leave out every field you don't need.
 - `edit_cells`, `delete_rows`, `undo_edit`, `save_network`: these change the network, so the user approves them first.
   Never invent ids: use `"on_selection": true` for the selected links, or ids the user typed.
 
-Request: colour the links by lanes and zoom to the selection
+Request: color the links by lanes and zoom to the selection
 Tool calls: style {"color_by": "lanes"}; navigate {"to_selection": true}
 
 Request: show only links with at least 2 lanes
@@ -5146,7 +5146,7 @@ In `index.html`, add after `#dock-edits`:
       <div id="as-note" class="diag"></div>
       <div id="as-log" role="log" aria-live="polite"></div>
       <div id="as-draft"></div>
-      <div class="row"><textarea id="as-input" rows="2" aria-label="Ask the assistant" placeholder="e.g. colour by lanes and zoom to the selection"></textarea></div>
+      <div class="row"><textarea id="as-input" rows="2" aria-label="Ask the assistant" placeholder="e.g. color by lanes and zoom to the selection"></textarea></div>
       <div class="row"><button class="mini" id="as-send">Ask</button><button class="mini ghost" id="as-clear">Clear</button>
         <span id="as-usage" class="diag"></span></div>
     </section>
@@ -5469,13 +5469,13 @@ Create `scripts/data/nl_assistant_eval_set.toml`:
 # compare without case, spaces or dashes. Only the keys given are checked.
 
 [[case]]
-utterance = "colour the links by lanes"
+utterance = "color the links by lanes"
 [[case.expect]]
 type = "style"
 color_by = "lanes"
 
 [[case]]
-utterance = "colour by lanes and zoom to the selection"
+utterance = "color by lanes and zoom to the selection"
 select_first = [1, 2]
 [[case.expect]]
 type = "style"
@@ -5734,7 +5734,7 @@ In `workbench.md`, before "Language models …", add:
 - Type a request in the header box and press **Ask** (or Ctrl+Enter / ⌘Enter); Enter alone still selects. The
   **Assistant** panel (every workspace, or **Ask the assistant…** in the palette) keeps the conversation.
 - It uses the provider and model chosen in the header. With **Offline (pattern)** it understands a few fixed commands
-  (`colour by lanes`, `filter lanes >= 2`, `zoom to the selection`, `select <street>`, `save the selection as <name>`,
+  (`color by lanes`, `filter lanes >= 2`, `zoom to the selection`, `select <street>`, `save the selection as <name>`,
   `set lanes to 3 on the selection`).
 - Steps that only change the view or the selection run at once, and each is listed with its `app.do(...)` line.
   Steps that change a network (edits, deletions, undo, saving a copy) wait in a **draft**: **Approve** runs them in
@@ -5781,7 +5781,7 @@ Expected: clean.
 Start the app as in Task 14. First with the **offline** provider:
 
 1. **Panel.** The dock shows **… | Assistant**, and the header has **Ask**. The panel note reads "Offline assistant …".
-2. **Read-only.** Ask `colour by lanes and zoom to the selection` with nothing selected. The style step shows Done,
+2. **Read-only.** Ask `color by lanes and zoom to the selection` with nothing selected. The style step shows Done,
    the zoom step Failed ("nothing is selected"), and the history has `Style` marked as the assistant's.
 3. **Draft.** Select `Ski Hill Drive`, then ask `set lanes to 3 on the selection`.
    - The step shows "Awaiting approval", with `app.do(EditCells(... ids=[…20 ids…] ...))`.
@@ -5793,7 +5793,7 @@ Start the app as in Task 14. First with the **offline** provider:
 
 Then with **Ollama** (`qwen2.5:7b` pulled; pick Ollama in the header picker):
 
-6. **Multi-step.** Ask `select Cherry Street between Prospect Street and West Center Street and colour by lanes`.
+6. **Multi-step.** Ask `select Cherry Street between Prospect Street and West Center Street and color by lanes`.
    - Both run, and the selection is ambiguous.
    - The Selection panel offers node 61.
    - The note lists street names among what is sent (local).

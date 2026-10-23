@@ -74,7 +74,7 @@ async function loadColorProperty() {
   if (now.server.style.color_by === name && now.netKey === netKey) store.set({ prop: { ...p, netKey } });
 }
 
-// `style.node_color_by`'s column of the node table, fetched like the links' colour property.
+// `style.node_color_by`'s column of the node table, fetched like the links' color property.
 async function loadNodeColorProperty() {
   const { server, net, netKey, nodeProp, nodeProperties } = store.get();
   const name = server.style.node_color_by || "none";
@@ -85,7 +85,7 @@ async function loadNodeColorProperty() {
   if (now.server.style.node_color_by === name && now.netKey === netKey) store.set({ nodeProp: { ...p, netKey } });
 }
 
-// `style.width_by`'s column, fetched like the colour property (kept per decoded network version).
+// `style.width_by`'s column, fetched like the color property (kept per decoded network version).
 async function loadWidthProperty() {
   const { server, net, netKey, widthProp } = store.get();
   const name = server.style.width_by || "none";

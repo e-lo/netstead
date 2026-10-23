@@ -190,7 +190,7 @@ def _resolve_engine_or_exit(name: str | None) -> Any:
 def _table_summary(package: Package) -> list[dict]:
     """Return ``[{name, rows, columns}]`` for every table in ``package``.
 
-    Materialises one row count per table; if a table is lazy and large,
+    Materializes one row count per table; if a table is lazy and large,
     the engine pushes the count down to its backend so this remains
     cheap on regional-scale parquet sources.
     """

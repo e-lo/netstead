@@ -374,7 +374,7 @@ def test_the_view_controls_live_in_the_find_panel_not_in_map_popovers():
     assert "node_color_by: e.target.value" in panels and "populateNodeColorby(" in panels
     assert "settings-panel" not in panels and "btn-layers" not in panels
     assert "renderLegend(s.server.style, s.prop, s.nodeProp)" in (JS_DIR / "main.js").read_text()
-    assert "buildNodeStyle(" in (JS_DIR / "map.js").read_text()  # nodes take their colours from node_color_by
+    assert "buildNodeStyle(" in (JS_DIR / "map.js").read_text()  # nodes take their colors from node_color_by
 
 
 def test_the_dock_tabs_are_find_inspect_edit_cards_validate_assistant():

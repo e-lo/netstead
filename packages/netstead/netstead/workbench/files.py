@@ -23,7 +23,7 @@ _GMNS_TABLE_FILES = ("link.csv", "link.parquet")
 
 
 def detect_kind(path: Path) -> str | None:
-    """What ``path`` can be opened as, or ``None`` for a plain folder / unrecognised file.
+    """What ``path`` can be opened as, or ``None`` for a plain folder / unrecognized file.
 
     Kinds: ``gmns`` (a folder with ``link.csv``/``link.parquet`` or a ``datapackage.json``),
     ``overture`` (a folder holding ``segment.parquet`` + ``connector.parquet``), ``zip``,

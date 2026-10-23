@@ -14,7 +14,7 @@ For generic Frictionless data-package recipes (S3 reads, format conversion, gene
 ## Validation + data quality
 
 * [Run validation and read the report](validate-network.md) — interpret severity / category / code.
-* [Customise the data-quality rule pack](customise-quality.md) — threshold overrides, disable rules, plug in your own.
+* [Customize the data-quality rule pack](customize-quality.md) — threshold overrides, disable rules, plug in your own.
 * [Triage findings, propose fixes, apply them](fix-findings.md) — propose fixes on individual findings in the viewer, download them as a YAML edit log, replay it in Python.
 
 ## Creating networks

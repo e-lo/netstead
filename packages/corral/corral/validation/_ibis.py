@@ -3,10 +3,10 @@
 The validators in this package use ibis predicates throughout
 (``expr[col].is_null()``, ``expr.filter(...).count().execute()``,
 ``expr.left_join(...)``) so that violation counts get pushed down to
-the duckdb backend instead of materialising entire tables into
+the duckdb backend instead of materializing entire tables into
 pandas. At Bay-Area scale (millions of rows) this is the difference
 between "count nulls in a column" being a millisecond SQL aggregate
-and being a gigabyte pandas materialisation.
+and being a gigabyte pandas materialization.
 
 To keep one codepath across the three engines, every validator entry
 point calls :func:`to_ibis` once at the top, then operates on the
@@ -16,7 +16,7 @@ resulting :class:`ibis.expr.types.Table` for the rest of the call.
   an ibis Table; we don't round-trip.
 - ``IbisEngine`` — collect the LazyFrame to a polars DataFrame, hand
   it the pyarrow Table view, wrap with ``ibis.memtable``. The data
-  was going to be materialised anyway (polars is the in-memory path).
+  was going to be materialized anyway (polars is the in-memory path).
 - ``IbisEngine`` — convert the DataFrame to pyarrow then
   ``ibis.memtable``. Same reasoning — pandas is already eager.
 
@@ -25,7 +25,7 @@ the registered memtable. For pandas/polars sources this is a single
 pyarrow round-trip per validator orchestrator call (not per rule), so
 the overhead is bounded.
 
-Sample materialisation for Issue enumeration goes via ``.to_pyarrow()``
+Sample materialization for Issue enumeration goes via ``.to_pyarrow()``
 + ``.to_pylist()`` — never pandas — so this module is pandas-free.
 
 This module is *also* the single home for the small ibis-shaped
@@ -69,7 +69,7 @@ MAX_ROW_ISSUES: int = 100
 
 
 # Internal column name used to surface the original row position into
-# the materialised sample. We attach ``ibis.row_number()`` as this
+# the materialized sample. We attach ``ibis.row_number()`` as this
 # column inside :func:`with_row_index`; per-rule enumerators read it
 # back from the pyarrow sample so ``Issue.row`` is the source-of-truth
 # row index, not the sample's 0-based offset.
@@ -164,7 +164,7 @@ def count(predicate_table: ir.Table) -> int:
 
 
 def sample(predicate_table: ir.Table, *, limit: int = MAX_ROW_ISSUES) -> list[dict[str, Any]]:
-    """Materialise up to ``limit`` rows of ``predicate_table`` as pylist dicts.
+    """Materialize up to ``limit`` rows of ``predicate_table`` as pylist dicts.
 
     The pyarrow path keeps us pandas-free; ``to_pylist`` is the
     cheapest stable way to iterate a small sample row-by-row.

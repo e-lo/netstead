@@ -126,7 +126,7 @@ def test_netstead_server_run_help_runs():
     table flake on CI Linux because Rich wraps long option names across
     rows in the captured non-TTY output. The exit code already proves
     typer registered the command and its options without conflict.
-    Concrete config/bind behaviour is covered by the build_app +
+    Concrete config/bind behavior is covered by the build_app +
     serve-bound integration tests elsewhere in this file.
     """
     from netstead.cli.app import app as netstead_cli_app

@@ -22,7 +22,7 @@ net = build_network_from_osm(bbox, network_type="drive", extra_tags=["ref"], eng
 
 
 def tp(t):
-    """Materialise a table-like object to pandas (pass-through if already a frame)."""
+    """Materialize a table-like object to pandas (pass-through if already a frame)."""
     return t.to_pandas() if hasattr(t, "to_pandas") else t
 
 

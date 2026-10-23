@@ -43,7 +43,7 @@ __all__ = [
 #: How many resource names a group summary spells out before ``(+N more)``.
 DEFAULT_SUMMARY_LIMIT = 8
 
-#: Lead-in per structural code when a group is summarised on one line.
+#: Lead-in per structural code when a group is summarized on one line.
 _GROUP_LEAD_IN: dict[str, str] = {
     "structural.missing_optional_resource": "optional resources absent: ",
     "structural.missing_required_resource": "required resources missing: ",

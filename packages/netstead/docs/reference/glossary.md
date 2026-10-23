@@ -57,7 +57,7 @@ Two sections: **GMNS domain** terms come from the spec itself and apply to any G
 
 **NETSTEAD_AUTO_INDEX_THRESHOLD** — see *Auto-build threshold*.
 
-**Lazy expression** — a `Table.expr` that has not been materialised. Operations on a lazy expression return a new lazy expression. Materialisation happens explicitly via `.to_pandas()`, `.to_polars()`, `.collect()`, `.head()`, or `.count()`.
+**Lazy expression** — a `Table.expr` that has not been materialized. Operations on a lazy expression return a new lazy expression. Materialization happens explicitly via `.to_pandas()`, `.to_polars()`, `.collect()`, `.head()`, or `.count()`.
 
 **MCP (Model Context Protocol)** — the open protocol Claude and other AI agents use to discover and call tools. Netstead ships an MCP server via `pip install 'netstead[mcp,graph]'`; start it with `netstead mcp serve`. Tools exposed: `describe_package`, `validate_package`, `list_tables`, `describe_network`, `quality_check`, `connected_components`, `scope_from_nodes` — all stateless, each taking a `source`. See the [MCP tools reference](../ai/mcp-tools.md) and [Architecture §6.9](https://e-lo.github.io/netstead/corral/architecture/#69-ai-accessibility).
 
@@ -69,7 +69,7 @@ Two sections: **GMNS domain** terms come from the spec itself and apply to any G
 
 **Session** — `corral.editing.Session`, a context manager around one or more `EditResult`s with atomic rollback. Open with `with Session(net, log_path=...) as s: ...`; `s.rollback()` (no arguments) reverses every edit of the open session in LIFO order. The parquet log is written on clean exit only when `log_path=` is given; `corral.editing.rollback(pkg, log_path, to=session_id_or_datetime)` replays that log later to reverse edits selectively. (The Workbench's `netstead.workbench.Session` is a different class — the action bus of the local web app.)
 
-**Severity / Category / Issue** — see the [corral API reference](https://e-lo.github.io/netstead/corral/reference/api/). `Severity` is one of `ERROR`, `WARNING`, `INFO` (serialised lower-case). `Category` discriminates rule families: `SCHEMA`, `STRUCTURAL`, `FOREIGN_KEY`, `SYNC_STATE`, `DATA_QUALITY` — a quality finding carries `DATA_QUALITY` plus one of the three severities. `Issue` is the per-finding record carried in a `ValidationReport`.
+**Severity / Category / Issue** — see the [corral API reference](https://e-lo.github.io/netstead/corral/reference/api/). `Severity` is one of `ERROR`, `WARNING`, `INFO` (serialized lower-case). `Category` discriminates rule families: `SCHEMA`, `STRUCTURAL`, `FOREIGN_KEY`, `SYNC_STATE`, `DATA_QUALITY` — a quality finding carries `DATA_QUALITY` plus one of the three severities. `Issue` is the per-finding record carried in a `ValidationReport`.
 
 **Skill (Claude Code Skill)** — a packaged set of instructions and prompts a Claude Code agent can load on demand. Netstead ships six (`gmns-author`, `gmns-build`, `gmns-validate`, `gmns-convert`, `gmns-clean`, `corral-validate`) under `skills/` in the repo. Install with `claude code skill add <git-url>#path=skills/<name>`. See [Architecture §6.9](https://e-lo.github.io/netstead/corral/architecture/#69-ai-accessibility).
 

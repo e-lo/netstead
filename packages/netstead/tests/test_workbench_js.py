@@ -915,7 +915,7 @@ def test_arrow_pixel_offset_follows_the_right_hand_offset_line(node_module):
     assert off(0, 1, 10) == [8, 0]  # northbound: right is east
     assert off(90, 1, 10) == [0, -8]  # westbound: right is north
     assert off(180, 1, 5) == [-4, 0]  # southbound: right is west
-    assert off(-90, 0, 10) == [0, 0]  # offsets off: on the centreline
+    assert off(-90, 0, 10) == [0, 0]  # offsets off: on the centerline
 
 
 @pytest.mark.parametrize(("zoom", "size"), [(12, 8), (13, 8), (14, 10), (15, 12), (18, 18), (22, 18)])
@@ -994,7 +994,7 @@ def test_grid_filter_remove_clear_get_and_a_replaced_column(node_module):
         ('{kind: "set", mode: "any_of", values: [], listLike: true}', "value"),
         ('{kind: "set", mode: "all_of", values: ["a"], listLike: false}', "all of"),
         ('{kind: "text", val: "  "}', "text"),
-        ('{kind: "colour"}', "kind"),
+        ('{kind: "color"}', "kind"),
     ],
 )
 def test_grid_filter_refuses_a_malformed_spec(node_module, spec, message):
@@ -1183,12 +1183,12 @@ def test_validity_error_warn_and_clean_with_plurals(node_module):
     }
 
 
-# ---- palette.js: node colours follow the links' palette rules
+# ---- palette.js: node colors follow the links' palette rules
 
 _NODE_STYLE = 'ramp: "YlOrRd", colors: {nodes: [1, 2, 3]}'
 
 
-def test_node_colours_single_categorical_continuous_and_null(node_module):
+def test_node_colors_single_categorical_continuous_and_null(node_module):
     expr = (
         "(() => { const net = {N: {count: 3}}; const rows = c => [0, 1, 2].map(i => [...c.slice(i * 4, i * 4 + 4)]);"
         f" const single = buildNodeColors(net, {{node_color_by: 'none', {_NODE_STYLE}}}, null);"
@@ -1201,7 +1201,7 @@ def test_node_colours_single_categorical_continuous_and_null(node_module):
         " return [rows(single), rows(cat), rows(num), rows(other)]; })()"
     )
     single, cat, num, other = node_module("palette.js", ["buildNodeColors"], expr)
-    assert single == [[1, 2, 3, 150]] * 3 and other == single  # no property, or the wrong one: the single colour
+    assert single == [[1, 2, 3, 150]] * 3 and other == single  # no property, or the wrong one: the single color
     assert cat == [[228, 66, 62, 215], [205, 208, 214, 215], [57, 126, 184, 215]]  # palette, null, palette
     assert num == [[255, 237, 160, 215], [254, 178, 76, 215], [240, 59, 32, 215]]  # the ramp's ends and middle
 
@@ -1223,7 +1223,7 @@ def test_node_style_semantic_for_ctrl_type_generic_otherwise(node_module):
     ct, ct_r, order, gen, gen_r, gen_order, none, none_r, none_order = got
     assert ct[1][:3] == [214, 39, 40] and ct_r[1] == 7 and ct_r[4] == 7  # signal: red, 7 px
     assert ct[0] == [150, 155, 165, 150] and ct_r[0] == 2.5  # no_control: grey, 2.5 px
-    assert ct[2][:3] == [77, 175, 74] and ct_r[2] == 2  # unknown value: its generic palette colour, default radius
+    assert ct[2][:3] == [77, 175, 74] and ct_r[2] == 2  # unknown value: its generic palette color, default radius
     assert ct[3][:3] == [205, 208, 214] and ct_r[3] == 2  # null: the default
     assert order[-2:] == [1, 4]  # signals draw last
     assert gen[0][:3] == [228, 66, 62] and gen[1][:3] == [57, 126, 184] and set(gen_r) == {2} and gen_order is None

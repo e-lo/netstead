@@ -37,8 +37,8 @@ pytest.importorskip("scipy")
 def _engine() -> IbisEngine:
     """One engine for the semantics tests — backend-agnostic by design.
 
-    Connectivity / geometry / TOD all materialise through pyarrow, so
-    the engine choice doesn't change behaviour. IbisEngine is the
+    Connectivity / geometry / TOD all materialize through pyarrow, so
+    the engine choice doesn't change behavior. IbisEngine is the
     fastest setup for tiny networks.
     """
     return IbisEngine()

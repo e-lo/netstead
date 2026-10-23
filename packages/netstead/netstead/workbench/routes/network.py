@@ -148,7 +148,7 @@ def network_router(session: Session) -> APIRouter:
         return network_handle(session, net_id, component)
 
     def _styled_frame(net_id: str, component: str, table: str) -> pd.DataFrame:
-        """The frame whose columns colour or size the map: the ``link`` table's, or the ``node`` table's."""
+        """The frame whose columns color or size the map: the ``link`` table's, or the ``node`` table's."""
         h = handle(net_id, component)
         return h.nodes_df() if table == "node" else h.links_df()
 
@@ -223,7 +223,7 @@ def network_router(session: Session) -> APIRouter:
 
     @router.get("/properties")
     def properties(net_id: str, component: str, table: Literal["link", "node"] = "link") -> dict[str, Any]:
-        """The columns that can colour (or size) the ``link`` table's features, or the ``node`` table's."""
+        """The columns that can color (or size) the ``link`` table's features, or the ``node`` table's."""
         return {"properties": styleable_columns(_styled_frame(net_id, component, table), table)}
 
     @router.get("/filter")

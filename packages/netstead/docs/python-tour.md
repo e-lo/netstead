@@ -2,7 +2,7 @@
 title: Python tour (notebook)
 audience: users
 kind: tutorial
-summary: Walk through the bundled Leavenworth fixture end-to-end in a notebook — map, validation report, quality report, simplify-geometry diff, scope visualisation. For the browser version, see the Visual tour.
+summary: Walk through the bundled Leavenworth fixture end-to-end in a notebook — map, validation report, quality report, simplify-geometry diff, scope visualization. For the browser version, see the Visual tour.
 ---
 
 # Python tour (notebook)
@@ -68,7 +68,7 @@ In a notebook, evaluating `net` on its own renders an HTML summary card with the
 
 ### 2. Render the network as a map
 
-The `link` table is keyed to `geometry` by `geometry_id`; the `geometry.geometry` column carries each link's LineString as WKB bytes in memory (the CSV on disk stores WKT; netstead decodes it on load). Materialise both with `.to_pandas()`, join them, and decode the WKB with shapely before plotting.
+The `link` table is keyed to `geometry` by `geometry_id`; the `geometry.geometry` column carries each link's LineString as WKB bytes in memory (the CSV on disk stores WKT; netstead decodes it on load). Materialize both with `.to_pandas()`, join them, and decode the WKB with shapely before plotting.
 <!-- doctest: skip -->
 
 ```python
@@ -118,7 +118,7 @@ ax.set_title(f"Leavenworth GMNS fixture — {len(links)} links")
 plt.show()
 ```
 
-Either way: a recognisable Bavarian-themed downtown core in an OSM-derived street network roughly 2 km across.
+Either way: a recognizable Bavarian-themed downtown core in an OSM-derived street network roughly 2 km across.
 
 ### 3. Validate and display the report
 
@@ -188,7 +188,7 @@ You should see an `EditResult` card for the `geometry` table: the op and table, 
 ![EditResult card for the simplify-geometry edit](assets/screenshots/leavenworth-simplify-edit-result.png){ .screenshot }
 *EditResult card for the simplify-geometry edit: the op and the `geometry` table, the changed-row count, session id and timestamp.*
 
-To visualise before-and-after on one map, keep the decoded shapes from step 2 as the "before" set, then read the edited `geometry` table as the "after" set:
+To visualize before-and-after on one map, keep the decoded shapes from step 2 as the "before" set, then read the edited `geometry` table as the "after" set:
 <!-- doctest: skip -->
 
 ```python
@@ -252,7 +252,7 @@ for shape in scoped_links["shape"]:
 m
 ```
 
-You should see a small green subgraph centred on one intersection, with the rest of the network greyed out as context.
+You should see a small green subgraph centered on one intersection, with the rest of the network greyed out as context.
 
 ![Scoped subgraph](assets/screenshots/leavenworth-scoped-map.png){ .screenshot }
 *Scoped subgraph (200 m network buffer around node 1, green) over the full Leavenworth network (grey)*

@@ -130,7 +130,7 @@ fk_problems = [i for i in report.issues if i.category is Category.FOREIGN_KEY]
 * `STRUCTURAL` — package-level shape problems (missing required table, missing required file).
 * `FOREIGN_KEY` — cross-table integrity (`link.from_node_id` points at a node that doesn't exist).
 * `SYNC_STATE` — FKs that resolved on disk but were invalidated by an in-memory edit (see [edit-with-rollback](edit-with-rollback.md)).
-* `DATA_QUALITY` — rule-pack findings (high-speed-residential, lane-count-mismatch, etc.). Always WARNING / INFO; see [customise the quality pack](customise-quality.md).
+* `DATA_QUALITY` — rule-pack findings (high-speed-residential, lane-count-mismatch, etc.). Always WARNING / INFO; see [customize the quality pack](customize-quality.md).
 
 ### 5. Common codes you'll see
 
@@ -232,7 +232,7 @@ Stable identifier strings let you script around specific findings without parsin
 ## Pitfalls
 
 * **WARNING-level findings don't fail CI.** That's intentional — data-quality findings are advisory. If you want them to be blocking, post-process: `if any(i.code.startswith("quality.") for i in report.issues): sys.exit(1)`.
-* **Data-quality thresholds are configurable.** A WARNING firing on your network may just mean the default threshold doesn't match your context (e.g. metric vs imperial speed). See the [customise the quality pack](customise-quality.md) recipe.
+* **Data-quality thresholds are configurable.** A WARNING firing on your network may just mean the default threshold doesn't match your context (e.g. metric vs imperial speed). See the [customize the quality pack](customize-quality.md) recipe.
 * **`sync.fk_stale` only fires after an edit.** A freshly-loaded package can't be out of sync with itself. If you see this in CI, an upstream step in the same process mutated the network.
 * **The validator runs against the spec version embedded in the package.** Override with `Network.from_source(path, spec_version="0.96")` if the package is mislabeled.
 

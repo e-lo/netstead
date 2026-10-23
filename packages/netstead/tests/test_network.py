@@ -17,7 +17,7 @@ Covers the GMNS-aware :class:`~corral.dataset.Package` subclass:
 * Re-exports through the top-level :mod:`netstead` package.
 
 Parametrised over both engines (pandas + ibis) for the load-and-access
-path since the behaviour is engine-independent — confirms we don't
+path since the behavior is engine-independent — confirms we don't
 accidentally lean on a single backend.
 """
 
@@ -32,7 +32,7 @@ from netstead.fixtures import leavenworth
 
 @pytest.fixture(params=[IbisEngine, IbisEngine], ids=["pandas", "ibis"])
 def engine(request):
-    """Both engines — Network behaviour must be backend-agnostic."""
+    """Both engines — Network behavior must be backend-agnostic."""
     return request.param()
 
 

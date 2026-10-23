@@ -458,7 +458,7 @@ def save_setting(
 
 
 def dumps_toml(data: Mapping[str, Any]) -> str:
-    """Serialise nested dicts of scalars/lists to TOML: the subset settings files use."""
+    """Serialize nested dicts of scalars/lists to TOML: the subset settings files use."""
     lines: list[str] = []
     _emit_table(lines, data, ())
     return "\n".join(lines).strip() + "\n"

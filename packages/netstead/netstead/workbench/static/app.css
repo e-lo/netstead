@@ -278,7 +278,7 @@
   .job-text { flex:1; min-width:0; }
   .job-label { font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .job-detail { color:var(--muted); font-size:12px; }
-  .job.failed .job-detail, .job.cancelled .job-detail { color:var(--to); }
+  .job.failed .job-detail, .job.canceled .job-detail { color:var(--to); }
   .modal { position:fixed; inset:0; z-index:20; background:rgba(0,0,0,.55); display:flex;
            align-items:center; justify-content:center; }
   .modal-card { width:min(760px, calc(100vw - 32px)); max-height:calc(100vh - 32px); display:flex; flex-direction:column;
@@ -351,7 +351,7 @@
   #find-go { margin:0; } #find-go button { padding:7px 14px; }
   #find-bar #nl-picker { flex-wrap:wrap; }
   #find-bar #nl-picker select { flex:1 1 110px; max-width:100%; min-width:0; }
-  /* View: the map's layer, colour, width, direction and filter controls, folded under the selection. */
+  /* View: the map's layer, color, width, direction and filter controls, folded under the selection. */
   #view-section summary { cursor:pointer; list-style:none; }
   #view-section summary::before { content:"▸ "; }
   #view-section[open] summary::before { content:"▾ "; }

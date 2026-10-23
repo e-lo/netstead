@@ -1,5 +1,5 @@
 // The Workbench's inline SVG icons: simple 24×24 strokes (Feather/Lucide style), drawn in currentColor so a button's
-// text colour is the icon's. Import-free and DOM-free: unit-tested under node (tests/test_workbench_js.py); dom.js
+// text color is the icon's. Import-free and DOM-free: unit-tested under node (tests/test_workbench_js.py); dom.js
 // mounts them into every `[data-icon]` element at boot.
 
 // name -> the shapes inside the <svg> (stroked; no fill, so they read on the dark and the accent backgrounds).

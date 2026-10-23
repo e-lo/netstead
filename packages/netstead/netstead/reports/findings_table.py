@@ -1,7 +1,7 @@
 """CSV / XLSX writers for a list of validation :class:`~corral.reports.Issue` objects.
 
 The two writers share a column set so a spreadsheet downloaded from one
-format mirrors the other. The serialised columns are the
+format mirrors the other. The serialized columns are the
 :class:`~corral.reports.Issue` dataclass fields plus an ``extra``
 JSON column (so adapter-specific payload like FK targets or OSM ids
 survives the round-trip without needing per-rule column expansion).
@@ -55,7 +55,7 @@ def write_findings_csv(issues: Iterable[Issue], path: str | Path) -> None:
 
     Columns: ``severity, category, code, table, column, row, message,
     fix_hint, extra``. The ``extra`` column is the issue's ``extra``
-    dict serialised as JSON (empty string for an empty dict, so
+    dict serialized as JSON (empty string for an empty dict, so
     spreadsheet apps don't show ``{}``). Optional fields render as
     empty cells, not the literal string ``"None"``.
 

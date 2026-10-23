@@ -96,7 +96,7 @@ def parse_speed(value: Any) -> float | None:
     """Parse an OSM ``maxspeed`` value into a speed in **mph**.
 
     OSM ``maxspeed`` defaults to km/h when unit-less; an explicit ``mph``
-    suffix is honoured. The result is normalised to mph (US GMNS convention)
+    suffix is honoured. The result is normalized to mph (US GMNS convention)
     and rounded to one decimal.
 
     Args:

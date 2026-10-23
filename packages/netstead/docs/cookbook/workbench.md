@@ -234,7 +234,7 @@ Focus is a view. Clicking never changes the selection.
 - **Workspaces and the dock.** When a plugin adds a workspace, tabs for each appear in the header; each keeps the
   map / split / table view you left it in. The right drawer is a dock, with a tab per panel at its top, in order:
   The tabs are icons (hover for the name; counts stay as a badge on the icon): **Find** (magnifier; the selection box, anchors, diagnostics, export, saved selections, highlighted links and the **View**
-  controls — layers, colour and width, direction, filter links), **Inspect** (info; the focused record; comes forward
+  controls — layers, color and width, direction, filter links), **Inspect** (info; the focused record; comes forward
   automatically when you click a map feature or a table row), **Edit** (pencil; the edit list, undo/redo, edit warnings and
   "Save selection as card…"), **Cards** (stacked cards; the project-cards plugin's panel, when it's installed) and **Validate**
   (shield with a check; run / export, status, facets and the grouped findings list), then **Assistant** (chat bubble), then any panel another plugin
@@ -401,14 +401,14 @@ written to, and a copy inside the source folder is refused.
 
 ## Style, filter and navigate
 
-The map's style and link filter are set from the **Find** tab's **View** section (its layer toggles, colour
+The map's style and link filter are set from the **Find** tab's **View** section (its layer toggles, color
 and width pickers, direction controls and **Filter links** replace the old map popovers); the layers button on the map jumps there.
-Nodes coloured by `ctrl_type` use a fixed style where size carries meaning too (signals large and red, stop signs orange or amber, yield yellow, uncontrolled nodes small and grey) and signals draw on top; other columns use the generic palette.
+Nodes colored by `ctrl_type` use a fixed style where size carries meaning too (signals large and red, stop signs orange or amber, yield yellow, uncontrolled nodes small and grey) and signals draw on top; other columns use the generic palette.
 
 - **Color links by** / **Color nodes by** pick a categorical or numeric column for links and nodes
   independently (`app.do(Style(color_by="facility_type"))`, `app.do(Style(node_color_by="ctrl_type"))`). A
-  fresh network defaults to colouring links by `facility_type` and nodes by `ctrl_type` when those columns
-  exist, falling back to a single colour otherwise.
+  fresh network defaults to coloring links by `facility_type` and nodes by `ctrl_type` when those columns
+  exist, falling back to a single color otherwise.
 - **Width by** sizes links by a numeric column (`app.do(Style(width_by="lanes"))`).
 - **Filter links**, in the same View section, dims every link that doesn't match
   (`app.do(Filter(where=[{"col": "lanes", "op": "gte", "val": 2}]))`); the table's **Filtered** scope lists the
@@ -442,7 +442,7 @@ independent: the grid's filters only narrow what the table shows.
   session only: **Clear** empties it, and it is gone when the Workbench stops.
 - It uses the provider and model chosen next to the Find tab's selection box (hover the model to see its full
   name when it's truncated). With **Offline (pattern)** it understands a few fixed commands
-  (`colour by lanes`, `width by lanes`, `filter lanes >= 2`, `clear the filter`, `zoom to the selection`,
+  (`color by lanes`, `width by lanes`, `filter lanes >= 2`, `clear the filter`, `zoom to the selection`,
   `zoom to link 170`, `select <street>`, `save the selection as <name>`, `set lanes to 3 on the selection`).
 - Steps that only change the view or the selection run at once, and each is listed with its `app.do(...)` line.
   Steps that change a network or something you made (edits, deletions, undo, saving a copy, and, once you allow
@@ -463,7 +463,7 @@ independent: the grid's filters only narrow what the table shows.
 - **Small local models** get help, and the panel says so. A read-only step with a field its tool doesn't have (or,
   for a style, a malformed one) runs without it, and the answer lists what was left out ("Left out: …"); a step that
   changes a network is never changed this way, it is asked for again. A field that belongs to another read-only tool
-  becomes a step of its own: "select Ski Hill Drive and colour by lanes" folded into one select is run as a select
+  becomes a step of its own: "select Ski Hill Drive and color by lanes" folded into one select is run as a select
   and a style ("Split: …"); if the field could belong to more than one tool, or to one that changes a network, the
   model is asked again. The model sees what each GMNS column means
   (`free_speed` is the speed limit). With `assistant.compact_tools = "auto"` (the default) a model on this machine is

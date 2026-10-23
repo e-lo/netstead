@@ -49,7 +49,7 @@ report = net.validate()
 open("net.html", "w").write(render_validation_html(net, report))
 ```
 
-Each finding becomes a clickable marker, colour-coded by severity. A **Resources** table above the findings
+Each finding becomes a clickable marker, color-coded by severity. A **Resources** table above the findings
 lists every spec resource (required/optional, present, row count). Cross-cutting findings (no row, no coords)
 sit in a collapsed "Unlocated findings" `<details>` block, with its count in the summary — still clickable for
 the row-sync when expanded. Findings that share a code and differ only by resource (such as the sixteen
@@ -134,7 +134,7 @@ RemoteControl plugin).
   CLI flags wrap the same renderer.
 * [Build from OSM](build-from-osm.md) — produces a network with
   `osm_way_id` columns so the "Edit in OSM" links light up.
-* [Customise quality](customise-quality.md) — quality rules feed the same
+* [Customize quality](customize-quality.md) — quality rules feed the same
   `Issue` overlay path.
 
 [issue]: https://e-lo.github.io/netstead/corral/api/reports/#corral.reports.Issue

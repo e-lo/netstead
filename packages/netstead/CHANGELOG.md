@@ -23,7 +23,7 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 - **Workbench: a map button for the View settings, Open as an icon, nodes styled by control type.** The map
   gets a layers button that opens the Find tab's View section; the header's Open is an icon button with the
-  same recents menu; and nodes coloured by `ctrl_type` use red (large) signals, orange/amber stop signs, yellow
+  same recents menu; and nodes colored by `ctrl_type` use red (large) signals, orange/amber stop signs, yellow
   yield and small grey uncontrolled nodes, with a dark outline, signals drawn on top, and a legend that shows
   each category at its size. The side panel's dock tabs are icons with tooltips (badges stay as a pill on the
   icon), so they no longer wrap onto two lines. A natural-language Select or Ask now
@@ -53,15 +53,15 @@ This file is for the **netstead** package only. The underlying generic engine `c
   node-to-node line. `viz.buffers.pack_network` now takes the optional
   `geometry` frame and resolves shapes in GMNS order: an inline `link.geometry`,
   else the `geometry_id` row, else the straight from/to segment.
-- **Workbench map: a legible focus colour, and direction arrows that follow
+- **Workbench map: a legible focus color, and direction arrows that follow
   their offset line.** The focused link is now a saturated magenta over a dark
   casing (it was white: invisible on the light Positron basemap and over white
   highway casings); highlights keep their cyan and get the same casing. With
   "Offset directions" on, each link row's arrow now sits on that row's own
-  offset line instead of the centreline, so a two-way street shows one arrow
+  offset line instead of the centerline, so a two-way street shows one arrow
   per direction rather than two crossed into an X. Arrows sit at the path's
   midpoint by length (not its middle vertex), have a dark outline, and grow
-  from 8 px at zoom 13 to 18 px at zoom 18. The selection colour is still
+  from 8 px at zoom 13 to 18 px at zoom 18. The selection color is still
   yours to set (`style.colors.selection`).
 - **A Workbench build's engine failing to close no longer hides the result.**
   Since corral's `IbisEngine.close()` stopped swallowing errors, a failed
@@ -155,7 +155,7 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Added
 
-- **Workbench: Find / Inspect / Edit / Cards / Validate panels; the map coloured
+- **Workbench: Find / Inspect / Edit / Cards / Validate panels; the map colored
   by default.** The side panel's tabs, in order: **Find** (the utterance box
   with Select / Ask and the model picker, moved out of the header's second row,
   which is gone; the selection's anchors, diagnostics, export and saved
@@ -170,7 +170,7 @@ This file is for the **netstead** package only. The underlying generic engine `c
   structural findings folded into one `▸ code (n)` row that expands, and a
   "Zoom to" crosshair on every located finding); then **Assistant**. Plugins
   may register the bare panel id `cards` only as `project_cards`
-  (`RESERVED_IDS` in `slots.js`). Opening a network colours links by
+  (`RESERVED_IDS` in `slots.js`). Opening a network colors links by
   `facility_type` and nodes by `ctrl_type` when the tables have those columns
   (`DEFAULT_STYLE`; a network without them opens with `"none"`), the legend
   shows both, and `Style` gains `node_color_by` (validated against the node
@@ -389,7 +389,7 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Changed
 
-- **The quality rule pack filters in DuckDB instead of materialising tables**
+- **The quality rule pack filters in DuckDB instead of materializing tables**
   ([#181](https://github.com/e-lo/netstead/issues/181)). Each rule now writes its
   predicate as an ibis expression and fetches only the offending rows, so findings
   are unchanged (a golden test pins every field on Leavenworth, RDU I-40 and a
@@ -511,7 +511,7 @@ map with an **edit log** for triaging findings and replaying the fixes in Python
     PK-indexed row lookup, drift check (`from_value` vs current), and
     per-edit `skipped` reasons.
   - **On-disk format is `network-wrangler` ProjectCard.** Each session
-    serialises to a single ProjectCard with `changes[]` of
+    serializes to a single ProjectCard with `changes[]` of
     `roadway_property_change` entries. GMNS `link_id` maps to
     `model_link_id` in the facility selector; per-cell values live under
     `property_changes.<column>.{existing, set}`. Node property changes
@@ -602,7 +602,7 @@ This is a **beta**: API surface is stable enough to build against and most user-
 
 - **New architecture.** GMNS-specific code now sits on top of a generic Frictionless engine ([`datagrove`](https://github.com/e-lo/netstead/tree/main/packages/corral) (now `corral`)) shipped as a separate PyPI package. The intent: future spec toolkits (GTFSpy, etc.) reuse the engine.
 - **Multi-version GMNS support out of the box.** Spec versions `0.95`, `0.96`, `0.97` ship side-by-side. `DEFAULT_SPEC = "0.97"`. Override per call: `gmnspy.read(..., spec_version="0.96")`.
-- **Regional-scale performance.** Lazy ibis + DuckDB by default. Predicates push down to SQL. Validation and scope operations stream rather than materialising the whole network.
+- **Regional-scale performance.** Lazy ibis + DuckDB by default. Predicates push down to SQL. Validation and scope operations stream rather than materializing the whole network.
 - **Three usage modes, one core.** CLI (`gmnspy <command>`), notebook (`Network._repr_html_`), and programmatic (`gmnspy.read`, `gmnspy.validate`) all share the same underlying objects.
 
 ### New features

@@ -9,7 +9,7 @@
 # Class vocabulary follows the Overture roads guide:
 # https://docs.overturemaps.org/guides/transportation/roads/
 #
-# Phase 1 filters on class only (matches the OSM source's behaviour); travel-mode
+# Phase 1 filters on class only (matches the OSM source's behavior); travel-mode
 # access rules (access_restrictions[].when.mode) are a Phase 2 refinement.
 
 drive:

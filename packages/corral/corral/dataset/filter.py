@@ -7,7 +7,7 @@ an ibis boolean expression, following the same **ibis-first** cross-engine
 strategy as the spatial scopes in :mod:`corral.dataset.view`:
 
 * a duckdb-backed ibis ``Table`` keeps the filter lazy on that backend, so it
-  is pushed down as a single SQL ``WHERE`` (a large table never materialises);
+  is pushed down as a single SQL ``WHERE`` (a large table never materializes);
 * other engines route through an ``ibis.memtable``, filter, and rebuild on the
   source engine via :meth:`Engine.from_arrow` (type-preserving round-trip).
 

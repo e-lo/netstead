@@ -93,7 +93,7 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   test, replacing the per-file re-registration workarounds.
 - **`SpecVersion` is a plain ordered frozen dataclass.** Its ordering now
   comes from `@dataclass(frozen=True, order=True)` instead of four
-  hand-written comparison methods. Behaviour is unchanged: versions still
+  hand-written comparison methods. Behavior is unchanged: versions still
   order by `(major, minor, patch)`, and comparing with a non-`SpecVersion`
   still raises `TypeError`. (#118)
 - **`Schema.missing_values` defaults to `[""]`, not `None`.** A schema whose
@@ -132,7 +132,7 @@ This file is for the **corral** package only. `netstead` (which depends on corra
   lowercase spelling, so `DUCKDB:///abs/x.duckdb` was handed to duckdb as a
   literal path. The scheme is now stripped with `urlparse`.
 - **DuckDB writes no longer pull the whole table into memory (#128).**
-  `IbisEngine.write_duckdb_table` materialised the expression as one Arrow
+  `IbisEngine.write_duckdb_table` materialized the expression as one Arrow
   table. It now streams record batches (100k rows at a time) from the
   expression's own backend into the destination, which it opens with
   `ibis.duckdb.connect`, the same per-process instance `read_duckdb_table`
@@ -210,7 +210,7 @@ This file is for the **corral** package only. `netstead` (which depends on corra
 - **`Package.write(..., overwrite=True)` over the package's own source no
   longer loses tables.** The old target was removed before the tables, lazy
   expressions still reading from it, were written, so only tables already
-  materialised in memory survived. Parquet, CSV and DuckDB targets are now
+  materialized in memory survived. Parquet, CSV and DuckDB targets are now
   staged beside `dest` and swapped into place once the write is complete
   (as zip targets already were), so a failed write also leaves an existing
   `dest` intact.
@@ -305,7 +305,7 @@ First public preview, tagged `datagrove-v1.0.0-beta.1` (pre-rename; never publis
 
 ### Architectural defaults
 
-- Lazy by default. `Package.from_source(...)` returns a Package whose tables are unmaterialised ibis expressions until you `.collect()` / `.to_pandas()` / write.
+- Lazy by default. `Package.from_source(...)` returns a Package whose tables are unmaterialized ibis expressions until you `.collect()` / `.to_pandas()` / write.
 - No raw SQL outside `datagrove.engines.ibis_engine` (enforced by `scripts/lint_no_sql.py` in CI).
 - datagrove never imports gmnspy (enforced by `import-linter`).
 

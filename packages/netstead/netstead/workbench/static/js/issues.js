@@ -243,7 +243,7 @@ export function markFocusedIssue() {
   }
 }
 
-// The markers: a dot per located issue, coloured by severity; the picked issue is drawn larger. A core factory
+// The markers: a dot per located issue, colored by severity; the picked issue is drawn larger. A core factory
 // gets the whole store state as ctx.state (map.js layerContext). Positions are cached per decoded network and
 // issue set, so an edit (a new version) re-places them; the set itself stays the one validated, until re-run.
 let cache = { net: null, issues: null, points: [] };

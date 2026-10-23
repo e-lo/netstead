@@ -92,7 +92,7 @@ Four page kinds. Each has a fixed section order so an agent that learned the tem
 
 ✅ Right:
 
-> Load the bundled Leavenworth fixture through the DuckDB engine (via ibis). The result is a lazy `Network` — nothing materialises until you ask.
+> Load the bundled Leavenworth fixture through the DuckDB engine (via ibis). The result is a lazy `Network` — nothing materializes until you ask.
 >
 > ```python
 > from netstead import Network
@@ -146,7 +146,7 @@ The previous version of this guide said "use a table". That was wrong — reader
     net = Network.from_source("s3://bucket/network/")
     ```
 
-??? note "Materialise a table as a pandas DataFrame"
+??? note "Materialize a table as a pandas DataFrame"
 <!-- doctest: skip -->
     ```python
     links_df = net.links.to_pandas()
@@ -274,7 +274,7 @@ This is the most important rule for agent-efficient docs — an agent following 
 ## Voice
 
 * Active, present tense: "The validator emits an Issue", not "An Issue will be emitted".
-* Direct: "Call `.to_pandas()` to materialise a table", not "It is possible to materialise a table".
+* Direct: "Call `.to_pandas()` to materialize a table", not "It is possible to materialize a table".
 * No "we" / "you" tug-of-war: pick one per page kind. `concept` + `reference` → impersonal. `howto` + `tutorial` → "you".
 
 ## Length

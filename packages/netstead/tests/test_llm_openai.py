@@ -91,7 +91,7 @@ def test_gpt6_luna_forced_tool_sends_none_reasoning_effort_and_no_temperature(fa
 
 
 def test_gpt6_luna_without_tools_sends_no_reasoning_effort(fake_api):
-    """Luna's behaviour away from tool calling is unchanged: no tools means nothing forces a
+    """Luna's behavior away from tool calling is unchanged: no tools means nothing forces a
     specific effort, so none is sent and its own default ("medium") applies."""
     fake_api.add("POST", "/v1/chat/completions", body=_reply("{}"))
     _provider(fake_api).complete(replace(REQUEST, model="gpt-6-luna", tools=()))

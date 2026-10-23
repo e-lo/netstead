@@ -122,8 +122,8 @@ Replay: `app.do(DeleteSelection(name='ski hill'))`
 
 #### `Style` — `style`
 
-Partially update the map style; omitted fields are unchanged. `color_by` colours links by a column of the link
-table and `node_color_by` colours nodes by one of the node table (`"none"` for a single colour); `width_by`
+Partially update the map style; omitted fields are unchanged. `color_by` colors links by a column of the link
+table and `node_color_by` colors nodes by one of the node table (`"none"` for a single color); `width_by`
 sizes links by a numeric column (`"none"` for widths by lane count). A fresh session defaults `color_by` to
 `"facility_type"` and `node_color_by` to `"ctrl_type"` when those columns exist (`"none"` otherwise).
 

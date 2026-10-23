@@ -101,7 +101,7 @@ def test_ids_arrive_as_text_or_numbers(net):
         ("link", [1], {"lanes": 1.5}, "does not fit"),  # corral would widen the column to float
         ("link", [999999], {"lanes": 2}, "not found"),
         ("link", [1], {"link_id": 2}, "key"),
-        ("link", [1], {"colour": "red"}, "no column"),  # corral would add the column
+        ("link", [1], {"color": "red"}, "no column"),  # corral would add the column
         ("nope", [1], {"x": 1}, "no nope table"),
         ("link", [], {"lanes": 2}, "at least one row"),
         ("link", [1], {}, "at least one column"),
@@ -153,7 +153,7 @@ def test_adding_rows(net):
     ("rows", "message"),
     [
         ([], "at least one row"),
-        ([{"link_id": 9001, "colour": "red"}], "no column"),
+        ([{"link_id": 9001, "color": "red"}], "no column"),
         ([{"name": "x"}], "needs its key"),
         ([{"link_id": " ", "name": "x"}], "needs its key"),
         ([{"link_id": "", "name": "x"}], "needs its key"),

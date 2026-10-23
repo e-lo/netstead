@@ -25,7 +25,7 @@ Per the architecture's hard rule, only ``corral.engines.ibis_engine``
 is allowed to embed raw SQL strings. We follow the rule rigidly:
 
 * Table enumeration uses ``duckdb.connect(...).table_function('duckdb_tables')``
-  — duckdb exposes its system catalogue as a relation, so we read a
+  — duckdb exposes its system catalog as a relation, so we read a
   relation and filter in Python rather than running ``SHOW TABLES``.
 * Reads and writes delegate to the engine via the cross-engine
   ``{"format": "duckdb", "path": ..., "table": ...}`` source-dict
@@ -100,7 +100,7 @@ def _list_tables(path_str: str) -> list[str]:
     """Return the names of every user table inside the duckdb file.
 
     Uses ``con.table_function('duckdb_tables')`` — duckdb's system
-    catalogue exposed as a relation. We project the ``table_name``
+    catalog exposed as a relation. We project the ``table_name``
     column and filter to schema=='main' in Python (no SQL string).
 
     Connection mode: we prefer ``read_only=True`` because it lets us
@@ -120,7 +120,7 @@ def _list_tables(path_str: str) -> list[str]:
         con = duckdb.connect(path_str)
     try:
         # table_function returns a DuckDBPyRelation over duckdb_tables(),
-        # which is the canonical no-SQL way to introspect the catalogue.
+        # which is the canonical no-SQL way to introspect the catalog.
         # Columns include schema_name, table_name, internal, temporary, etc.
         # We pull table_name + schema_name + internal and filter in Python:
         # .project() takes column names (not a SQL boolean expr) so no SQL

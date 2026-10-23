@@ -164,7 +164,7 @@ nav:
       - cookbook/index.md
       - Validate and fix:
           - Validate a network: cookbook/validate-network.md
-          - Customise quality rules: cookbook/customise-quality.md
+          - Customize quality rules: cookbook/customize-quality.md
           - Triage and fix findings: cookbook/fix-findings.md
       - Build and scope:
           - Build from OpenStreetMap or Overture: cookbook/build-from-osm.md

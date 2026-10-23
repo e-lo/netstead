@@ -81,7 +81,7 @@ def test_app_help_lists_commands(app):
 
 
 def test_unknown_command_exits_nonzero(app):
-    """Unknown subcommand exits non-zero (typer's standard behaviour)."""
+    """Unknown subcommand exits non-zero (typer's standard behavior)."""
     result = runner.invoke(app, ["nope"])
     assert result.exit_code != 0
 

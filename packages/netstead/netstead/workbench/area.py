@@ -57,7 +57,7 @@ class BboxArea(_Area):
 
 
 class PointArea(_Area):
-    """A centre point plus a buffer (metres) on every side."""
+    """A center point plus a buffer (metres) on every side."""
 
     kind: Literal["point"] = "point"
     lat: float = Field(ge=-90, le=90)

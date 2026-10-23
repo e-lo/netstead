@@ -4,7 +4,7 @@ The Table is a lazy wrapper around one table in a data package: it
 holds the logical name, the engine-native expression, the engine, and
 (optionally) the Frictionless :class:`Schema` and source locator.
 
-Materialisation must be opt-in — constructors and the head/select/filter
+Materialization must be opt-in — constructors and the head/select/filter
 ops return new Table instances without touching the underlying engine
 backend. The cross-engine parametrisation here mirrors
 ``tests/io/test_csv_adapter.py`` so the same engine fixture conventions
@@ -141,7 +141,7 @@ def test_table_head_is_lazy(engine_name: str) -> None:
     assert isinstance(h, Table)
     assert h is not t
     # The returned head is still queryable by its column set without
-    # forcing materialisation through to_pandas.
+    # forcing materialization through to_pandas.
     assert set(h.columns()) == {"a", "b"}
 
 
@@ -155,10 +155,10 @@ def test_table_count_returns_int(engine_name: str) -> None:
 
 @pytest.mark.parametrize("engine_name", ["ibis"])
 def test_table_count_does_not_materialise_via_to_pandas(engine_name: str, monkeypatch: pytest.MonkeyPatch) -> None:
-    """``Table.count`` must push down to the engine, not materialise.
+    """``Table.count`` must push down to the engine, not materialize.
 
     Pinning the I3 fix: prior to it, ``count()`` was implemented as
-    ``len(engine.to_pandas(expr))`` which forced a full materialisation
+    ``len(engine.to_pandas(expr))`` which forced a full materialization
     for every count. The fix routes ibis through
     ``expr.count().to_pyarrow().as_py()`` and pandas through ``len``
     so neither path hits ``engine.to_pandas``. Monkeypatching that
@@ -215,7 +215,7 @@ def test_table_limit_returns_new_table(engine_name: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Materialisation
+# Materialization
 # ---------------------------------------------------------------------------
 
 
@@ -240,7 +240,7 @@ def test_table_to_polars() -> None:
 
 @pytest.mark.parametrize("engine_name", ["ibis"])
 def test_table_collect_returns_engine_native_frame(engine_name: str) -> None:
-    """``collect`` forces eager materialisation, returning an engine-native frame."""
+    """``collect`` forces eager materialization, returning an engine-native frame."""
     t = _make_table(engine_name)
     out = t.collect()
     # The exact type depends on the engine; the contract is that it is

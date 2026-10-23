@@ -5,7 +5,7 @@ Covers:
 * Each individual rule on a tiny synthetic Network that triggers it
   exactly (so the issue codes + counts are deterministic).
 * Threshold overrides via :class:`corral.quality.RuleConfig` change
-  behaviour as documented.
+  behavior as documented.
 * Entry-point discovery (``corral.quality.discover_rules``) finds
   the GMNS rule pack via the ``corral.quality.rules`` group.
 * :class:`RuleConfig(enabled=False)` skips a rule.
@@ -34,7 +34,7 @@ pytest.importorskip("shapely")
 
 
 def _engine() -> IbisEngine:
-    """One engine — rules are engine-agnostic via pyarrow materialisation."""
+    """One engine — rules are engine-agnostic via pyarrow materialization."""
     return IbisEngine()
 
 
@@ -539,7 +539,7 @@ def test_full_pack_on_leavenworth():
     """Full rule pack on Leavenworth — issue counts per code are stable.
 
     Snapshot acts as a regression guard. If a rule changes its
-    triggering behaviour, this test fails loudly so the change can be
+    triggering behavior, this test fails loudly so the change can be
     reviewed against the fixture.
     """
     net = Network.from_source(leavenworth.csv_dir(), engine=_engine())

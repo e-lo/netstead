@@ -35,7 +35,7 @@ def register(app: typer.Typer) -> None:
 
         * ``load`` — :meth:`Network.from_source`.
         * ``validate`` — :meth:`Network.validate` (structural/schema only).
-        * ``links_count`` + ``nodes_count`` — trivial materialisation sanity.
+        * ``links_count`` + ``nodes_count`` — trivial materialization sanity.
         * ``is_connected`` — full graph index build + component count
           (skipped silently when the ``[graph]`` extra is missing).
 

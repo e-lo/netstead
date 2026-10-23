@@ -65,7 +65,7 @@ class InMemorySource(NetworkSource):
         return name in self._net and self._net[name] is not None
 
     def table(self, name: str, columns: Sequence[str] | None = None) -> pa.Table | None:
-        """Materialise ``name`` as a pyarrow Table, optionally restricted to ``columns``."""
+        """Materialize ``name`` as a pyarrow Table, optionally restricted to ``columns``."""
         if not self.has_table(name):
             return None
         df = self._net[name]
@@ -151,7 +151,7 @@ class DuckDBSource(NetworkSource):
         col_sql = "*" if cols is None else ", ".join(f'"{c}"' for c in cols)
         result = self._con.execute(f'SELECT {col_sql} FROM "{rel}"').arrow()  # pragma: allow-sql
         # Newer duckdb returns a RecordBatchReader from .arrow(); the builder
-        # expects a materialised pyarrow.Table (so .to_pandas() works).
+        # expects a materialized pyarrow.Table (so .to_pandas() works).
         if hasattr(result, "read_all"):
             result = result.read_all()
         return result

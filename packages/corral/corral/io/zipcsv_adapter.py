@@ -561,7 +561,7 @@ def _pick_member(
             f"with the duckdb adapter). Available tables: {sample}."
         )
 
-    # Normalise selector — ``.csv`` suffix optional.
+    # Normalize selector — ``.csv`` suffix optional.
     target = selector if selector.lower().endswith(".csv") else f"{selector}.csv"
 
     # Direct hit on the full member name (handles nested paths too).

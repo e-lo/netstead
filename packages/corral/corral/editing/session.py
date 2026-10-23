@@ -179,7 +179,7 @@ class Session:
 
 
 # ---------------------------------------------------------------------------
-# Log serialisation helpers — internal per §9
+# Log serialization helpers — internal per §9
 # ---------------------------------------------------------------------------
 
 
@@ -201,16 +201,16 @@ def _serialize_result(index: int, result: EditResult) -> dict[str, Any]:
 
 
 def _safe_json(obj: Any) -> str:
-    """JSON-encode ``obj``, falling back to ``str()`` placeholders for non-serialisable parts."""
+    """JSON-encode ``obj``, falling back to ``str()`` placeholders for non-serializable parts."""
 
     def _default(value: Any) -> Any:
         if isinstance(value, datetime):
             return value.isoformat()
         if callable(value):
             return f"<callable {getattr(value, '__name__', 'anon')}>"
-        return f"<unserialisable {type(value).__name__}>"
+        return f"<unserializable {type(value).__name__}>"
 
     try:
         return json.dumps(obj, default=_default)
     except Exception:  # pragma: no cover - defensive
-        return json.dumps({"_error": "serialisation failed", "_type": type(obj).__name__})
+        return json.dumps({"_error": "serialization failed", "_type": type(obj).__name__})

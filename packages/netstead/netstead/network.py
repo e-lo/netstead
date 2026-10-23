@@ -185,7 +185,7 @@ class Network(Package):
         Args:
             source: Path / URL / directory pointing at the GMNS package
                 — anything :meth:`Package.from_source` accepts.
-            engine: Engine to materialise through. Defaults to the
+            engine: Engine to materialize through. Defaults to the
                 corral default (typically
                 :class:`~corral.engines.ibis_engine.IbisEngine`).
             spec_version: GMNS spec version to validate against.

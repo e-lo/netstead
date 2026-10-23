@@ -19,13 +19,13 @@ without re-parsing the message string.
 Cross-engine strategy — ibis-first (architecture §6.1)
 ------------------------------------------------------
 
-Source + target tables are normalised to ibis once via
+Source + target tables are normalized to ibis once via
 :func:`corral.validation._ibis.to_ibis`. The missing-target check
 is a single ``LEFT JOIN ... WHERE target IS NULL`` pushed to duckdb —
 the violation count comes back as a scalar SQL aggregate and only the
-sampled rows (capped at :data:`MAX_ROW_ISSUES`) are materialised via
+sampled rows (capped at :data:`MAX_ROW_ISSUES`) are materialized via
 pyarrow for Issue enumeration. At Bay-Area scale this turns a
-hundred-million-row FK check from a multi-gigabyte materialisation
+hundred-million-row FK check from a multi-gigabyte materialization
 into a sub-second SQL join.
 
 Per-FK code mapping (downstream-stable, dotted)
@@ -96,7 +96,7 @@ __all__ = [
 
 
 def _as_field_list(fields: str | list[str]) -> list[str]:
-    """Normalise the Frictionless ``fields`` declaration to a list."""
+    """Normalize the Frictionless ``fields`` declaration to a list."""
     if isinstance(fields, str):
         return [fields]
     return list(fields)
@@ -149,7 +149,7 @@ def _emit_null_in_required_fk_issues(
 
     Each required field gets its own filter+count+sample pass. The
     counts push to SQL; only the sampled offending rows are
-    materialised.
+    materialized.
     """
     issues: list[Issue] = []
     for source_field in source_fields:
@@ -249,7 +249,7 @@ def check_foreign_key(
 ) -> list[Issue]:
     """Check a single :class:`~corral.spec.model.ForeignKey`.
 
-    Normalises both sides to ibis, then runs the missing-target check
+    Normalizes both sides to ibis, then runs the missing-target check
     as a SQL ``LEFT JOIN``. Composite FKs join on the full key tuple;
     same-table self-references work the same way (the caller passes
     the source as ``target_expr``).
@@ -438,7 +438,7 @@ def check_foreign_keys(
     one through :func:`check_foreign_key`. Cross-table and same-table
     (``reference.resource == ""``) FKs are both handled.
 
-    Each table in ``tables`` is normalised to ibis exactly once (via
+    Each table in ``tables`` is normalized to ibis exactly once (via
     :func:`corral.validation._ibis.to_ibis`) and the wrapped ibis
     Table is shared across every FK that touches it — so a package
     with many FKs against the same target only pays the conversion
@@ -493,10 +493,10 @@ def check_foreign_keys(
     if report is None:
         report = ValidationReport()
 
-    # Normalise each provided table to ibis exactly once. The per-FK
+    # Normalize each provided table to ibis exactly once. The per-FK
     # helper also calls ``to_ibis`` but it's a pass-through on an
     # ibis Table so we don't double-wrap.
-    materialised: dict[str, Any] = {name: to_ibis(expr) for name, expr in tables.items()}
+    materialized: dict[str, Any] = {name: to_ibis(expr) for name, expr in tables.items()}
 
     for resource in package.resources:
         schema = resource.table_schema
@@ -505,7 +505,7 @@ def check_foreign_keys(
         if not schema.foreign_keys:
             continue
         source_name = resource.name
-        source_table = materialised.get(source_name)
+        source_table = materialized.get(source_name)
         if source_table is None:
             # The source table itself isn't loaded — nothing we can
             # check. Structural (task 2.5) covers the "table missing"
@@ -519,7 +519,7 @@ def check_foreign_keys(
                 target_table: Any = source_table
             else:
                 target_name = fk.reference.resource
-                target_table = materialised.get(target_name)
+                target_table = materialized.get(target_name)
             for issue in check_foreign_key(
                 fk,
                 source_table_name=source_name,

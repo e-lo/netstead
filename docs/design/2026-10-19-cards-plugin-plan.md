@@ -2719,7 +2719,7 @@ def test_clean_nodes_deletes_end_nodes_nothing_else_uses(session, host):
     [
         (RoadwayAddition(links=[{**NEW_LINK, "link_id": 1}], nodes=[NEW_NODE]), "^link 1 already exists$"),
         (RoadwayAddition(links=[{**NEW_LINK, "to_node_id": 424242}]), "node.* 424242, which are not in the network"),
-        (RoadwayAddition(links=[{**NEW_LINK, "colour": "red"}], nodes=[NEW_NODE]), "no column"),
+        (RoadwayAddition(links=[{**NEW_LINK, "color": "red"}], nodes=[NEW_NODE]), "no column"),
         (RoadwayAddition(nodes=[NEW_NODE, NEW_NODE]), "repeat"),
     ],
 )

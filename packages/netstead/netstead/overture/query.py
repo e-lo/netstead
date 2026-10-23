@@ -159,8 +159,8 @@ def point_buffer_bbox(lat: float, lon: float, buffer_m: float) -> tuple[float, f
     """Return a ``(west, south, east, north)`` bbox around a point.
 
     Args:
-        lat: Latitude of the centre point.
-        lon: Longitude of the centre point.
+        lat: Latitude of the center point.
+        lon: Longitude of the center point.
         buffer_m: Half-width of the box in metres (added on every side).
 
     Returns:

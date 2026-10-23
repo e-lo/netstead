@@ -130,8 +130,8 @@ def link_schema(link_csv: Path) -> Schema:
 def _load_link_rows(link_csv: Path) -> list[dict]:
     """Read ``link.csv`` as a list of row dicts with native Python types.
 
-    We materialise via ``csv.DictReader`` (string-typed) and then coerce
-    the columns we mutate in tests. Engines normalise the rest via
+    We materialize via ``csv.DictReader`` (string-typed) and then coerce
+    the columns we mutate in tests. Engines normalize the rest via
     ``cast_schema`` after they re-scan the data.
     """
     with link_csv.open() as f:
@@ -611,9 +611,9 @@ class TestCheckSchema:
 
     @pytest.mark.parametrize("engine_name", ENGINES)
     def test_lazy_eval_materialises_once(self, engine_name, link_csv, link_schema):
-        """check_schema must materialise ``expr`` to pandas exactly once.
+        """check_schema must materialize ``expr`` to pandas exactly once.
 
-        Repeated materialisation would mean schema_check is O(rules) in
+        Repeated materialization would mean schema_check is O(rules) in
         engine round-trips instead of O(1) — undesirable for large
         networks and a Lens-A perf smell. We patch ``Engine.to_pandas``
         to count calls.
@@ -636,12 +636,12 @@ class TestCheckSchema:
         finally:
             if hasattr(engine, "close"):
                 engine.close()
-        # At most one materialisation across all rules. The pandas engine
+        # At most one materialization across all rules. The pandas engine
         # returns a DataFrame directly from ``scan`` (it's already eager)
         # so 0 calls is also acceptable — the contract is bounded, not
         # exactly-one.
         assert call_count["n"] <= 1, (
-            f"check_schema materialised {call_count['n']} times; "
+            f"check_schema materialized {call_count['n']} times; "
             "must be bounded (one round-trip per check_schema call)."
         )
 

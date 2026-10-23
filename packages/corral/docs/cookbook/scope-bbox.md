@@ -32,7 +32,7 @@ Expected:
 230 of 339 geometries in bbox
 ```
 
-The result is a lazy `Table` — no rows materialise until you call `.to_pandas()`, `.count()` or similar. Note the table choice: Leavenworth's `link` table has no geometry column (links point at `geometry` rows via `geometry_id`), and a table without the geometry column is passed through **unfiltered** — `from_bbox(pkg["link"], ...)` silently returns all 339 links.
+The result is a lazy `Table` — no rows materialize until you call `.to_pandas()`, `.count()` or similar. Note the table choice: Leavenworth's `link` table has no geometry column (links point at `geometry` rows via `geometry_id`), and a table without the geometry column is passed through **unfiltered** — `from_bbox(pkg["link"], ...)` silently returns all 339 links.
 
 ## Step-by-step
 
@@ -100,7 +100,7 @@ To see the compiled plan, take the underlying ibis expression and ask DuckDB dir
 
 ### 5. Compose with other filters
 
-Spatial scopes return ordinary `Table`s, so they compose with `Table.filter`, which takes a callable over the ibis expression. The bbox + attribute predicate fuse into a single SQL pass — no intermediate materialisation:
+Spatial scopes return ordinary `Table`s, so they compose with `Table.filter`, which takes a callable over the ibis expression. The bbox + attribute predicate fuse into a single SQL pass — no intermediate materialization:
 
 ```python
 inside = from_bbox(pkg["geometry"], -120.67, 47.58, -120.65, 47.60)

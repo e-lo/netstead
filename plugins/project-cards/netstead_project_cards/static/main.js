@@ -46,7 +46,7 @@ function redraw(box, nodes, force = false) {
   return !target;
 }
 
-// A labelled control in core's form layout (`.sf-field`, as wb.schemaForm draws).
+// A labeled control in core's form layout (`.sf-field`, as wb.schemaForm draws).
 const field = (label, control) => h("div", { class: "sf-field" }, h("label", { for: control.id, text: label }), control);
 
 const ctxNet = ctx => (ctx.network ? ctx.network.id : null);

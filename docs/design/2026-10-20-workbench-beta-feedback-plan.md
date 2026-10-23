@@ -29,7 +29,7 @@ Status: **implemented (PR pending)** · Date: 2026-10-20 · Owner: Elizabeth Sal
 | 11 | Settings → gear icon, Commands → `>_` icon | 1 |
 | 12 | Model name truncated | 1 |
 | 13 | Duplicative text; icons with tooltips | 1 |
-| 14 | Default colouring: nodes by `ctrl_type`, links by `facility_type` | 9 |
+| 14 | Default coloring: nodes by `ctrl_type`, links by `facility_type` | 9 |
 | 15 | Fold Recent into Open | 8 |
 | 16 | Direction arrows overlap and ignore the offset | 3 |
 | 17 | Save/export as a top-level icon + dialog | 8 |
@@ -47,7 +47,7 @@ Backlog recorded for later (not in this PR): a global filter expression box comp
 - **Pure-module rule.** Any new front-end logic that can be expressed without the DOM goes in an import-free module under `static/js/` and gets a Node test in `packages/netstead/tests/test_workbench_js.py` (pattern: `node_module("editmodel.js", "<expression>")` returns the JSON of the expression). DOM wiring stays thin.
 - **Static contract.** After touching `index.html` or any `js/*.js`, run `uv run --all-extras pytest packages/netstead/tests/test_workbench_static.py -q`; it fails on a missing element id, a broken import, or a parse error.
 - **Tooltips.** Icon buttons are `<button class="iconbtn" data-tip="..." aria-label="...">`; the tooltip is the CSS rule `.iconbtn[data-tip]:hover::after` in `app.css`. Every icon-only control needs both attributes.
-- **Recorded vs local state.** View preferences that should replay from Python (colour-by, filters) are `SetStyle` / `Filter` actions; purely per-browser conveniences (panel sizes, recents) are `localStorage`, wrapped in try/catch.
+- **Recorded vs local state.** View preferences that should replay from Python (color-by, filters) are `SetStyle` / `Filter` actions; purely per-browser conveniences (panel sizes, recents) are `localStorage`, wrapped in try/catch.
 - **Docs.** Each task that changes user-visible behaviour adds a line to `packages/netstead/CHANGELOG.md` under *Unreleased* (and `plugins/project-cards/CHANGELOG.md` for Task 10). Task 11 refreshes the prose docs.
 - **Lint.** `uv run ruff check packages plugins && uv run ruff format --check packages plugins` before each commit. Pyright runs in CI (`uv run pyright packages/netstead/netstead/workbench` is a quick local check for touched Python).
 - **Full suite** before the PR: `uv run --all-extras pytest packages plugins -n auto -q` (fast tier) and the Workbench slice with `-m ""`.
@@ -171,7 +171,7 @@ def test_pack_uses_geometry_table_when_links_have_no_inline_shape():
 
 ---
 
-### Task 3: Map rendering: focus colour and direction arrows
+### Task 3: Map rendering: focus color and direction arrows
 
 Items 3 and 16.
 
@@ -181,13 +181,13 @@ Items 3 and 16.
 
 **Behaviour:**
 
-1. Focus colour: `FOCUS_COLOR` becomes a saturated magenta `[255, 0, 200, 240]` drawn **with a dark outline**: render the focused link twice (a 2 px wider dark `[20, 20, 30, 220]` path under the magenta one) so it reads on both the Positron (light) and Esri basemaps and over the white highway casing. `HIGHLIGHT_COLOR` (cyan) keeps its hue but the highlight layer gets the same dark under-stroke. The selection colour stays user-configurable.
-2. Arrows: `buildArrows(paths, {offset, directed})` in `netbuf.js` returns, per link, `{position, angle, side}` where `side` is `+1` for a link drawn on the right-hand offset, `0` when offsets are off. Two-way streets in GMNS are two link rows (A→B and B→A); each row gets its own arrow, so the fix is to place the arrow on *that row's* offset line: `pixelOffset = side * OFFSET_PX * [cos(angle+90°), sin(angle+90°)]` computed in `map.js` from the same `OFFSET_AMT` the `PathStyleExtension` uses (convert the extension's units to pixels the same way it does; read `OFFSET_EXT` setup). Arrow size scales with zoom: `size = clamp(8 + 2*(zoom-13), 8, 18)` px; below `ARROW_ZOOM` no arrows (unchanged). Place the arrow at the path's midpoint by *length* (not the middle vertex) — add `midpointByLength(points)` to `netbuf.js`. Arrow colour: white triangle with a 1 px dark outline (update `ARROW_SVG`).
+1. Focus color: `FOCUS_COLOR` becomes a saturated magenta `[255, 0, 200, 240]` drawn **with a dark outline**: render the focused link twice (a 2 px wider dark `[20, 20, 30, 220]` path under the magenta one) so it reads on both the Positron (light) and Esri basemaps and over the white highway casing. `HIGHLIGHT_COLOR` (cyan) keeps its hue but the highlight layer gets the same dark under-stroke. The selection color stays user-configurable.
+2. Arrows: `buildArrows(paths, {offset, directed})` in `netbuf.js` returns, per link, `{position, angle, side}` where `side` is `+1` for a link drawn on the right-hand offset, `0` when offsets are off. Two-way streets in GMNS are two link rows (A→B and B→A); each row gets its own arrow, so the fix is to place the arrow on *that row's* offset line: `pixelOffset = side * OFFSET_PX * [cos(angle+90°), sin(angle+90°)]` computed in `map.js` from the same `OFFSET_AMT` the `PathStyleExtension` uses (convert the extension's units to pixels the same way it does; read `OFFSET_EXT` setup). Arrow size scales with zoom: `size = clamp(8 + 2*(zoom-13), 8, 18)` px; below `ARROW_ZOOM` no arrows (unchanged). Place the arrow at the path's midpoint by *length* (not the middle vertex) — add `midpointByLength(points)` to `netbuf.js`. Arrow color: white triangle with a 1 px dark outline (update `ARROW_SVG`).
 
 - [ ] **Step 1: Node tests** for `midpointByLength` (`[[0,0],[10,0],[10,10]]` → `[10,0]` exactly? No: half of 20 is 10 along the path → `[10,0]`) and for `buildArrows` with `offset:true` returning `side: 1` for every arrow and `side: 0` with `offset:false`.
 - [ ] **Step 2: run → FAIL; implement; run → PASS.**
 - [ ] **Step 3: browser check** with "Show direction" + "Offset directions" on Leavenworth downtown: two parallel arrows per two-way street, each pointing with its line; the focused link visibly magenta-with-outline on the light basemap. Take a screenshot into `/tmp` for the PR.
-- [ ] **Step 4: CHANGELOG (Fixed) + commit** — `fix(workbench): legible focus colour; direction arrows follow their offset line and scale with zoom`.
+- [ ] **Step 4: CHANGELOG (Fixed) + commit** — `fix(workbench): legible focus color; direction arrows follow their offset line and scale with zoom`.
 
 ---
 
@@ -309,19 +309,19 @@ Items 15, 17, 19.
 
 ---
 
-### Task 9: Side panel restructure and default colouring
+### Task 9: Side panel restructure and default coloring
 
 Items 9 (core part), 10, 14.
 
 **Files:**
 - Modify: `index.html` (dock sections), `static/js/workspaces.js` / `slots.js` (panel ids + order), `static/js/selection.js`, `side.js`, `edits.js`, `issues.js`, `assistant.js`, `panels.js`, `main.js`, `app.css`
-- Modify: `workbench/session.py` (`DEFAULT_STYLE`: `color_by="facility_type"`, new `node_color_by="ctrl_type"`), `workbench/actions.py:SetStyle` (`node_color_by`), `static/js/map.js` (node colour from a categorical column with the same palette logic links use), `panels.js` (a "Color nodes by" select), `viz/styling.py` if the palette helper lives there
+- Modify: `workbench/session.py` (`DEFAULT_STYLE`: `color_by="facility_type"`, new `node_color_by="ctrl_type"`), `workbench/actions.py:SetStyle` (`node_color_by`), `static/js/map.js` (node color from a categorical column with the same palette logic links use), `panels.js` (a "Color nodes by" select), `viz/styling.py` if the palette helper lives there
 - Modify: `plugins/project-cards/netstead_project_cards/static/main.js` only to move its panel into the new `cards` workspace id (Task 10 does the rest)
 - Test: `test_workbench_session.py` (defaults), `test_workbench_js.py`, `test_workbench_static.py`, plugin tests still pass
 
 **Target layout** (dock tabs, in order):
 
-1. **Find** (`id: find`): the utterance box with Select / Ask and the provider/model picker (moved from header row 2, which is removed), the Selection content (anchors, diagnostics, export, saved selections), Highlighted links, and **View** controls: layers toggles, colour links by, colour nodes by, width by, show direction / offset, filter links (moved out of the map popovers; the map keeps only zoom/highlight/fit buttons and the legend). The `#layers-panel` / `#settings-panel` popovers are deleted; `panels.js` wires the same ids inside the Find pane. Header row 1 keeps: Open, Save, view mode, counts, validity light, Jobs, Commands, Settings.
+1. **Find** (`id: find`): the utterance box with Select / Ask and the provider/model picker (moved from header row 2, which is removed), the Selection content (anchors, diagnostics, export, saved selections), Highlighted links, and **View** controls: layers toggles, color links by, color nodes by, width by, show direction / offset, filter links (moved out of the map popovers; the map keeps only zoom/highlight/fit buttons and the legend). The `#layers-panel` / `#settings-panel` popovers are deleted; `panels.js` wires the same ids inside the Find pane. Header row 1 keeps: Open, Save, view mode, counts, validity light, Jobs, Commands, Settings.
 2. **Inspect** (`id: inspect`): Details for the focused feature + related records (today's Details tab minus highlights).
 3. **Edit** (`id: edit`): edit list, undo/redo, edit warnings (moved here from Issues), and a "Save selection as card…" button that is only enabled when the project-cards plugin is loaded (it dispatches `showPanel("cards")` and the plugin's new-change command).
 4. **Cards** (`id: cards`): the plugin's panel (Task 10).
@@ -333,8 +333,8 @@ Defaults: `color_by = "facility_type"` for links and `node_color_by = "ctrl_type
 - [ ] **Step 1: session tests**: a fresh Leavenworth session's `state()["style"]` has `color_by == "facility_type"` and `node_color_by == "ctrl_type"`; a network without `ctrl_type` (build a tiny one in the test, or drop the column from a copy) gets `"none"`.
 - [ ] **Step 2: run → FAIL; implement; → PASS.**
 - [ ] **Step 3: dock restructure** (HTML + the panel registrations). Keep element ids where the JS depends on them; `test_workbench_static.py` guards this. Remove header row 2 and the two map popovers. Run the static test and the full Workbench JS tests → PASS. Run `uv run --all-extras pytest plugins/project-cards/tests -q` → PASS (the plugin registers a panel by id; nothing else about it changes here).
-- [ ] **Step 4: browser check**: five tabs in the order above; Select from the Find tab resolves "Pine Street"; View controls change the map; nodes are coloured by control type and links by facility type on open; the Validate tab lists grouped findings and clicking a `fk.unverifiable`-style unlocated finding does nothing harmful while a located one zooms.
-- [ ] **Step 5: CHANGELOG + commit** — `feat(workbench): Find / Inspect / Edit / Cards / Validate panels; selection and view controls move into the side panel; nodes coloured by ctrl_type and links by facility_type by default`.
+- [ ] **Step 4: browser check**: five tabs in the order above; Select from the Find tab resolves "Pine Street"; View controls change the map; nodes are colored by control type and links by facility type on open; the Validate tab lists grouped findings and clicking a `fk.unverifiable`-style unlocated finding does nothing harmful while a located one zooms.
+- [ ] **Step 5: CHANGELOG + commit** — `feat(workbench): Find / Inspect / Edit / Cards / Validate panels; selection and view controls move into the side panel; nodes colored by ctrl_type and links by facility_type by default`.
 
 ---
 

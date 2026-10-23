@@ -126,9 +126,9 @@ def test_scope_from_nodes_path_between_result_is_json_serialisable():
     """scope_from_nodes with far-apart seeds returns plain ints (regression).
 
     ``path_between=True`` folds shortest-path nodes into the scope; those
-    came back as ``numpy.int64`` and FastMCP's result serialiser raised
+    came back as ``numpy.int64`` and FastMCP's result serializer raised
     "Unable to serialize unknown type: <class 'numpy.int64'>". Dispatch
-    through the public ``server.call_tool`` so the serialiser runs.
+    through the public ``server.call_tool`` so the serializer runs.
     """
     import json
 
@@ -168,7 +168,7 @@ def test_mcp_serve_help_runs():
     command and its options were registered without conflict.
 
     Direct tool-surface coverage (server.build_server(), per-tool
-    behaviour) is in the earlier tests in this file — those exercise
+    behavior) is in the earlier tests in this file — those exercise
     the real code paths, not the help rendering.
     """
     from netstead.cli.app import app as netstead_cli_app

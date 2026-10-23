@@ -10,13 +10,13 @@
     - severity_labels    : per-severity display label
     - filter_options     : {"category": [...], "table": [...]}
     - has_geo            : bool — render the map section?
-    - map_spec_json      : pre-serialised Vega-Lite JSON string (when has_geo)
+    - map_spec_json      : pre-serialized Vega-Lite JSON string (when has_geo)
     - vega_cdn_urls      : list of CDN URLs to inject when has_geo
     - css                : entire bundled CSS as a string (inlined)
     - js                 : entire bundled JS as a string (inlined)
     - report_json        : json.dumps(report) for the export blob
 
-  Severity colours and section ordering are defined in CSS / inputs —
+  Severity colors and section ordering are defined in CSS / inputs —
   the template is severity-agnostic. The {% for severity in severities %}
   loop drives the section order.
 -#}

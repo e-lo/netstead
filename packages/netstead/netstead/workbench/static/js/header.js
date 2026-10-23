@@ -80,7 +80,7 @@ function onOpenMenuKey(e) {
   else if (e.key === "ArrowUp") { e.preventDefault(); (items[i - 1] || items[items.length - 1]).focus(); }
 }
 
-// The validity light: the level's icon and colour class, the tooltip and the accessible name, from the server state.
+// The validity light: the level's icon and color class, the tooltip and the accessible name, from the server state.
 export function renderValidity(server) {
   const v = validityState(server), b = $("valid-light");
   b.className = `iconbtn vl-${v.level}`;

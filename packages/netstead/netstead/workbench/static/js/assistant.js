@@ -129,7 +129,7 @@ export function renderAssistant(payload) {
   const turns = (payload && payload.turns) || [];
   const draft = payload ? payload.draft : null;
   if (!turns.length && !asking) {
-    log.innerHTML = '<span class="empty">Ask for what you want done, e.g. “colour by lanes and zoom to the selection”.</span>';
+    log.innerHTML = '<span class="empty">Ask for what you want done, e.g. “color by lanes and zoom to the selection”.</span>';
   } else {
     log.replaceChildren(...turns.map(t => turnElement(t, draft)));
     if (asking) log.appendChild(pendingElement(asking));

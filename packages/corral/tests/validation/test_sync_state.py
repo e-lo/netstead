@@ -113,7 +113,7 @@ class TestHashHelpers:
     def test_hash_table_stable_across_engines(self):
         """ibis, polars (if installed), and pandas produce the same digest.
 
-        The :meth:`Engine.to_pandas` contract normalises to the same
+        The :meth:`Engine.to_pandas` contract normalizes to the same
         nullable dtypes (``Int64`` / ``string`` etc.) across engines;
         the hash is therefore identical for identical data. This is the
         cross-engine convergence test the task spec explicitly asks for.
@@ -603,7 +603,7 @@ class TestCompositeFK:
         src = _scan(e, src_rows)
         tgt = _scan(e, tgt_rows)
         # The new helper operates on live exprs directly (column-scoped
-        # at the ibis layer), so we don't pre-materialise the whole
+        # at the ibis layer), so we don't pre-materialize the whole
         # table just to fingerprint two columns.
         src_hash = _column_hash_from_expr(src, "a,b", e)
         tgt_hash = _column_hash_from_expr(tgt, "a,b", e)
@@ -627,13 +627,13 @@ class TestCompositeFK:
 
 # ---------------------------------------------------------------------------
 # I10 regression — stale_fks / check use column-scoped hashes (no whole-table
-# materialisation just to fingerprint one column).
+# materialization just to fingerprint one column).
 # ---------------------------------------------------------------------------
 
 
 class TestColumnScopedHashIO:
     """Pins the I10 fix: ``DirtyTracker.stale_fks`` / ``.check`` must not
-    materialise the WHOLE source/target table to hash a single FK column.
+    materialize the WHOLE source/target table to hash a single FK column.
 
     Strategy: monkey-patch ``hash_table`` in the sync_state module to
     raise on any call. The post-fix paths use ``hash_column`` (which

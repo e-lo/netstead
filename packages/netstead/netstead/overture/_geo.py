@@ -1,7 +1,7 @@
 """Pure geometry helpers for the Overture converter (no external deps).
 
 Overture segments carry a LineString geometry plus a ``connectors[]`` array
-whose ``at`` values are **normalised linear references** in ``[0, 1]`` along
+whose ``at`` values are **normalized linear references** in ``[0, 1]`` along
 that geometry. Splitting a segment into GMNS links therefore means slicing the
 LineString between consecutive ``at`` values — which is what :func:`slice_line`
 does. The remaining helpers format WKT, parse it back, and measure geodesic

@@ -112,7 +112,7 @@ def test_page_table_lazy_matches_pandas():
     lazy = page_table(t, limit=5, sort="lanes", direction="desc", filter_spec=spec)
     eager = page_table(df, limit=5, sort="lanes", direction="desc", filter_spec=spec)
     assert lazy["total"] == eager["total"] > 0
-    assert "geometry" not in lazy["columns"]  # WKT dropped before materialising
+    assert "geometry" not in lazy["columns"]  # WKT dropped before materializing
     li = lazy["columns"].index("lanes")
     lv = [r[li] for r in lazy["rows"] if r[li] is not None]
     assert lv == sorted(lv, reverse=True)

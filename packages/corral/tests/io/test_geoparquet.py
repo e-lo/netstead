@@ -66,15 +66,15 @@ def test_non_geometry_table_stays_plain_parquet(tmp_path: Path):
 
 def test_roundtrip_reads_back_as_wkb_via_encode(tmp_path: Path):
     # duckdb+spatial reads GeoParquet back as a GEOMETRY column; encode_wkb
-    # normalises it to WKB bytes (the in-memory canon) — a GEOMETRY column
-    # can't materialise to Arrow without geoarrow.
+    # normalizes it to WKB bytes (the in-memory canon) — a GEOMETRY column
+    # can't materialize to Arrow without geoarrow.
     eng = IbisEngine()
     adapter = ParquetAdapter()
     adapter.write(_wkb_links(eng).expr, tmp_path / "link.parquet", eng)
     back = adapter.read(tmp_path / "link.parquet", eng)
     assert back["geometry"].type().is_geospatial()
-    normalised = encode_wkb(Table(name="link", expr=back, engine=eng), "geometry")
-    cell = normalised.expr.to_pyarrow().to_pylist()[0]["geometry"]
+    normalized = encode_wkb(Table(name="link", expr=back, engine=eng), "geometry")
+    cell = normalized.expr.to_pyarrow().to_pylist()[0]["geometry"]
     assert isinstance(cell, (bytes, bytearray))
 
 

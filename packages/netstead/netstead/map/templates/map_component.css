@@ -2,7 +2,7 @@
  *
  * water.css already handles body padding/max-width, typography, base table
  * styling, form controls, and light/dark mode. This file only adds what
- * water can't know about: severity colour tokens, the map container size,
+ * water can't know about: severity color tokens, the map container size,
  * the marker popup, and the table-row highlight bridge.
  */
 
@@ -26,7 +26,7 @@
 }
 
 /* water.css caps body at ~800px which is too narrow for a map + 5-column
- * table. Widen it; keep the centred-on-page feel. */
+ * table. Widen it; keep the centered-on-page feel. */
 body { max-width: 1280px; }
 
 /* Header — h1 + subtitle + counts chips */

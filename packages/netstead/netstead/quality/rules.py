@@ -21,7 +21,7 @@ violations. Callers wanting hard errors should override via
 ``RuleConfig(severity_override=Severity.ERROR)``.
 
 **Predicate pushdown.** Rules express their predicate as an ibis
-expression over ``Table.expr`` and materialise only the offending rows
+expression over ``Table.expr`` and materialize only the offending rows
 (plus the few columns the issue message quotes), so DuckDB does the
 filtering and a 200k-link network is never pulled into Python just to
 find a handful of findings. Two rules need Python on real values:
@@ -249,7 +249,7 @@ class DisconnectedComponentsRule:
     the component count + sizes. ``connected_components`` is delegated
     to :mod:`netstead.semantics.connectivity` so the same GMNSGraph (scipy)
     build is shared with any other connectivity caller in the session.
-    No table is materialised here: the graph index reads only the
+    No table is materialized here: the graph index reads only the
     columns it needs.
     """
 
@@ -499,7 +499,7 @@ class SharpAngleBendsRule:
     who run this rule after assembly).
 
     Requires shapely (clean extra). Angles need parsed geometries, which
-    the engine can't give us, so this rule materialises values: only the
+    the engine can't give us, so this rule materializes values: only the
     ``link_id`` and ``geometry`` of links with a non-null geometry. It
     finds candidates with vectorised shapely + numpy, then measures each
     candidate's sharpest angle exactly as reported.

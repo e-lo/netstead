@@ -28,7 +28,7 @@ def shapely_from_any(geom: object) -> Any | None:
     a non-empty ``str`` → ``from_wkt``. ``None``, empty/whitespace strings, and
     anything unparseable (truncated WKB, malformed WKT, a non-geometry value)
     return ``None`` rather than raising — matching the existing "skip rows whose
-    geometry won't parse" behaviour at the call sites.
+    geometry won't parse" behavior at the call sites.
     """
     if geom is None:
         return None

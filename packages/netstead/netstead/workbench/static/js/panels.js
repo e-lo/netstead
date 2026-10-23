@@ -1,5 +1,5 @@
-// The Find panel's View section (layers, colour links / nodes by, width, direction, filter links) and the map's
-// legend. Every control change is a recorded Action: `style` (colour, width, switches) or `filter` (Filter links).
+// The Find panel's View section (layers, color links / nodes by, width, direction, filter links) and the map's
+// legend. Every control change is a recorded Action: `style` (color, width, switches) or `filter` (Filter links).
 import { dispatch } from "./api.js";
 import { $, esc, toast } from "./dom.js";
 import { filterKey, filterValue, filterView, takesNoValue } from "./filtermodel.js";
@@ -49,7 +49,7 @@ export function renderPluginLayers(list, hidden) {
 
 const option = (value, text) => Object.assign(document.createElement("option"), { value, textContent: text });
 
-// Colour by any property; width by a numeric one (or the lane count); filter on any.
+// Color by any property; width by a numeric one (or the lane count); filter on any.
 export function populateColorby(props) {
   const sel = $("colorby"), width = $("widthby"), col = $("flt-col"), picked = col.value;
   sel.innerHTML = '<option value="none">None (single color)</option>';
@@ -65,7 +65,7 @@ export function populateColorby(props) {
   if (props.some(p => p.name === picked)) col.value = picked;
 }
 
-// Colour nodes by any property of the node table (populated like the links' list).
+// Color nodes by any property of the node table (populated like the links' list).
 export function populateNodeColorby(props) {
   const sel = $("node-colorby");
   sel.innerHTML = '<option value="none">None (single color)</option>';
@@ -127,7 +127,7 @@ export function syncControls(st) {
   for (const [id, key] of COLORS) $(id).value = rgb2hex(st.colors[key]);
 }
 
-// One legend block: the property's name (with what it colours), then a ramp or the categories' swatches.
+// One legend block: the property's name (with what it colors), then a ramp or the categories' swatches.
 function legendBlock(st, prop, what, shape) {
   let html = `<div class="lg-title">${esc(what)}: ${esc(prop.name)}</div>`;
   if (prop.kind === "continuous") {
@@ -144,7 +144,7 @@ function legendBlock(st, prop, what, shape) {
   return `<div class="lg-block">${html}</div>`;
 }
 
-// The legend shows whichever of the link and node colourings is on (the loaded property must be the styled one).
+// The legend shows whichever of the link and node colorings is on (the loaded property must be the styled one).
 export function renderLegend(st, prop, nodeProp) {
   const el = $("legend"), blocks = [];
   if (st.show_legend && st.color_by !== "none" && prop && prop.name === st.color_by) blocks.push(legendBlock(st, prop, "Links", "lg-line"));

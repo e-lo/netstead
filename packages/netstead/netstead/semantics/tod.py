@@ -12,7 +12,7 @@ TOD overrides applied for the given ``time_set_id``.
 :func:`tod_coverage` reports which time periods have data on each TOD
 table — useful for auditing a fixture before running a TOD-aware op.
 
-Like :mod:`netstead.semantics.geometry`, this materialises through
+Like :mod:`netstead.semantics.geometry`, this materializes through
 pyarrow rather than expressing the overlay in ibis. TOD tables are
 typically small (10s to 1000s of rows per period) so the round-trip is
 cheap, and the resulting code reads as a single top-to-bottom loop.
@@ -56,7 +56,7 @@ def resolve_link_attrs_at(net: Network, time_set_id: str | int | None = None) ->
         and a column, the override value replaces the base value;
         otherwise the base value passes through.
 
-    The returned table is always materialised — callers downstream of
+    The returned table is always materialized — callers downstream of
     TOD resolution typically need to consume the values immediately
     (e.g. for assignment, scoring, or report rendering).
 
@@ -168,5 +168,5 @@ def _filter_by(arrow: pa.Table, column: str, value) -> pa.Table:
 
 
 def _to_arrow(table) -> pa.Table:
-    """Materialise a :class:`~corral.dataset.Table` to pyarrow."""
+    """Materialize a :class:`~corral.dataset.Table` to pyarrow."""
     return pa.Table.from_pandas(table.to_pandas(), preserve_index=False)

@@ -217,7 +217,7 @@ def test_node_points_carry_props_for_tooltips(tmp_path):
 def test_props_skip_long_or_internal_columns(tmp_path):
     """``geometry`` WKT strings must NOT be dumped into the tooltip props — far too long."""
     # Build a network with a `geometry` column on the link table; props
-    # serialisation must not expose it.
+    # serialization must not expose it.
     link = pd.DataFrame(
         {
             "link_id": [1],

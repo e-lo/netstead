@@ -12,13 +12,13 @@ Cross-engine strategy — ibis-first (architecture §6.1)
 Every rule pushes its violation count down as an ibis predicate
 (``expr[col].is_null()``, ``~expr[col].isin(allowed)``,
 ``expr[col] < bound``, …) — the count round-trips as a single SQL
-aggregate, not a pandas materialisation. At Bay-Area scale (millions
+aggregate, not a pandas materialization. At Bay-Area scale (millions
 of rows) this turns "count nulls in a required column" from a
-gigabyte materialisation into a millisecond SQL ``COUNT(*) WHERE col
+gigabyte materialization into a millisecond SQL ``COUNT(*) WHERE col
 IS NULL``.
 
 Only the per-rule sample used to populate row-context Issues is
-materialised — capped at
+materialized — capped at
 :data:`corral.validation._ibis.MAX_ROW_ISSUES` rows — and goes
 through pyarrow (``.to_pyarrow().to_pylist()``), never pandas.
 Pandas-backed and polars-backed sources route through
@@ -706,14 +706,14 @@ def check_schema(
     max_length / pattern / unique) and appends one or more
     :class:`Issue` records per violation to ``report``.
 
-    The expression is **normalised to ibis once** at the top of the
+    The expression is **normalized to ibis once** at the top of the
     call — pandas / polars sources are wrapped as ``ibis.memtable``
     via :func:`corral.validation._ibis.to_ibis`. Each rule then
     pushes its violation count down as an ibis predicate (a SQL
-    aggregate, not a pandas materialisation) and samples only the
+    aggregate, not a pandas materialization) and samples only the
     rows it needs for row-context Issues. At Bay-Area scale this is
     the difference between a millisecond ``COUNT(*)`` and a gigabyte
-    materialisation.
+    materialization.
 
     Args:
         expr: Engine-native lazy table expression to validate.
@@ -740,7 +740,7 @@ def check_schema(
     """
     if report is None:
         report = ValidationReport()
-    # Normalise to ibis once so every rule shares the same wrapped
+    # Normalize to ibis once so every rule shares the same wrapped
     # table; the per-rule helpers also call ``to_ibis`` but it's a
     # pass-through on an ibis Table so we don't double-wrap.
     table = to_ibis(expr)

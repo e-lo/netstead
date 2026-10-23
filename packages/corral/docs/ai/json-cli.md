@@ -13,7 +13,7 @@ You're building an agent loop (Claude Code, a LangChain tool, a one-off shell ha
 
 ## Quick example
 
-Wrap `netstead validate --json` as a Python tool the LLM can invoke. The function parses stdout, summarises the report, and caps the issue list to keep agent context cost predictable:
+Wrap `netstead validate --json` as a Python tool the LLM can invoke. The function parses stdout, summarizes the report, and caps the issue list to keep agent context cost predictable:
 <!-- doctest: skip -->
 
 ```python
@@ -137,7 +137,7 @@ Check `returncode` *and* parse the JSON in agent loops — `returncode != 0` plu
 
 ## Pitfalls
 
-* **Don't parse stderr.** It's intentionally human-formatted (rich panels, colour, prompts). Mixing it into your parser breaks on the next release.
+* **Don't parse stderr.** It's intentionally human-formatted (rich panels, color, prompts). Mixing it into your parser breaks on the next release.
 * **Don't mix `--json` and non-`--json` calls in the same loop.** Pick one and stick to it — the model gets confused when half the tool outputs are JSON and half are panels.
 * **Auto-approve makes destructive ops silent.** `CORRAL_AUTO_APPROVE=1` skips every confirmation including ones the user might *want* to be asked about. Scope the env var to the agent subprocess; don't export it shell-wide.
 

@@ -69,7 +69,7 @@ def _single_csv_zip(tmp_path: Path) -> Path:
 
 
 def _multi_csv_zip(tmp_path: Path) -> Path:
-    """A bare ``.zip`` with multiple CSVs — probe must open it to recognise."""
+    """A bare ``.zip`` with multiple CSVs — probe must open it to recognize."""
     return _make_zip(
         tmp_path,
         {

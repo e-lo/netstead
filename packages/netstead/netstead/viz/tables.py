@@ -236,7 +236,7 @@ def coerce_filter_value(value: Any, dtype: Any) -> Any:
 
 
 def column_dtype(src: Any, column: str) -> Any:
-    """The pandas dtype ``column`` materialises as (one row sampled from a lazy table)."""
+    """The pandas dtype ``column`` materializes as (one row sampled from a lazy table)."""
     return _schema_frame(src)[column].dtype
 
 
@@ -256,7 +256,7 @@ def rowcount_of(src: Any) -> int:
 def _schema_frame(src: Any) -> pd.DataFrame:
     """A tiny frame carrying each column's dtype for kind classification.
 
-    For a lazy Table this materialises only one row (pushed to the engine), so
+    For a lazy Table this materializes only one row (pushed to the engine), so
     classification never pulls a large table into memory.
     """
     return src if _is_frame(src) else src.limit(1).to_pandas()
@@ -375,7 +375,7 @@ def page_table(
 
     ``source`` is a pandas ``DataFrame`` (sliced in memory) or a lazy corral
     ``Table`` (filter/sort/page/count pushed to the engine — duckdb over parquet
-    materialises only the one page). Same response shape either way.
+    materializes only the one page). Same response shape either way.
 
     Raises:
         FilterError: unknown filter column/operator, or unknown sort column.
@@ -460,6 +460,6 @@ def _page_lazy(
             raise FilterError(f"unknown sort column {sort!r}")
         table = table.order_by(sort, descending=(direction == "desc"))
     offset, limit = _clamp(offset, limit)
-    keep = [c for c in cols_all if c not in GEOM_COLS]  # drop WKT before materialising
+    keep = [c for c in cols_all if c not in GEOM_COLS]  # drop WKT before materializing
     page = table.select(*keep).limit(limit, offset).to_pandas()
     return _rows_payload(page, total, offset, limit)

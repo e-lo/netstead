@@ -37,7 +37,7 @@ class ConnectivityResult:
         return self.table[self.table["component_size"] <= max_size]
 
     def summary(self) -> dict:
-        """Return a small dict summarising the connectivity result for logs / JSON output."""
+        """Return a small dict summarizing the connectivity result for logs / JSON output."""
         sizes = self.component_sizes()
         return {
             "connection": self.connection,

@@ -60,7 +60,7 @@ map and three things agree on which record you mean: the map outlines it, the ta
 its row, and the **Inspect** tab comes forward and lists its attributes. Click a row and the map flies to it.
 
 What the linked table gives you is the half of a network that a map can't show. A speed, a lane count, a
-time-of-day override or a foreign key are table facts; the map can colour by one of them at a time (**Find →
+time-of-day override or a foreign key are table facts; the map can color by one of them at a time (**Find →
 View → Color links by**), but the table shows them all, sortable and pageable, with the key columns (`from_node_id`,
 `geometry_id`) as links you can follow into the other tables. Rows a foreign key away from the focused record,
 such as the link's two end nodes or its lanes, are tinted in every table and on the map. GMNS is a relational
@@ -138,7 +138,7 @@ that was checked. Spec checks are about whether the file is valid GMNS; quality 
 network is plausible, and they are configurable (**Settings → Validation**, keyed by rule code), so a region
 with 40 mph residential streets can raise the threshold instead of silencing the rule.
 
-Each located issue is a dot on the map, coloured by severity; click one in the list (or its crosshair "zoom
+Each located issue is a dot on the map, colored by severity; click one in the list (or its crosshair "zoom
 to" icon) and the map flies to its link, Inspect shows the record, and the table scrolls to the row. Findings
 about a whole table, like the missing-resource notes, have no place on the map; findings that share a code and
 differ only by resource are grouped into one row under a collapsed **Unlocated findings** block. The filters

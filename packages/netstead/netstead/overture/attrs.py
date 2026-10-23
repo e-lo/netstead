@@ -4,7 +4,7 @@ Mirror of :mod:`netstead.osm.tags` for the Overture source. Which Overture
 segment property feeds which GMNS field — and which ``class`` values count as
 drivable / walkable / bikeable — lives in maintained YAML under ``mappings/``,
 so retargeting a field is a data edit, not a code change. Value-level logic that
-cannot be data (scoped-rule reduction, unit normalisation, direction inference)
+cannot be data (scoped-rule reduction, unit normalization, direction inference)
 lives in the :data:`TRANSFORMS` registry and :func:`overture_direction` below.
 
 Several Overture attributes are **arrays of scoped rules** (``{..., between:
@@ -122,7 +122,7 @@ def max_speed_mph(value: Any) -> float | None:
     """Reduce an Overture ``speed_limits`` array to a single speed in **mph**.
 
     Picks the whole-segment rule (see :func:`_pick_rule`), reads its
-    ``max_speed`` ``{value, unit}``, and normalises to mph. Overture carries an
+    ``max_speed`` ``{value, unit}``, and normalizes to mph. Overture carries an
     explicit unit, so — unlike OSM — no km/h default guessing is needed.
 
     Args:

@@ -10,7 +10,7 @@ original ``source`` locator for round-trip writes, and an optional
 Key invariants:
 
 * Lazy by default — table expressions stay engine-native until
-  someone asks for materialisation (``Table.to_pandas`` /
+  someone asks for materialization (``Table.to_pandas`` /
   ``.collect`` / ``.count``).
 * All format dispatch routes through :mod:`corral.io`; this
   module never embeds a format-specific branch.
@@ -127,7 +127,7 @@ class Package:
         tables: Mapping ``{name: Table}``. Insertion order is preserved
             (Python 3.7+) so iteration is deterministic.
         engine: The :class:`~corral.engines.base.Engine` that
-            produced the table expressions. All materialisation routes
+            produced the table expressions. All materialization routes
             back through this same engine.
         source: Original source identifier (path / URL). ``None`` for
             in-memory packages built via :meth:`from_tables`.
@@ -210,7 +210,7 @@ class Package:
                    so the structural validator and the package loader
                    can't drift apart on "what counts as a directory of
                    tables".
-                e. ``probe`` chain (any adapter that recognises the
+                e. ``probe`` chain (any adapter that recognizes the
                    source);
                 f. :class:`~corral.io.FormatNotDetected`.
 
@@ -227,7 +227,7 @@ class Package:
             source: Path / URL / directory pointing at the data
                 package. Anything :func:`corral.io.dispatch` knows
                 about, plus the directory-of-files convention.
-            engine: Engine to materialise through. Defaults to the
+            engine: Engine to materialize through. Defaults to the
                 registered default (typically
                 :class:`~corral.engines.ibis_engine.IbisEngine`).
             spec: Either an in-memory :class:`DataPackage`, a path /
@@ -766,7 +766,7 @@ class Package:
             OutOfSyncError: When ``strict_sync=True`` and any table is
                 dirty.
             PackageError: When the package has no engine attached (so
-                materialisation can't run).
+                materialization can't run).
             FormatNotDetected: When ``format`` is not given and the
                 ``dest`` extension is unknown — the user must pass
                 ``format=`` explicitly to disambiguate.
@@ -955,7 +955,7 @@ class Package:
         return f"Package({', '.join(bits)})"
 
     def _repr_html_(self) -> str:
-        """Render a Jupyter-friendly card summarising the package.
+        """Render a Jupyter-friendly card summarizing the package.
 
         Header carries the package name (from
         :attr:`spec.name`) and the source locator; the body lists the
@@ -963,7 +963,7 @@ class Package:
         eight tables, truncated with a "…+N more" note when there are
         more. Row counts use :meth:`Table.count` which pushes down to
         the engine, and column lists use the engine's lazy schema —
-        nothing forces a full materialisation.
+        nothing forces a full materialization.
 
         The card composes via :func:`corral.notebook.card` so every
         ``_repr_html_`` on the public surface shares the same look.

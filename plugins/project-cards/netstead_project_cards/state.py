@@ -252,7 +252,7 @@ class CardsState:
         """The most recently applied catalog card (source ``"catalog"``) still recorded on ``net_id``, if any.
 
         A committed card (source ``"committed"``) is never returned: :meth:`~netstead_project_cards.handlers.
-        Handlers.undo_change` only takes back a catalog card this way, and keeps the draft-undo behaviour for
+        Handlers.undo_change` only takes back a catalog card this way, and keeps the draft-undo behavior for
         everything else.
         """
         with self._lock:

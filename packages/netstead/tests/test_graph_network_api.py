@@ -127,6 +127,6 @@ class TestKeepMissingCost:
 
 # GraphIndex parity test removed: netstead.indexes.graph (igraph) has been
 # retired now that scope + semantics share the GMNSGraph backend. The
-# behaviour it locked in is now covered by the corresponding GMNSGraph tests
+# behavior it locked in is now covered by the corresponding GMNSGraph tests
 # above and the scope + semantics integration tests against the Leavenworth
 # fixture.

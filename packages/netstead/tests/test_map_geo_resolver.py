@@ -312,7 +312,7 @@ def test_out_of_range_row_is_unlocated(tmp_path):
 
 
 def test_resolver_caches_link_midpoints(tmp_path):
-    """``resolve()`` re-uses a single materialised links DataFrame, not one-per-issue.
+    """``resolve()`` re-uses a single materialized links DataFrame, not one-per-issue.
 
     A weak assertion that the precompute happens — checks that the
     resolver exposes a ``count`` / ``cached_link_midpoints`` surface
@@ -322,6 +322,6 @@ def test_resolver_caches_link_midpoints(tmp_path):
     """
     net = _make_network(tmp_path, with_geometry=True)
     resolver = GeoResolver(net)
-    # Precomputed table caches: links and nodes are materialised once.
+    # Precomputed table caches: links and nodes are materialized once.
     assert resolver._links_df is not None
     assert resolver._nodes_df is not None

@@ -104,7 +104,7 @@ def test_cancel_open_before_register(make_session, rdu_source, monkeypatch):
     session.jobs.cancel(job.id)
     release.set()
     assert job.wait(WAIT)
-    assert session.jobs.snapshot(job)["status"] == "cancelled"
+    assert session.jobs.snapshot(job)["status"] == "canceled"
     assert session.history[-1].error_type == "JobCancelled" and len(session.registry) == 0
 
 
@@ -589,7 +589,7 @@ def test_cancel_during_write_removes_the_staged_output(make_session, out_dir, mo
     assert len(list(Path(out_dir).iterdir())) == 1  # the hidden staging folder, fully written
     session.jobs.cancel(job.id)
     release.set()
-    assert job.wait(WAIT) and session.jobs.snapshot(job)["status"] == "cancelled"
+    assert job.wait(WAIT) and session.jobs.snapshot(job)["status"] == "canceled"
     assert list(Path(out_dir).iterdir()) == [] and len(session.registry) == 0
 
 

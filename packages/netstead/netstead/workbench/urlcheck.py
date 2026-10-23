@@ -73,7 +73,7 @@ def check_url(
 
     The probe (``url_to_fs`` plus ``exists``/``isdir``/``ls``) runs on a daemon thread so a slow or
     unresponsive host cannot hang the caller, or the interpreter at exit: we wait at most
-    ``timeout_s`` for it (``Thread.join(timeout_s)``). On a timeout the thread is not cancelled
+    ``timeout_s`` for it (``Thread.join(timeout_s)``). On a timeout the thread is not canceled
     (threads cannot be killed from outside) and may keep running in the background until the
     underlying call itself returns or errors; only its result is discarded, and being a daemon
     thread it never blocks process shutdown.

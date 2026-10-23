@@ -344,7 +344,7 @@ def make_parser(select: SelectSettings, registry: ProviderRegistry) -> Parser:
     When the catalog knows ``model`` and lists ``tools = false`` (e.g. a model whose docs say
     tool/function calling isn't available), the parser starts in JSON mode instead of attempting
     a forced tool call first. A model the catalog doesn't know (custom endpoint, or an
-    Ollama-discovered tag) keeps today's behaviour: try tools, then fall back to JSON mode on
+    Ollama-discovered tag) keeps today's behavior: try tools, then fall back to JSON mode on
     :class:`~netstead.llm.errors.ToolsUnsupported`.
 
     The repair budget and temperature come from ``llm.quality``. Raises

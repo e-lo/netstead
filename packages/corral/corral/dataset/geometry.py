@@ -136,7 +136,7 @@ def _spatial_expr(table: Table):
 
 
 def encode_wkb(table: Table, column: str = "geometry") -> Table:
-    """Return ``table`` with ``column`` normalised to WKB bytes (the in-memory canon).
+    """Return ``table`` with ``column`` normalized to WKB bytes (the in-memory canon).
 
     Handles every encoding the column might arrive in:
 
@@ -144,7 +144,7 @@ def encode_wkb(table: Table, column: str = "geometry") -> Table:
     * **string** (WKT, from CSV) → ``ST_AsWKB(ST_GeomFromText(col))``.
     * **geospatial** (duckdb ``GEOMETRY``, how it reads GeoParquet back when the
       spatial extension is loaded) → ``ST_AsWKB(col)``. This keeps the ADR's
-      "WKB BLOB in memory" invariant — a ``GEOMETRY`` column can't materialise to
+      "WKB BLOB in memory" invariant — a ``GEOMETRY`` column can't materialize to
       Arrow without the geoarrow package, a BLOB round-trips cleanly.
 
     A column of any other dtype is left untouched. Lazy projection on the duckdb

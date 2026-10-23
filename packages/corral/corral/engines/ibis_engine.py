@@ -332,7 +332,7 @@ class IbisEngine:
         Opens a fresh ibis duckdb backend pointed at the file and
         returns the named table as an ibis expression. ``kwargs`` are
         accepted for protocol symmetry but currently unused — duckdb's
-        relation API takes no per-read options for catalogue reads.
+        relation API takes no per-read options for catalog reads.
 
         Args:
             source: Path / URL to a ``.duckdb`` file. ``str`` / ``Path``
@@ -507,7 +507,7 @@ class IbisEngine:
 
         Overwrite semantics: an existing destination table is replaced,
         so ``write_duckdb_table`` is idempotent (same as ``to_parquet``'s
-        file-replacement behaviour); other tables in the file are kept.
+        file-replacement behavior); other tables in the file are kept.
 
         Args:
             expr: An ibis expression.
@@ -908,7 +908,7 @@ def _scan_dict(
         return engine.read_duckdb_table(str(path), table=table, schema=schema, **kwargs)
 
     raise UnsupportedSourceError(
-        f"ibis engine: dict source shape not recognised (keys={sorted(source)!r}). "
+        f"ibis engine: dict source shape not recognized (keys={sorted(source)!r}). "
         "Supported shapes: {'data': [...]} for inline data, or "
         "{'format': 'duckdb', 'path': '...', 'table': '...'} for a duckdb handle."
     )
@@ -923,7 +923,7 @@ def _coerce_all_null_columns_to_string(arrow_table: Any) -> Any:
     ``pa.null()`` — which is what pyarrow infers for a column where
     every value is ``None`` (e.g. an entirely-empty optional ``name``
     column on the Leavenworth fixture). pandas + pyarrow are happy to
-    *materialise* such columns; only the duckdb write-path objects.
+    *materialize* such columns; only the duckdb write-path objects.
 
     String is the safe default for an unknown all-null column: it
     survives schema-cast later if the caller does know the real type,

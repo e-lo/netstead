@@ -15,7 +15,7 @@ Design intent:
 * **Two halves: browser collects, Python applies.** The browser is good
   at click-by-click triage. Python is good at deterministic, typed
   mutation. The YAML log is the boundary.
-* **ProjectCard-compatible on disk.** Each session serialises to a
+* **ProjectCard-compatible on disk.** Each session serializes to a
   single ProjectCard with a top-level ``changes`` array. Each per-cell
   fix becomes one ``roadway_property_change`` entry. The file passes
   projectcard's schema; :func:`load_edit_log` also reads logs written
@@ -184,7 +184,7 @@ def load_edit_log(path: str | Path) -> EditLog:
         The parsed :class:`EditLog`.
 
     Raises:
-        ValueError: When the top-level document is not a recognisable
+        ValueError: When the top-level document is not a recognizable
             ProjectCard shape (no ``project`` key, no ``changes`` array).
         ImportError: When ``pyyaml`` is not installed (it ships in the
             ``[reports]`` extra).
@@ -459,7 +459,7 @@ def apply_edits(net: Network, log: EditLog) -> ApplyResult:
     For each edit:
 
     1. Look up the table — skip with reason if it isn't on the network.
-    2. Materialise it to a pandas DataFrame the first time we touch it.
+    2. Materialize it to a pandas DataFrame the first time we touch it.
     3. Find the row by the edit's primary-key dict — skip if missing or
        ambiguous (multiple matches).
     4. If ``from_value`` is not ``None``, compare against the current
@@ -469,12 +469,12 @@ def apply_edits(net: Network, log: EditLog) -> ApplyResult:
     The returned ``ApplyResult.net`` is a fresh :class:`~netstead.network.Network`
     backed by :class:`~corral.engines.ibis_engine.IbisEngine` for
     EVERY table — mutated tables carry the edited DataFrames, untouched
-    tables are materialised snapshots of their source expressions. All
+    tables are materialized snapshots of their source expressions. All
     tables share a single engine so ``net.write(dest)`` sees a
     consistent state (mixing pandas and ibis/duckdb tables in one
     write() call would raise on the engine's next dispatch).
 
-    On very large networks (100k+ links) this materialises every table
+    On very large networks (100k+ links) this materializes every table
     to pandas even when you only edited a few rows — measurable but
     typically fine for interactive fix sessions. If you need a lower-
     memory path, ``apply_edits`` sub-sets are on the roadmap.
@@ -541,7 +541,7 @@ def apply_edits(net: Network, log: EditLog) -> ApplyResult:
 
     # Rebuild the network with a single engine for every table.
     # Mutated tables carry their new DataFrame; untouched tables get
-    # materialised via to_pandas() so write() dispatches consistently
+    # materialized via to_pandas() so write() dispatches consistently
     # instead of hitting a pandas-vs-ibis-vs-duckdb mixed state.
     new_engine = IbisEngine()
     new_tables: dict[str, Table] = {}

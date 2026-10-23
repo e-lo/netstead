@@ -118,7 +118,7 @@ def _geo_metadata(column: str, bounds: tuple[float, float, float, float] | None)
 def _write_geoparquet(expr: TableExpr, dest_path: Path, column: str) -> None:
     """Write ``expr`` as GeoParquet: a WKB ``column`` + the ``geo`` file metadata.
 
-    Materialises through pyarrow (the geometry column is already WKB binary) and
+    Materializes through pyarrow (the geometry column is already WKB binary) and
     attaches the ``geo`` metadata to the file schema. Unlike the engine's
     streaming ``write_parquet`` primitive this buffers the table, which is the
     price of standards-compliant geometry metadata; non-geometry tables keep the

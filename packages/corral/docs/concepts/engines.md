@@ -2,14 +2,14 @@
 title: The compute engine (DuckDB) and dataframe formats
 audience: both
 kind: concept
-summary: DuckDB (via ibis) is corral's single compute engine. pandas, polars and pyarrow are input/output formats, not compute backends. Push predicates down to SQL; materialise to a dataframe only for Python-side work (shapely, regex, ML).
+summary: DuckDB (via ibis) is corral's single compute engine. pandas, polars and pyarrow are input/output formats, not compute backends. Push predicates down to SQL; materialize to a dataframe only for Python-side work (shapely, regex, ML).
 ---
 
 # The compute engine and dataframe formats
 
 ## What it is
 
-corral has **one compute engine: DuckDB, driven through [ibis](https://ibis-project.org/)**. Everything — reads, filters, joins, validation, foreign-key checks, spatial scopes, edits — is expressed as lazy ibis expressions and executed inside DuckDB, pushing predicates down to SQL so only matching rows ever materialise.
+corral has **one compute engine: DuckDB, driven through [ibis](https://ibis-project.org/)**. Everything — reads, filters, joins, validation, foreign-key checks, spatial scopes, edits — is expressed as lazy ibis expressions and executed inside DuckDB, pushing predicates down to SQL so only matching rows ever materialize.
 
 ## Why we have it
 
@@ -30,7 +30,7 @@ expr = e.from_arrow(polars_df.to_arrow())       # polars -> engine
 expr = e.from_records({"a": [1, 2, 3]})         # columnar dict -> engine
 ```
 
-**Out** — materialise a table to whichever format the next step wants:
+**Out** — materialize a table to whichever format the next step wants:
 
 <!-- doctest: skip -->
 ```python
@@ -44,12 +44,12 @@ pkg.tables["link"].collect()          # -> engine-native (ibis) for further lazy
 ## Mental model
 
 * **Default to pushing down.** If your operation is a predicate (`t.toll > 0`, `t.zone_id.isin([1, 2, 3])`), a spatial scope (`from_bbox(table, minx, miny, maxx, maxy)`), or an aggregation (`t.length.sum()`), write it as an ibis expression — `table.filter(lambda t: t.filter(t.toll > 0))` — and DuckDB answers in milliseconds against a 200k-link network. The data never leaves the engine.
-* **Materialise to a dataframe only for Python-side work.** Pure-Python parsing (shapely geometries, regex, fuzzy strings, ML models) needs values in memory. Push down what you *can* first (e.g. a coarse `facility_type == 'residential'` filter), then `.to_pandas()` / `.to_polars()` the surviving rows and do the Python work there.
-* **Never materialise a whole table just to filter it in Python.** If the predicate is SQL-expressible, push it down.
+* **Materialize to a dataframe only for Python-side work.** Pure-Python parsing (shapely geometries, regex, fuzzy strings, ML models) needs values in memory. Push down what you *can* first (e.g. a coarse `facility_type == 'residential'` filter), then `.to_pandas()` / `.to_polars()` the surviving rows and do the Python work there.
+* **Never materialize a whole table just to filter it in Python.** If the predicate is SQL-expressible, push it down.
 
 ## Spatial
 
-`corral.dataset.view.from_bbox` / `from_polygon` / `from_geometry_buffer` build on the same pushdown pattern: the predicate compiles to DuckDB SQL (via the DuckDB spatial extension), partitioned parquet sources prune partitions at scan time, and full materialisation is the exception. `netstead.scope` adds *network-aware* scopes (`from_nodes`, `from_link`, `from_point`, `connected_component`, `from_zone`) on top.
+`corral.dataset.view.from_bbox` / `from_polygon` / `from_geometry_buffer` build on the same pushdown pattern: the predicate compiles to DuckDB SQL (via the DuckDB spatial extension), partitioned parquet sources prune partitions at scan time, and full materialization is the exception. `netstead.scope` adds *network-aware* scopes (`from_nodes`, `from_link`, `from_point`, `connected_component`, `from_zone`) on top.
 
 ## See also
 

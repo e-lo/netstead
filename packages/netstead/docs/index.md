@@ -16,7 +16,7 @@ A Python toolkit for the [General Modeling Network Specification (GMNS)](https:/
 
 ## What problems netstead solves
 
-**Reading any GMNS network without writing import code.** Local CSV directory, S3 parquet partition, single-file DuckDB, zipped CSV bundle — same `Network.from_source(...)` call, same lazy-evaluation behaviour:
+**Reading any GMNS network without writing import code.** Local CSV directory, S3 parquet partition, single-file DuckDB, zipped CSV bundle — same `Network.from_source(...)` call, same lazy-evaluation behavior:
 
 <!-- doctest: skip -->
 ```python
@@ -75,7 +75,7 @@ net = Network.from_source("./network.duckdb")              # single duckdb
 
     ---
 
-    Exposing a curated set of GMNS networks behind a FastAPI HTTP server with bearer-token auth for consumers in your organisation.
+    Exposing a curated set of GMNS networks behind a FastAPI HTTP server with bearer-token auth for consumers in your organization.
 
 -   :material-school-outline:{ .lg .middle } &nbsp;**GTFS-GMNS interop research**
 

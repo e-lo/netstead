@@ -5,7 +5,7 @@
 
 export const SUMMARY_LIMIT = 8;
 
-// The lead-in per structural code when a group is summarised on one line (corral's _GROUP_LEAD_IN).
+// The lead-in per structural code when a group is summarized on one line (corral's _GROUP_LEAD_IN).
 const LEAD_IN = {
   "structural.missing_optional_resource": "optional resources absent: ",
   "structural.missing_required_resource": "required resources missing: ",

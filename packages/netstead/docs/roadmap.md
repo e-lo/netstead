@@ -9,7 +9,7 @@ summary: What netstead ships today (v1.0 beta), what is being built next, and wh
 
 ## What it is
 
-A one-page answer to "can I rely on this yet, and what is coming?". It summarises the design
+A one-page answer to "can I rely on this yet, and what is coming?". It summarizes the design
 records that steer the project; those records live in the repository under
 [`docs/design/`](https://github.com/e-lo/netstead/tree/main/docs/design) and are reviewed like
 code, so this page follows them rather than the other way round.

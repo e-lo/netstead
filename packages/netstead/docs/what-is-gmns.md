@@ -81,9 +81,9 @@ GMNS deliberately does not duplicate GTFS. A `transit_route` table is *not* in G
 
 [OpenStreetMap (OSM)](https://www.openstreetmap.org/) is a global, crowdsourced geographic database. It is **not** a network spec — OSM tags are loose, regionally inconsistent, and not designed for routing-grade modeling out of the box.
 
-GMNS is the standardised target for the conversion. Tools like [`osm2gmns`](https://github.com/jiawlu/OSM2GMNS) and `osmnx` (used to build the bundled Leavenworth fixture — see its [README](https://github.com/e-lo/netstead/blob/main/packages/netstead/netstead/fixtures/leavenworth/README.md)) consume OSM, infer link attributes (lanes, free-flow speed, facility type) from OSM tags, and emit GMNS.
+GMNS is the standardized target for the conversion. Tools like [`osm2gmns`](https://github.com/jiawlu/OSM2GMNS) and `osmnx` (used to build the bundled Leavenworth fixture — see its [README](https://github.com/e-lo/netstead/blob/main/packages/netstead/netstead/fixtures/leavenworth/README.md)) consume OSM, infer link attributes (lanes, free-flow speed, facility type) from OSM tags, and emit GMNS.
 
-OSM → GMNS is lossy and opinionated (tag inference is heuristic; OSM doesn't carry signal timing or TOD restrictions). The point is that the *output* is a single standardised format that every downstream consumer understands, regardless of where the source data came from.
+OSM → GMNS is lossy and opinionated (tag inference is heuristic; OSM doesn't carry signal timing or TOD restrictions). The point is that the *output* is a single standardized format that every downstream consumer understands, regardless of where the source data came from.
 
 ## See also
 

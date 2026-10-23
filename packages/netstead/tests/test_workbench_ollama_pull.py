@@ -176,7 +176,7 @@ def test_cancel_stops_at_the_next_chunk(tmp_path, isolated_env, fake_keyring):
     client.post(f"/api/jobs/{job_id}/cancel", json={})
     release.set()
     job = _wait(session, job_id)
-    assert job["status"] == "cancelled" and not read_on.is_set()
+    assert job["status"] == "canceled" and not read_on.is_set()
 
 
 def test_a_second_pull_of_the_same_model_while_running_is_409(tmp_path, isolated_env, fake_keyring):

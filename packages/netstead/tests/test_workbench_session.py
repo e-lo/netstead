@@ -110,12 +110,12 @@ def test_style_partial_merge_and_validation(opened):
         opened.dispatch(Style(color_by="geometry"))
 
 
-def test_opening_a_network_applies_the_default_colouring_its_columns_allow(session, rdu_source):
+def test_opening_a_network_applies_the_default_coloring_its_columns_allow(session, rdu_source):
     # Leavenworth has both default columns: links by facility_type, nodes by ctrl_type.
     session.dispatch(OpenNetwork(source=str(leavenworth.csv_dir())))
     assert session.state()["style"]["color_by"] == "facility_type"
     assert session.state()["style"]["node_color_by"] == "ctrl_type"
-    # RDU has facility_type but no ctrl_type: nodes fall back to a single colour, nothing raises.
+    # RDU has facility_type but no ctrl_type: nodes fall back to a single color, nothing raises.
     session.dispatch(OpenNetwork(source=rdu_source))
     assert session.state()["style"]["color_by"] == "facility_type"
     assert session.state()["style"]["node_color_by"] == "none"
@@ -130,7 +130,7 @@ def test_an_explicit_none_survives_opening_or_switching_to_another_network(sessi
     assert session.style["color_by"] == "none" and session.style["node_color_by"] == "ctrl_type"
 
 
-def test_switching_or_closing_reconciles_the_colouring_with_the_active_network(session, rdu_source):
+def test_switching_or_closing_reconciles_the_coloring_with_the_active_network(session, rdu_source):
     session.dispatch(OpenNetwork(source=rdu_source))
     session.dispatch(OpenNetwork(source=str(leavenworth.csv_dir())))
     session.dispatch(Style(node_color_by="node_type"))
@@ -142,7 +142,7 @@ def test_switching_or_closing_reconciles_the_colouring_with_the_active_network(s
     assert session.state()["active"] == "rdu-i40" and session.style["node_color_by"] == "none"
 
 
-def test_node_colour_by_is_validated_against_the_node_table(session):
+def test_node_color_by_is_validated_against_the_node_table(session):
     session.dispatch(OpenNetwork(source=str(leavenworth.csv_dir())))
     session.dispatch(Style(node_color_by="node_type"))
     assert session.style["node_color_by"] == "node_type"

@@ -59,7 +59,7 @@ def build_network_from_overture(
             columns. Same purpose as the OSM source's ``extra_tags``, with
             Overture property names instead of OSM tag keys.
         spec_version: GMNS spec version (default :data:`netstead.spec.DEFAULT_SPEC`).
-        engine: Compute engine to materialise through (default: corral
+        engine: Compute engine to materialize through (default: corral
             ibis/duckdb).
         overture_release: Pinned Overture release string (ignored when
             ``data_root`` is set). Bump to move releases reproducibly.

@@ -2,7 +2,7 @@
 
 None of these are recorded as actions: browsing, checking a URL, searching for a place, and
 estimating a build change no session state. (Cancel acts on a job, not on the session; the
-cancelled action is recorded when its job ends.) All of them sit behind the app-wide loopback
+canceled action is recorded when its job ends.) All of them sit behind the app-wide loopback
 Host/Origin guard in :mod:`netstead.workbench.server`.
 """
 

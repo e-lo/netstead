@@ -94,7 +94,7 @@ def _load_rows(csv_path: Path) -> list[dict[str, Any]]:
 
     All integer-looking fields are coerced to ``int`` (or ``None`` for
     blanks); everything else is left as a string. The engines' scan
-    paths then normalise via ``cast_schema``.
+    paths then normalize via ``cast_schema``.
     """
     with csv_path.open() as f:
         raw = list(csv.DictReader(f))
@@ -148,7 +148,7 @@ def leavenworth_tables_pandas(leavenworth_package: DataPackage):
 
     Yields (engine, tables) so the test body can pass both to
     :func:`check_foreign_keys`. Uses :func:`_load_rows` so the cross-engine
-    behaviour is hit indirectly via the per-engine parametrised tests.
+    behavior is hit indirectly via the per-engine parametrised tests.
     """
     engine = IbisEngine()
     tables: dict[str, Any] = {}

@@ -141,7 +141,7 @@ def load(format: str = "csv") -> Network:
     Returns:
         A :class:`netstead.Network` loaded through the default ibis +
         DuckDB engine. Tables are lazy expressions; nothing
-        materialises until you call ``.count()`` / ``.to_pandas()`` /
+        materializes until you call ``.count()`` / ``.to_pandas()`` /
         validate.
 
     Examples:

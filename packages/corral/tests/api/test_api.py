@@ -232,7 +232,7 @@ def test_registry_require_raises_http_404_for_unknown_id():
 
 
 def test_registry_source_for_returns_string_without_loading():
-    """`registry.source_for(id)` returns the configured source path without materialising."""
+    """`registry.source_for(id)` returns the configured source path without materializing."""
     from corral.api import PackageRegistry
 
     settings = ServerSettings(packages=[PackageRef(id="demo", source="/tmp/some/path/")])

@@ -149,7 +149,7 @@ class Engine(Protocol):
         Adapters (``CsvAdapter``, ``ZipCsvAdapter`` after member
         extraction, ``RemoteAdapter`` after URL resolution) call this
         primitive directly. Engines should apply ``cast_schema`` at the
-        tail when ``schema`` is non-None so behaviour matches the
+        tail when ``schema`` is non-None so behavior matches the
         convenience ``scan(..., schema=...)`` path.
 
         Args:
@@ -247,19 +247,19 @@ class Engine(Protocol):
         is lossy (binary becomes ``bytes``, decimals become ``Decimal``,
         timestamps lose tz, all numerics widen via JSON-ish coercion)
         and is the round-trip the editing layer formerly used. Engines
-        materialise the Arrow buffer directly:
+        materialize the Arrow buffer directly:
 
         - **Ibis** registers it as a duckdb temp table via
           ``con.create_table(name, obj=arrow_table, temp=True)``.
         - **Polars** wraps it as a :class:`polars.LazyFrame` via
           ``pl.from_arrow(arrow_table).lazy()``.
-        - **Pandas** materialises with
+        - **Pandas** materializes with
           ``arrow_table.to_pandas().convert_dtypes()`` so the
           numpy-backed nullable dtype contract documented on
           :meth:`to_pandas` is preserved end-to-end.
 
         Args:
-            arrow_table: Already-materialised :class:`pyarrow.Table`.
+            arrow_table: Already-materialized :class:`pyarrow.Table`.
 
         Returns:
             An engine-native lazy expression; the contents match
@@ -445,7 +445,7 @@ class Engine(Protocol):
     # ------------------------------------------------------------------
 
     def columns(self, expr: TableExpr) -> list[str]:
-        """Return the column names of ``expr`` without materialising rows.
+        """Return the column names of ``expr`` without materializing rows.
 
         Each engine has a cheap lazy schema path (ibis ``expr.schema().names``,
         polars ``expr.collect_schema().names()``, pandas
@@ -465,7 +465,7 @@ class Engine(Protocol):
 
         ibis pushes a ``SELECT COUNT(*)`` to duckdb; polars selects
         ``pl.len()`` inside the lazy plan; pandas calls ``len(expr)``.
-        Implementations must not full-materialise the table to count it.
+        Implementations must not full-materialize the table to count it.
 
         Args:
             expr: Engine-native expression.
@@ -479,7 +479,7 @@ class Engine(Protocol):
         """Return a new lazy expression with only the first ``n`` rows.
 
         Lazy — the engine builds a head expression but does not execute
-        it. The pandas engine is the only one where this materialises
+        it. The pandas engine is the only one where this materializes
         (pandas has no lazy mode).
 
         Args:

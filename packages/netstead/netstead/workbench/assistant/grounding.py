@@ -313,7 +313,7 @@ def assistant_disclosure(
     grounded, notes = _tiers(registry, provider, endpoint_local)
     quality = registry.settings.quality
     items = [
-        "your question and the recent conversation (as the assistant summarised it: action names and counts)",
+        "your question and the recent conversation (as the assistant summarized it: action names and counts)",
         "the tool schemas (Action names and GMNS field names)",
         ", ".join(ALWAYS_SENT.values()),
     ]

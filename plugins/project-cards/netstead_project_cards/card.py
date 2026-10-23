@@ -8,7 +8,7 @@ them back. The offline validation report's edit log (``netstead.map.edits.dump_e
 ``netstead.note[<i>]`` lines and is an ordinary card; edit logs written before netstead 2026-10-20 put
 ``model_link_id`` at the top of the facility and give each change its own ``notes``, and are read tolerantly.
 
-Files are read with ``projectcard.read_card`` (YAML or JSON, its key normalisation and schema defaults; its TOML reader
+Files are read with ``projectcard.read_card`` (YAML or JSON, its key normalization and schema defaults; its TOML reader
 is broken in 0.3.3, so a ``.toml`` card is refused) and
 written with ``yaml.safe_dump``, not ``projectcard.write_card``, which comments out every line containing ``#`` (so a
 street named ``Hwy #2`` makes the card unreadable) and always writes ``dependencies: {}``.

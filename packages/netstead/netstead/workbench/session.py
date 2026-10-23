@@ -9,12 +9,12 @@ P3, the NL assistant all funnel through ``dispatch``. Each call is recorded as a
 Actions marked ``runs_as_job`` (``OpenNetwork``, ``BuildNetwork``, ``RunValidation``,
 ``SaveNetwork``) do their slow work on a background job thread *without* the session lock.
 :meth:`Session.submit` starts one and returns immediately (the HTTP path); :meth:`Session.dispatch`
-starts one and waits (Python, the CLI), so callers see the same blocking behaviour as before.
+starts one and waits (Python, the CLI), so callers see the same blocking behavior as before.
 
 A successful job ends in :meth:`Session._commit`, which commits the job's outcome (registers the
 loaded network, stores the issues, marks the edits saved) *and* records its history entry in one
 critical section. History order therefore always matches registry order, even when two jobs overlap,
-so replaying the history reproduces the same network ids. Failed and cancelled jobs are recorded by
+so replaying the history reproduces the same network ids. Failed and canceled jobs are recorded by
 :meth:`Session._finish`.
 
 ``Select`` with an utterance may call a language model, which can take seconds. Its parse
@@ -135,7 +135,7 @@ FILTER_CACHE_SIZE = 8
 #: session lock (``filter_ids``); held only around dict operations, never across a query.
 _FILTER_CACHE_LOCK = threading.Lock()
 
-#: ``color_by`` and ``node_color_by`` name the columns the map colours by when a network has them; opening a network
+#: ``color_by`` and ``node_color_by`` name the columns the map colors by when a network has them; opening a network
 #: that lacks one puts ``"none"`` in its place (:meth:`Session._reconcile_style`).
 DEFAULT_STYLE: dict[str, Any] = {
     "color_by": "facility_type",
@@ -998,11 +998,11 @@ class Session:
         return handle
 
     def _reconcile_style(self, handle: NetworkHandle) -> None:
-        """Point the colour-by columns at ones ``handle`` has, now that it is the active network.
+        """Point the color-by columns at ones ``handle`` has, now that it is the active network.
 
         Each of ``color_by`` (links) and ``node_color_by`` (nodes) keeps its column when the network has it, and
         keeps an explicit ``"none"`` (one a ``Style`` action set); otherwise it takes the default column when that
-        exists, else ``"none"``. Never raises: a network without the default columns opens with single-colour
+        exists, else ``"none"``. Never raises: a network without the default columns opens with single-color
         features. Called with the lock held, whenever the active network changes (open, add, switch, close).
         """
         tables = {"color_by": ("link", handle.links_df), "node_color_by": ("node", handle.nodes_df)}
@@ -1534,7 +1534,7 @@ class Session:
     # -------------------------------------------------- job actions (run on a job thread, lock only to register)
 
     def _load(self, source: str, spec_version: str) -> tuple[Network, dict[str, Any]]:
-        """Load ``source`` and materialise its link/node frames, all without the session lock."""
+        """Load ``source`` and materialize its link/node frames, all without the session lock."""
         try:
             net = Network.from_source(source, spec_version=spec_version)
             frames = {"links_df": as_pandas(net.links), "nodes_df": as_pandas(net.nodes)}
@@ -1570,7 +1570,7 @@ class Session:
                     )
                     build.write_output(net, tmp, action.output_format, ctx)
                     # Last cancellation checkpoint: once the output is promoted the build is done, so a
-                    # later cancel cannot leave a finished output that the history calls cancelled.
+                    # later cancel cannot leave a finished output that the history calls canceled.
                     ctx.stage("open", progress=0.9)
                     build.promote(tmp, plan.dest)
                 except ActionError as exc:  # includes JobCancelled: keep the estimate for the history entry

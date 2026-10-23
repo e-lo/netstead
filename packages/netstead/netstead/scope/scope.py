@@ -187,7 +187,7 @@ class NetworkScope:
     :func:`connected_component`, :func:`from_zone`) and composed via
     :meth:`union` / :meth:`intersect` / :meth:`subtract` /
     :meth:`buffer_network` / :meth:`buffer_spatial`. :meth:`apply`
-    materialises the scope as a fresh :class:`Network` with all
+    materializes the scope as a fresh :class:`Network` with all
     FK-related tables pre-filtered.
 
     Attributes:
@@ -222,12 +222,12 @@ class NetworkScope:
     provenance: str = ""
 
     def __post_init__(self) -> None:
-        """Normalise id sets to plain Python ``int``.
+        """Normalize id sets to plain Python ``int``.
 
         Constructors collect ids from numpy / scipy results (e.g.
         ``GMNSGraph.shortest_path`` yields ``numpy.int64``), and numpy
         scalars are rejected by ``json.dumps`` and by FastMCP's result
-        serialiser. Enforcing the invariant here means every constructor
+        serializer. Enforcing the invariant here means every constructor
         and composition op (which go through ``dataclasses.replace``)
         produces JSON-safe ids without each call site remembering to.
         """
@@ -321,7 +321,7 @@ class NetworkScope:
             provenance=f"{self.provenance} + buffer_spatial({distance_m})",
         )
 
-    # -- materialisation ----------------------------------------------------
+    # -- materialization ----------------------------------------------------
 
     def apply(self) -> Network:
         """Return a new :class:`Network` whose tables are filtered to the scope.
@@ -742,7 +742,7 @@ def _filter_table_by_id_columns(
 ) -> Table:
     """Return ``table`` with rows kept where any FK column matches the right id set.
 
-    Materialises through pyarrow + rebuilds via ``engine.from_records``
+    Materializes through pyarrow + rebuilds via ``engine.from_records``
     — same pattern used by :mod:`corral.dataset.view` for non-ibis
     backends. Tables with no rows pass through.
     """
@@ -786,7 +786,7 @@ def _filter_geometry_by_links(geometry_table: Table, link_table: Table | None) -
 
 
 def _to_arrow(table: Table):
-    """Materialise a :class:`~corral.dataset.Table` to pyarrow."""
+    """Materialize a :class:`~corral.dataset.Table` to pyarrow."""
     import pyarrow as pa
 
     return pa.Table.from_pandas(table.to_pandas(), preserve_index=False)

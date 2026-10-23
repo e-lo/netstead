@@ -196,7 +196,7 @@ Run the GMNS data-quality rule pack (high-speed-residential, disconnected compon
 }
 ```
 
-Default-pack issues are WARNING / INFO — the GMNS spec is silent on these checks, but they catch common data-quality misses. Customise thresholds via the Python API ([Customise the data-quality rule pack](../cookbook/customise-quality.md)).
+Default-pack issues are WARNING / INFO — the GMNS spec is silent on these checks, but they catch common data-quality misses. Customize thresholds via the Python API ([Customize the data-quality rule pack](../cookbook/customize-quality.md)).
 
 **Example**
 

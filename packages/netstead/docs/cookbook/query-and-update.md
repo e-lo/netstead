@@ -9,7 +9,7 @@ summary: Join GMNS tables across foreign keys, inspect results without going thr
 
 ## When to use this
 
-You want to *ask questions that span tables* ("which lanes sit on links faster than 45 mph?") and *make targeted edits* ("set every residential link to 25 mph") — the bread-and-butter of network analysis and the kind of thing [Network Wrangler](https://github.com/network-wrangler/network_wrangler) does. This page covers both: querying across foreign keys, looking at results without materialising a DataFrame you don't need, and editing rows with an undo log.
+You want to *ask questions that span tables* ("which lanes sit on links faster than 45 mph?") and *make targeted edits* ("set every residential link to 25 mph") — the bread-and-butter of network analysis and the kind of thing [Network Wrangler](https://github.com/network-wrangler/network_wrangler) does. This page covers both: querying across foreign keys, looking at results without materializing a DataFrame you don't need, and editing rows with an undo log.
 
 ## Quick example
 
@@ -87,7 +87,7 @@ print(q.head(5))                    # DuckDB runs LIMIT 5; renders a table
 
 In a Jupyter notebook the same expression renders as an HTML table — no `print`, no `.to_pandas()`. Interactive mode is a global, session-wide switch; in a notebook you set it once at the top and leave it on.
 
-### 4. Materialise only when you hand the result to other code
+### 4. Materialize only when you hand the result to other code
 
 `.execute()` runs the query at any point. Pick the container that fits what comes next — you rarely need pandas:
 
@@ -213,7 +213,7 @@ A `Session(net, log_path="edits.parquet")` persists the audit log to disk alongs
 * **`update_rows` / `delete_rows` predicates are callables, not expressions.** Write `lambda t: t.col == x`, not `link.col == x`. The edit re-applies the predicate against the table's own expression.
 * **Joins need the `.expr`, not the `Table` wrapper.** `net.links` is the convenience wrapper (`.count()`, `.columns()`, `.to_pandas()`); `net.links.expr` (or `net.tables["link"].expr`) is the ibis expression you join + filter on.
 * **A filter on a table with no geometry column silently returns everything for spatial predicates.** For `from_bbox`-style spatial filters, run them on the table that actually carries the WKT (in Leavenworth that's `geometry`, not `link`).
-* **Materialise once, at the end.** Calling `.to_pandas()` mid-chain forces a DuckDB→Arrow→pandas round-trip and then re-wraps for the next step. Compose lazily; execute last.
+* **Materialize once, at the end.** Calling `.to_pandas()` mid-chain forces a DuckDB→Arrow→pandas round-trip and then re-wraps for the next step. Compose lazily; execute last.
 
 ## See also
 

@@ -62,7 +62,7 @@ def _slug(text: str) -> str:
 
 
 def as_pandas(table: Any) -> pd.DataFrame:
-    """Materialise an ibis/corral table as pandas."""
+    """Materialize an ibis/corral table as pandas."""
     return table.to_pandas() if hasattr(table, "to_pandas") else table.execute()
 
 

@@ -14,7 +14,7 @@ Netstead has grown several separate web surfaces, and none of them covers the wh
 
 | Surface | Stack | Strength | Gap |
 |---|---|---|---|
-| `netstead viz` (`netstead/viz/server.py`, `templates/index.html`) | FastAPI, MapLibre + deck.gl, binary buffers | Fast map, colour-by, paged tables, NL select, pick to fragment | Holds one network frozen at startup; one 737-line inline script; map→table link is partial |
+| `netstead viz` (`netstead/viz/server.py`, `templates/index.html`) | FastAPI, MapLibre + deck.gl, binary buffers | Fast map, color-by, paged tables, NL select, pick to fragment | Holds one network frozen at startup; one 737-line inline script; map→table link is partial |
 | `select-serve` (`select/webapp.py`) | MapLibre + GeoJSON | — | Removed in P1b |
 | `NetworkMap` and the validation report (`netstead/map/*`) | Leaflet + Jinja, offline | Issue markers, "fix locally" editor, edit log | Static; no row→map link; 2000-item cap |
 | corral `ValidationReport.to_html` | Jinja + Vega-Lite | Generic report | No map link |
@@ -116,7 +116,7 @@ This mirrors Wrangler's `Scenario` of roadway + transit.
 - **Open/Build:** attach a GTFS zip or URL to a roadway network. Also a list of feeds that cover the area (the Mobility Database catalogue) and OSM route relations. Overture has no transit data.
 - **Inspect:**
   - Routes and stops layers.
-  - Frequency or headway colour-by.
+  - Frequency or headway color-by.
   - Trip table ↔ shape on the map.
   - Stops on map ↔ stops table.
   - Optional animation with `TripsLayer` (PRD roadmap).
@@ -235,7 +235,7 @@ The app is a single page:
   - Clicking a row selects it and flies the map to it.
   - Box-select fills the table filter "to selection".
 - **FK navigation:** a `from_node_id` cell is a link to that node row and its map marker.
-- **Related records (P1b):** when links or nodes are highlighted or selected, rows that are related through a foreign key are tinted in a softer colour in every other table and on the map.
+- **Related records (P1b):** when links or nodes are highlighted or selected, rows that are related through a foreign key are tinted in a softer color in every other table and on the map.
   - **Which tables count as related:** FKs pointing in (`lane.link_id`, `segment.link_id`, `link_tod.link_id`, movement in/out links) and FKs pointing out (`link.from_node_id` and `to_node_id` → `node`).
   - **Where the FKs come from:** the spec's foreign keys, the same ones validation uses, so nothing is hard-coded.
   - **Endpoint:** a read-only `GET /api/n/{id}/{component}/related?table=&ids=`. It returns per-table counts, plus the ids on the visible page only, and is not recorded.

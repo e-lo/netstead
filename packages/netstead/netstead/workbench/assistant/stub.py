@@ -18,7 +18,7 @@ __all__ = ["StubPlan", "StubPlanner"]
 _OPS = {">=": "gte", "<=": "lte", ">": "gt", "<": "lt", "=": "eq", "!=": "ne"}
 _HELP = (
     "The offline assistant understands: select <street> (optionally between <street> and <street>); "
-    "colour by <column>; width by <column>; filter <column> <op> <value>; clear the filter; zoom to the selection; "
+    "color by <column>; width by <column>; filter <column> <op> <value>; clear the filter; zoom to the selection; "
     "zoom to link <id>; save the selection as <name>; set <column> to <value> on the selection. Join steps with "
     '"and" or "then". Choose a language model in Settings for more.'
 )

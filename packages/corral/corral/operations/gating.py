@@ -5,7 +5,7 @@ The gating layer is a thin primitive: it consults an
 ``est_seconds()`` against two thresholds, and either passes the cost
 through, logs an estimate, or raises :class:`ApprovalRequired`.
 
-Behaviour by band:
+Behavior by band:
 
 * ``est < estimate_threshold_s`` → silent pass-through.
 * ``estimate_threshold_s <= est < approval_threshold_s`` → log estimate,

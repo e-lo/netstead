@@ -44,7 +44,7 @@ __all__ = ["Job", "JobContext", "JobRunner", "JobStatus"]
 
 logger = logging.getLogger(__name__)
 
-JobStatus = Literal["running", "done", "failed", "cancelled"]
+JobStatus = Literal["running", "done", "failed", "canceled"]
 
 
 @dataclass
@@ -92,14 +92,14 @@ class JobContext:
         return self._job.id
 
     @property
-    def cancelled(self) -> bool:
+    def canceled(self) -> bool:
         """Whether cancellation was requested."""
         return self._job._cancel.is_set()
 
     def check(self) -> None:
         """Raise :class:`JobCancelled` if cancellation was requested."""
-        if self.cancelled:
-            raise JobCancelled(f"{self._job.label}: cancelled")
+        if self.canceled:
+            raise JobCancelled(f"{self._job.label}: canceled")
 
     def stage(self, name: str, *, progress: float | None = None, eta_s: float | None = None) -> None:
         """Enter stage ``name`` (a cancellation checkpoint) and publish the job's new state."""
@@ -198,7 +198,7 @@ class JobRunner:
                 result = fn(JobContext(job, self))
                 outcome = {"status": "done", "stage": "done", "progress": 1.0, "result": result}
             except JobCancelled as exc:
-                outcome = {"status": "cancelled", "error": str(exc), "error_type": "JobCancelled"}
+                outcome = {"status": "canceled", "error": str(exc), "error_type": "JobCancelled"}
                 outcome["payload"] = exc.payload
             except ActionError as exc:
                 outcome = {"status": "failed", "error": str(exc), "error_type": type(exc).__name__}

@@ -544,7 +544,7 @@ class _Shapes(BaseModel):
     """The pydantic shapes a plugin Action's schema commonly has."""
 
     tint: _Color | None = None  # anyOf [{$ref}, {type: null}]
-    color: _Color = Field(_Color.blue, description="The colour.")  # {$ref, default, description}
+    color: _Color = Field(_Color.blue, description="The color.")  # {$ref, default, description}
     size: _Size = _Size.M
     lanes: Literal[1, 2] = 1
     where: _Where = Field(default_factory=_Where, description="Where to.")
@@ -555,7 +555,7 @@ def test_fields_resolve_refs_with_their_own_keys_and_inside_any_of(node_module):
     got = {f["key"]: (f["kind"], f.get("options"), f["nullable"], f["default"], f["description"]) for f in fields}
     assert got == {
         "tint": ("choice", ["red", "blue"], True, None, ""),
-        "color": ("choice", ["red", "blue"], False, "blue", "The colour."),
+        "color": ("choice", ["red", "blue"], False, "blue", "The color."),
         "size": ("choice", [1, 2], False, 2, ""),
         "lanes": ("choice", [1, 2], False, 1, ""),
         "where.city": ("text", None, False, "Paris", ""),
