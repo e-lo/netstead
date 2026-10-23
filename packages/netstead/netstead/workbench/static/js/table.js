@@ -9,6 +9,7 @@ import { cellAction, cellEditable, cellOptions, cellSample, cellWarnings, listOp
 import { createGridFilter } from "./gridfilter.js";
 import { HOPS_TIP, hopsFromValue, hopsView } from "./hops.js";
 import { icon } from "./icons.js";
+import { relatedExplanation, subjectOf } from "./relatedhelp.js";
 import { recordIssues } from "./issuelist.js";
 import { clampOffset, coerceId, combinedFilter, pageOffset, rowMarks, rowsRequest, scopeHint } from "./linking.js";
 import { resizeSoon } from "./map.js";
@@ -528,7 +529,33 @@ async function revealFocus() {
   await loadRows();
 }
 
+// The "What is Related?" popover: the generic example, or the real counts for what is focused or highlighted.
+function renderHopsHelp() {
+  const s = store.get();
+  $("tbl-hops-pop").innerHTML = relatedExplanation({ subject: subjectOf(s.focus, s.highlights), related: s.related })
+    .map(line => `<p>${esc(line)}</p>`).join("");
+}
+
+function setHopsHelp(open, { refocus = false } = {}) {
+  $("tbl-hops-pop").hidden = !open;
+  $("tbl-hops-info").setAttribute("aria-expanded", String(open));
+  if (open) renderHopsHelp();
+  else if (refocus) $("tbl-hops-info").focus();
+}
+
+function wireHopsHelp() {
+  $("tbl-hops-info").onclick = () => setHopsHelp($("tbl-hops-pop").hidden);
+  $("tbl-hops-wrap").onkeydown = e => {
+    if (e.key === "Escape" && !$("tbl-hops-pop").hidden) { e.preventDefault(); e.stopPropagation(); setHopsHelp(false, { refocus: true }); }
+  };
+  document.addEventListener("pointerdown", e => {
+    if (!$("tbl-hops-pop").hidden && !e.target.closest("#tbl-hops-wrap")) setHopsHelp(false);
+  });
+  store.subscribe(["related", "focus", "highlights"], () => { if (!$("tbl-hops-pop").hidden) renderHopsHelp(); });
+}
+
 export function wireTable() {
+  wireHopsHelp();
   for (const b of document.querySelectorAll("#viewmode button")) b.onclick = () => setViewMode(b.dataset.mode);
   $("tbl-prev").onclick = () => { if (TBL.offset > 0) { TBL.offset = Math.max(0, TBL.offset - TBL.limit); refreshRows(); } };
   $("tbl-next").onclick = () => { if (TBL.offset + TBL.limit < TBL.total) { TBL.offset += TBL.limit; refreshRows(); } };

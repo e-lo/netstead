@@ -79,7 +79,9 @@
           </select>
           <span id="tbl-hops-wrap" hidden><label for="tbl-hops">Related</label>
             <select id="tbl-hops" aria-label="Related records: how many steps to follow">
-              <option value="1">1 step</option><option value="2">2 steps</option></select></span></div>
+              <option value="1">1 step</option><option value="2">2 steps</option></select>
+            <button id="tbl-hops-info" class="iconbtn" data-icon="info" data-tip="What is Related?" aria-label="What is Related?" aria-haspopup="dialog" aria-controls="tbl-hops-pop" aria-expanded="false"></button>
+            <div id="tbl-hops-pop" role="dialog" aria-label="What is Related?" hidden></div></span></div>
         <div id="tbl-chips" aria-label="Active column filters" hidden></div>
         <div id="tbl-grid-wrap"><table id="tbl-grid"></table></div>
         <datalist id="cell-opts"></datalist>
@@ -262,7 +264,9 @@
         <button class="wz-choice" data-src="local"><b>GMNS on this machine</b><span>A folder, .zip, .duckdb, or datapackage.json</span></button>
         <button class="wz-choice" data-src="url"><b>GMNS at a URL</b><span>s3://, gs://, az://, or https://</span></button>
         <button class="wz-choice" data-src="osm"><b>Build from OpenStreetMap</b><span>Draw an area, search a place, or use a local .osm / Overpass .json file</span></button>
+        <div class="ex-slot" data-for="osm"></div>
         <button class="wz-choice" data-src="overture"><b>Build from Overture</b><span>Draw an area, search a place, or use a local snapshot folder</span></button>
+        <div class="ex-slot" data-for="overture"></div>
       </section>
       <section class="wz-step" data-step="local" hidden>
         <p class="wz-note">Pick a GMNS folder, .zip, .duckdb, or datapackage.json. It opens in place; nothing is uploaded.</p>
@@ -295,6 +299,7 @@
         <div class="ap-pane" data-pane="place" hidden>
           <div class="row"><input id="ap-q" class="grow" placeholder="Durham, North Carolina" aria-label="Place" />
             <button class="mini" id="ap-search">Search</button></div>
+          <div id="ap-place-note"></div>
           <div id="ap-cands"></div>
         </div>
         <div class="ap-pane" data-pane="file" hidden>

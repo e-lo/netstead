@@ -1343,3 +1343,63 @@ def test_related_steps_control_shows_only_for_the_related_scope(node_module):
         assert run(f'hopsView("{scope}", 2)')["hidden"] is True
     assert run('[hopsFromValue("2"), hopsFromValue("1"), hopsFromValue("x")]') == [2, 1, 1]
     assert "1 step" in run("HOPS_TIP") and "2 steps" in run("HOPS_TIP")
+
+
+INFO = {
+    "installed": {"osm": False, "overture": True},
+    "install": {
+        "osm": {"uv": "uv add 'x[osm]'", "pip": "pip install 'x[osm]'"},
+        "overture": {"uv": "uv add 'x[overture]'", "pip": "pip install 'x[overture]'"},
+        "osm,overture": {"uv": "uv add 'x[osm,overture]'", "pip": "pip install 'x[osm,overture]'"},
+    },
+    "docs_url": "https://example.test/install/",
+}
+
+
+def test_extras_a_choice_needs(node_module):
+    names = ["extrasFor", "missingExtras"]
+
+    def run(expr):
+        return node_module("extrasnotice.js", names, expr)
+
+    assert run('extrasFor("osm")') == ["osm"] and run('extrasFor("overture")') == ["overture"]
+    assert run('extrasFor("overture", {place: true})') == ["overture", "osm"] and run('extrasFor("local")') == []
+    installed = json.dumps(INFO["installed"])
+    assert run(f'missingExtras(["overture", "osm"], {installed})') == ["osm"]
+    assert run('missingExtras(["osm"], null)') == []  # not answered yet: do not block
+
+
+def test_extras_notice_shows_both_commands_with_copy_and_the_docs_link(node_module):
+    names = ["noticeHTML"]
+    html = node_module("extrasnotice.js", names, f'noticeHTML(["osm"], {json.dumps(INFO)})')
+    assert "Install the [osm] extra to use this:" in html
+    assert html.index("uv add") < html.index("pip install") and html.count("data-copy") == 2
+    assert 'href="https://example.test/install/"' in html and "How to install" in html
+    both = node_module("extrasnotice.js", names, f'noticeHTML(["overture", "osm"], {json.dumps(INFO)})')
+    assert "[overture] and [osm] extras" in both and "x[osm,overture]" in both
+    assert node_module("extrasnotice.js", names, f"noticeHTML([], {json.dumps(INFO)})") == ""
+
+
+def test_related_explanation_is_generic_or_uses_the_real_answer(node_module):
+    names = ["relatedExplanation", "subjectOf", "GENERIC"]
+
+    def run(expr):
+        return node_module("relatedhelp.js", names, expr)
+
+    generic = run("GENERIC")
+    assert run("relatedExplanation({})") == generic
+    assert run('relatedExplanation({subject: "link 1", related: null})') == generic
+    text = " ".join(generic)
+    for key in ("lane.link_id = 17", "link_tod.link_id = 17", "link.from_node_id", "lane_tod.lane_id"):
+        assert key in text
+    assert run('subjectOf({table: "link", id: 17}, [1, 2])') == "link 17"
+    assert run("subjectOf(null, [1, 2])") == "2 highlighted links" and run("subjectOf(null, [])") == ""
+    node = {"table": "node", "hop": 1, "via": ["link.from_node_id"], "count": 2, "partial": False}
+    lane = {"table": "lane", "hop": 1, "via": ["lane.link_id"], "count": 1, "partial": False}
+    related = {"hops": 1, "tables": [node, lane]}
+    lines = run(f'relatedExplanation({{subject: "link 1", related: {json.dumps(related)}}})')
+    assert lines[0].startswith("For link 1") and "2 node rows (link.from_node_id)" in lines[1]
+    assert "1 lane row (lane.link_id)" in lines[1] and "Choose 2 steps" in lines[-1]
+    two = dict(related, hops=2)
+    lines = run(f'relatedExplanation({{subject: "link 1", related: {json.dumps(two)}}})')
+    assert "nothing more in this network" in lines[2]

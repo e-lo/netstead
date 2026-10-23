@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from corral.io import credentials as creds_mod
 from fastapi.testclient import TestClient
+from netstead import extras_probe
 from netstead.select.parse import StubParser
 from netstead.workbench import Session, build, build_app
 
@@ -148,6 +149,28 @@ def test_geocode_uses_short_timeout_and_no_retries(make_client):
     _, client = make_client(http=fake)
     assert client.get("/api/geocode", params={"q": "Durham"}).status_code == 200
     assert fake.timeouts == [10]
+
+
+def test_extras_reports_what_imports_and_the_install_commands(make_client):
+    _, client = make_client()
+    info = client.get("/api/extras").json()
+    assert info["installed"] == {"osm": True, "overture": True}  # the dev environment has every extra
+    uv = info["install"]["osm"]["uv"]
+    assert uv.startswith("uv add ") and "dbcorral @ " in uv and "netstead[osm] @ " in uv
+    assert info["install"]["osm"]["pip"].startswith("pip install ")
+    assert "netstead[osm,overture] @ " in info["install"]["osm,overture"]["uv"]
+    assert info["docs_url"] == "https://e-lo.github.io/netstead/netstead/install/"
+
+
+def test_extras_flags_a_missing_extra(make_client, monkeypatch):
+    real = extras_probe.probe_extra
+
+    def probe(module):
+        return (False, "ModuleNotFoundError") if module == "yaml" else real(module)
+
+    monkeypatch.setattr(extras_probe, "probe_extra", probe)
+    _, client = make_client()
+    assert client.get("/api/extras").json()["installed"] == {"osm": False, "overture": False}
 
 
 def test_estimate_local_osm(make_client, out_dir):

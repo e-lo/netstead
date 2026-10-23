@@ -219,7 +219,8 @@ Focus is a view. Clicking never changes the selection.
     early). Hover a tinted row to see which key relates it, for example `related via lane.link_id → link`.
   - With **Show → Related**, the **Related** control chooses how far to follow keys: **1 step** (direct references,
     such as the links at a node) or **2 steps** (references of references, such as then their lanes). It shows only
-    for that scope.
+    for that scope. The **i** button beside it explains Related with an example, using the real record counts when
+    something is highlighted or focused. 2 steps reaches new tables only; it never loops back to one already reached.
   - Related records are a read-only view. Nothing is recorded.
 
 ## Workspaces, panels and commands
