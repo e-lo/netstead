@@ -221,6 +221,7 @@ For example, the bundled project-cards plugin reads `[plugins.project_cards]`:
 | Key | Type | Default | Meaning | Applies |
 |---|---|---|---|---|
 | `plugins.project_cards.catalog_dir` | `str \| None` | `None` | A folder of ProjectCard files to open as the Cards panel's catalog on load (equivalent to calling `project_cards.open_catalog` once at startup). Must resolve inside `io.allowed_roots`. | next open |
+| `plugins.project_cards.enable_apply` | `bool` | `false` | Turn on applying catalog cards to a network (`project_cards.apply_card` and the Cards panel's **Apply…**). Off, `apply_card` is refused and the panel offers no Apply. The assistant is never offered `apply_card`. | live |
 
 ## See also
 

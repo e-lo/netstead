@@ -24,17 +24,22 @@ description run through core's natural-language **Select**, or a saved selection
 **Use these N links**, then fill in the form, **Preview** and **Add to card**. It dispatches the same Actions
 (`project_cards.preview`, `project_cards.add_change`) as the right-click entry point, which stays.
 
-The **Cards** panel has four sections, in order: **Catalog** (open a folder of cards; each card shows `✓` / `✗` / `?`
-for whether it applies to the open network, with **Preview**, **Apply…** and **Details**; files that are not cards
-are listed under "Not cards"), **Draft** (the compose, draft and commit UI above), **Applied this session** (cards
-committed or applied, newest first, marked `committed` or `catalog`) and **Session summary** (Copy and Download).
+The **Cards** panel has four sections, in order: **Catalog** (open a folder of cards; each card has a status pill, **Fits
+this network**, **Doesn't fit** (with its first reason) or **Not checked**, against the network the heading names, with **Preview**, **Apply…** (only with `enable_apply` on) and
+**Details**; files that are not cards
+are listed under "Not cards"), **Draft** (the compose, draft and commit UI above), **This session** (what the
+session did with cards, newest first with the time: "Saved <file>", the catalog file actions, and "Applied …" when
+`enable_apply` is on; `plugins.project_cards.session`) and **Session summary** (Copy and Download).
 
 **Edit** (on a catalog card) loads the card into the draft, as Import does, and remembers its file (a draft with
 uncommitted changes is replaced only when you confirm). **Remove** takes out any change of the draft (the later ones
 are re-applied, so the network ends as if it had never been made), **Edit…** removes a change and reopens its form,
 and **Commit…** offers **Save over <file>** or **Save as new file**.
 
-Each catalog card's **File** disclosure has **Rename…**, **Duplicate** (`<name>-copy.yml`), **Edit metadata…**
+The panel's actions are icon buttons (hover for the name): a catalog card's row reads **Preview**, **Inspect**,
+**Edit**, **Details** (its file and its check), then its file actions.
+
+Each catalog card's file actions are **Rename…**, **Duplicate** (`<name>-copy.yml`), **Edit metadata…**
 (project, tags, dependencies) and **Delete** (moves the file to a `.trash` folder inside the catalog folder, with
 **Undo delete** in the status line). Every write stays inside `io.allowed_roots` and the catalog folder, validates
 the card with `projectcard` first and never replaces a different file unless asked; the session summary lists them.
@@ -63,7 +68,8 @@ The library the Workbench pieces build on:
 the open network without changing it (`check_card`: the ids each change resolves, the ids the network lacks, and a
 reason when a change cannot be applied, such as a query selection without netstead provenance), previewed on a copy
 with the links it aims at highlighted (`preview_card`), and applied to the network through the same lowering as a
-draft change (`apply_card`, all or nothing, with `ignore_missing` and `existing_value_conflict` overrides). Cards
+draft change (`apply_card`, all or nothing, with `ignore_missing` and `existing_value_conflict` overrides; off unless
+the `enable_apply` setting is on). Cards
 applied this session, from the catalog or committed from the draft, are listed in `plugins.project_cards.applied`;
 `project_cards.session_summary` (and `GET /api/plugins/project_cards/summary.txt`) writes them up as plain text with
 the plugin's history for the session.
@@ -80,7 +86,7 @@ the plugin's history for the session.
 - Usable from Python (`app.do(...)`), over HTTP (`/api/actions`), from the command palette, and by the assistant: opt
   in with `assistant.plugins`. A local model is offered every Action except commit and import (which need a path)
   unless `assistant.compact_tools = "off"`. The catalog file Actions (rename, duplicate, delete, restore, update
-  metadata) are never offered to the assistant.
+  metadata) and `apply_card` are never offered to the assistant.
 
 **Routes** (read-only, for the panel): `GET /api/plugins/project_cards/form`, `/commit-check`, `/catalog` (the open
 catalog, checking unchecked cards a few at a time), `/card` (the Inspect view of a catalog card, `card_id=`, or of
@@ -88,6 +94,14 @@ the draft, `draft=true`: its changes with their targets and check, and the card'
 `host.readable`) and `/summary.txt`.
 
 **Settings** (`[plugins.project_cards]`): `catalog_dir`, a folder inside `io.allowed_roots` opened as the catalog when
-the session starts.
+the session starts; `enable_apply` (default `false`), which turns on applying catalog cards to a network
+(`project_cards.apply_card` and the panel's **Apply…**). Off, `apply_card` is refused with "applying cards is turned
+off (plugins.project_cards.enable_apply)" and the panel offers no Apply.
 
-Needs Host API 1.7 (`host.readable`, `host.list_dir`, `host.history`).
+Needs Host API 1.8 (`host.readable`, `host.list_dir`, `host.history`; `host.register_table` for the catalog
+table).
+
+**The catalog as a table**: the catalog is also the table view's read-only `cards_catalog` table (under "Plugins"
+in the table rail; **Show as table** in the Catalog section opens it): `card_id`, `project`, `tags` (a comma list,
+so "any of" matches a tag), `change_count`, `change_types`, `fits` (empty until checked), `reason`,
+`links_targeted` and `modified`. Sort and filter it there; clicking a row selects its card in the panel.

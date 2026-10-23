@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 import threading
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Literal
@@ -23,9 +23,12 @@ from .redact import scrub, scrub_source
 
 __all__ = [
     "COMPONENTS",
+    "NETWORK_TABLE_NAMES",
     "Component",
     "NetworkHandle",
     "NetworkRegistry",
+    "PluginTable",
+    "PluginTables",
     "as_pandas",
     "default_label",
     "derived_copy",
@@ -207,6 +210,163 @@ class NetworkHandle:
             "lineage": list(self.lineage),
             "derived_from": self.derived_from,
         }
+
+
+#: A plugin table's name: lowercase letters, digits and underscores, starting with a letter (as a plugin id).
+_TABLE_NAME = re.compile(r"[a-z][a-z0-9_]*")
+#: The names a network's own tables can have in the table view (``NetworkHandle.tables``): no plugin table takes one.
+NETWORK_TABLE_NAMES = frozenset(
+    {"link", "node", "geometry", *(name[:-1] if name.endswith("s") else name for name in _EXTRA_TABLES)}
+)
+
+
+def _rows_frame(rows: Any, columns: tuple[str, ...] | None, primary_key: str, name: str) -> pd.DataFrame:
+    """``rows`` (a DataFrame, or an iterable of dicts) as a frame with ``columns`` (all of them, in order, when given).
+
+    Raises ``ValueError`` when the frame has no ``primary_key`` column, or a key is missing or repeated.
+    """
+    frame = rows.copy() if isinstance(rows, pd.DataFrame) else pd.DataFrame(list(rows), columns=columns)
+    if columns is not None:
+        frame = frame.reindex(columns=list(columns))
+    elif frame.empty and not len(frame.columns):
+        frame = pd.DataFrame(columns=[primary_key])
+    if primary_key not in frame.columns:
+        raise ValueError(f"plugin table {name!r} has no {primary_key!r} column (its primary key)")
+    keys = frame[primary_key]
+    if keys.isna().any() or keys.duplicated().any():
+        raise ValueError(f"plugin table {name!r}: every row needs its own {primary_key!r}")
+    for column in frame.columns:  # yes/no with gaps (``None``: not known) is a nullable boolean, filtered as one
+        values = frame[column].dropna()
+        if frame[column].dtype == object and len(values) and values.map(lambda v: isinstance(v, bool)).all():
+            frame[column] = frame[column].astype("boolean")
+    return frame.reset_index(drop=True)
+
+
+@dataclass
+class PluginTable:
+    """A read-only table a plugin publishes to the table view (Host API 1.8, ``host.register_table``).
+
+    ``rows_fn()`` returns its rows (an iterable of dicts, or a pandas frame); :meth:`frame` builds them into a frame
+    once per ``key`` (the network the table view asks on, and its version) and per change the plugin publishes
+    (:meth:`changed`). The frame is served by the same routes as a network's tables, so sorting, the column filters
+    and the distinct values work as they do there; nothing writes to it.
+    """
+
+    owner: str
+    name: str
+    title: str
+    rows_fn: Callable[[], Any] = field(repr=False)
+    primary_key: str
+    columns: tuple[str, ...] | None = None
+    _generation: int = field(default=0, repr=False)
+    _cache: tuple[Any, pd.DataFrame] | None = field(default=None, repr=False)
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+
+    def frame(self, key: Any) -> pd.DataFrame:
+        """The table's rows as a frame, built by ``rows_fn()`` (outside the lock) unless one is cached for ``key``.
+
+        A frame built while the plugin published a change is returned but not cached. Raises whatever ``rows_fn``
+        raises, and ``ValueError`` for rows without their primary key.
+        """
+        with self._lock:
+            slot = (self._generation, key)
+            if self._cache is not None and self._cache[0] == slot:
+                return self._cache[1]
+        frame = _rows_frame(self.rows_fn(), self.columns, self.primary_key, self.name)
+        with self._lock:
+            if self._generation == slot[0]:
+                self._cache = (slot, frame)
+        return frame
+
+    def changed(self) -> None:
+        """Forget the cached frame: the next read calls ``rows_fn`` again."""
+        with self._lock:
+            self._generation += 1
+            self._cache = None
+
+    def describe(self) -> dict[str, Any]:
+        """What the table list says about it, besides its rows: owner, title, key, and that it is read-only."""
+        return {"plugin": self.owner, "title": self.title, "primary_key": self.primary_key, "read_only": True}
+
+
+class PluginTables:
+    """The read-only tables plugins publish to the table view, by name, in the order they were registered."""
+
+    def __init__(self) -> None:
+        """Start empty."""
+        self._tables: dict[str, PluginTable] = {}
+        self._lock = threading.Lock()
+
+    def register(
+        self,
+        owner: str,
+        name: str,
+        title: str,
+        rows_fn: Callable[[], Any],
+        *,
+        primary_key: str,
+        columns: Sequence[str] | None = None,
+    ) -> PluginTable:
+        """Publish ``owner``'s table ``name`` (registering a name again replaces the owner's own table).
+
+        Raises ``ValueError`` for a name that is not ``[a-z][a-z0-9_]*``, one of a network's table names, or another
+        plugin's table; for an empty title or key; and ``TypeError`` when ``rows_fn`` is not callable.
+        """
+        if not isinstance(name, str) or not _TABLE_NAME.fullmatch(name):
+            raise ValueError(f"{owner}: a table name matches [a-z][a-z0-9_]*; got {name!r}")
+        if name in NETWORK_TABLE_NAMES:
+            raise ValueError(f"{owner}: {name!r} is a network table's name")
+        if not isinstance(title, str) or not title.strip():
+            raise ValueError(f"{owner}: table {name!r} needs a title")
+        if not isinstance(primary_key, str) or not primary_key:
+            raise ValueError(f"{owner}: table {name!r} needs a primary_key column")
+        if not callable(rows_fn):
+            raise TypeError(f"{owner}: table {name!r}'s rows_fn must be callable")
+        cols = None if columns is None else tuple(str(c) for c in columns)
+        if cols is not None and primary_key not in cols:
+            raise ValueError(f"{owner}: table {name!r}'s columns must include its primary key {primary_key!r}")
+        table = PluginTable(owner, name, title.strip(), rows_fn, primary_key, cols)
+        with self._lock:
+            held = self._tables.get(name)
+            if held is not None and held.owner != owner:
+                raise ValueError(f"{owner}: the table {name!r} is the {held.owner} plugin's")
+            self._tables[name] = table
+        return table
+
+    def unregister(self, owner: str, name: str) -> bool:
+        """Take ``owner``'s table ``name`` out of the table view; ``False`` when it has none by that name."""
+        with self._lock:
+            held = self._tables.get(name)
+            if held is None or held.owner != owner:
+                return False
+            del self._tables[name]
+            return True
+
+    def drop_owner(self, owner: str) -> list[str]:
+        """Take every table of ``owner`` out (its plugin was unloaded); return their names."""
+        with self._lock:
+            names = [n for n, t in self._tables.items() if t.owner == owner]
+            for n in names:
+                del self._tables[n]
+            return names
+
+    def changed(self, owner: str) -> list[str]:
+        """``owner`` published a change: its tables are built again on their next read; return their names."""
+        with self._lock:
+            tables = [t for t in self._tables.values() if t.owner == owner]
+        for t in tables:
+            t.changed()
+        return [t.name for t in tables]
+
+    def get(self, name: str) -> PluginTable | None:
+        """The table called ``name`` (``None`` when no plugin publishes one)."""
+        with self._lock:
+            return self._tables.get(name)
+
+    def all(self) -> list[PluginTable]:
+        """Every plugin table, in registration order."""
+        with self._lock:
+            return list(self._tables.values())
 
 
 class NetworkRegistry:

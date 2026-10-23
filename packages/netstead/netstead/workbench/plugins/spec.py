@@ -27,7 +27,9 @@ __all__ = ["HOST_API", "ActionSpec", "WorkbenchPlugin", "api_compatible", "probl
 #: 1.6: Host.mutate and Host.undo refuse storage errors as ActionError (scrubbed); Host.mutate returns a Mutation
 #:      (results, seq); Host.pending_edits returns PendingEdits; Host.on_rollback; BaseAction.assistant_compact.
 #: 1.7: Host.readable and Host.list_dir (reading inside io.allowed_roots); Host.history (a read-only view).
-HOST_API = "1.7"
+#: 1.8: Host.register_table / Host.unregister_table (a read-only plugin table in the table view, rebuilt when the
+#:      plugin publishes); the browser's wb.showTable(name) and the core.table_row / core.table_changed events.
+HOST_API = "1.8"
 
 #: A plugin id: the namespace for its Action types, routes, state, settings and static files (``fullmatch``).
 _PLUGIN_ID = re.compile(r"[a-z][a-z0-9_]*")

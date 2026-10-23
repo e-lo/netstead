@@ -109,7 +109,7 @@ from .plugins.discovery import PluginStatus, discover
 from .plugins.host import Host, PluginSettingsError, validate_plugin_settings
 from .plugins.spec import HOST_API, WorkbenchPlugin, api_compatible, problems
 from .redact import describe_error, scrub
-from .registry import NetworkHandle, NetworkRegistry, as_pandas, derived_copy
+from .registry import NetworkHandle, NetworkRegistry, PluginTables, as_pandas, derived_copy
 from .selection import payload_keeping_links, selection_payload, unparsed_payload
 
 __all__ = [
@@ -402,6 +402,8 @@ class Session:
         #: missing key doesn't re-read the OS keyring on every Select (see :data:`_MISSING_KEY_TTL_S`).
         self._parser_failure: tuple[ProviderRegistry, float, MissingKey] | None = None
         self.registry = NetworkRegistry()
+        #: The read-only tables plugins publish to the table view (``host.register_table``, Host API 1.8).
+        self.plugin_tables = PluginTables()
         self.events = EventBus()
         self.active: str | None = None
         self.selection: dict[str, Any] | None = None
@@ -581,6 +583,7 @@ class Session:
         if not errors:
             errors = self._register_actions(plugin, host)
         if errors:
+            self.plugin_tables.drop_owner(plugin.id)  # tables its on_load registered go with it
             return replace(status, state="error", error="; ".join(errors), frontend=None)
         self.plugins[plugin.id] = plugin
         self._hosts[plugin.id] = host
@@ -593,11 +596,12 @@ class Session:
             return dict(self._plugin_mounts)
 
     def unload_plugin(self, plugin_id: str, error: str) -> None:
-        """Take an installed plugin out (Actions, state, mounts) and mark it ``error``: its mount failed to attach."""
+        """Take an installed plugin out (Actions, state, mounts, tables) and mark it ``error``: its mount failed."""
         with self._lock:
             plugin = self.plugins.pop(plugin_id)
             self._hosts.pop(plugin_id, None)
             self._plugin_mounts.pop(plugin_id, None)
+            self.plugin_tables.drop_owner(plugin_id)
             for spec in plugin.actions:
                 action_type = spec.model.action_type()
                 if action_type is not None and self.actions.has(action_type):

@@ -35,6 +35,7 @@ __all__ = [
     "CatalogEntry",
     "applicability",
     "card_targets",
+    "fit",
     "scan_catalog",
     "with_options",
 ]
@@ -69,6 +70,7 @@ class CatalogEntry:
             "tags": list(self.tags),
             "change_count": self.change_count,
             "applicability": self.applicability,
+            "fit": fit(self.applicability),
         }
 
 
@@ -186,6 +188,40 @@ def applicability(card: DraftCard, links: Any, nodes: Any) -> dict[str, Any]:
     return {"ok": all(oks), "changes": results}
 
 
+def fit(applicability: dict[str, Any] | None) -> dict[str, Any]:
+    """Whether a card fits the network, as the catalog's status pill shows it: ``{state, label, reasons, warnings}``.
+
+    ``state`` is ``fits``, ``no`` or ``unchecked``. ``reasons`` (for ``no``) are short, in order: the card's own
+    reason ("already applied ..."), then each change's ("conflict: ...", "missing link 999999", ...). ``warnings``
+    are the conflicts only warned about or skipped. ``net_id`` is the network it was checked on.
+
+    >>> fit(None)
+    {'state': 'unchecked', 'label': 'Not checked', 'reasons': [], 'warnings': [], 'net_id': None}
+    >>> fit({"ok": False, "net_id": "n", "changes": [{"reason": None, "lacks": ["link 9"]}]})["reasons"]
+    ['missing link 9']
+    """
+    if applicability is None:
+        return {"state": "unchecked", "label": "Not checked", "reasons": [], "warnings": [], "net_id": None}
+    changes = applicability.get("changes", [])
+    warnings = [w for c in changes for w in c.get("warnings", [])]
+    net = applicability.get("net_id")
+    if applicability.get("ok"):
+        return {"state": "fits", "label": "Fits this network", "reasons": [], "warnings": warnings, "net_id": net}
+    reasons = [applicability["reason"]] if applicability.get("reason") else []
+    for c in changes:
+        if c.get("reason"):
+            reasons.append(c["reason"])
+        elif c.get("lacks"):
+            reasons.append(f"missing {'; '.join(c['lacks'])}")
+    return {
+        "state": "no",
+        "label": "Doesn't fit",
+        "reasons": reasons or ["does not apply"],
+        "warnings": warnings,
+        "net_id": net,
+    }
+
+
 def _check(change: NetworkChange, links: Any, nodes: Any) -> dict[str, Any]:
     out: dict[str, Any] = {"describe": describe(change), "resolved": 0, "missing": [], "reason": None, "_ok": True}
     if change.type in TRANSIT_TYPES:
@@ -257,6 +293,7 @@ def _resolve(
     out["missing"] = [*out["missing"], *missing]
     if missing and not ignore_missing:
         out["_ok"] = False
+        out.setdefault("lacks", []).append(f"{table} {few(missing)}")  # what refuses it, for the fit's reasons
     return out
 
 

@@ -86,6 +86,7 @@ def test_open_catalog_lists_the_cards_and_the_rejected_files(session, folder):
         "tags": ["fix"],
         "change_count": 2,
         "applicability": None,
+        "fit": {"state": "unchecked", "label": "Not checked", "reasons": [], "warnings": [], "net_id": None},
     }
     assert [r["card_id"] for r in catalog["rejected"]] == ["notes.yml"]
     assert session.network(NET).version == 0  # nothing on the network changed
@@ -158,7 +159,8 @@ def test_apply_card_changes_the_network_and_records_it(session, folder, publishe
     assert applied["net_id"] == NET and applied["applied_at"].endswith("+00:00")
     assert NET not in state["drafts"]  # applied, not drafted: the card is already a file
     assert state["catalog"]["cards"][1]["applicability"] is None  # the network changed: checked again on demand
-    assert [e["name"] for e in published if e.get("type") == "plugin"] == ["catalog", "applied"]
+    own = [e["name"] for e in published if e.get("type") == "plugin" and e["plugin"] == "project_cards"]
+    assert own == ["catalog", "applied"]  # each also tells the table view (core.table_changed)
     assert session.history[-1].python == "app.do(ApplyCard(card_id='good.yml'))"
     assert sorted(folder.iterdir()) == sorted([folder / "good.yml", folder / "bad.yml", folder / "notes.yml"])
     undone = session.dispatch(UndoChange())  # an applied card is undone as a whole, not as a draft change

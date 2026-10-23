@@ -64,6 +64,33 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
 
 ### Changed
 
+- **The catalog as a table.** The plugin registers the table view's read-only `cards_catalog` (Host API 1.8,
+  `host.register_table`; the plugin now needs 1.8): `card_id`, `project`, `tags` (comma list), `change_count`,
+  `change_types`, `fits` (null until checked), `reason`, `links_targeted`, `modified` (the file's mtime, ISO).
+  **Show as table** in the Catalog section opens it (`wb.showTable`); a row click selects the card in the panel
+  (`core.table_row`). A check (`check_card`, or the `/catalog` listing's) publishes `project_cards.checked`, so the
+  table is read again.
+- **A status pill says whether a card fits.** The catalog's `✓` / `✗` / `?` glyph is now a pill: green "Fits this
+  network", red "Doesn't fit" (its first reason inline, every reason in the tooltip: "missing link 999999",
+  "conflict: …", "already applied …" with apply on) or gray "Not checked" with a check button
+  (`project_cards.check_card`). The heading reads "Catalog · checked against <network>". Each catalog entry
+  (`state()` and `GET /catalog`) carries `fit`: `{state: fits | no | unchecked, label, reasons, warnings, net_id}`
+  (`netstead_project_cards.catalog.fit`); a change's check lists `lacks` (`"link 999999"`) for the missing ids that
+  refuse it.
+- **"This session", not "Applied this session".** The panel's third section lists what the session did with cards,
+  newest first with the time and an icon: "Saved <file>" (a commit), the catalog file actions (renamed, duplicated,
+  deleted, restored, metadata edited) and "Applied <card> to <network>" only while `enable_apply` is on. It reads
+  `plugins.project_cards.session` (`{kind, verb, text, detail, card_id, at}` each), a log kept with the commit and
+  file records and taken back with them on a rollback. A committed record now carries `at`.
+- **Applying cards is off by default.** The new setting `[plugins.project_cards] enable_apply` (default `false`)
+  gates `project_cards.apply_card`: off, it is refused with "applying cards is turned off
+  (plugins.project_cards.enable_apply)", the panel offers no **Apply…** (`plugins.project_cards.enable_apply` in the
+  state says which), and a card saved this session no longer reads as "already applied". The assistant is never
+  offered `apply_card` (`assistant = False`). The apply code and its tests stay (run with the setting on).
+- **Icon buttons.** The Cards panel's per-card and per-section actions are icon buttons with a tooltip and an
+  accessible name that says what they act on (`iconbtn`, core's icons through `wb.icon`, plus a few drawn by the
+  panel; an older host shows their text). A catalog card's actions sit in one row; its **File** disclosure is gone
+  (the file actions are in the row, the path is under **Details**). The dialogs keep their text buttons.
 - **The panel is the dock's Cards tab.** It registers as `cards` (the bare id core reserves for this plugin), titled
   "Cards", between core's Edit and Validate tabs (order 25); it was `project_cards.draft`, titled "Card", last.
 - **A query selection without provenance reads; applying it is what is refused.** A card that selects links by a

@@ -13,6 +13,7 @@ import { addLayer } from "./map.js";
 import { activatePlugins, createErrorReporter } from "./pluginload.js";
 import { slots } from "./slots.js";
 import { activeSelection, store } from "./store.js";
+import { showTable } from "./table.js";
 import { createWb } from "./wbhost.js";
 import { addPanel, addWorkspace, restoreWorkspace, showPanel } from "./workspaces.js";
 
@@ -44,6 +45,6 @@ function hostDeps({ hostApi, actionTypes, schemas }) {
     hostApi, store, activeSelection, getJSON, postJSON, dispatch, fetch: (url, init) => fetch(url, init),
     events: hub, addCommand, layers: { register: addLayer }, dock: { addWorkspace, addPanel, showPanel },
     schemaForm, actionTypes, actionSchema: type => schemas.get(type) || null, toast, onError: reportPluginError,
-    frozenCopy, icon,
+    frozenCopy, icon, showTable,
   };
 }

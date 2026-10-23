@@ -24,7 +24,7 @@ export const keysChanged = (prev, next, keys) => keys.some(k => JSON.stringify(p
 
 // deps: {hostApi, store, activeSelection, getJSON, postJSON, fetch, dispatch, events: {on}, addCommand,
 //        layers: {register}, dock: {addWorkspace, addPanel, showPanel}, schemaForm, actionTypes, actionSchema,
-//        toast, onError(pluginId, phase, error), frozenCopy}
+//        toast, onError(pluginId, phase, error), frozenCopy, icon, showTable}
 export function createWb(pluginId, deps) {
   const disposers = [];
   let closed = false;
@@ -97,6 +97,11 @@ export function createWb(pluginId, deps) {
     },
     // Core's inline SVG icon `name` (icons.js) as markup, for a plugin's icon buttons; "" where the host has none.
     icon: name => (deps.icon ? deps.icon(name) : ""),
+    // Show the table `name` in the table pane (a table this plugin registered with host.register_table, Host API
+    // 1.8), opening the pane beside the map if only the map shows. Resolves once its rows are shown; rejects when no
+    // network is open or there is no such table. A row click in it emits `core.table_row` ({plugin, table, id}).
+    showTable: name => (deps.showTable ? deps.showTable(name)
+      : Promise.reject(new Error(`${pluginId}: this Workbench has no table view to show ${name} in`))),
   };
   const rollback = () => {
     closed = true;

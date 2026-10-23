@@ -291,7 +291,8 @@ def test_every_cards_action_that_changes_something_is_drafted_by_the_assistant(s
     types = {t for t in session.actions.types() if t.startswith("project_cards.")}
     assert types > READ_ONLY | FILE_ACTIONS
     assert {t for t in types if session.actions.model(t).mutates} == types - READ_ONLY - FILE_ACTIONS
-    assert {t for t in types if not session.actions.model(t).assistant} == FILE_ACTIONS
+    # apply_card is never offered: enable_apply is per session, the assistant's tool list per Action class.
+    assert {t for t in types if not session.actions.model(t).assistant} == FILE_ACTIONS | {"project_cards.apply_card"}
 
 
 def test_a_replayed_session_reproduces_the_network(session, make_session):

@@ -515,53 +515,63 @@ const snapshot = { plugins: { project_cards: { drafts: {}, preview: null,
 """
 
 
-def test_catalog_rows_badge_and_tip(run_js):
+def test_catalog_rows_carry_the_status_pill(run_js):
     got = run_js(
         MODEL,
-        'import { catalogRows, catalogOf } from "./cardmodel.js";'
+        'import { catalogRows, catalogOf, checkedAgainst } from "./cardmodel.js";'
         + CATALOG_SNAPSHOT
         + """
 const rows = catalogRows(snapshot);
 console.log(JSON.stringify({ rows, none: catalogRows({ plugins: { project_cards: { catalog: null } } }),
-  fresher: catalogRows(snapshot, { path: "/cards", cards: [entry("new.yml", ok)] }).map(r => r.badge),
-  open: catalogOf(snapshot).path }));
+  fresher: catalogRows(snapshot, { path: "/cards", cards: [entry("new.yml", ok)] }).map(r => r.fit),
+  open: catalogOf(snapshot).path, against: checkedAgainst(catalogOf(snapshot)),
+  unchecked: checkedAgainst({ cards: [entry("new.yml", null)] }), empty: checkedAgainst(null) }));
 """,
     )
     rows = {r["card_id"]: r for r in got["rows"]}
     assert [r["card_id"] for r in got["rows"]] == ["good.yml", "bad.yml", "query.yml", "new.yml"]
-    assert rows["good.yml"]["badge"] == "✓" and rows["good.yml"]["tip"] == "Applies to base"
+    pill = {k: (r["fit"], r["label"], r["reason"], r["tip"]) for k, r in rows.items()}
+    # No `fit` from the server here (an older one): the pill follows the applicability.
+    assert pill["good.yml"] == ("fits", "Fits this network", "", "Fits base")
+    assert pill["bad.yml"] == ("no", "Doesn't fit", "does not apply", "does not apply")
+    assert pill["new.yml"] == ("unchecked", "Not checked", "", "Not checked against this network yet")
     good = rows["good.yml"]
     assert (good["project"], good["changes"], good["tags"]) == ("Good", 2, ["a", "b"])
-    assert rows["bad.yml"]["badge"] == "✗" and rows["bad.yml"]["tip"] == "lanes on 3 links: missing 999999"
-    assert rows["query.yml"]["badge"] == "✗"
-    assert rows["query.yml"]["tip"] == "lanes on a query: query without provenance; re-resolution not supported"
-    assert rows["new.yml"]["badge"] == "?" and rows["new.yml"]["tip"] == "Not checked yet"
-    assert got["none"] == [] and got["fresher"] == ["✓"] and got["open"] == "/cards"
+    assert got["none"] == [] and got["fresher"] == ["fits"] and got["open"] == "/cards"
+    assert got["against"] == "base" and got["unchecked"] is None and got["empty"] is None
 
 
-def test_a_conflict_badge_is_a_cross_with_the_reason_in_its_tip(run_js):
+def test_the_pill_shows_the_servers_fit(run_js):
     got = run_js(
         MODEL,
-        'import { applicabilityBadge } from "./cardmodel.js";'
+        'import { fitPill } from "./cardmodel.js";'
         + """
-const conflict = { ok: false, net_id: "base", changes: [{ describe: "lanes on 4 links", resolved: 4, missing: [],
-  reason: "conflict: lanes: expected 1, found 2 on 4 of 4 links" }] };
-const warned = { ok: true, net_id: "base", changes: [{ describe: "lanes on 2 links", resolved: 2, missing: [],
-  reason: null, warnings: ["lanes: expected 1, found 2 on 2 of 2 links"] }] };
-const applied = { ok: false, net_id: "base", reason: "already applied on base at 09:05", changes: [] };
-console.log(JSON.stringify({ conflict: applicabilityBadge(conflict), warned: applicabilityBadge(warned),
-  applied: applicabilityBadge(applied) }));
+const fit = (state, reasons = [], warnings = []) => ({ fit: { state, reasons, warnings, net_id: "base" } });
+console.log(JSON.stringify({
+  no: fitPill(fit("no", ["missing link 999999", "conflict: lanes: expected 1, found 2 on 4 of 4 links"],
+                  ["lanes: expected 1, found 3 on 1 of 1 links"])),
+  warned: fitPill(fit("fits", [], ["lanes: expected 1, found 2 on 2 of 2 links"])),
+  applied: fitPill(fit("no", ["already applied on base at 09:05"])),
+  bare: fitPill(fit("no")), unchecked: fitPill(fit("unchecked")), nothing: fitPill(null),
+}));
 """,
     )
-    assert got["conflict"] == {
-        "badge": "✗",
-        "tip": "lanes on 4 links: conflict: lanes: expected 1, found 2 on 4 of 4 links",
+    assert got["no"] == {
+        "fit": "no",
+        "label": "Doesn't fit",
+        "reason": "missing link 999999",  # the first, shown inline
+        "tip": "missing link 999999\nconflict: lanes: expected 1, found 2 on 4 of 4 links\n"
+        "lanes: expected 1, found 3 on 1 of 1 links",
     }
     assert got["warned"] == {
-        "badge": "✓",
-        "tip": "Applies to base\nlanes on 2 links: lanes: expected 1, found 2 on 2 of 2 links",
+        "fit": "fits",
+        "label": "Fits this network",
+        "reason": "",
+        "tip": "Fits base\nlanes: expected 1, found 2 on 2 of 2 links",
     }
-    assert got["applied"] == {"badge": "✗", "tip": "already applied on base at 09:05"}
+    assert got["applied"]["reason"] == "already applied on base at 09:05"
+    assert got["bare"]["reason"] == "does not apply"
+    assert got["unchecked"]["fit"] == got["nothing"]["fit"] == "unchecked"
 
 
 def test_apply_defaults_ignore_missing_only_for_missing_ids(run_js):
@@ -585,21 +595,32 @@ console.log(JSON.stringify({ defaults: rows.map(r => [r.card_id, applyDefaults(r
     assert got["few"] == "1, 2, 3, 4, 5 (+2 more)"
 
 
-def test_applied_rows_newest_first(run_js):
+def test_session_rows_carry_the_verb_the_icon_and_the_time(run_js):
     got = run_js(
         MODEL,
-        'import { appliedRows, summaryFileName } from "./cardmodel.js";'
-        + CATALOG_SNAPSHOT
+        'import { sessionRows, summaryFileName } from "./cardmodel.js";'
         + """
-console.log(JSON.stringify({ rows: appliedRows(snapshot), none: appliedRows({}),
+const at = t => `2026-10-21T${t}+00:00`;
+const session = [
+  { kind: "renamed", verb: "Renamed", text: "Renamed a.yml to b.yml", detail: "", card_id: "a.yml",
+    at: at("10:20:00") },
+  { kind: "applied", verb: "Applied", text: "Applied c.yml to base", detail: "1 change(s)", card_id: "c.yml",
+    at: at("10:15:30") },
+  { kind: "saved", verb: "Saved", text: "Saved q.yml", detail: "2 change(s) from base", card_id: "q",
+    at: at("09:05:00") },
+  { kind: "someday", verb: "Did", text: "Did x", card_id: "x", at: at("08:00:00") },
+];
+const state = { plugins: { project_cards: { session } } };
+console.log(JSON.stringify({ rows: sessionRows(state), none: sessionRows({}),
   name: [summaryFileName("leavenworth"), summaryFileName(null)] }));
 """,
     )
-    assert [(r["card_id"], r["source"], r["time"], r["changes"]) for r in got["rows"]] == [
-        ("second", "catalog", "10:15", 1),
-        ("first", "committed", "09:05", 2),
+    assert [(r["kind"], r["icon"], r["text"], r["detail"], r["time"]) for r in got["rows"]] == [
+        ("renamed", "rename", "Renamed a.yml to b.yml", "", "10:20"),
+        ("applied", "check-circle", "Applied c.yml to base", "1 change(s)", "10:15"),
+        ("saved", "save", "Saved q.yml", "2 change(s) from base", "09:05"),
+        ("someday", "info", "Did x", "", "08:00"),  # a kind this panel does not know yet still shows
     ]
-    assert got["rows"][0]["project"] == "Second"
     assert got["none"] == []
     assert got["name"] == ["leavenworth-cards-session.txt", "network-cards-session.txt"]
 
@@ -633,6 +654,7 @@ await ctl.applyCard("a.yml", { existing_value_conflict: "warn", ignore_missing: 
 const closed = cards.preview;
 await ctl.previewCard("a.yml", "base");
 const text = await ctl.summary("base");
+await ctl.checkCard("a.yml", "base");
 cards.catalog = null;
 const gone = [ctl.catalog(), ctl.catalogChanged()];
 console.log(JSON.stringify({ none, opened, again, fresher, other, closed, text, gone,
@@ -653,6 +675,8 @@ console.log(JSON.stringify({ none, opened, again, fresher, other, closed, text, 
         "project_cards.close_preview",
         "project_cards.preview_card",
         "/summary.txt?net_id=base",
+        "project_cards.check_card",
+        "/catalog?net_id=base",  # the listing is read again after a check
     ]
     apply = next(c[1] for c in got["calls"] if c[0] == "dispatch" and c[1]["type"] == "project_cards.apply_card")
     assert apply == {
@@ -804,8 +828,8 @@ def test_commit_choices_and_the_edit_prompt(run_js):
 import { baseName, commitChoices, editPrompt } from "./cardmodel.js";
 const fields = { project: "P", path: "/cards/main.yml", tags: [], overwrite: false, net_id: "base" };
 const source = { card_id: "main.yml", path: "/cards/main.yml" };
-const good = { project: "Main", badge: "✓", tip: "Applies to base" };
-const bad = { project: "Main", badge: "✗", tip: "lanes on 1 link: missing 9" };
+const good = { project: "Main", fit: "fits", tip: "Fits base" };
+const bad = { project: "Main", fit: "no", tip: "missing link 9" };
 console.log(JSON.stringify({
   plain: commitChoices(fields),
   same: commitChoices(fields, source),
@@ -826,13 +850,13 @@ console.log(JSON.stringify({
     assert got["other"]["disabled"] == "" and got["other"]["fields"]["overwrite"] is False  # never replaces
     assert got["names"] == ["c.yml", "d.json", "", ""]
     assert got["empty"] == {"replace": False, "ask": ""}
-    assert got["emptyBad"] == "Main does not apply to this network as it is: lanes on 1 link: missing 9"
+    assert got["emptyBad"] == "Main does not fit this network as it is: missing link 9"
     assert got["one"]["replace"] is True
     assert got["one"]["ask"] == (
         "The draft card has 1 uncommitted change. Edit undoes it (network edits included) and loads Main instead."
     )
     assert got["two"].startswith("The draft card has 2 uncommitted changes. Edit undoes them")
-    assert got["two"].endswith("as it is: lanes on 1 link: missing 9")
+    assert got["two"].endswith("as it is: missing link 9")
 
 
 def test_the_controller_removes_edits_and_loads_cards(run_js):

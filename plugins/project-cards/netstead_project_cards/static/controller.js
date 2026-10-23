@@ -280,6 +280,14 @@ export function createController(wb) {
     return now !== "null";
   }
 
+  // Check one catalog card against `netId` (project_cards.check_card, read only), then read the listing again.
+  async function checkCard(cardId, netId = null) {
+    const result = await wb.api.dispatch({ type: "project_cards.check_card", card_id: cardId,
+      ...(netId ? { net_id: netId } : {}) });
+    await loadCatalog(netId);
+    return result;
+  }
+
   const openCatalog = path => wb.api.dispatch({ type: "project_cards.open_catalog", path });
   const refreshCatalog = () => wb.api.dispatch({ type: "project_cards.refresh_catalog" });
 
@@ -336,7 +344,7 @@ export function createController(wb) {
     ...Object.fromEntries(Object.entries({
       preview, closePreview, add, cancel, undo, commit, importCard, reload, openCatalog, refreshCatalog, previewCard,
       applyCard, beginCreate, chooseCreateType, useFacility, backCreate, selectByText, removeChange, editCard,
-      editChange, renameCard, duplicateCard, deleteCard, restoreCard, updateCardMeta,
+      editChange, renameCard, duplicateCard, deleteCard, restoreCard, updateCardMeta, checkCard,
     }).map(([name, step]) => [name, oneAtATime(step)])),
   };
 }

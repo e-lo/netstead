@@ -47,8 +47,10 @@ def _session(tmp_path: Path, isolated_env: dict[str, str]) -> Session:
     return s
 
 
-def test_this_netstead_provides_host_api_1_7():
-    assert HOST_API == "1.7"
+def test_this_netstead_provides_host_api_1_7_or_newer():
+    from netstead.workbench.plugins.spec import api_compatible
+
+    assert api_compatible("1.7", HOST_API)
 
 
 # ---------------------------------------------------------------------------- readable

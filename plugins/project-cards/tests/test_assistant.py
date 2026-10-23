@@ -104,11 +104,12 @@ COMPACT = {
     "preview",
     "close_preview",
     "preview_card",
-    "apply_card",
     "edit_card",
 }
 COMPACT |= READ_ONLY
 EVERY = COMPACT | {"commit", "import"}
+#: Applying a catalog card is never offered (``enable_apply`` is per session; see ApplyCard).
+NOT_OFFERED = {"apply_card"}
 DRAFTED = EVERY - READ_ONLY
 
 
@@ -123,3 +124,10 @@ def test_a_local_model_gets_the_everyday_cards_tools_while_tools_are_compact(mak
     session.assistant.plan("hello")
     names = {t.name for t in provider.requests[0].tools}
     assert {n.removeprefix("project_cards__") for n in names if n.startswith("project_cards__")} == offered
+
+
+@pytest.mark.parametrize("enable_apply", [False, True])
+def test_applying_a_card_is_never_offered_to_the_assistant(make_session, enable_apply):
+    session = make_session(overrides=OPTED_IN, enable_apply=enable_apply)
+    offered = {s.action_type.removeprefix("project_cards.") for s in tool_specs(session) if s.plugin == "project_cards"}
+    assert offered == EVERY and not offered & NOT_OFFERED

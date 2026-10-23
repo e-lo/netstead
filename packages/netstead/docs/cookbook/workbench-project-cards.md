@@ -132,20 +132,33 @@ distinct from the draft you build above.
   starts (see the [Settings reference](../reference/settings.md)). The folder is
   scanned non-recursively, plus one level of sub-folders, for `.yml` / `.yaml` / `.json` card files; files that
   are not cards are listed with why not. **Refresh** rescans (new, changed and removed files).
-- **Applicability badges.** Each listed card shows `✓` (it applies cleanly to the network as it is now), `✗`
-  (some ids are missing, a property's `existing` value differs from the network's and the card says
-  `existing_value_conflict: error`, the card was already applied on this network this session, or a change can't
-  be applied — hover for the reason; `warn` and `skip` conflicts stay `✓` and list a warning), or `?` (not checked yet; the
-  panel checks up to 50 unchecked cards per request). A query selection with no netstead provenance reads and
+- **Does it fit?** Each listed card has a status pill, and the section's heading names the network they were
+  checked against ("Catalog · checked against leavenworth"). A green **Fits this network** pill means the card
+  applies cleanly to the network as it is now (`warn` and `skip` conflicts still fit; hover for the warning). A red
+  **Doesn't fit** pill has its first reason beside it in small text, and every reason in its tooltip: "missing link
+  999999", "conflict: lanes: expected 1, found 2 on 1 of 1 links" (a property's `existing` value differs and the card
+  says `existing_value_conflict: error`), "already applied on leavenworth at 10:15" (with `enable_apply` on), or why
+  a change can't be applied. A gray **Not checked** pill has a check button beside it; the panel also checks up to 50
+  unchecked cards per request. A query selection with no netstead provenance reads and
   lists fine, but is refused when applying: "query without provenance; re-resolution not supported".
+- **Show as table** (the table icon beside the folder) opens the catalog in the table pane as the read-only
+  **Cards catalog** table (listed under "Plugins" in the table rail): one row per card with `card_id`, `project`,
+  `tags`, `change_count`, `change_types`, `fits`, `reason`, `links_targeted` and `modified`. Sort it by any column
+  and filter it with the column funnels (**any of** on `tags` picks the cards with a tag); clicking a row brings the
+  Cards tab forward with that card marked. The table follows the catalog: a rescan, a check or a file action reads
+  it again.
 - **Preview** shows every change of the card on a copy of the network (as in step 4 above) and highlights the
   links and nodes it targets on the map, so you can see what it touches before committing to it.
-- **Apply…** applies the card to the network, all or nothing, through the same path as a draft change — no file
+- **Apply…** (only when `[plugins.project_cards] enable_apply = true`; it is off by default, and
+  `project_cards.apply_card` is refused while it is) applies the card to the network, all or nothing, through the
+  same path as a draft change — no file
   is written, since the card already exists. Its dialog offers **If a current value differs when the card is
-  applied** (`existing_value_conflict`: error / warn / skip) and, for a `✗` card, **ignore missing ids**: with it
+  applied** (`existing_value_conflict`: error / warn / skip) and, for a card that doesn't fit, **ignore missing ids**: with it
   checked, a missing id is skipped and listed instead of refusing the whole card.
-- **Applied this session** lists every card applied this session, from the catalog or committed from the draft,
-  with its project name, change count and edit ids.
+- **This session** lists what this session did with cards, newest first, each with an icon, a verb and the time:
+  **Saved <file>** for a draft committed to a file, **Renamed**, **Duplicated**, **Deleted**, **Restored** and
+  **Edited the metadata of** for the catalog file actions, and **Applied <card> to <network>** when `enable_apply`
+  is on. Saving a card does not apply it to anything: its changes were already on the network as the draft.
 - **Session summary** builds a plain-text summary (network, source, spec version; the applied cards with their
   edit ids; the draft, if any; and this plugin's actions in order, each ok or failed) with **Copy** and
   **Download** buttons. `GET /api/plugins/project_cards/summary.txt` serves the same text.
@@ -159,7 +172,7 @@ the draft: **Remove** or **Edit…** its changes, or add new ones (see [Undo](#u
 
 - If the draft already has uncommitted changes, Edit asks first: **Replace the draft** undoes them (network edits
   included) and loads the card instead.
-- Edit applies the card to the network, so it needs a network the card applies to (a `✓` badge). A card committed
+- Edit applies the card to the network, so it needs a network the card applies to (a **Fits this network** pill). A card committed
   in this session is already on its network: reopen the network (or open another copy) to edit it.
 - **Commit…** then offers **Save over main.yml** (replace the card's file) or **Save as new file** (the **Card
   file** field, which must name another file; an existing one is replaced only with **Replace an existing file**).
@@ -169,7 +182,8 @@ From Python: `project_cards.edit_card(card_id, replace_draft=False)` and `projec
 
 ### Manage the catalog's files
 
-Each catalog card has a **File** disclosure with its path and four buttons. Each one is a recorded Action, listed in
+Each catalog card's row of icon buttons (hover one for its name) ends with four file actions; **Details** shows the
+card's path. Each one is a recorded Action, listed in
 the session summary under **Catalog files**; the catalog is rescanned after it. They change files, not the network,
 and the assistant is not offered them.
 

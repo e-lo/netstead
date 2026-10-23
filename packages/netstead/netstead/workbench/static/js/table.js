@@ -1,17 +1,21 @@
 // Data-table view: a server-paged/sorted/filtered grid linked both ways to the map. A row click focuses
 // the record (never a recorded selection: see linking.js); the scope menu filters to the selection, the
 // highlights, the records related to them, or the links the recorded Filter matches; related rows are tinted; FK
-// cells jump to their target.
+// cells jump to their target. The plugins' read-only tables (Host API 1.8) are listed after the network's, under
+// "Plugins": sorted and filtered the same way, never edited, scoped or linked to the map; a row click is handed to
+// their plugin as a `core.table_row` event.
 import { dispatch, getJSON, netPath, postJSON } from "./api.js";
 import { openContextMenu } from "./ctxmenu.js";
 import { $, esc, toast } from "./dom.js";
 import { cellAction, cellEditable, cellOptions, cellSample, cellWarnings, listOptions, shouldApplyOnLeave } from "./editmodel.js";
 import { createGridFilter } from "./gridfilter.js";
 import { HOPS_TIP, hopsFromValue, hopsView } from "./hops.js";
+import { hub } from "./hub.js";
 import { icon } from "./icons.js";
 import { relatedExplanation, subjectOf } from "./relatedhelp.js";
 import { recordIssues } from "./issuelist.js";
 import { clampOffset, coerceId, combinedFilter, pageOffset, rowMarks, rowsRequest, scopeHint } from "./linking.js";
+import { pluginHint, pluginRowsQuery, pluginTableTip, splitTables, tableChanged, tableRowEvent } from "./plugintables.js";
 import { resizeSoon } from "./map.js";
 import { renderRelatedBadges } from "./related.js";
 import { activeSelection, store } from "./store.js";
@@ -19,8 +23,12 @@ import { rememberView, restoredView } from "./tabs.js";
 
 // `filters` is the table's column-filter model (gridfilter.js): the header's funnel buttons open the `#col-filter`
 // popover that sets one column's spec, the `#tbl-chips` strip shows and removes them, `query()` sends its conditions.
+// `plugins` maps a plugin table's name to its `/tables` entry; `plugin` is the shown table's entry (null: the
+// network's own); `want` is the table showTable asked for while the rail was still loading.
 const TBL = { loaded: false, name: null, schema: null, offset: 0, limit: 100, sort: null, dir: "asc",
-  filters: createGridFilter(), total: 0, seq: 0 };
+  filters: createGridFilter(), total: 0, seq: 0, plugins: new Map(), plugin: null, want: null };
+// The rail's load while it runs (showTable waits for it).
+let tablesLoading = null;
 const VIEWS_KEY = "netstead.views";         // workspace id -> its view (map | split | table)
 const LEGACY_VIEW_KEY = "netstead.viewmode"; // the one view remembered before workspaces
 const SEARCH_ABOVE = 12; // a value checklist longer than this gets a search box
@@ -66,7 +74,7 @@ export function setViewMode(mode) {
 }
 
 export function onNetworkChanged() {
-  Object.assign(TBL, { loaded: false, name: null, schema: null });
+  Object.assign(TBL, { loaded: false, name: null, schema: null, plugin: null });
   TBL.seq++; clearTimeout(rowsTimer); // drop pages still loading for the old network
   optionsCache.clear();
   TBL.filters.clear(); closeFilterPopover(); renderChips();
@@ -109,33 +117,76 @@ export function refreshRows({ restart = false } = {}) {
   }, 100);
 }
 
-async function loadTables() {
+function loadTables() {
+  tablesLoading = fillRail().finally(() => { tablesLoading = null; });
+  return tablesLoading;
+}
+
+async function fillRail() {
   const id = activeId();
   if (!id) return;
   TBL.loaded = true;
   const j = await getJSON(netPath(id, "tables"));
   const rail = $("tbl-rail");
   rail.innerHTML = "";
-  for (const t of j.tables) {
+  const { core, plugin } = splitTables(j.tables);
+  TBL.plugins = new Map(plugin.map(t => [t.name, t]));
+  const item = (t, label, tip) => {
     const el = document.createElement("div");
-    el.className = "tbl-item"; el.dataset.name = t.name;
-    el.innerHTML = `<span>${esc(t.name)}</span><span class="rc">${t.rows.toLocaleString()}</span><span class="rel-badge"></span>`;
+    el.className = `tbl-item${t.plugin ? " ro" : ""}`; el.dataset.name = t.name;
+    if (tip) el.title = tip;
+    el.innerHTML = `<span>${esc(label)}</span><span class="rc">${t.rows.toLocaleString()}</span><span class="rel-badge"></span>`;
     el.onclick = () => selectTable(t.name).catch(fail);
     rail.appendChild(el);
+  };
+  for (const t of core) item(t, t.name, "");
+  if (plugin.length) {
+    const head = document.createElement("div");
+    head.className = "label tbl-head";
+    head.style.cssText = "padding:10px 12px 4px;font-size:11px;color:var(--muted)";
+    head.textContent = "Plugins";
+    rail.appendChild(head);
+    for (const t of plugin) item(t, t.title || t.name, pluginTableTip(t));
   }
   renderRelatedBadges(store.get().related);
-  if (j.tables.length) await selectTable(TBL.name || j.tables[0].name);
+  const want = TBL.want && j.tables.some(t => t.name === TBL.want) ? TBL.want : null;
+  TBL.want = null;
+  const keep = j.tables.some(t => t.name === TBL.name) ? TBL.name : null;
+  if (j.tables.length) await selectTable(want || keep || j.tables[0].name);
 }
 
 export async function selectTable(name) {
-  Object.assign(TBL, { name, offset: 0, sort: null, dir: "asc" });
+  Object.assign(TBL, { name, offset: 0, sort: null, dir: "asc", plugin: TBL.plugins.get(name) || null,
+    picked: null });
   TBL.filters.clear(); closeFilterPopover(); renderChips();
   located = null;
   for (const el of document.querySelectorAll(".tbl-item")) el.classList.toggle("on", el.dataset.name === name);
   TBL.schema = await getJSON(netPath(activeId(), `table/${encodeURIComponent(name)}/schema`));
-  $("tbl-name").textContent = name;
+  $("tbl-name").textContent = TBL.plugin ? `${TBL.plugin.title || name} (read-only)` : name;
+  // A plugin's table is never scoped to the selection or the related records: it lists every row (its filters apply).
+  $("tbl-scope").disabled = Boolean(TBL.plugin);
+  $("tbl-scope").title = TBL.plugin ? "A plugin's table lists all its rows; filter them with the column funnels" : "";
   buildGridHeader();
   await loadRows();
+}
+
+// Show the table `name` (a plugin's, say) in the table pane: the pane opens beside the map when only the map shows
+// (wb.showTable, Host API 1.8). Rejects when no network is open or it has no table by that name.
+export async function showTable(name) {
+  if (!activeId()) throw new Error("Open a network first: the table pane shows its tables");
+  TBL.want = name;
+  if (!tableVisible()) setViewMode("split"); // loads the rail when it isn't yet; the load opens TBL.want
+  else if (!TBL.loaded) loadTables().catch(fail);
+  if (tablesLoading) await tablesLoading;
+  if (TBL.want !== name) { // the rail's load took it
+    if (TBL.name !== name) throw new Error(`no table ${name} in this network's table view`);
+    return;
+  }
+  TBL.want = null;
+  if (!document.querySelector(`.tbl-item[data-name="${CSS.escape(name)}"]`)) {
+    throw new Error(`no table ${name} in this network's table view`);
+  }
+  if (TBL.name !== name) await selectTable(name);
 }
 
 const gridColumns = () => TBL.schema.columns.filter(c => c.kind !== "geom");
@@ -324,6 +375,10 @@ function renderChips() {
 }
 
 function query() {
+  if (TBL.plugin) {
+    return pluginRowsQuery({ offset: TBL.offset, limit: TBL.limit, sort: TBL.sort, dir: TBL.dir,
+      conditions: TBL.filters.conditions() });
+  }
   const s = store.get();
   const viewFilter = s.server && s.server.filters ? s.server.filters[s.server.active] : null;
   return { offset: TBL.offset, limit: TBL.limit, sort: TBL.sort, dir: TBL.dir,
@@ -345,7 +400,8 @@ async function loadRows() {
   const to = Math.min(TBL.offset + TBL.limit, j.total);
   $("tbl-total").textContent = `· ${j.total.toLocaleString()} row(s)`;
   $("tbl-range").textContent = j.total ? `${TBL.offset + 1}–${to} of ${j.total.toLocaleString()}` : "0";
-  $("tbl-hint").textContent = scopeHint(store.get().tableScope, j.total, TBL.name);
+  $("tbl-hint").textContent = TBL.plugin ? pluginHint(TBL.plugin, j.total)
+    : scopeHint(store.get().tableScope, j.total, TBL.name);
   $("tbl-prev").disabled = TBL.offset <= 0;
   $("tbl-next").disabled = to >= j.total;
   await revealFocus();
@@ -385,19 +441,22 @@ function renderRows(cols, rows, vias) {
     // its tooltip and a warning icon after its text: a kept-but-warned edit is never mistaken for a dropped one.
     const tds = r.map((v, c) => {
       const msgs = rw && rw[cols[c]];
-      const cls = [msgs ? "warn" : "", cellEditable(schemaCols.get(cols[c]), pk) ? "" : "ro"].filter(Boolean).join(" ");
+      const editable = !TBL.plugin && cellEditable(schemaCols.get(cols[c]), pk);
+      const cls = [msgs ? "warn" : "", editable ? "" : "ro"].filter(Boolean).join(" ");
       return `<td data-c="${c}"${cls ? ` class="${cls}"` : ""}${msgs ? ` title="${esc(msgs.join("\n"))}"` : ""}>` +
         `${cellHTML(v, fks.get(cols[c]), focused)}${msgs ? icon("alert-triangle", { size: 12 }) : ""}</td>`;
     }).join("");
-    return `<tr class="data ${marks.join(" ")}" data-pk="${pv == null ? "" : esc(pv)}"${title}>${tds}</tr>`;
+    const picked = TBL.plugin && pv != null && String(pv) === String(TBL.picked) ? " focus" : "";
+    return `<tr class="data ${marks.join(" ")}${picked}" data-pk="${pv == null ? "" : esc(pv)}"${title}>${tds}</tr>`;
   }).join("");
   for (const tr of body.querySelectorAll("tr.data")) tr.onclick = e => {
+    if (TBL.plugin) { pluginRowClick(tr); return; }
     const td = e.target.closest("td[data-c]");
     if (tr.classList.contains("focus") && td && !td.classList.contains("ro")) startCellEdit(tr, td);
     else rowClick(tr.dataset.pk);
   };
   for (const tr of body.querySelectorAll("tr.data")) tr.oncontextmenu = e => {
-    if (tr.dataset.pk === "" || !TBL.schema.primary_key) return;
+    if (TBL.plugin || tr.dataset.pk === "" || !TBL.schema.primary_key) return;
     const target = { table: TBL.name, id: coerceId(tr.dataset.pk, pkNumeric()) };
     if (openContextMenu("row", target, { x: e.clientX, y: e.clientY })) e.preventDefault();
   };
@@ -412,6 +471,16 @@ function renderRows(cols, rows, vias) {
 function rowClick(pkVal) {
   if (pkVal === "" || !TBL.schema || !TBL.schema.primary_key) return;
   store.set({ focus: { table: TBL.name, id: coerceId(pkVal, pkNumeric()), from: "table" } });
+}
+
+// A row click in a plugin's table: the row is marked here, and its plugin hears of it (`core.table_row`); nothing
+// on the map or in the shared focus changes.
+function pluginRowClick(tr) {
+  if (tr.dataset.pk === "" || !TBL.plugin) return;
+  for (const row of $("tbl-grid").querySelectorAll("tr.focus")) row.classList.remove("focus");
+  tr.classList.add("focus");
+  TBL.picked = tr.dataset.pk; // marked again when the rows reload
+  hub.emit("core.table_row", tableRowEvent(TBL.plugin, coerceId(tr.dataset.pk, pkNumeric())));
 }
 
 // The values a text column's editor offers: the spec's allowed values at once, the column's existing values (or,
@@ -434,7 +503,7 @@ const fillOptions = values => { $("cell-opts").innerHTML = values.map(v => `<opt
 // what was typed: a failed entry never leaves the old value looking applied, nor sends it. Leaving again with the
 // same refused text closes the editor (not a loop of refusals the user cannot escape).
 function startCellEdit(tr, td) {
-  if (editing) return;
+  if (editing || TBL.plugin) return;
   const c = Number(td.dataset.c), column = TBL.cols[c], row = TBL.rows[[...tr.parentNode.children].indexOf(tr)];
   const col = TBL.schema.columns.find(x => x.name === column);
   if (!row || !cellEditable(col, TBL.schema.primary_key)) return;
@@ -515,6 +584,7 @@ export function onFocusChanged() { located = null; revealFocus().catch(fail); }
 
 // Bring the focused row into view: mark it on this page, or locate its page once and load it.
 async function revealFocus() {
+  if (TBL.plugin) return; // the shared focus is a network record's; a plugin table marks its own pick
   const f = store.get().focus;
   for (const tr of $("tbl-grid").querySelectorAll("tr.focus")) tr.classList.remove("focus");
   if (!f || !tableShowing(f.table) || !TBL.schema) return;
@@ -556,6 +626,12 @@ function wireHopsHelp() {
 
 export function wireTable() {
   wireHopsHelp();
+  // A plugin published a change to its tables: the rail's counts, and the rows of the one showing, are read again.
+  hub.on("core.table_changed", payload => {
+    if (!TBL.loaded) return;
+    refreshRail().catch(fail);
+    if (TBL.plugin && tableChanged(payload, TBL.name)) refreshRows();
+  });
   for (const b of document.querySelectorAll("#viewmode button")) b.onclick = () => setViewMode(b.dataset.mode);
   $("tbl-prev").onclick = () => { if (TBL.offset > 0) { TBL.offset = Math.max(0, TBL.offset - TBL.limit); refreshRows(); } };
   $("tbl-next").onclick = () => { if (TBL.offset + TBL.limit < TBL.total) { TBL.offset += TBL.limit; refreshRows(); } };
