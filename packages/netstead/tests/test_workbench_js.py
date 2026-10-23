@@ -1471,3 +1471,54 @@ def test_tab_labels_say_what_the_badge_means(node_module):
         ' tabLabel("Find", {text: "16", title: "16 selected links"}), tabLabel("Find", 3), countOf(0, "edit")]',
     )
     assert got == ["Edit — 1 unsaved edit", "Edit", "Find — 16 selected links", "Find — 3", "0 edits"]
+
+
+STYLE_ON = {"color_by": "facility_type", "node_color_by": "ctrl_type"}
+STYLE_OFF = {"color_by": "none", "node_color_by": "none"}
+
+
+def _patch(node_module, kind, style):
+    return node_module(
+        "viewmodel.js", ["swatchPatch"], f"swatchPatch({json.dumps(kind)}, [1, 2, 3], {json.dumps(style)})"
+    )
+
+
+def test_a_swatch_pick_turns_off_that_layers_color_by_in_the_same_action(node_module):
+    assert _patch(node_module, "nodes", STYLE_ON) == {"colors": {"nodes": [1, 2, 3]}, "node_color_by": "none"}
+    assert _patch(node_module, "links", STYLE_ON) == {"colors": {"links": [1, 2, 3]}, "color_by": "none"}
+    assert _patch(node_module, "nodes", STYLE_OFF) == {"colors": {"nodes": [1, 2, 3]}}
+    assert _patch(node_module, "selection", STYLE_ON) == {"colors": {"selection": [1, 2, 3]}}
+
+
+def test_swatch_tooltips_say_when_a_color_by_is_on(node_module):
+    def tip(kind, style):
+        return node_module("viewmodel.js", ["swatchTip"], f"swatchTip({json.dumps(kind)}, {json.dumps(style)})")
+
+    assert tip("nodes", STYLE_ON) == "Single color (turns off Color nodes by: ctrl_type)"
+    assert tip("links", STYLE_ON) == "Single color (turns off Color links by: facility_type)"
+    assert tip("nodes", STYLE_OFF) == "Node color"
+
+
+def test_folded_view_sections_round_trip_and_survive_bad_storage(node_module):
+    names = ["parseClosed", "serializeClosed"]
+    assert node_module("viewmodel.js", names, 'serializeClosed(new Set(["width", "color"]))') == '["color","width"]'
+    assert node_module("viewmodel.js", names, '[...parseClosed(\'["color","width"]\')]') == ["color", "width"]
+    for raw in ("null", "'{bad'", "'{}'", "'[1, \"a\"]'"):
+        expected = ["a"] if raw.startswith("'[1") else []
+        assert node_module("viewmodel.js", names, f"[...parseClosed({raw})]") == expected
+
+
+def test_a_click_picks_nodes_over_links_and_never_a_hidden_layer(node_module):
+    def pick(hits, show, hidden=()):
+        expr = f"pickPriority({json.dumps(hits)}, {json.dumps({'show': show})}, new Set({json.dumps(list(hidden))}))"
+        return node_module("pickmodel.js", ["pickPriority"], expr)
+
+    both = [{"layerId": "links", "index": 4}, {"layerId": "nodes", "index": 2}]
+    on = {"links": True, "nodes": True}
+    assert pick(both, on)["layerId"] == "nodes"
+    assert pick(both, {"links": True, "nodes": False})["layerId"] == "links"
+    assert pick(both[:1], {"links": False, "nodes": True}) is None
+    with_overlay = [*both, {"layerId": "hello.dots", "index": 0}]
+    assert pick(with_overlay, on)["layerId"] == "hello.dots"
+    assert pick(with_overlay, on, ["hello.dots"])["layerId"] == "nodes"
+    assert pick([], on) is None

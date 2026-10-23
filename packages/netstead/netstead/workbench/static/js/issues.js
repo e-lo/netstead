@@ -260,7 +260,8 @@ function issueLayer(c) {
 
 // Between the highlights (400) and the focus (500); titled, so Layers → Overlays lists an "Issues" switch.
 export function registerIssueLayer() {
-  addLayer(CORE, "roadway", "issues", issueLayer, { order: 450, title: "Issues" });
+  addLayer(CORE, "roadway", "issues", issueLayer, { order: 450, title: "Issues",
+    description: "Validation findings drawn as map markers (run validation in the Validate tab)" });
 }
 
 function setFilter(patch) { store.set({ issueFilter: { ...store.get().issueFilter, ...patch } }); }

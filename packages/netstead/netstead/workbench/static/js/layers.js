@@ -16,7 +16,7 @@ export function createLayerRegistry() {
   return {
     // factory(ctx) -> a deck.gl layer, an array of them, or nothing. Returns a function that unregisters it (true
     // when it did: a stale disposer never removes a later registration with the same id).
-    register(owner, component, id, factory, { order, title = null } = {}) {
+    register(owner, component, id, factory, { order, title = null, description = null } = {}) {
       if (!COMPONENTS.includes(component)) {
         throw new Error(`unknown component ${JSON.stringify(component)}: use ${COMPONENTS.join(" or ")}`);
       }
@@ -24,7 +24,7 @@ export function createLayerRegistry() {
       if (typeof factory !== "function") throw new Error(`layer ${id}: factory must be a function`);
       if (items.has(id)) throw new Error(`layer ${JSON.stringify(id)} is already registered`);
       const fallback = owner === CORE ? CORE_ORDER[id] ?? 0 : PLUGIN_ORDER;
-      const entry = { owner, component, id, factory, title, order: order ?? fallback, seq: seq++ };
+      const entry = { owner, component, id, factory, title, description, order: order ?? fallback, seq: seq++ };
       items.set(id, entry);
       return () => items.get(id) === entry && items.delete(id);
     },

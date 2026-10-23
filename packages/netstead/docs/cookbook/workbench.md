@@ -413,8 +413,16 @@ Nodes colored by `ctrl_type` use a fixed style where size carries meaning too (s
   independently (`app.do(Style(color_by="facility_type"))`, `app.do(Style(node_color_by="ctrl_type"))`). A
   fresh network defaults to coloring links by `facility_type` and nodes by `ctrl_type` when those columns
   exist, falling back to a single color otherwise.
+- The color swatches beside **Links**, **Nodes** and **Selection** set a single color. Picking the Links or Nodes
+  swatch while that layer is colored by a column turns **Color links by** / **Color nodes by** off in the same
+  recorded action (`Style(colors=..., node_color_by="none")`), since a column coloring would hide the swatch.
+- Each section of the View tab (Layers, Overlays, Color, Width, Direction, **Show only links where...**) folds open and
+  closed; the tab remembers which are folded in this browser. **Overlays** lists a plugin's or core's map layers
+  (issue markers, anchor candidates) with a switch and an info tooltip saying what each draws.
+- On the map, a click, right-click or hover picks only layers that are switched on, and when a node and a link are
+  both under the pointer the node wins (so nodes can be inspected where links run through them).
 - **Width by** sizes links by a numeric column (`app.do(Style(width_by="lanes"))`).
-- **Filter links**, in the View tab, dims every link that doesn't match
+- **Show only links where...** (the View tab's filter; it hides the other links on the map and in the table's Filtered view and never changes the data) dims every link that doesn't match
   (`app.do(Filter(where=[{"col": "lanes", "op": "gte", "val": 2}]))`); the table's **Filtered** scope lists the
   matching links (the filter applies to links: on the node table it lists every node). `Filter(where=None)`
   clears it. Filters are fields and operators only, never free text or SQL: `contains` matches a plain

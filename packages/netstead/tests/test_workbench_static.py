@@ -377,9 +377,8 @@ def test_the_view_controls_live_in_the_find_panel_not_in_map_popovers():
     find = html[html.index('id="dock-find"') : html.index('id="dock-view"')]
     assert 'id="view-section"' not in html and 'id="tg-links"' not in find  # View has its own tab now
     assert 'id="hl-set"' in find and 'id="anchors"' in find
-    for heading in ("Layers", "Color", "Width", "Direction", "Filter"):
-        assert f"<h4>{heading}</h4>" in view
-    assert "<details" not in view
+    for heading in ("Layers", "Color", "Width", "Direction", "Show only links where…"):
+        assert f"<summary>{heading}</summary>" in view
     panels = (JS_DIR / "panels.js").read_text()
     assert "node_color_by: e.target.value" in panels and "populateNodeColorby(" in panels
     assert "settings-panel" not in panels and "btn-layers" not in panels
@@ -863,3 +862,36 @@ def test_the_view_tab_is_a_core_panel_right_after_find_and_edit_help_is_dismissi
         assert f'id="{element_id}"' in edit
     assert 'data-tip="Hide this help"' in edit and 'data-tip="About this tab"' in edit
     assert 'wireDismissibleHelp($("ed-help"), helpKey("edit")' in (JS_DIR / "edits.js").read_text()
+
+
+def test_view_sections_are_disclosures_that_keep_their_control_ids():
+    html = (STATIC_DIR / "index.html").read_text()
+    view = html[html.index('id="dock-view"') : html.index('id="dock-inspect"')]
+    for sec in ("layers", "color", "width", "direction", "filter"):
+        assert f'<details class="vsec" data-sec="{sec}" open><summary>' in view
+    assert "<summary>Show only links where…</summary>" in view
+    assert "the data is not changed" in view
+    for element_id in (
+        "col-links",
+        "col-nodes",
+        "col-selection",
+        "colorby",
+        "node-colorby",
+        "flt-apply",
+        "plugin-layers",
+    ):
+        assert f'id="{element_id}"' in view
+    assert "wb.view.sections" in (JS_DIR / "viewmodel.js").read_text()
+
+
+def test_overlay_rows_carry_a_description_from_the_registry():
+    assert "l.description" in (JS_DIR / "panels.js").read_text()
+    assert "description = null" in (JS_DIR / "layers.js").read_text()
+    for module in ("issues.js", "selection.js"):
+        assert "description:" in (JS_DIR / module).read_text()
+
+
+def test_map_picks_through_the_node_first_priority_helper():
+    src = (JS_DIR / "map.js").read_text()
+    assert "pickPriority(" in src
+    assert "pickable: style.show.links" in src and "pickable: style.show.nodes" in src

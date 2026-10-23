@@ -532,3 +532,11 @@
   #side .label .iconbtn svg { width:14px; height:14px; }
   .pcount.warn { background:var(--accent); color:#1b1206; }
   .pcount.warn:empty { padding:0; width:9px; height:9px; }
+  #dock-view .vsec > summary { margin:14px 0 6px; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted);
+                               cursor:pointer; list-style:none; display:flex; align-items:center; gap:5px; }
+  #dock-view .vsec > summary::-webkit-details-marker { display:none; }
+  #dock-view .vsec > summary::before { content:"\25BE"; font-size:10px; }
+  #dock-view .vsec:not([open]) > summary::before { content:"\25B8"; }
+  #dock-view > .vsec:first-of-type > summary { margin-top:0; }
+  #dock-view .vsec .row .iconbtn { width:22px; height:22px; margin-left:4px; }
+  #dock-view .vsec .row .iconbtn svg { width:14px; height:14px; }

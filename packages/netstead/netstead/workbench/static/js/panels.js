@@ -1,12 +1,13 @@
 // The View panel (layers, color links / nodes by, width, direction, filter links) and the map's
 // legend. Every control change is a recorded Action: `style` (color, width, switches) or `filter` (Filter links).
 import { dispatch } from "./api.js";
-import { $, esc, toast } from "./dom.js";
+import { $, esc, mountIcons, toast } from "./dom.js";
 import { filterKey, filterValue, filterView, takesNoValue } from "./filtermodel.js";
 import { hasOffset } from "./map.js";
 import { RAMPS, catColor, fmt, hex2rgb, nodeLegendItems, rgb, rgb2hex } from "./palette.js";
 import { ALL_WORKSPACES, CORE } from "./slots.js";
 import { store } from "./store.js";
+import { SECTIONS_KEY, parseClosed, serializeClosed, swatchPatch, swatchTip } from "./viewmodel.js";
 import { addPanel } from "./workspaces.js";
 
 const style = patch => dispatch({ type: "style", ...patch }).catch(e => toast(e.message));
@@ -33,7 +34,8 @@ export function wirePanels() {
   $("ramp").onchange = e => style({ ramp: e.target.value });
   $("widthby").onchange = e => style({ width_by: e.target.value });
   for (const [id, , patch] of SWITCHES) $(id).onchange = e => style(patch(e.target.checked));
-  for (const [id, key] of COLORS) $(id).onchange = e => style({ colors: { [key]: hex2rgb(e.target.value) } });
+  for (const [id, key] of COLORS) $(id).onchange = e => style(swatchPatch(key, hex2rgb(e.target.value), store.get().server.style));
+  wireSections();
   if (!hasOffset()) $("tg-offset").disabled = true;
   $("plugin-layers").onchange = e => {
     const el = e.target.closest("input[data-layer]");
@@ -48,10 +50,29 @@ export function wirePanels() {
 // Hiding is view state, like the focus: it is per tab and never recorded. Nothing renders while there are none.
 export function renderPluginLayers(list, hidden) {
   $("plugin-layers").innerHTML = list.length
-    ? "<h4>Overlays</h4>" + list.map(l => `<div class="row"><label class="sw">` +
+    ? `<details class="vsec" data-sec="overlays"${closedSections.has("overlays") ? "" : " open"}><summary>Overlays</summary>` +
+      list.map(l => `<div class="row"><label class="sw">` +
       `<input type="checkbox" data-layer="${esc(l.id)}" aria-label="${esc(l.title)}"${hidden.has(l.id) ? "" : " checked"}>` +
-      `<span></span></label><span class="lbl">${esc(l.title)}</span></div>`).join("")
+      `<span></span></label><span class="lbl">${esc(l.title)}</span>` +
+      (l.description ? `<button class="iconbtn" data-icon="info" data-tip="${esc(l.description)}" aria-label="${esc(l.description)}"></button>` : "") +
+      `</div>`).join("") + "</details>"
     : "";
+  mountIcons($("plugin-layers"));
+}
+
+// Folded View sections, remembered per browser (never recorded: it is view state). Unreadable storage means open.
+const readStore = () => { try { return localStorage.getItem(SECTIONS_KEY); } catch { return null; } };
+let closedSections = parseClosed(readStore());
+function wireSections() {
+  const view = $("dock-view");
+  for (const d of view.querySelectorAll("details[data-sec]")) d.open = !closedSections.has(d.dataset.sec);
+  // `toggle` doesn't bubble, so listen in the capture phase (also catches the Overlays section drawn later).
+  view.addEventListener("toggle", e => {
+    const d = e.target;
+    if (!d.dataset || !d.dataset.sec) return;
+    if (d.open) closedSections.delete(d.dataset.sec); else closedSections.add(d.dataset.sec);
+    try { localStorage.setItem(SECTIONS_KEY, serializeClosed(closedSections)); } catch { /* private mode */ }
+  }, true);
 }
 
 const option = (value, text) => Object.assign(document.createElement("option"), { value, textContent: text });
@@ -131,7 +152,10 @@ export function syncControls(st) {
   $("ramp-row").style.display = continuous($("colorby")) || continuous($("node-colorby")) ? "flex" : "none";
   pick($("widthby"), st.width_by || "none");
   for (const [id, get] of SWITCHES) $(id).checked = get(st);
-  for (const [id, key] of COLORS) $(id).value = rgb2hex(st.colors[key]);
+  for (const [id, key] of COLORS) {
+    $(id).value = rgb2hex(st.colors[key]);
+    $(id).title = swatchTip(key, st);
+  }
 }
 
 // One legend block: the property's name (with what it colors), then a ramp or the categories' swatches.

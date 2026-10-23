@@ -3,6 +3,7 @@ import { $, esc } from "./dom.js";
 import { createClickGuard } from "./gesture.js";
 import { layerRegistry } from "./layers.js";
 import { arrowPixelOffset, arrowSize, buildArrows, linkPaths, nodeRadiusScale, widthForLanes } from "./netbuf.js";
+import { pickPriority } from "./pickmodel.js";
 import { buildLinkColors, buildLinkWidths, buildNodeStyle, dimUnmatched } from "./palette.js";
 import { commandContext, frozenCopy } from "./commands.js";
 import { CORE } from "./slots.js";
@@ -127,8 +128,9 @@ function baseLayers(s) {
         attributes: { getPath: { value: net.linkPositions, size: 2 }, getWidth: { value: widths, size: 1 },
                       getColor: { value: colors, size: 4 } } },
       widthUnits: "pixels", widthMinPixels: LINK_MIN_PX, capRounded: true, jointRounded: true,
-      pickable: true, autoHighlight: true, highlightColor: [255, 140, 59, 235],
-      onClick: info => { if (info && info.index >= 0) handlers.onLinkClick(store.get().attrs.link_id[info.index]); } };
+      pickable: style.show.links, autoHighlight: true, highlightColor: [255, 140, 59, 235],
+      // A node under the pointer wins over the link beneath it (featureAt); a link only when no node is there.
+      onClick: info => { const f = info && info.index >= 0 && featureAt(info); if (f) clickFeature(f); } };
     if (OFFSET_EXT) { props.extensions = [OFFSET_EXT]; props.getOffset = offsetOn ? OFFSET_AMT : 0; }
     layers.push(new deck.PathLayer(props));
     const zoom = map.getZoom();
@@ -152,8 +154,8 @@ function baseLayers(s) {
     radiusUnits: "pixels", radiusScale: nodeRadiusScale(map.getZoom()), radiusMinPixels: 1.5,
     stroked: true, filled: true, lineWidthMinPixels: 1, lineWidthUnits: "pixels",
     getLineColor: [20, 20, 30, 220],
-    pickable: true, autoHighlight: true, highlightColor: [255, 140, 59, 235],
-    onClick: info => { if (info && info.index >= 0) handlers.onNodeClick(net.nodeIds[nodeIndex(info.index)]); } }));
+    pickable: style.show.nodes, autoHighlight: true, highlightColor: [255, 140, 59, 235],
+    onClick: info => { const f = info && info.index >= 0 && featureAt(info); if (f) clickFeature(f); } }));
   return layers;
 }
 
@@ -272,22 +274,37 @@ export function addLayer(owner, component, id, factory, options) {
   return () => { if (dispose()) changed(); };
 }
 
-function getTooltip({ layer, index }) {
+// The link or node feature ({table, id}) the pointer means: nodes win over links, and a layer switched off (or an
+// overlay hidden) never picks (pickmodel.js). `point` is {x, y} in map pixels.
+function featureAt(point, radius = 4) {
+  const s = store.get();
+  if (!overlay || !s.net || !s.attrs) return null;
+  const hits = overlay.pickMultipleObjects({ x: point.x, y: point.y, radius, depth: 4, layerIds: ["nodes", "links"] })
+    .filter(h => h.index != null && h.index >= 0 && h.layer)
+    .map(h => ({ layerId: h.layer.id, index: h.index }));
+  const hit = pickPriority(hits, s.server.style, s.hiddenLayers);
+  if (!hit) return null;
+  if (hit.layerId === "nodes") return { table: "node", id: s.net.nodeIds[nodeIndex(hit.index)] };
+  return { table: "link", id: s.attrs.link_id[hit.index], index: hit.index };
+}
+
+const clickFeature = f => (f.table === "node" ? handlers.onNodeClick(f.id) : handlers.onLinkClick(f.id));
+
+function getTooltip({ layer, index, x, y }) {
   const attrs = store.get().attrs;
-  if (!layer || layer.id !== "links" || index == null || index < 0 || !attrs) return null;
-  const id = attrs.link_id[index], nm = attrs.name[index], rf = attrs.ref[index], ft = attrs.facility_type[index];
+  if (!layer || (layer.id !== "links" && layer.id !== "nodes") || index == null || index < 0 || !attrs) return null;
+  const f = featureAt({ x, y });
+  if (!f) return null;
+  if (f.table === "node") return { html: `<b>node ${esc(f.id)}</b>`, style: TOOLTIP_STYLE };
+  const id = f.id, nm = attrs.name[f.index], rf = attrs.ref[f.index], ft = attrs.facility_type[f.index];
   return { html: `<b>link ${esc(id)}</b><br>${nm ? esc(nm) : "<i>unnamed</i>"}${rf ? " · " + esc(rf) : ""}` +
     `<br><span style="color:#8a93a3">${ft ? esc(ft) : ""}</span>`, style: TOOLTIP_STYLE };
 }
 
 // The record under a right-click: a link or node feature ({table, id}), or null.
 function recordAt(point) {
-  const s = store.get();
-  const info = overlay.pickObject({ x: point.x, y: point.y, radius: 4, layerIds: ["nodes", "links"] });
-  if (!info || info.index == null || info.index < 0 || !s.net) return null;
-  if (info.layer.id === "links") return { table: "link", id: s.attrs.link_id[info.index] };
-  if (info.layer.id === "nodes") return { table: "node", id: s.net.nodeIds[nodeIndex(info.index)] };
-  return null;
+  const f = featureAt(point);
+  return f && { table: f.table, id: f.id };
 }
 
 function fit(bounds, padding, retried, duration = 500) {

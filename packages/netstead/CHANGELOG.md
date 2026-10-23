@@ -21,6 +21,12 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Changed
 
+- **Workbench View tab: swatches beat color-by, collapsible sections, node-first picking, explained overlays.** Picking a
+  Links or Nodes color swatch while that layer is colored by a column now turns the column coloring off in the same
+  recorded Style action (the swatch's tooltip says so). Each View section folds (remembered per browser). A map click
+  or hover only picks layers that are switched on, and a node wins over the link under it. Overlay rows explain
+  themselves with an info tooltip; the Filter section is headed "Show only links where..." with a note that the data
+  is not changed.
 - **Workbench side panel: a View tab, dismissible Edit help, readable badges.** The map and style controls (layers,
   color, width, direction, filter) moved out of the Find tab's collapsed section into their own **View** tab right
   after Find, and the map's layers button is gone. The Edit tab's explanatory paragraph hides behind a "x" (and comes

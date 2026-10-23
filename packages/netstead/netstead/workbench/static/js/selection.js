@@ -34,7 +34,8 @@ export function registerSelectionPanel() {
     return pts.length ? new c.deck.ScatterplotLayer({ id: "candidates", data: pts, getPosition: p => [p.lon, p.lat],
       getRadius: 6, radiusUnits: "pixels", stroked: true, filled: false, lineWidthMinPixels: 2,
       getLineColor: p => (p.role === "from" ? FROM_COLOR : TO_COLOR), parameters: { depthTest: false } }) : null;
-  }, { order: 210, title: "Anchor candidates" });
+  }, { order: 210, title: "Anchor candidates",
+    description: "Where Select placed, or could place, the from/to points of a selection" });
   const add = spec => addCommandTo(slots, store, CORE, { contexts: ["palette"], ...spec });
   add({ id: "save_selection", title: "Save selection…", contexts: ["palette", "selection"],
     when: c => c.selectionCount > 0, run: () => saveSelection() });
