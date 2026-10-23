@@ -20,6 +20,7 @@ from pydantic import BaseModel, ConfigDict
 
 from ._version import __version__
 from .catalog_edits import CatalogEdits
+from .catalog_table import CATALOG_TABLE, COLUMNS, catalog_rows
 from .flow import apply_enabled, load_catalog, open_handle, pending_seqs
 from .handlers import Handlers
 from .mapping import load_mapping
@@ -30,8 +31,9 @@ __all__ = ["REQUIRES_API", "STATIC", "CardsSettings", "plugin"]
 
 logger = logging.getLogger(__name__)
 
-#: The plugin API this plugin is written against (1.7: readable, list_dir and history, for the catalog and the summary).
-REQUIRES_API = "1.7"
+#: The plugin API this plugin is written against (1.7: readable, list_dir and history, for the catalog and the summary;
+#: 1.8: register_table, for the catalog as a table).
+REQUIRES_API = "1.8"
 #: The front end: main.js (the entry module), controller.js, cardmodel.js.
 STATIC = Path(__file__).parent / "static"
 
@@ -57,6 +59,10 @@ def plugin() -> WorkbenchPlugin:
     handlers = Handlers(state, mapping)
 
     def on_load(host: Host) -> None:
+        # The open catalog in the table view (read again whenever this plugin publishes).
+        host.register_table(
+            CATALOG_TABLE, "Cards catalog", lambda: catalog_rows(state), primary_key="card_id", columns=COLUMNS
+        )
         settings = host.settings
         folder = settings.catalog_dir if isinstance(settings, CardsSettings) else None
         if not folder:

@@ -810,3 +810,40 @@ def test_icon_buttons_draw_the_hosts_icons_and_fall_back_to_text(run_js):
     assert got["preview"] == ["<svg>play</svg>", ""]  # core's icon
     assert got["trash"][0].startswith("<svg") and "<polyline" in got["trash"][0]  # the panel's own
     assert got["missing"] == [None, "Inspect"]  # a name the host lacks: the text
+
+
+TABLE_HARNESS = (
+    PANEL_SETUP
+    + """
+deps.showTable = async name => { calls.push(["showTable", name]); };
+panels[0].render(root);
+store.set({ server: { ...store.get().server,
+  plugins: { project_cards: { drafts: {}, preview: null, catalog: CATALOG, applied: [] } } } });
+await settle(); await settle();
+const catalogBox = elById(root, "pc-catalog"), status = elById(root, "pc-status");
+const card = id => walk(catalogBox).find(e => e.getAttribute("data-card") === id);
+const got = {};
+await button(catalogBox, "Show as table").onclick();
+got.shown = [calls.filter(c => c[0] === "showTable"),
+  status.textContent.startsWith("The catalog is in the table pane")];
+hub.emit("core.table_row", { plugin: "project_cards", table: "cards_catalog", id: "bad.yml" });
+got.picked = [card("bad.yml").getAttribute("aria-current"), card("good.yml").getAttribute("aria-current"),
+              status.textContent, document.activeElement && document.activeElement.getAttribute("aria-label")];
+hub.emit("core.table_row", { plugin: "other", table: "elsewhere", id: "good.yml" });
+got.ignored = card("bad.yml").getAttribute("aria-current");
+hub.emit("core.table_row", { plugin: "project_cards", table: "cards_catalog", id: "gone.yml" });
+got.gone = status.textContent;
+got.errors = calls.filter(c => c[0] === "error");
+console.log(JSON.stringify(got));
+"""
+)
+
+
+def test_show_as_table_and_a_table_row_selects_its_card(run_js):
+    got = run_js(FILES, TABLE_HARNESS)
+    assert got["errors"] == []
+    assert got["shown"] == [[["showTable", "cards_catalog"]], True]
+    focused = "Check Bad (bad.yml) against this network"  # its first button (the card is not checked yet)
+    assert got["picked"] == ["true", None, "Selected Bad (bad.yml) from the table", focused]
+    assert got["ignored"] == "true"  # another plugin's table: nothing moves
+    assert got["gone"] == "gone.yml is not in the open catalog"

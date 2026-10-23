@@ -64,6 +64,12 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
 
 ### Changed
 
+- **The catalog as a table.** The plugin registers the table view's read-only `cards_catalog` (Host API 1.8,
+  `host.register_table`; the plugin now needs 1.8): `card_id`, `project`, `tags` (comma list), `change_count`,
+  `change_types`, `fits` (null until checked), `reason`, `links_targeted`, `modified` (the file's mtime, ISO).
+  **Show as table** in the Catalog section opens it (`wb.showTable`); a row click selects the card in the panel
+  (`core.table_row`). A check (`check_card`, or the `/catalog` listing's) publishes `project_cards.checked`, so the
+  table is read again.
 - **A status pill says whether a card fits.** The catalog's `✓` / `✗` / `?` glyph is now a pill: green "Fits this
   network", red "Doesn't fit" (its first reason inline, every reason in the tooltip: "missing link 999999",
   "conflict: …", "already applied …" with apply on) or gray "Not checked" with a check button

@@ -248,6 +248,8 @@ def check_entries(host: Host, state: CardsState, net: str, entries: Sequence[Cat
             result["reason"] = f"already applied on {net} at {done.applied_at[11:16]}"
         state.set_applicability(entry, result)
         results.append(result)
+    if results:  # the catalog table (cards_catalog) is read again: its fits column moved
+        host.publish("checked", {"net_id": net, "cards": [e.card_id for e in entries]})
     return results
 
 

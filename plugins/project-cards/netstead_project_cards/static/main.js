@@ -14,6 +14,8 @@ import {
 import { createController } from "./controller.js";
 
 const PANEL = "cards";
+// The catalog's table in the table pane (the server registers it with host.register_table).
+const CATALOG_TABLE = "cards_catalog";
 
 // A DOM element. `text` is its text content, `on<event>` a handler, `disabled` / `checked` properties, the rest
 // attributes; string children become text nodes.
@@ -165,6 +167,12 @@ export function activate(wb) {
   });
   // The server says when the catalog was (re)scanned or a card applied: the listing is read again either way.
   for (const event of ["catalog", "applied"]) wb.on(event, () => view && view.loadCatalog());
+  // A row clicked in the catalog's table (the table pane, Host API 1.8): the panel comes forward with that card.
+  wb.on("core.table_row", payload => {
+    if (!payload || payload.table !== CATALOG_TABLE) return;
+    wb.showPanel(PANEL); // the first show renders the panel
+    if (view) view.selectCard(payload.id);
+  });
   // A form read from the shared selection is outdated once it changes. Watched as the server's `selection`, not
   // wb.selection: that follows the active network, which opening (or closing) a preview changes.
   wb.store.subscribe(["selection", "saved_selections"], () => {
@@ -205,6 +213,11 @@ function createView(wb, ctl, el) {
   const heading = text => h("h3", { class: "label", style: "font-size:12px;margin:18px 0 6px", text });
   const catalogHeading = heading("Catalog"); // names the network the cards were checked against (drawCatalog)
   el.style.overflowWrap = "anywhere"; // long file paths wrap instead of scrolling the dock sideways
+  // Core's tooltips sit left of a button (the map's corner); in this panel's rows they go below it instead, so they
+  // neither cover the next button nor run off the dock's left edge (the last button's tooltip ends at its right).
+  el.setAttribute("data-pc-panel", "");
+  el.append(h("style", { text: "[data-pc-panel] [data-tip]:hover::after{top:calc(100% + 4px);right:auto;left:0;"
+    + "transform:none;z-index:6}[data-pc-panel] [data-tip]:last-child:hover::after{left:auto;right:0}" }));
   el.append(
     catalogHeading, catalogBox, previewBox, inspectBox,
     heading("Draft"), createBox, composeBox, draftBox, commitBox,
@@ -544,8 +557,13 @@ function createView(wb, ctl, el) {
       say(`Rescanned ${result.path}: ${result.cards} card(s)`);
     });
     catalogPath.onkeydown = e => { if (e.key === "Enter") open.onclick(); };
+    // The catalog as a sortable, filterable table in the table pane (a host with wb.showTable, Host API 1.8).
+    const table = typeof wb.showTable === "function" ? [iconAct("table", "Show as table", async () => {
+      await wb.showTable(CATALOG_TABLE);
+      say("The catalog is in the table pane: sort and filter it there, click a row to find its card here");
+    }, "Show the catalog as a table")] : [];
     catalogBox.append(
-      h("div", { style: "display:flex;gap:6px;align-items:center" }, catalogPath, open, refresh),
+      h("div", { style: "display:flex;gap:6px;align-items:center" }, catalogPath, open, refresh, ...table),
       catalogLine, catalogList,
     );
   }
@@ -652,6 +670,7 @@ function createView(wb, ctl, el) {
   }
 
   const opened = new Set(); // the cards whose Details the user opened
+  let selectedCard = null; // the card last picked in the catalog's table (selectCard)
   function cardRow(row) {
     const tags = row.tags.length ? ` · ${row.tags.join(", ")}` : "";
     const of = `${row.project} (${row.card_id})`;
@@ -698,7 +717,10 @@ function createView(wb, ctl, el) {
       iconAct("copy", "Duplicate", async () => say(fileLine(await ctl.duplicateCard(row.card_id))), `Duplicate ${of}`),
       iconAct("tag", "Edit metadata…", () => openMetaDialog(row), `Edit the metadata of ${of}…`),
       iconAct("trash", "Delete", () => deleteCard(row), `Delete ${of}`));
-    return h("div", { class: "pc-card", "data-card": row.card_id, style: "margin:8px 0 10px" },
+    const picked = row.card_id === selectedCard;
+    return h("div", { class: "pc-card", "data-card": row.card_id,
+      ...(picked ? { "aria-current": "true" } : {}),
+      style: `margin:8px 0 10px;${picked ? "outline:1px solid var(--accent);outline-offset:3px;border-radius:4px" : ""}` },
       h("div", {}, h("strong", { text: row.project }),
         h("span", { class: "muted", text: ` · ${row.changes} change(s)${tags} · ${row.card_id}` })),
       h("div", { class: "pc-status", style: "display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:3px 0" },
@@ -915,5 +937,18 @@ function createView(wb, ctl, el) {
   drawCatalogControls();
   drawCommit();
   drawSummary();
-  return { draw, drawCreate, draftMoved, loadCatalog, checkWentStale, composeWentStale };
+  // A card picked in the catalog's table: marked in the listing, scrolled into view, its first button focused.
+  function selectCard(cardId) {
+    const row = catalogRows(server(), ctl.catalog()).find(r => r.card_id === cardId);
+    if (!row) { say(`${cardId} is not in the open catalog`); return; }
+    selectedCard = cardId;
+    drawCatalog();
+    const card = [...catalogList.children].find(c => c.getAttribute && c.getAttribute("data-card") === cardId);
+    if (card && typeof card.scrollIntoView === "function") card.scrollIntoView({ block: "nearest" });
+    const first = card ? buttonsIn([card])[0] : null;
+    if (first) first.focus();
+    say(`Selected ${row.project} (${cardId}) from the table`);
+  }
+
+  return { draw, drawCreate, draftMoved, loadCatalog, checkWentStale, composeWentStale, selectCard };
 }

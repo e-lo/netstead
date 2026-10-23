@@ -141,6 +141,12 @@ distinct from the draft you build above.
   a change can't be applied. A gray **Not checked** pill has a check button beside it; the panel also checks up to 50
   unchecked cards per request. A query selection with no netstead provenance reads and
   lists fine, but is refused when applying: "query without provenance; re-resolution not supported".
+- **Show as table** (the table icon beside the folder) opens the catalog in the table pane as the read-only
+  **Cards catalog** table (listed under "Plugins" in the table rail): one row per card with `card_id`, `project`,
+  `tags`, `change_count`, `change_types`, `fits`, `reason`, `links_targeted` and `modified`. Sort it by any column
+  and filter it with the column funnels (**any of** on `tags` picks the cards with a tag); clicking a row brings the
+  Cards tab forward with that card marked. The table follows the catalog: a rescan, a check or a file action reads
+  it again.
 - **Preview** shows every change of the card on a copy of the network (as in step 4 above) and highlights the
   links and nodes it targets on the map, so you can see what it touches before committing to it.
 - **Apply…** (only when `[plugins.project_cards] enable_apply = true`; it is off by default, and

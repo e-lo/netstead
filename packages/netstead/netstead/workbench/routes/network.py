@@ -3,6 +3,10 @@
 The ``component`` segment is ``roadway`` today; ``transit`` answers 501 until the
 GTFS component lands (P6). Heavy payloads are cached on the handle per version.
 
+The table routes serve the plugins' read-only tables too (Host API 1.8, ``host.register_table``), next to the
+network's own: a plugin table is built from its ``rows_fn`` (cached until the plugin publishes or the network changes)
+and sorted, filtered and paged like an eager network table. It has no foreign keys and no related records.
+
 Table rows can be read by ``GET`` (query string) or ``POST`` (JSON body). The POST form exists
 because id lists (a box-selection, the related-records sources) outgrow a URL; it also carries
 the related-records ``tint``/``filter``. ``/related`` and ``/locate`` are read-only views: like
@@ -14,6 +18,7 @@ from __future__ import annotations
 import contextlib
 import functools
 import json as _json
+import logging
 from collections.abc import Iterator, Sequence
 from typing import Any, Literal
 
@@ -41,7 +46,8 @@ from netstead.viz.tables import (
 )
 
 from ..errors import ActionError
-from ..registry import NetworkHandle
+from ..redact import describe_error
+from ..registry import NetworkHandle, PluginTable
 from ..related import (
     MAX_MAP_IDS,
     MAX_SOURCE_IDS,
@@ -60,6 +66,8 @@ from ..session import Session
 from .common import network_handle
 
 __all__ = ["LocateQuery", "RelatedQuery", "RowsQuery", "network_router"]
+
+logger = logging.getLogger(__name__)
 
 ScalarId = int | str
 #: Related-records answers remembered per network version (each holds up to MAX_SOURCE_IDS ids).
@@ -152,11 +160,32 @@ def network_router(session: Session) -> APIRouter:
         h = handle(net_id, component)
         return h.nodes_df() if table == "node" else h.links_df()
 
+    def plugin_frame(h: NetworkHandle, pt: PluginTable) -> pd.DataFrame:
+        """A plugin table's rows on ``h`` (as it is now); a ``rows_fn`` that fails is a 500 naming the plugin."""
+        try:
+            return pt.frame((h.id, h.version))
+        except Exception as exc:  # boundary: a plugin's rows_fn
+            logger.exception("plugin table %r (%s) failed to build", pt.name, pt.owner)
+            reason = describe_error(exc)
+            raise HTTPException(500, f"the {pt.owner} plugin's table {pt.name!r} failed: {reason}") from None
+
+    def plugin_table(h: NetworkHandle, name: str) -> PluginTable | None:
+        """The plugin table called ``name``, unless the network has a table by that name."""
+        return None if name in h.tables() else session.plugin_tables.get(name)
+
     def table(h: NetworkHandle, name: str) -> Any:
         tables = h.tables()
-        if name not in tables:
+        if name in tables:
+            return tables[name]
+        pt = session.plugin_tables.get(name)
+        if pt is None:
             raise HTTPException(404, f"unknown table {name!r}")
-        return tables[name]
+        return plugin_frame(h, pt)
+
+    def pk_of(h: NetworkHandle, name: str) -> str | None:
+        """``name``'s primary key: the network's, or the one its plugin declared."""
+        pt = plugin_table(h, name)
+        return pt.primary_key if pt is not None else graph(h).pks.get(name)
 
     def graph(h: NetworkHandle) -> RelationGraph:
         return h.cached("relations", lambda: relation_graph(h.roadway.spec, h.tables()))
@@ -192,8 +221,8 @@ def network_router(session: Session) -> APIRouter:
         h: NetworkHandle, name: str, q: RowsQuery
     ) -> tuple[Any, str | None, list[Any] | None, Relation | None]:
         """The table (narrowed when ``related_mode`` is ``filter``), its key, ``q.ids`` as keys, its relation."""
-        g, src = graph(h), table(h, name)
-        pk = g.pks.get(name)
+        src = table(h, name)
+        pk = pk_of(h, name)
         ids = None if q.ids is None else keys(h, name, q.ids)
         if ids is not None and not ids:  # an explicit empty id list is "no rows", not "all rows"
             src = restrict(src, [])
@@ -271,11 +300,22 @@ def network_router(session: Session) -> APIRouter:
 
     @router.get("/tables")
     def tables_list(net_id: str, component: str) -> dict[str, Any]:
-        return {"tables": [table_list_entry(n, src) for n, src in handle(net_id, component).tables().items()]}
+        """The network's tables, then the plugins' read-only ones (``plugin``, ``title``, ``read_only``)."""
+        h = handle(net_id, component)
+        listed = [table_list_entry(n, src) for n, src in h.tables().items()]
+        for pt in session.plugin_tables.all():
+            try:
+                listed.append({**table_list_entry(pt.name, plugin_frame(h, pt)), **pt.describe()})
+            except HTTPException as exc:  # one plugin's failing table never hides the others
+                listed.append({"name": pt.name, "rows": 0, "columns": [], **pt.describe(), "error": exc.detail})
+        return {"tables": listed}
 
     @router.get("/table/{table_name}/schema")
     def table_schema_ep(net_id: str, component: str, table_name: str) -> dict[str, Any]:
         h = handle(net_id, component)
+        pt = plugin_table(h, table_name)
+        if pt is not None:  # read-only, keyed by the column its plugin named, linked to nothing
+            return {**table_schema(table_name, plugin_frame(h, pt)), **pt.describe(), "foreign_keys": []}
         g = graph(h)
         payload = table_schema(table_name, table(h, table_name), field_enums(h.roadway.spec, table_name))
         payload["primary_key"] = g.pks.get(table_name)
@@ -331,7 +371,7 @@ def network_router(session: Session) -> APIRouter:
                 direction=dir,
                 filter_spec=spec,
                 ids=None if id_list is None else keys(h, table_name, id_list),
-                pk=graph(h).pks.get(table_name),
+                pk=pk_of(h, table_name),
             )
         return {"name": table_name, **payload}
 

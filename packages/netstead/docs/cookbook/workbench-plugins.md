@@ -279,6 +279,8 @@ A plugin never sees the `Session`. Every handler, `router`, `state` and `on_load
 | `host.readable(path)` | Resolves a path for reading inside `io.allowed_roots`: a file or a folder that exists. Raises `PathNotAllowed` outside the roots (before touching the disk) and `ActionError` when nothing is there. API 1.7. |
 | `host.list_dir(path)` | The entries of a folder inside `io.allowed_roots`, folders first, hidden entries skipped, each `{name, path, kind, is_dir}` (`kind` is what core's file browser can open it as, else `None`). Reads no file. Raises `PathNotAllowed` outside the roots and `ActionError` when the folder is missing or is a file. API 1.7. |
 | `host.history(prefix=None)` | The session's history (the entries `GET /api/history` returns: `seq`, `action`, `python`, `ok`, `error`, `ts`, `via`, …), oldest first, as copies; with `prefix` (say `"my_plugin."`), only the Actions whose type starts with it. Read-only; the Action now running is not in it yet. API 1.7. |
+| `host.register_table(name, title, rows_fn, *, primary_key, columns=None)` | Publishes a read-only table to the table view, listed under "Plugins" in its rail. `rows_fn()` returns the rows (dicts, or a pandas frame), each with a unique, non-null `primary_key`; core builds them into a frame when the table is read and keeps it until you `host.publish` anything or the network changes. It is served by the table routes (`/api/n/<net>/roadway/table/<name>/rows`, `schema`, `distinct`), so sorting and the column filters work as on a network table (a comma-separated text column takes `any_of`); a yes/no column with gaps is a nullable boolean. Never edited, never linked to the map. `name` is `[a-z][a-z0-9_]*`, not a network table's (`link`, `node`, …) nor another plugin's. Goes when the plugin is unloaded. API 1.8. |
+| `host.unregister_table(name)` | Takes your table out of the table view; `False` when you have none by that name. API 1.8. |
 
 A preview, following "nothing mutates silently":
 
@@ -503,7 +505,7 @@ export function activate(wb) {
 
 | Member | What it gives you |
 |---|---|
-| `wb.id`, `wb.hostApi` | This plugin's id, and the plugin API this netstead provides (`"1.7"`). |
+| `wb.id`, `wb.hostApi` | This plugin's id, and the plugin API this netstead provides (`"1.8"`). |
 | `wb.api.fetch(path, init)`, `wb.api.get(path)`, `wb.api.post(path, body)` | `fetch`, and JSON helpers, scoped to your router: `"/count"` is `/api/plugins/<id>/count`. A path must start with `/` and, once resolved (`%2e%2e` and `\` count as `..` and `/`), stay under that prefix; other hosts are refused. |
 | `wb.api.dispatch(action)` | Posts any Action (yours, another plugin's, core's) to `POST /api/actions` and resolves to its result. |
 | `wb.store.get()`, `wb.store.subscribe(keys, fn)` | The server state (`/api/state`), and a listener that fires when any of `keys` changes. Keys may be dotted (`"plugins.hello"`). `get()` and the listener's argument are a frozen copy: changing it throws (changes go through Actions). Returns an unsubscribe function. |
@@ -514,8 +516,9 @@ export function activate(wb) {
 | `wb.registerLayer(component, id, factory, {order?, title?})` | A map layer (see [Map layers](#map-layers)). Returns an unregister function. |
 | `wb.schemaForm(el, schema, value, {onChange?, omit?})` | Renders a form for a JSON Schema into `el` (see [Forms](#forms)). Returns `{value(), errors(), set(value), focus()}`. |
 | `wb.actionSchema(type)`, `wb.hasAction(type)` | An Action's JSON Schema (or `null`), and whether it is registered: for soft dependencies on another plugin, as `host.has_action` is in Python. Read from `GET /api/actions` before activation. |
-| `wb.on(event, fn)` | Your own `host.publish(event, payload)` events (`"greeted"`), another plugin's (`"catalog.added"`), or core's (`"core.history"`, `"core.job"`). They arrive over the page's one event stream: never open your own `EventSource`. Returns an unsubscribe function. |
+| `wb.on(event, fn)` | Your own `host.publish(event, payload)` events (`"greeted"`), another plugin's (`"catalog.added"`), or core's (`"core.history"`, `"core.job"`; `"core.table_row"` `{plugin, table, id}` when a row of a plugin table is clicked, `"core.table_changed"` `{plugin, tables}` when a plugin's tables were rebuilt). They arrive over the page's one event stream: never open your own `EventSource`. Returns an unsubscribe function. |
 | `wb.showPanel(id)` | Shows a panel, switching workspace when the current one doesn't have it. |
+| `wb.showTable(name)` | Shows a table in the table pane (one you registered with `host.register_table`), opening the pane beside the map when only the map shows. Resolves once its rows show; rejects when no network is open or there is no such table. API 1.8. |
 | `wb.toast(message)` | A short notice, prefixed with your plugin id. |
 | `wb.highlight({links})` | Replaces the page's highlighted links (the highlight tool's cyan links, listed in the Find panel) with `links`; `wb.highlight()` clears them. Nodes are not highlighted by core yet (`nodes` is accepted and ignored). |
 
@@ -711,6 +714,7 @@ A minor bump only adds to the API and a major bump breaks it.
 | `1.5` | `ActionError` and `NotSupportedYet` are exported from `netstead.workbench.plugins`: a handler raises them to refuse with a message the user sees. |
 | `1.6` | `host.mutate` and `host.undo` raise `ActionError` when storage refuses the edit or its reverse (corral's `EditingError`, an Arrow, ibis or DuckDB error), with the message scrubbed of credentials and keys. `host.mutate` returns a `Mutation(results, seq)` (exported; **breaking**: it used to return the list of results), `seq` being the pending edit's id, unique per network id for the session. `host.pending_edits(net_id)` returns a `PendingEdits(issued, edits)` (exported); `host.undo()`'s `seq` names the edit it reversed. `host.on_rollback(fn)` lets a handler put its own state back when its Action is rolled back. `assistant_compact: ClassVar[bool] = True` on a `mutates` Action offers it in the assistant's compact tool set; `GET /api/actions` entries carry `assistant_compact`. |
 | `1.7` | Reading inside the sandbox: `host.readable(path)` (a file or folder that exists, inside `io.allowed_roots`) and `host.list_dir(path)` (a folder's entries, hidden ones skipped). `host.history(prefix=None)` gives a read-only view of the session's history, so a plugin can summarize what it did. |
+| `1.8` | Plugin tables: `host.register_table(name, title, rows_fn, *, primary_key, columns=None)` and `host.unregister_table(name)` publish a read-only table to the table view (rebuilt when the plugin publishes), served by the table routes with sorting and the column filters. In the browser, `wb.showTable(name)` shows it, and a row click emits `core.table_row` (`{plugin, table, id}`); `core.table_changed` says it was rebuilt. |
 
 **The plugin API is provisional until netstead v1.0.** Until then it may change without a major
 bump. Pin the netstead versions you support in your package's dependencies, and check the changelog

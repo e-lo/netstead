@@ -201,6 +201,15 @@ This file is for the **netstead** package only. The underlying generic engine `c
   shows both, and `Style` gains `node_color_by` (validated against the node
   table, replayed as `app.do(Style(node_color_by=...))`). `GET …/properties`
   and `GET …/property/{name}` take `?table=node` for the node table's columns.
+- **Host API 1.8: plugin tables in the table view.** `host.register_table(name, title, rows_fn, *,
+  primary_key, columns=None)` publishes a read-only table, listed under "Plugins" in the table rail and served by
+  the table routes (`/tables`, `/table/<name>/rows`, `schema`, `distinct`, `locate`), so sorting and the column
+  filters (`any_of`, `between`, …) work as on a network table. Core builds a pandas frame from `rows_fn()` and keeps
+  it until the plugin publishes or the network changes; a failing `rows_fn` is a 500 naming the plugin, and its rail
+  entry says why. Never edited or linked to the map: a row click emits `core.table_row` (`{plugin, table, id}`) to
+  the plugin. `host.unregister_table(name)`; a plugin's tables go when it is unloaded. In the browser,
+  `wb.showTable(name)` opens the table pane on it. The project cards plugin publishes its catalog as
+  `cards_catalog`.
 - **Host API 1.7: reading inside the sandbox, and a view of history.** `host.readable(path)` resolves a file or
   folder that exists inside `io.allowed_roots` (`PathNotAllowed` outside them, `ActionError` when nothing is there);
   `host.list_dir(path)` lists a folder's entries (`{name, path, kind, is_dir}`, folders first, hidden entries

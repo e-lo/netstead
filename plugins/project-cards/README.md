@@ -98,4 +98,10 @@ the session starts; `enable_apply` (default `false`), which turns on applying ca
 (`project_cards.apply_card` and the panel's **Apply…**). Off, `apply_card` is refused with "applying cards is turned
 off (plugins.project_cards.enable_apply)" and the panel offers no Apply.
 
-Needs Host API 1.7 (`host.readable`, `host.list_dir`, `host.history`).
+Needs Host API 1.8 (`host.readable`, `host.list_dir`, `host.history`; `host.register_table` for the catalog
+table).
+
+**The catalog as a table**: the catalog is also the table view's read-only `cards_catalog` table (under "Plugins"
+in the table rail; **Show as table** in the Catalog section opens it): `card_id`, `project`, `tags` (a comma list,
+so "any of" matches a tag), `change_count`, `change_types`, `fits` (empty until checked), `reason`,
+`links_targeted` and `modified`. Sort and filter it there; clicking a row selects its card in the panel.
