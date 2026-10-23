@@ -257,17 +257,25 @@ Focus is a view. Clicking never changes the selection.
   counts it while it runs. The quality rules read **Settings → Validation** (`validation.rules`, keyed by rule
   code, such as `quality.high_speed_residential`).
 - When it finishes, the panel reads `Validated v0: 271 warnings, 16 info` (for the Leavenworth fixture), the
-  header's validity light turns green / amber / red with the counts on hover, the **Validate** tab badge
-  counts the issues plus any open edit warnings, and each located issue is a dot on the map.
+  header's validity light turns green / amber / red with the counts on hover, and each located issue is a dot
+  on the map. The **Validate** tab badge counts what needs attention: a red pill with the number of errors when
+  there are any, else an amber pill with the number of warnings (open edit warnings included), else no pill.
+  Info findings are never counted; hover for the whole breakdown ("Validate — 3 errors, 1 warning, 16 info",
+  "Validate — clean", "Validate — not run yet").
 - **Click an issue:** its record is focused, the map flies to it, and when the table shows that table its row is
   scrolled into view and marked. **Click a dot** on the map: the Validate panel opens on **This record**, that
   record's issues. Rows with issues carry a mark in the table. A located finding also carries a crosshair
   "zoom to" icon as an explicit affordance.
-- Filter by severity, table and code. **This record** lists only the focused record's issues. Issues with
-  no place on the map (a table-level check, a row whose node has no coordinates) are grouped: findings that
-  share a code and differ only by resource (such as the sixteen `structural.missing_optional_resource` lines
-  a partial GMNS package produces) collapse into one row under **Unlocated findings**, expandable to the
-  individual findings.
+- **Findings are grouped by type.** One collapsible row per rule code and severity ("▸ quality.high_speed_residential
+  warning 271"), with the rule's fix hint shown once, ordered errors first, then warnings, then info, largest
+  group first. Open a group to see its findings (50 at a time, with **Show more**), each with its crosshair
+  "zoom to" and **Fix**. Groups are built from every finding, not from one page. For structural findings
+  (such as the sixteen `structural.missing_optional_resource` lines a partial GMNS package produces) the row
+  names the resources instead of a hint.
+- Filter with the **Severity**, **Table** and **Type** menus (each starts with an "All …" choice; Type lists
+  the finding types with their counts). **This record** lists only the focused record's issues, with its
+  groups already open. Issues with no place on the map (a table-level check, a row whose node has no
+  coordinates) are also listed under **Unlocated**, where repeated structural findings fold into one row.
 - **Fix** on an issue opens the record editor on that issue's record, on the column the issue names (or the
   whole record when it names none), prefilled with the current value and with the issue as the note. Apply sends
   one edit with only the values you changed.
@@ -511,6 +519,14 @@ pair with `scope="user"`, and warns first if a project setting or a `NETSTEAD_SE
 `NETSTEAD_SELECT__MODEL` environment variable would still override it. **Models…** opens the
 Language models panel: set, replace, remove and test keys, point at another Ollama server, pull an
 Ollama model, tune quality and context, and browse the model catalog.
+
+The robot itself shows whether the choice can answer, by color and by the shape of its small dot:
+**green** (circle) when the provider and model are ready (a configured key, or a reachable Ollama with
+the model pulled), **yellow** (diamond) when only the offline pattern parser is in use, and **red**
+(square) when the chosen provider is not available (missing key, Ollama not running, model not
+pulled). Hover for the state in words, for example "Language model: Ollama · qwen3:4b — ready"
+or "… — not available: Ollama is not running", followed by what each selection sends; whether data
+leaves the machine is only ever said in that text, never by the color.
 
 The defaults are each provider's small, fast model — enough for one selection at a time — and are
 maintained in `netstead/llm/models.toml`:

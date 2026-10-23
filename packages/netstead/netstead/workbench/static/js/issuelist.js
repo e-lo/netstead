@@ -49,8 +49,6 @@ export function markerPoints(markers, net) {
 // The issue numbers recorded against one record ({table: {"<key>": [i, ...]}} from /issues/markers).
 export const recordIssues = (records, table, id) => (records && records[table] && records[table][String(id)]) || [];
 
-export const rangeLabel = (offset, shown, total) => (total ? `${offset + 1}–${offset + shown} of ${total}` : "No issues");
-
 // The last validation of the active network (session state `issues[active]`), or null.
 export const issueMeta = state => (state && state.issues && state.issues[state.active]) || null;
 
@@ -62,14 +60,15 @@ export function statusLine(meta) {
   return `Validated v${meta.version}: ${parts.join(", ") || "no issues"}` + (meta.stale ? " · the network changed since: re-run" : "");
 }
 
-// The Issues panel's badge (Part 2 `badge(ctx)`, from `ctx.state`): validation issues plus live edit warnings on the
-// active network, or null for none.
+// The Validate tab's badge (Part 2 `badge(ctx)`, from `ctx.state`): what needs attention, not everything found.
+// Errors when there are any (red pill), else warnings (amber pill, validation warnings plus live edit warnings on
+// the active network), else no pill; info is never counted. The tooltip always gives the whole breakdown.
 export function issuesBadge(state) {
   const meta = issueMeta(state), edits = state && state.edits && state.edits[state.active];
   const counts = { ...((meta && meta.counts) || {}) };
   counts.warning = (counts.warning || 0) + ((edits && edits.warnings) || 0);
-  const n = SEVERITIES.reduce((t, k) => t + (counts[k] || 0), 0);
-  if (!n) return null;
-  const title = SEVERITIES.filter(k => counts[k]).map(k => (k === "info" ? `${counts[k]} info` : countOf(counts[k], k))).join(", ");
-  return { text: String(n), dirty: false, title };
+  const parts = SEVERITIES.filter(k => counts[k]).map(k => (k === "info" ? `${counts[k]} info` : countOf(counts[k], k)));
+  if (counts.error) return { text: String(counts.error), tone: "error", dirty: false, title: parts.join(", ") };
+  if (counts.warning) return { text: String(counts.warning), tone: "warn", dirty: false, title: parts.join(", ") };
+  return { quiet: true, dirty: false, title: parts.join(", ") || (meta ? "clean" : "not run yet") };
 }

@@ -341,6 +341,11 @@
   /* ---- language models: header picker + panel ---- */
   #nl-wrap { position:relative; }
   #nl-btn .dot { position:absolute; top:3px; right:3px; margin:0; width:8px; height:8px; box-shadow:0 0 0 2px #171a21; }
+  /* The robot's status: color AND the dot's shape (circle ready, diamond offline, square not available). */
+  #nl-btn.llm-ready { color:#35c46a; } #nl-btn.llm-offline { color:#f0c23c; } #nl-btn.llm-unavailable { color:#e0524d; }
+  #nl-btn .dot.llm-ready { background:#35c46a; }
+  #nl-btn .dot.llm-offline { background:#f0c23c; border-radius:1px; transform:rotate(45deg); }
+  #nl-btn .dot.llm-unavailable { background:#e0524d; border-radius:1px; }
   #nl-picker { position:absolute; top:calc(100% + 4px); right:0; z-index:7; width:260px; max-width:calc(100vw - 24px);
                box-sizing:border-box; display:flex; flex-direction:column; gap:8px; padding:10px;
                background:rgba(23,26,33,.98); border:1px solid var(--edge); border-radius:10px; }
@@ -419,6 +424,7 @@
   #dock-tabs button.icontab .pcount { position:absolute; top:-2px; right:2px; margin:0; padding:0 4px; min-width:8px;
     font-size:10px; line-height:14px; box-sizing:border-box; border:1.5px solid var(--bg); background:var(--edge); color:var(--ink); }
   #dock-tabs button.icontab .pcount.warn { background:var(--accent); color:#1b1206; }
+  #dock-tabs button.icontab .pcount.error { background:rgb(224,82,77); color:#fff; }
   #dock-tabs [data-tip]:hover::after, #dock-tabs [data-tip]:focus-visible::after { top:calc(100% + 6px); right:auto; left:50%; transform:translateX(-50%); }
   #dock-tabs [data-tip]:last-child:hover::after { left:auto; right:0; transform:none; }
   #thinking { margin:4px 0; }
@@ -472,6 +478,8 @@
           border:1px solid var(--edge); color:var(--ink); }
   a.btn.off { opacity:.45; pointer-events:none; }
   .iss-filters { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; font-size:12px; }
+  .iss-facet { display:flex; flex-direction:column; gap:2px; min-width:0; color:var(--muted); font-size:11px; }
+  .iss-members .iss-more { margin:6px 0 6px 8px; }
   .iss-filters select { max-width:100%; background:#0c0e12; color:var(--ink); border:1px solid var(--edge); border-radius:6px; padding:3px 6px; }
   #dock-validate .iss, #dock-edit .iss { display:flex; gap:8px; align-items:flex-start; padding:7px 6px;
          border-bottom:1px solid var(--edge); cursor:pointer; font-size:12.5px; }
@@ -540,3 +548,4 @@
   #dock-view > .vsec:first-of-type > summary { margin-top:0; }
   #dock-view .vsec .row .iconbtn { width:22px; height:22px; margin-left:4px; }
   #dock-view .vsec .row .iconbtn svg { width:14px; height:14px; }
+  .pcount.error { background:rgb(224,82,77); color:#fff; }

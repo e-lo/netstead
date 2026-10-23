@@ -94,6 +94,51 @@ def edit_router(session: Session) -> APIRouter:
             "issues": rows[offset : offset + limit],
         }
 
+    @router.get("/issues/summary")
+    def issues_summary(
+        net_id: str,
+        component: str,
+        severity: str | None = None,
+        table: str | None = None,
+        code: str | None = None,
+        located: Literal["yes", "no"] | None = None,
+        record: str | None = None,
+    ) -> dict[str, Any]:
+        """The issues that match every filter, folded by code and severity (largest severity, then count, first).
+
+        The Validate list groups from this, never from a page of ``/issues``; a group's members are then paged with
+        ``/issues?code=…&severity=…``. ``facets`` are over the whole set, as in ``/issues``.
+        """
+        h = network_handle(session, net_id, component)
+        found = _record(record)
+        s = session.issue_set(h.id)
+        if s is None:
+            return {
+                "net_id": h.id,
+                "version": None,
+                "current_version": h.version,
+                "stale": False,
+                "total": 0,
+                "facets": {},
+                "groups": [],
+            }
+        rows = s.query(
+            severity=[v for v in (severity or "").split(",") if v],
+            table=table,
+            code=code,
+            located=None if located is None else located == "yes",
+            record=found,
+        )
+        return {
+            "net_id": h.id,
+            "version": s.version,
+            "current_version": h.version,
+            "stale": s.version != h.version,
+            "total": len(rows),
+            "facets": s.facets(),
+            "groups": s.summary(rows),
+        }
+
     @router.get("/issues/markers")
     def markers(net_id: str, component: str) -> dict[str, Any]:
         """Located issues for the map (number, severity, anchor, record), plus issue numbers per record."""

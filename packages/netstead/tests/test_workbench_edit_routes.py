@@ -62,6 +62,28 @@ def test_filters(client):
     assert rec["total"] >= 1 and all(i["key"] == first["key"] for i in rec["issues"])
 
 
+def test_the_summary_folds_the_whole_set_by_code_and_severity(client):
+    j = client.get(f"{BASE}/issues/summary").json()
+    assert (j["total"], j["stale"]) == (287, False)
+    assert j["facets"]["severity"] == {"error": 0, "warning": 271, "info": 16}
+    first = j["groups"][0]
+    assert (first["code"], first["severity"], first["count"]) == ("quality.high_speed_residential", "warning", 271)
+    assert first["fix_hint"] and first["tables"] == ["link"]
+    assert sum(g["count"] for g in j["groups"]) == 287
+    ranks = [{"error": 0, "warning": 1, "info": 2}[g["severity"]] for g in j["groups"]]
+    assert ranks == sorted(ranks)  # error, then warning, then info
+    info = client.get(f"{BASE}/issues/summary?severity=info").json()
+    assert {g["severity"] for g in info["groups"]} == {"info"} and info["total"] == 16
+    # a group's members are paged through /issues with the group's own code and severity
+    page = client.get(f"{BASE}/issues?code={first['code']}&severity={first['severity']}&limit=5&offset=5").json()
+    assert page["total"] == 271 and len(page["issues"]) == 5
+
+
+def test_the_summary_before_any_validation(fresh):
+    j = fresh.get(f"{BASE}/issues/summary").json()
+    assert j["version"] is None and j["groups"] == [] and j["total"] == 0
+
+
 def test_markers_and_the_record_index(client):
     j = client.get(f"{BASE}/issues/markers").json()
     assert len(j["markers"]) == 271 and j["truncated"] is False

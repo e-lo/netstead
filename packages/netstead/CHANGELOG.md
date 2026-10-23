@@ -27,6 +27,19 @@ This file is for the **netstead** package only. The underlying generic engine `c
   or hover only picks layers that are switched on, and a node wins over the link under it. Overlay rows explain
   themselves with an info tooltip; the Filter section is headed "Show only links where..." with a note that the data
   is not changed.
+- **The Workbench Validate list is grouped by finding type.** Instead of 271 near-identical
+  `quality.high_speed_residential` rows burying everything else, each rule code and severity is one collapsible
+  row (count and the rule's fix hint once; errors first, then warnings, then info, largest first) that loads its
+  findings, 50 at a time, when opened. The filter menus are labeled Severity, Table and Type, and Type lists the
+  finding types with counts. New route `GET /api/n/{net}/{component}/issues/summary` returns the groups for the
+  same filters as `/issues`, built from the whole issue set.
+- **The Workbench robot shows its status by color.** The header's language-model icon (and a small dot whose
+  shape says the same) is green when the chosen provider and model are ready, yellow when only the offline pattern
+  parser is in use, and red when the provider is unavailable (missing key, Ollama not running, model not pulled).
+  The tooltip says it in words and keeps the privacy note; the old blue/gray privacy colors are gone.
+- **Workbench Validate badge counts what needs attention.** The tab's pill shows the number of errors (red) when there
+  are any, else warnings (amber), else nothing; info findings are never counted. The tooltip still gives the whole
+  breakdown ("Validate — 3 errors, 1 warning, 16 info"), or says "clean" or "not run yet".
 - **Workbench side panel: a View tab, dismissible Edit help, readable badges.** The map and style controls (layers,
   color, width, direction, filter) moved out of the Find tab's collapsed section into their own **View** tab right
   after Find, and the map's layers button is gone. The Edit tab's explanatory paragraph hides behind a "x" (and comes

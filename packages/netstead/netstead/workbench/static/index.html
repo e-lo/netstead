@@ -35,7 +35,7 @@
       <span id="count"></span>
       <span class="spacer" id="cmd-slot"><button id="cmd-btn" class="iconbtn" data-icon="terminal" data-tip="Commands (⌘K / Ctrl+K)" aria-label="Commands" aria-keyshortcuts="Control+K Meta+K"></button></span>
       <span id="nl-wrap">
-        <button id="nl-btn" class="iconbtn" data-tip="Language model: offline (pattern)" aria-label="Language model: offline (pattern)" aria-haspopup="dialog" aria-controls="nl-picker" aria-expanded="false"><span data-icon="bot"></span><span id="nl-dot" class="dot off" aria-hidden="true"></span></button>
+        <button id="nl-btn" class="iconbtn llm-offline" data-tip="Language model: Offline (pattern) — offline pattern parser only." aria-label="Language model: Offline (pattern) — offline pattern parser only." aria-haspopup="dialog" aria-controls="nl-picker" aria-expanded="false"><span data-icon="bot"></span><span id="nl-dot" class="dot llm-offline" aria-hidden="true"></span></button>
         <div id="nl-picker" role="dialog" aria-label="Language model" hidden>
           <select id="nl-provider" aria-label="Language model provider (this session)"></select>
           <select id="nl-model" aria-label="Language model (this session)"></select>
@@ -197,14 +197,13 @@
         <a class="iconbtn off" id="iss-report" data-icon="download" data-tip="Export report (HTML)" aria-label="Export report (HTML)" href="#" aria-disabled="true" tabindex="-1"></a>
         <span id="iss-status" class="diag" role="status">Not validated yet.</span></div>
       <div class="iss-filters">
-        <select id="iss-sev" aria-label="Severity"></select>
-        <select id="iss-table" aria-label="Table"></select>
-        <select id="iss-code" aria-label="Issue code"></select>
+        <label class="iss-facet"><span>Severity</span><select id="iss-sev"></select></label>
+        <label class="iss-facet"><span>Table</span><select id="iss-table"></select></label>
+        <label class="iss-facet"><span>Type</span><select id="iss-code"></select></label>
         <label><input type="checkbox" id="iss-this"> This record</label>
       </div>
+      <div class="iss-pager"><span id="iss-range" role="status"></span></div>
       <div id="iss-list"><span class="empty">Run validation to list issues.</span></div>
-      <div class="iss-pager"><button class="mini ghost" id="iss-prev" aria-label="Previous issues" disabled>&#8592;</button><span id="iss-range"></span>
-        <button class="mini ghost" id="iss-next" aria-label="Next issues" disabled>&#8594;</button></div>
       <div class="label">Unlocated <span id="iss-unloc-count" class="pcount">0</span></div>
       <div id="iss-unlocated"></div>
     </section>

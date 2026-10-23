@@ -320,20 +320,36 @@ def test_record_issues_and_the_status_line(node_module):
     )
     assert line == "Validated v2: 272 warnings, 16 info · the network changed since: re-run"
     assert node_module("issuelist.js", ["statusLine"], "statusLine(null)") == "Not validated yet."
-    assert node_module("issuelist.js", ["rangeLabel"], "rangeLabel(100, 50, 288)") == "101\u2013150 of 288"
 
 
-def test_the_issues_badge_counts_issues_and_edit_warnings(node_module):
+def test_the_issues_badge_counts_what_needs_attention(node_module):
+    # errors win (red pill); info is never counted, but the tooltip lists everything
     assert node_module("issuelist.js", ["issuesBadge"], f"issuesBadge({STATE})") == {
-        "text": "10",  # 6 issues + 4 edit warnings
+        "text": "1",
+        "tone": "error",
         "dirty": False,
-        "title": "1 error, 6 warnings, 3 info",
+        "title": "1 error, 6 warnings, 3 info",  # 2 validation warnings + 4 live edit warnings
     }
-    assert node_module(
-        "issuelist.js", ["issuesBadge"], '[issuesBadge({active: "b", edits: {}}), issuesBadge(null)]'
-    ) == [
-        None,
-        None,
+
+
+def test_the_issues_badge_falls_back_to_warnings_then_quiet(node_module):
+    def state(counts):
+        return f'{{active: "a", issues: {{a: {{version: 1, counts: {counts}}}}}, edits: {{a: {{}}}}}}'
+
+    expr = (
+        f"[issuesBadge({state('{error: 0, warning: 271, info: 16}')}),"
+        f" issuesBadge({state('{error: 0, warning: 0, info: 16}')}),"
+        f" issuesBadge({state('{error: 3, warning: 1, info: 16}')}),"
+        f" issuesBadge({state('{error: 0, warning: 0, info: 0}')}),"
+        " issuesBadge({active: 'b', edits: {}}), issuesBadge(null)]"
+    )
+    assert node_module("issuelist.js", ["issuesBadge"], expr) == [
+        {"text": "271", "tone": "warn", "dirty": False, "title": "271 warnings, 16 info"},
+        {"quiet": True, "dirty": False, "title": "16 info"},  # info alone raises no pill
+        {"text": "3", "tone": "error", "dirty": False, "title": "3 errors, 1 warning, 16 info"},
+        {"quiet": True, "dirty": False, "title": "clean"},
+        {"quiet": True, "dirty": False, "title": "not run yet"},
+        {"quiet": True, "dirty": False, "title": "not run yet"},
     ]
 
 
@@ -1522,3 +1538,88 @@ def test_a_click_picks_nodes_over_links_and_never_a_hidden_layer(node_module):
     assert pick(with_overlay, on)["layerId"] == "hello.dots"
     assert pick(with_overlay, on, ["hello.dots"])["layerId"] == "nodes"
     assert pick([], on) is None
+
+
+# ---- llmstatus.js: the header robot's status (color from readiness; privacy stays in the tooltip words)
+
+_OLLAMA = '{provider: "ollama", label: "Ollama", kind: "local", usable: true, configured: true}'
+_DOWN = (
+    '{provider: "ollama", label: "Ollama", kind: "local", usable: false, configured: false,'
+    ' error: "Ollama is not running"}'
+)
+_NOKEY = '{provider: "anthropic", label: "Anthropic", kind: "remote", usable: false, configured: false, error: null}'
+_KEYED = '{provider: "anthropic", label: "Anthropic", kind: "remote", usable: true, configured: true}'
+
+
+def test_the_robot_status_is_green_yellow_or_red(node_module):
+    calls = [
+        f"{{provider: 'ollama', row: {_OLLAMA}, model: 'qwen2.5:7b', privacy: 'Nothing leaves this machine.'}}",
+        "{provider: 'stub', privacy: 'Offline pattern parser: nothing leaves this machine.'}",
+        f"{{provider: 'ollama', row: {_DOWN}, model: 'qwen2.5:7b'}}",
+        f"{{provider: 'ollama', row: {_OLLAMA}, model: 'qwen2.5:7b', modelMissing: true}}",
+        f"{{provider: 'anthropic', row: {_NOKEY}, model: 'claude-x'}}",
+        f"{{provider: 'anthropic', row: {_KEYED}, model: 'claude-x'}}",
+        "{provider: 'nope', row: null}",
+    ]
+    expr = "[" + ", ".join(f"llmStatus({c})" for c in calls) + "]"
+    got = node_module("llmstatus.js", ["llmStatus"], expr)
+    assert [g["state"] for g in got] == [
+        "ready",
+        "offline",
+        "unavailable",
+        "unavailable",
+        "unavailable",
+        "ready",
+        "unavailable",
+    ]
+    assert got[0]["text"] == "Language model: Ollama · qwen2.5:7b — ready. Nothing leaves this machine."
+    assert got[1]["text"].startswith("Language model: Offline (pattern) — offline pattern parser only.")
+    assert "not available: Ollama is not running" in got[2]["text"]
+    assert "qwen2.5:7b is not installed; run: ollama pull qwen2.5:7b" in got[3]["text"]
+    assert "no Anthropic API key is set" in got[4]["text"]
+    assert "nope is not set up" in got[6]["text"]
+
+
+_TYPES = (
+    "[{code: 'quality.high_speed_residential', severity: 'warning', count: 271,"
+    " fix_hint: 'Lower the speed.', tables: ['link']},"
+    " {code: 'x.info', severity: 'info', count: 400, fix_hint: null, tables: ['node']},"
+    " {code: 'a.err', severity: 'error', count: 2, fix_hint: 'Fix it.', tables: ['link']},"
+    " {code: 'b.warn', severity: 'warning', count: 271, fix_hint: null, tables: []},"
+    " {code: 'structural.missing_optional_resource', severity: 'info', count: 3, fix_hint: 'h',"
+    " tables: ['lane', 'zone', 'use']}]"
+)
+
+
+def test_type_groups_order_by_severity_then_count(node_module):
+    got = node_module("issuegroups.js", ["orderGroups"], f"orderGroups({_TYPES}).map(g => g.code)")
+    assert got == [
+        "a.err",  # errors first, however few
+        "b.warn",  # warnings: equal counts break on code
+        "quality.high_speed_residential",
+        "x.info",  # then info, largest first
+        "structural.missing_optional_resource",
+    ]
+    assert node_module("issuegroups.js", ["orderGroups"], "orderGroups(null)") == []
+
+
+def test_type_group_titles_blurbs_and_totals(node_module):
+    names = ["groupTitle", "groupBlurb", "totalsLine", "typeOptionLabel", "remaining", "typeKey"]
+    expr = (
+        f"(() => {{ const g = {_TYPES}; return [groupTitle(g[0]), groupBlurb(g[0]), groupBlurb(g[1]), groupBlurb(g[4]),"
+        " totalsLine(287, g), totalsLine(1, [g[0]]), totalsLine(0, []), typeOptionLabel('a.b', 1234),"
+        " remaining(271, 50), remaining(5, 9), typeKey(g[0])]; })()"
+    )
+    assert node_module("issuegroups.js", names, expr) == [
+        "quality.high_speed_residential · warning · 271",
+        "Lower the speed.",  # the rule's hint, shown once for the group
+        "",
+        "optional resources absent: lane, zone, use",  # structural groups name their resources, as before
+        "287 findings in 5 types",
+        "1 finding in 1 type",
+        "No findings",
+        "a.b (1,234)",
+        221,
+        0,
+        "quality.high_speed_residential\u0000warning",
+    ]

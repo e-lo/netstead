@@ -426,7 +426,7 @@ def test_validate_groups_repeated_structural_findings_and_offers_zoom_to():
         'icon("crosshair"' in issues
         and 'class="iconbtn iss-zoom" data-tip="Zoom to" aria-label="${esc(zoomLabel(i, where))}"' in issues
     )
-    assert 'listHTML(page.issues, "iss-list")' in issues and 'listHTML(unlocated.issues, "iss-unlocated")' in issues
+    assert 'listHTML(unlocated.issues, "iss-unlocated")' in issues
     assert "const id = `${prefix}-grp-${k}`" in issues  # group ids never collide across the two lists
     for zoom in ("fitLinks([a.link])", "flyToNode(a.node)", "flyTo(a.lonlat[0], a.lonlat[1])"):
         assert zoom in issues
@@ -895,3 +895,25 @@ def test_map_picks_through_the_node_first_priority_helper():
     src = (JS_DIR / "map.js").read_text()
     assert "pickPriority(" in src
     assert "pickable: style.show.links" in src and "pickable: style.show.nodes" in src
+
+
+def test_the_robot_shows_status_by_color_and_dot_shape():
+    css = (STATIC_DIR / "app.css").read_text()
+    llm = (JS_DIR / "llm.js").read_text()
+    for state in ("ready", "offline", "unavailable"):
+        assert f"#nl-btn.llm-{state}" in css and f"#nl-btn .dot.llm-{state}" in css
+    assert "llmStatus(" in llm and "btn.className = `iconbtn llm-${status.state}`" in llm
+    assert "import " not in (JS_DIR / "llmstatus.js").read_text()  # pure
+
+
+def test_validate_groups_by_type_from_the_summary_and_labels_its_facets():
+    issues = (JS_DIR / "issues.js").read_text()
+    # groups come from the whole set (the summary), never from a page; members load per group on expand
+    assert "issues/summary?" in issues and "orderGroups(summary.groups)" in issues
+    assert 'class="iss grp type' in issues and "loadMembers(key)" in issues and "MEMBER_PAGE" in issues
+    assert '"All types"' in issues and "typeOptionLabel(c, n)" in issues
+    html = (STATIC_DIR / "index.html").read_text()
+    pane = html[html.index('id="dock-validate"') : html.index('id="dock-assistant"')]
+    for label, select in (("Severity", "iss-sev"), ("Table", "iss-table"), ("Type", "iss-code")):
+        assert f'<label class="iss-facet"><span>{label}</span><select id="{select}">' in pane
+    assert "iss-prev" not in pane and "iss-next" not in pane  # no page to turn: members have "Show more"

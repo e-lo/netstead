@@ -15,23 +15,26 @@ export function nextIndex(index, key, count, axis = "horizontal") {
 
 const blank = v => v === null || v === undefined || v === false || v === "" || v === 0;
 
-// A badge as registered (a count, a string, {text, dirty, title}, or nothing) -> {text, dirty, title} or null.
+// A badge as registered (a count, a string, {text, dirty, tone?, quiet?, title}, or nothing) -> {text, dirty, tone,
+// quiet, title} or null. `tone` ("error" | "warn") colors the pill; `quiet` keeps a title-only badge (no pill) so a
+// tab can still say "clean" or "not run yet" in its tooltip.
 export function normalizeBadge(b) {
   if (blank(b)) return null;
-  if (typeof b === "string" || typeof b === "number") return { text: String(b), dirty: false, title: "" };
+  if (typeof b === "string" || typeof b === "number") return { text: String(b), dirty: false, tone: "", quiet: false, title: "" };
   if (typeof b !== "object") return null;
   const text = blank(b.text) ? "" : String(b.text);
-  if (!text && !b.dirty) return null;
-  return { text, dirty: Boolean(b.dirty), title: b.title ? String(b.title) : "" };
+  const quiet = Boolean(b.quiet && b.title);
+  if (!text && !b.dirty && !quiet) return null;
+  return { text, dirty: Boolean(b.dirty), tone: b.tone ? String(b.tone) : "", quiet, title: b.title ? String(b.title) : "" };
 }
 
 // A workspace tab's badge: its own, else a dirty mark when any of its panels is dirty (UX principle 7).
 export function workspaceBadge(own, panelBadges) {
   const b = normalizeBadge(own);
-  if (b) return b;
+  if (b && !b.quiet) return b;
   const dirty = panelBadges.map(normalizeBadge).filter(x => x && x.dirty);
   if (!dirty.length) return null;
-  return { text: "", dirty: true, title: dirty.map(d => d.title).filter(Boolean).join("; ") || "Unsaved changes" };
+  return { text: "", dirty: true, tone: "", quiet: false, title: dirty.map(d => d.title).filter(Boolean).join("; ") || "Unsaved changes" };
 }
 
 // "1 selected link", "2 unsaved edits": a count and the noun it counts, pluralized the American way.

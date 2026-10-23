@@ -100,7 +100,8 @@ function badgeOf(item) {
 }
 
 // One pill per badge: its count, orange ("warn") when something is unsaved; a dirty badge with no count is a dot.
-const badgeHTML = b => (b ? ` <span class="pcount${b.dirty ? " warn" : ""}" aria-hidden="true">${esc(b.text)}</span>` : "");
+const badgeTone = b => (b.tone === "error" ? " error" : b.dirty || b.tone === "warn" ? " warn" : "");
+const badgeHTML = b => (b && !b.quiet ? ` <span class="pcount${badgeTone(b)}" aria-hidden="true">${esc(b.text)}</span>` : "");
 
 // Every plugin-supplied string (id, title, badge) is escaped.
 function tabHTML(prefix, item, selected, badge, controls) {

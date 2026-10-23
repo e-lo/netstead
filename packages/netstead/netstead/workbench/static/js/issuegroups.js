@@ -47,3 +47,40 @@ export function groupSummary(group, limit = SUMMARY_LIMIT) {
 // Whether a finding has somewhere on the map to zoom to: an anchor the issue payload carries.
 export const located = issue => Boolean(issue && issue.anchor &&
   (issue.anchor.link != null || issue.anchor.node != null || Array.isArray(issue.anchor.lonlat)));
+
+// ---- the Validate list's default grouping: one collapsible row per finding type (code + severity). Built from
+// GET /issues/summary (the whole set, never a page of it); a group's members load on expand.
+
+export const MEMBER_PAGE = 50;
+const RANK = { error: 0, warning: 1, info: 2 };
+
+// Summary groups ordered by severity (error, warning, info), then count (largest first), then code. The server
+// sends them this way already; sorting again keeps the order a property of this module, not of the wire.
+export const orderGroups = groups =>
+  [...(groups || [])].sort((a, b) => (RANK[a.severity] ?? 3) - (RANK[b.severity] ?? 3) || b.count - a.count || a.code.localeCompare(b.code));
+
+// A group's key: its code and severity (the same code can appear at two severities).
+export const typeKey = g => `${g.code}\u0000${g.severity}`;
+
+// "quality.high_speed_residential · warning · 271"
+export const groupTitle = g => `${g.code} · ${g.severity} · ${g.count.toLocaleString("en-US")}`;
+
+// The line under a group's title: structural groups name their resources (as before); every other type shows the
+// rule's fix hint once, which would otherwise repeat on each of its members.
+export function groupBlurb(g) {
+  if (typeof g.code === "string" && g.code.startsWith("structural.")) return groupSummary({ ...g, tables: g.tables || [] });
+  return g.fix_hint || "";
+}
+
+// The members still to load for a group that has `loaded` of its `count`.
+export const remaining = (count, loaded) => Math.max(0, count - loaded);
+
+// "287 findings in 2 types", "1 finding in 1 type", "No findings".
+export function totalsLine(total, groups) {
+  if (!total) return "No findings";
+  const n = (groups || []).length;
+  return `${total.toLocaleString("en-US")} ${total === 1 ? "finding" : "findings"} in ${n} ${n === 1 ? "type" : "types"}`;
+}
+
+// A Type select's option label: "quality.high_speed_residential (271)".
+export const typeOptionLabel = (code, n) => `${code} (${n.toLocaleString("en-US")})`;
