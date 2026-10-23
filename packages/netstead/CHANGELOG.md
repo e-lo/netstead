@@ -36,6 +36,10 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Fixed
 
+- **Workbench place search shows why it failed.** A failed place search (for example, the `[osm]` extra is missing,
+  or the geocoder is down) now says so in the Area step instead of "No matches."; the Workbench quickstart
+  installs `netstead[server,graph,nl,osm]`.
+
 - **Categorical cell edits in the Workbench grid are offered the spec's allowed
   values, and an out-of-enum value is kept and flagged, never silently lost.**
   Beta testers reported edits to `bike_facility`, `parking` and the like "did

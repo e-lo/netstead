@@ -1298,3 +1298,18 @@ def test_thinking_text_adds_seconds_after_three(node_module):
     )
     got = node_module("assistmodel.js", ["thinkingText"], expr)
     assert got == ["Thinking… (ollama · qwen)", "Thinking… 7 s", "Thinking… (ollama)", "Thinking…"]
+
+
+def test_place_search_shows_real_errors_not_no_matches(node_module):
+    names = ["candidatesHTML"]
+
+    def render(result_js: str) -> str:
+        return node_module("placesearch.js", names, f"candidatesHTML({result_js})")
+
+    assert "No matches." in render("{candidates: []}")
+    listed = render('{candidates: [{display_name: "King County <WA>", type: "administrative"}]}')
+    assert 'data-i="0"' in listed and "King County &lt;WA&gt;" in listed and "No matches" not in listed
+    missing = render('{error: Object.assign(new Error("requires the osm extra"), {status: 501})}')
+    assert "Place search needs the [osm] extra: requires the osm extra" in missing and "No matches" not in missing
+    failed = render('{error: Object.assign(new Error("place search failed: Timeout: slow"), {status: 502})}')
+    assert "Place search failed: Timeout: slow" in failed and "failed: place search failed" not in failed

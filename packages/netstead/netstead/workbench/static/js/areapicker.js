@@ -2,6 +2,7 @@
 import { getJSON } from "./api.js";
 import { $, esc, toast } from "./dom.js";
 import { createFileBrowser } from "./filebrowser.js";
+import { candidatesHTML } from "./placesearch.js";
 import { store } from "./store.js";
 
 const M_PER_DEG_LAT = 111320; // same spherical approximation as netstead.osm.query.point_buffer_bbox
@@ -189,15 +190,13 @@ async function searchPlace() {
   if (!q) return;
   const seq = ++searchSeq; // a slower, older search must not overwrite a newer one
   $("ap-cands").innerHTML = '<span class="empty">Searching…</span>';
-  let found = [];
+  let result;
   try {
-    found = (await getJSON(`/api/geocode?q=${encodeURIComponent(q)}`)).candidates;
-  } catch (e) { if (seq === searchSeq) toast(e.message); }
+    result = { candidates: (await getJSON(`/api/geocode?q=${encodeURIComponent(q)}`)).candidates };
+  } catch (error) { result = { error }; }
   if (seq !== searchSeq) return;
-  candidates = found;
-  $("ap-cands").innerHTML = candidates.length
-    ? candidates.map((c, i) => `<div class="cand" data-i="${i}">${esc(c.display_name)} <span class="fb-kind">${esc(c.type)}</span></div>`).join("")
-    : '<span class="empty">No matches.</span>';
+  candidates = result.candidates || [];
+  $("ap-cands").innerHTML = candidatesHTML(result);
   const outlines = candidates.map(c => polygonFeature(c.polygon ? lonLat(c.polygon) : ring(c.bbox)));
   if (map && map.getSource("ap-cands")) map.getSource("ap-cands").setData({ type: "FeatureCollection", features: outlines });
 }
