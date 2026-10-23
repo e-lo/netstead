@@ -575,3 +575,78 @@ def test_inspect_under_a_fake_dom(run_js):
         "/api/plugins/project_cards/card?draft=true&net_id=base",
         "/api/plugins/project_cards/card?draft=true&net_id=base",
     ]
+
+
+EDIT_HARNESS = (
+    PANEL_SETUP
+    + """
+const actions = [];
+const real = deps.dispatch;
+deps.dispatch = async a => { actions.push(a); return a.type === "project_cards.edit_card"
+  ? { card_id: a.card_id, count: 2 } : a.type === "project_cards.remove_change"
+  ? { removed: "lanes on link 2", readded: 0 } : real(a); };
+panels[0].render(root);
+const setServer = patch => store.set({ server: { ...store.get().server, ...patch } });
+const source = { card_id: "good.yml", path: "/cards/good.yml" };
+const DRAFT = { count: 2, project: "Good", tags: ["t", "u"], source,
+  changes: [{ index: 0, describe: "lanes on link 1" }, { index: 1, describe: "lanes on link 2" }] };
+setServer({ plugins: { project_cards: { drafts: { base: DRAFT }, preview: null, catalog: CATALOG, applied: [] } } });
+await settle(); await settle();
+const draftBox = elById(root, "pc-draft"), commitBox = elById(root, "pc-commit"), status = elById(root, "pc-status");
+const dialog = find(root, "DIALOG");
+const got = {};
+got.source = elById(draftBox, "pc-draft-source").textContent;
+got.filled = ["pc-project", "pc-tags", "pc-path"].map(id => elById(commitBox, id).value);
+const second = walk(draftBox).find(e => e.getAttribute("data-change") === "1");
+await button(second, "Remove").onclick();
+got.removed = [actions.at(-1), status.textContent];
+await button(commitBox, "Commit…").onclick();
+const choice = key => walk(dialog).find(e => e.getAttribute("data-choice") === key);
+const confirm = find(dialog, "INPUT");
+confirm.checked = true; confirm.onchange();
+got.choices = [choice("over").textContent, choice("over").disabled, choice("new").textContent, choice("new").disabled,
+               dialog.textContent.includes("Give a different card file")];
+await choice("over").onclick();
+got.savedOver = [dialog.open, actions.at(-1)];
+// Edit on a catalog card while the draft has changes asks first, then replaces the draft.
+const card = walk(elById(root, "pc-catalog")).find(e => e.getAttribute("data-card") === "bad.yml");
+await button(card, "Edit").onclick();
+got.ask = [dialog.open, find(dialog, "H3").textContent, dialog.textContent.includes("Edit undoes them")];
+await button(dialog, "Replace the draft").onclick();
+got.edited = [dialog.open, actions.at(-1), status.textContent];
+// With an empty draft and a card that applies, Edit asks nothing.
+setServer({ plugins: { project_cards: { drafts: {}, preview: null, catalog: CATALOG, applied: [] } } });
+await settle(); await settle();
+const good = walk(elById(root, "pc-catalog")).find(e => e.getAttribute("data-card") === "good.yml");
+await button(good, "Edit").onclick();
+got.direct = [dialog.open, actions.at(-1)];
+got.errors = calls.filter(c => c[0] === "error");
+console.log(JSON.stringify(got));
+"""
+)
+
+
+def test_editing_a_card_under_a_fake_dom(run_js):
+    got = run_js(FILES, EDIT_HARNESS)
+    assert got["errors"] == []
+    assert got["source"] == "Editing good.yml (/cards/good.yml)"
+    assert got["filled"] == ["Good", "t, u", "/cards/good.yml"]  # the commit fields take the card's
+    assert got["removed"] == [
+        {"type": "project_cards.remove_change", "index": 1, "net_id": "base"},
+        "Removed: lanes on link 2",
+    ]
+    assert got["choices"] == ["Save over good.yml", False, "Save as new file", True, True]
+    assert got["savedOver"][0] is False
+    commit = got["savedOver"][1]
+    assert commit["type"] == "project_cards.commit" and commit["path"] == "/cards/good.yml"
+    assert commit["overwrite"] is True and commit["project"] == "Good" and commit["tags"] == ["t", "u"]
+    assert got["ask"] == [True, 'Edit "Bad"', True]
+    assert got["edited"] == [
+        False,
+        {"type": "project_cards.edit_card", "card_id": "bad.yml", "replace_draft": True, "net_id": "base"},
+        "Editing bad.yml: 2 change(s) in the draft. Save over it from Commit…",
+    ]
+    assert got["direct"] == [
+        False,
+        {"type": "project_cards.edit_card", "card_id": "good.yml", "replace_draft": False, "net_id": "base"},
+    ]

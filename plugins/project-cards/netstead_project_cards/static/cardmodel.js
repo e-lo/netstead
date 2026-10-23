@@ -287,6 +287,36 @@ export const savedChoices = (state, netId) => ((state && state.saved_selections)
   .filter(s => s.net_id === netId || s.net_id === draftNet(state, netId))
   .map(s => ({ name: s.name, label: `${s.name} (${s.links} link${s.links === 1 ? "" : "s"})` }));
 
+// --------------------------------------------------------------------------------------------- editing a card
+
+// The last part of a path ("/cards/main.yml" -> "main.yml").
+export const baseName = path => String(path || "").split(/[\\/]/).filter(Boolean).pop() || "";
+
+// The commit dialog's buttons for `fields` (commitFields'): one Commit, or, for a draft loaded from a card file
+// (`source`, {card_id, path}), "Save over <file>" (that file, replaced) and "Save as new file" (the Card file field,
+// never replacing the source: `disabled` says why when the field still names it).
+export function commitChoices(fields, source = null) {
+  if (!source || !source.path) return [{ key: "commit", label: null, fields, disabled: "" }];
+  const over = { key: "over", label: `Save over ${baseName(source.path)}`, fields: { ...fields, path: source.path,
+    overwrite: true }, disabled: "" };
+  // The field names the source itself, absolutely or as a path relative to a folder above it (the server refuses
+  // any other existing file without overwrite anyway).
+  const same = fields.path === source.path || String(source.path).endsWith(`/${fields.path}`);
+  const asNew = { key: "new", label: "Save as new file", fields: { ...fields, overwrite: false },
+    disabled: same ? "Give a different card file to save as a new card" : "" };
+  return [over, asNew];
+}
+
+// What Edit on a catalog card asks first: nothing for an empty draft, else whether to replace the draft's changes.
+export function editPrompt(draft, row) {
+  const n = draft ? draft.count || 0 : 0;
+  const warn = row && row.badge === "✗" ? ` ${row.project} does not apply to this network as it is: ${row.tip}` : "";
+  if (!n) return { replace: false, ask: warn ? warn.trim() : "" };
+  const changes = `${n} uncommitted change${n === 1 ? "" : "s"}`;
+  return { replace: true, ask: `The draft card has ${changes}. Edit undoes ${n === 1 ? "it" : "them"} (network edits `
+    + `included) and loads ${row ? row.project : "the card"} instead.${warn}` };
+}
+
 // ------------------------------------------------------------------------------------------------- inspecting
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;

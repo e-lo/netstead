@@ -97,7 +97,17 @@ def test_approving_a_card_change_drafted_on_the_preview_is_stale_once_the_base_m
 #: The read-only Actions (the catalog and the summary): offered as plain tools, never drafted.
 READ_ONLY = {"open_catalog", "refresh_catalog", "check_card", "session_summary"}
 #: The drafted Actions a compact tool set still offers (they need no file path).
-COMPACT = {"add_change", "undo_change", "preview", "close_preview", "preview_card", "apply_card"} | READ_ONLY
+COMPACT = {
+    "add_change",
+    "undo_change",
+    "remove_change",
+    "preview",
+    "close_preview",
+    "preview_card",
+    "apply_card",
+    "edit_card",
+}
+COMPACT |= READ_ONLY
 EVERY = COMPACT | {"commit", "import"}
 DRAFTED = EVERY - READ_ONLY
 

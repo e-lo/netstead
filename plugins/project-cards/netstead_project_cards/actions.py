@@ -1,10 +1,10 @@
 """The project cards plugin's Actions: recorded in history, replayable with "Copy as Python", dispatchable over HTTP.
 
 The ones that change a network, register or close a preview network, or write a file set ``mutates``: the
-natural-language assistant drafts them for the user to approve. The ones that need no file path (adding, undoing and
-previewing a change, closing the preview, previewing and applying a catalog card) set ``assistant_compact``, so a
-model on this machine is offered them too. Opening, refreshing and checking the catalog, and the session summary,
-read only (the catalog is the plugin's own state, not a network).
+natural-language assistant drafts them for the user to approve. The ones that need no file path (adding, undoing,
+removing and previewing a change, closing the preview, previewing, applying and editing a catalog card) set
+``assistant_compact``, so a model on this machine is offered them too. Opening, refreshing and checking the
+catalog, and the session summary, read only (the catalog is the plugin's own state, not a network).
 """
 
 from __future__ import annotations
@@ -22,11 +22,13 @@ __all__ = [
     "CheckCard",
     "ClosePreview",
     "CommitCard",
+    "EditCard",
     "ImportCard",
     "OpenCatalog",
     "PreviewCard",
     "PreviewChange",
     "RefreshCatalog",
+    "RemoveChange",
     "SessionSummary",
     "UndoChange",
 ]
@@ -73,12 +75,46 @@ class UndoChange(BaseAction):
     net_id: str | None = None
 
 
+class RemoveChange(BaseAction):
+    """Remove any change of a network's draft card (``index``, from 0), network edits included.
+
+    The draft's changes from ``index`` on are undone, newest first, and the later ones are applied again in order, so
+    the network ends as if the removed change had never been made. A later change that depends on the removed one (a
+    property change on a link it added, an ``existing`` value it set) no longer applies: the Action is then refused
+    and nothing changes. The network's newest edit must be the draft's, as for ``project_cards.undo_change``.
+    """
+
+    type: Literal["project_cards.remove_change"] = "project_cards.remove_change"
+    mutates: ClassVar[bool] = True
+    assistant_compact: ClassVar[bool] = True
+    net_id: str | None = None
+    index: int = Field(ge=0)
+
+
+class EditCard(BaseAction):
+    """Load a catalog card into a network's draft to edit it: its changes are applied, as ``project_cards.import`` does.
+
+    The draft takes the card's project, tags, dependencies and notes, and remembers the card's file, so a commit can
+    save over it. A draft with uncommitted changes is refused unless ``replace_draft``: its changes are then undone
+    first (network edits included). The card is read from its file again; all or nothing.
+    """
+
+    type: Literal["project_cards.edit_card"] = "project_cards.edit_card"
+    mutates: ClassVar[bool] = True
+    assistant_compact: ClassVar[bool] = True
+    net_id: str | None = None
+    card_id: str = Field(min_length=1, max_length=1000)
+    replace_draft: bool = False
+
+
 class CommitCard(BaseAction):
     """Write a network's draft card as a ProjectCard YAML file and start a new, empty draft.
 
     Live edit warnings must be confirmed (``confirm_warnings``), the same rule core applies before saving a copy.
-    ``path`` must be inside ``io.allowed_roots``; an existing file is replaced only with ``overwrite``. When the
-    ``catalog`` plugin is installed, the card is also added to it (``catalog.add_card``).
+    ``path`` must be inside ``io.allowed_roots``; an existing file is replaced only with ``overwrite`` (a draft loaded
+    with ``project_cards.edit_card`` is saved over its card this way). When the ``catalog`` plugin is installed, the
+    card is also added to it (``catalog.add_card``); when the path is inside the open catalog's folder, the catalog is
+    rescanned so the card is listed.
     """
 
     type: Literal["project_cards.commit"] = "project_cards.commit"

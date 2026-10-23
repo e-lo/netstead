@@ -14,6 +14,15 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
   a saved selection) with a live count and **Use these N links**, then the change form, Preview and Add to card. It
   dispatches the existing `project_cards.preview` and `project_cards.add_change`; an addition skips Select. The
   right-click "New change ▸ …" entry point stays.
+- **Edit a card.** `project_cards.edit_card(card_id, replace_draft=False)` (the catalog row's **Edit**) loads a
+  catalog card into the open network's draft with `import` semantics (all or nothing) and remembers its file; a
+  draft with uncommitted changes is refused unless `replace_draft`, which undoes them first. The commit dialog then
+  offers **Save over <file>** (overwrite) or **Save as new file**. `project_cards.remove_change(index)` removes any
+  change of the draft, not only the last: it undoes the draft back to that change and re-applies the later ones, so
+  the network ends as if the change had never been made, and refuses (changing nothing) when a later change depends
+  on the removed one. The draft's **Edit…** is remove plus re-add through the form. `plugins.project_cards.drafts`
+  entries now carry `tags`, `dependencies`, `notes`, `source` (`{card_id, path}` or `null`) and each change's
+  `index`. A commit inside the open catalog's folder rescans the catalog (its result's `listed`).
 - **Inspect a card.** **Inspect** on a catalog card (and on the draft) opens a read-only view: project, tags,
   dependencies, notes and file; each change with its type, facility (ids, or the query and what it resolved to),
   property changes (existing → set or change) and its applicability on the open network. Clicking a change

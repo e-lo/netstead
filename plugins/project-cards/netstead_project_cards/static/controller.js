@@ -202,6 +202,53 @@ export function createController(wb) {
     return wb.api.dispatch({ type: "project_cards.import", path });
   }
 
+  // ---------------------------------------------------------------------------------------------- editing cards
+
+  const onNet = (action, netId) => (netId ? { ...action, net_id: netId } : action);
+
+  // Remove change `index` of the draft (any one, not just the last: the server undoes to it and re-adds the rest).
+  function removeChange(index, netId = null) {
+    state.check = null;
+    return wb.api.dispatch(onNet({ type: "project_cards.remove_change", index }, netId));
+  }
+
+  // Load a catalog card into the draft to edit it; `replaceDraft` undoes the draft's uncommitted changes first.
+  function editCard(cardId, { replaceDraft = false, netId = null } = {}) {
+    state.check = null;
+    return wb.api.dispatch(onNet({ type: "project_cards.edit_card", card_id: cardId, replace_draft: replaceDraft },
+      netId));
+  }
+
+  // Edit a draft change: remove it, then open its form again on the links it aimed at (selected by id: a query
+  // selection comes back as the ids it resolved to). An addition's form opens empty.
+  async function editChange(index, netId = null) {
+    const detail = await wb.api.get(`/card?${query({ draft: "true", net_id: netId })}`);
+    const change = (detail.changes || [])[index];
+    if (!change) throw new Error(`The draft has no change ${index + 1}`);
+    await removeChange(index, netId);
+    state.create = null;
+    if (!needsSelection(change.type)) return start(change.type);
+    const links = (change.targets && change.targets.links) || [];
+    if (links.length) {
+      await wb.api.dispatch(onNet({ type: "select", link_ids: links }, netId));
+      await selectionArrives(links);
+    }
+    return start(change.type);
+  }
+
+  // The server's state reaches the page after the Action's answer (an event): wait (briefly) until the store's
+  // selection holds `links`, so the form opened next is not outdated by it at once.
+  async function selectionArrives(links, { tries = 40, ms = 50 } = {}) {
+    const ids = list => JSON.stringify(list.map(String).sort());
+    const want = ids(links);
+    for (let i = 0; i < tries; i += 1) {
+      const sel = wb.store.get().selection;
+      if (sel && ids(sel.link_ids || []) === want) return true;
+      await new Promise(resolve => setTimeout(resolve, ms));
+    }
+    return false;
+  }
+
   // ------------------------------------------------------------------------------------------------ the catalog
 
   // The /catalog listing, which checks unchecked cards against `netId` (so the badges fill in): kept in
@@ -274,7 +321,8 @@ export function createController(wb) {
     anotherChange, endCreate, inspect, closeInspect,
     ...Object.fromEntries(Object.entries({
       preview, closePreview, add, cancel, undo, commit, importCard, reload, openCatalog, refreshCatalog, previewCard,
-      applyCard, beginCreate, chooseCreateType, useFacility, backCreate, selectByText,
+      applyCard, beginCreate, chooseCreateType, useFacility, backCreate, selectByText, removeChange, editCard,
+      editChange,
     }).map(([name, step]) => [name, oneAtATime(step)])),
   };
 }

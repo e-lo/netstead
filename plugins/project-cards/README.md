@@ -29,6 +29,11 @@ for whether it applies to the open network, with **Preview**, **Apply…** and *
 are listed under "Not cards"), **Draft** (the compose, draft and commit UI above), **Applied this session** (cards
 committed or applied, newest first, marked `committed` or `catalog`) and **Session summary** (Copy and Download).
 
+**Edit** (on a catalog card) loads the card into the draft, as Import does, and remembers its file (a draft with
+uncommitted changes is replaced only when you confirm). **Remove** takes out any change of the draft (the later ones
+are re-applied, so the network ends as if it had never been made), **Edit…** removes a change and reopens its form,
+and **Commit…** offers **Save over <file>** or **Save as new file**.
+
 **Inspect** (on a catalog card, and on the draft) opens a read-only view: the project, tags, dependencies, notes and
 file, then each change with its type, facility (ids, or the query and what it resolved to), property changes
 (existing → set or change) and whether it applies to the open network. Clicking a change highlights its links on
@@ -60,7 +65,8 @@ the plugin's history for the session.
 
 **Actions** (`netstead_project_cards.actions`):
 
-- `project_cards.add_change`, `project_cards.undo_change`, `project_cards.commit`, `project_cards.import`,
+- `project_cards.add_change`, `project_cards.undo_change`, `project_cards.remove_change`, `project_cards.commit`,
+  `project_cards.import`, `project_cards.edit_card`,
   `project_cards.preview`, `project_cards.close_preview`, `project_cards.open_catalog`,
   `project_cards.refresh_catalog`, `project_cards.check_card`, `project_cards.preview_card`,
   `project_cards.apply_card`, `project_cards.session_summary`.

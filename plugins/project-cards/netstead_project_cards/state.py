@@ -369,6 +369,95 @@ class CardsState:
             d = self._drafts.get(net_id)
             return dict(d.source) if d is not None and d.source is not None else None
 
+    def entries(self, net_id: str) -> list[Entry]:
+        """``net_id``'s draft changes, oldest first (a new list; the entries are shared and frozen)."""
+        with self._lock:
+            d = self._drafts.get(net_id)
+            return list(d.entries) if d is not None else []
+
+    def _take(self, d: Draft, index: int, removed: Sequence[Entry]) -> None:
+        """Take ``d``'s changes from ``index`` on (``removed``, which the caller has undone) out, as undone ones.
+
+        Each counts as one undo (newest first), so a rolled-back removal puts them back in order (see
+        :meth:`Draft.reconcile`). Call it under the lock.
+        """
+        current = d.entries[index:]
+        if len(current) != len(removed) or any(a is not b for a, b in zip(current, removed, strict=True)):
+            raise RuntimeError("the draft changed while its changes were being undone")
+        for entry in reversed(removed):
+            self._generation += 1
+            d.undone.append(Undone(entry, self._generation))
+        del d.entries[index:]
+
+    def replace_tail(
+        self, net_id: str, handle: Any, index: int, removed: Sequence[Entry], applied: Sequence[Applied]
+    ) -> int:
+        """Replace ``net_id``'s draft changes from ``index`` on: ``removed`` (undone by the caller) by ``applied``.
+
+        :meth:`~netstead_project_cards.handlers.Handlers.remove_change` undoes a change and the ones after it, then
+        applies the later ones again: their new marks replace the old. Returns the change count.
+        """
+        with self._lock:
+            d = self._drafts.get(net_id)
+            if d is None or d.handle() is not handle:
+                raise RuntimeError(f"{net_id}'s draft changed while a change was being removed")
+            self._take(d, index, removed)
+            d.entries.extend(Entry(a.change, tuple(a.marks)) for a in applied)
+            d.card = d.card.model_copy(update={"changes": [e.change for e in d.entries]})
+            return len(d.entries)
+
+    def load(
+        self,
+        net_id: str,
+        handle: Any,
+        removed: Sequence[Entry],
+        applied: Sequence[Applied],
+        card: DraftCard,
+        source: dict[str, str],
+    ) -> tuple[int, Callable[[], None]]:
+        """Make ``net_id``'s draft the card ``card`` from ``source`` (``{card_id, path}``), to edit it.
+
+        ``removed`` are the draft's changes, which the caller has undone; ``applied`` the card's changes, applied.
+        The draft takes the card's project, tags, dependencies and notes. Returns the change count and an undo (for
+        ``host.on_rollback``) that puts the draft's metadata and source back; its changes are reconciled by marks.
+        """
+        with self._lock:
+            d = self._drafts.get(net_id)
+            if d is None or d.handle() is not handle:
+                if removed:
+                    raise RuntimeError(f"{net_id}'s draft changed while it was being replaced")
+                d = self._drafts[net_id] = Draft(weakref.ref(handle))
+            self._take(d, 0, removed)
+            before = {k: getattr(d.card, k) for k in ("project", "tags", "dependencies", "notes")}
+            was = d.source
+            d.entries.extend(Entry(a.change, tuple(a.marks)) for a in applied)
+            meta = {"project": card.project, "tags": list(card.tags), "dependencies": card.dependencies}
+            d.card = d.card.model_copy(update={**meta, "notes": card.notes, "changes": [e.change for e in d.entries]})
+            d.source = dict(source)
+            count = len(d.entries)
+
+        def undo() -> None:
+            with self._lock:
+                d.card = d.card.model_copy(update=before)
+                d.source = was
+
+        return count, undo
+
+    def swap_catalog(self, catalog: Catalog) -> Callable[[], None]:
+        """Make ``catalog`` the open one; return the undo (for ``host.on_rollback``) that puts the older one back.
+
+        The undo does nothing once another catalog has replaced ``catalog`` (opened or rescanned since).
+        """
+        with self._lock:
+            older, self._catalog = self._catalog, catalog
+
+        def undo() -> None:
+            with self._lock:
+                if self._catalog is catalog:
+                    self._catalog = older
+
+        return undo
+
     def project(self, net_id: str) -> str:
         """The project name of ``net_id``'s draft (``""`` when unnamed)."""
         with self._lock:
@@ -444,10 +533,14 @@ class CardsState:
             drafts = {
                 net_id: {
                     "project": d.card.project,
+                    "tags": list(d.card.tags),
+                    "dependencies": d.card.dependencies.model_dump(),
+                    "notes": d.card.notes,
+                    "source": dict(d.source) if d.source is not None else None,
                     "count": len(d.entries),
                     "changes": [
-                        {"type": e.change.type, "describe": describe(e.change), "steps": len(e.marks)}
-                        for e in d.entries
+                        {"index": i, "type": e.change.type, "describe": describe(e.change), "steps": len(e.marks)}
+                        for i, e in enumerate(d.entries)
                     ],
                 }
                 for net_id, d in self._drafts.items()

@@ -6,8 +6,8 @@
 // in cardmodel.js, both tested under node. Card and user text is only ever set as text (`h`'s `text`, or a string
 // child), never parsed as markup.
 import {
-  ROADWAY_TYPES, TRANSIT_TYPES, TYPE_TITLES, appliedRows, applyDefaults, catalogOf, catalogRows, commitFields,
-  commitView, draftBadge, draftNet, draftOf, hasNode, importPath, inspectHeader, inspectRows, needsSelection,
+  ROADWAY_TYPES, TRANSIT_TYPES, TYPE_TITLES, appliedRows, applyDefaults, catalogOf, catalogRows, commitChoices,
+  commitFields, commitView, draftBadge, editPrompt, draftNet, draftOf, hasNode, importPath, inspectHeader, inspectRows, needsSelection,
   openPreview, previewLine, savedChoices, selectionStatus, stepIndicator, summaryFileName, typeChoices,
 } from "./cardmodel.js";
 import { createController } from "./controller.js";
@@ -337,15 +337,32 @@ function createView(wb, ctl, el) {
       return;
     }
     const name = draft.project ? `: ${draft.project}` : "";
-    const list = h("ol");
-    for (const change of draft.changes) list.append(h("li", { text: change.describe }));
+    const list = h("ol", { id: "pc-draft-changes" });
+    for (const change of draft.changes) {
+      const i = change.index ?? draft.changes.indexOf(change);
+      const remove = act("mini ghost", "Remove", async () => {
+        const result = await ctl.removeChange(i, baseNet());
+        say(`Removed: ${result.removed}${result.readded ? ` (re-added the ${result.readded} after it)` : ""}`);
+      });
+      remove.setAttribute("aria-label", `Remove change ${i + 1}`);
+      const edit = act("mini ghost", "Edit…", async () => {
+        await ctl.editChange(i, baseNet());
+        say(`Removed change ${i + 1}: change the form and Add to card to put it back`);
+        draw();
+      });
+      edit.setAttribute("aria-label", `Edit change ${i + 1}`);
+      list.append(h("li", { "data-change": String(i) }, h("span", { text: change.describe }), " ", edit, " ", remove));
+    }
     const undo = act("mini", "Undo last change", async () => {
       await ctl.undo({ netId: baseNet() });
       say("Undid the last change");
     });
     const heading = h("div", { class: "label", tabindex: -1, text: `Draft card${name} (${draft.count})` });
+    const from = draft.source ? [h("p", { class: "muted", id: "pc-draft-source",
+      text: `Editing ${draft.source.card_id} (${draft.source.path})` })] : [];
     const inspect = act("mini ghost", "Inspect", () => openInspect(null));
-    redraw(draftBox, [heading, list, undo, " ", inspect], takeFocus);
+    redraw(draftBox, [heading, ...from, list, undo, " ", inspect], takeFocus);
+    fillCommit(draft);
   }
 
   // Set while the commit dialog is drawn: marks its check outdated (the draft changed elsewhere).
@@ -355,26 +372,35 @@ function createView(wb, ctl, el) {
     const check = await ctl.check(fields);
     const v = commitView(check);
     const note = h("p", { role: "status" });
-    const commit = h("button", { class: "mini" }, v.button);
+    // One Commit button, or (a draft loaded from a card) "Save over <file>" and "Save as new file".
+    const draft = draftOf(server(), server().active);
+    const choices = commitChoices(fields, draft && draft.source);
+    const buttons = choices.map(c => h("button", { class: "mini", "data-choice": c.key,
+      ...(c.disabled ? { title: c.disabled } : {}) }, c.label || v.button));
     const cancel = h("button", { class: "mini ghost", onclick: () => dialog.close() }, "Cancel");
     const recheck = h("button", { class: "mini" }, "Check again");
     recheck.hidden = true;
     const confirm = h("input", { type: "checkbox", id: "pc-confirm" });
     let outdated = false;
-    const sync = () => { commit.disabled = outdated || v.blocked || (v.needsConfirm && !confirm.checked); };
+    const sync = () => {
+      const off = outdated || v.blocked || (v.needsConfirm && !confirm.checked);
+      buttons.forEach((b, i) => { b.disabled = off || Boolean(choices[i].disabled); });
+    };
     sync();
     confirm.onchange = sync;
-    commit.onclick = async () => {
-      try {
-        const result = await busy([commit, cancel], () => ctl.commit(fields));
-        dialog.close();
-        say(`Committed ${result.card_id} to ${result.path}`);
-      } catch (e) {
-        note.textContent = e.message;
-      } finally {
-        sync();
-      }
-    };
+    buttons.forEach((button, i) => {
+      button.onclick = async () => {
+        try {
+          const result = await busy([...buttons, cancel], () => ctl.commit(choices[i].fields));
+          dialog.close();
+          say(`Committed ${result.card_id} to ${result.path}`);
+        } catch (e) {
+          note.textContent = e.message;
+        } finally {
+          sync();
+        }
+      };
+    });
     recheck.onclick = guard(() => busy([recheck], () => openDialog(fields)));
     markOutdated = () => {
       outdated = true;
@@ -394,18 +420,30 @@ function createView(wb, ctl, el) {
       h("div", { class: "label", text: `Card YAML (${check.net_id})` }),
       h("pre", { text: check.yaml, style: "max-height:45vh;overflow:auto;background:var(--bg)" }), // core's <pre> look
       note,
-      h("div", { style: "display:flex;gap:8px;justify-content:flex-end" }, cancel, recheck, commit),
+      ...choices.filter(c => c.disabled).map(c => h("p", { class: "muted", text: `${c.label}: ${c.disabled}` })),
+      h("div", { style: "display:flex;gap:8px;justify-content:flex-end" }, cancel, recheck, ...buttons),
     );
     if (!dialog.open) dialog.showModal(); // "Check again" redraws an open dialog
-    (v.needsConfirm && !v.blocked ? confirm : commit.disabled ? cancel : commit).focus();
+    const ready = buttons.find(b => !b.disabled);
+    (v.needsConfirm && !v.blocked ? confirm : ready || cancel).focus();
   }
 
   // Drawn once: redrawing on every state change would wipe what the user is typing.
+  const input = (id, placeholder) => h("input", { type: "text", id, placeholder });
+  const project = input("pc-project", "Main Street road diet");
+  const tags = input("pc-tags", "comma separated");
+  const path = input("pc-path", "cards/main-street.yml");
+  // A draft loaded from a card (Edit) fills the commit fields with the card's, once per card loaded.
+  let filledFrom = null;
+  function fillCommit(draft) {
+    const key = draft && draft.source ? JSON.stringify(draft.source) : null;
+    if (!key || key === filledFrom) return;
+    filledFrom = key;
+    project.value = draft.project || "";
+    tags.value = (draft.tags || []).join(", ");
+    path.value = draft.source.path;
+  }
   function drawCommit() {
-    const input = (id, placeholder) => h("input", { type: "text", id, placeholder });
-    const project = input("pc-project", "Main Street road diet");
-    const tags = input("pc-tags", "comma separated");
-    const path = input("pc-path", "cards/main-street.yml");
     const overwrite = h("input", { type: "checkbox", id: "pc-overwrite" });
     const source = input("pc-import", "path/to/card.yml");
     const open = async () => {
@@ -568,11 +606,12 @@ function createView(wb, ctl, el) {
     });
     const apply = act("mini", "Apply…", () => openApplyDialog(row));
     const inspect = act("mini ghost", "Inspect", () => openInspect(row.card_id));
+    const edit = act("mini ghost", "Edit", () => openEditDialog(row));
     const details = h("details", {}, h("summary", { class: "muted", text: "Details" }), ...detailRows(row));
     return h("div", { class: "pc-card", "data-card": row.card_id, style: "margin:6px 0 8px" },
       h("div", {}, badge, " ", h("strong", { text: row.project }),
         h("span", { class: "muted", text: ` · ${row.changes} change(s)${tags}` })),
-      h("div", { style: "margin:4px 0 0 1.4em" }, preview, " ", apply, " ", inspect),
+      h("div", { style: "margin:4px 0 0 1.4em" }, preview, " ", apply, " ", inspect, " ", edit),
       details,
     );
   }
@@ -593,6 +632,37 @@ function createView(wb, ctl, el) {
         h("ul", {}, ...rejected.map(r => h("li", { class: "muted", text: `${r.card_id}: ${r.error}` })))));
     }
     redraw(catalogList, nodes);
+  }
+
+  // Edit: load the card into the draft. An empty draft (and a card that applies) needs no question; otherwise the
+  // dialog says what happens (the draft's changes undone, or the card refused), and a refusal shows in it.
+  async function openEditDialog(row) {
+    const prompt = editPrompt(draftOf(server(), server().active), row);
+    const run = async () => {
+      const result = await ctl.editCard(row.card_id, { replaceDraft: prompt.replace, netId: baseNet() });
+      say(`Editing ${result.card_id}: ${result.count} change(s) in the draft. Save over it from Commit…`);
+      draw();
+    };
+    if (!prompt.ask) { await run(); return; }
+    const note = h("p", { role: "status" });
+    const go = h("button", { class: "mini" }, prompt.replace ? "Replace the draft" : "Edit anyway");
+    const cancel = h("button", { class: "mini ghost", onclick: () => dialog.close() }, "Cancel");
+    go.onclick = async () => {
+      try {
+        await busy([go, cancel], run);
+        dialog.close();
+      } catch (e) {
+        note.textContent = e.message;
+      }
+    };
+    dialog.replaceChildren(
+      h("h3", { id: "pc-dialog-title", text: `Edit "${row.project}"` }),
+      h("p", { text: prompt.ask }),
+      note,
+      h("div", { style: "display:flex;gap:8px;justify-content:flex-end" }, cancel, go),
+    );
+    if (!dialog.open) dialog.showModal();
+    cancel.focus();
   }
 
   // The options apply_card takes, then the card goes to the network (all or nothing); a refusal shows in the dialog.

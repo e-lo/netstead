@@ -767,3 +767,92 @@ console.log(JSON.stringify({ steps, refused, empty, compose: ctl.state.compose,
         ["select", "main street"],
     ]
     assert got["compose"] is None
+
+
+# ------------------------------------------------------------------------------------------- editing a card
+
+
+def test_commit_choices_and_the_edit_prompt(run_js):
+    got = run_js(
+        MODEL,
+        """
+import { baseName, commitChoices, editPrompt } from "./cardmodel.js";
+const fields = { project: "P", path: "/cards/main.yml", tags: [], overwrite: false, net_id: "base" };
+const source = { card_id: "main.yml", path: "/cards/main.yml" };
+const good = { project: "Main", badge: "✓", tip: "Applies to base" };
+const bad = { project: "Main", badge: "✗", tip: "lanes on 1 link: missing 9" };
+console.log(JSON.stringify({
+  plain: commitChoices(fields),
+  same: commitChoices(fields, source),
+  relative: commitChoices({ ...fields, path: "cards/main.yml" }, source)[1].disabled,
+  other: commitChoices({ ...fields, path: "/cards/main-v2.yml", overwrite: true }, source)[1],
+  names: [baseName("/a/b/c.yml"), baseName("c:\\\\x\\\\d.json"), baseName(""), baseName(null)],
+  empty: editPrompt(null, good), emptyBad: editPrompt({ count: 0 }, bad).ask,
+  one: editPrompt({ count: 1 }, good), two: editPrompt({ count: 2 }, bad).ask,
+}));
+""",
+    )
+    assert got["plain"] == [{"key": "commit", "label": None, "fields": got["plain"][0]["fields"], "disabled": ""}]
+    over, as_new = got["same"]
+    assert over["label"] == "Save over main.yml" and over["fields"]["overwrite"] is True
+    assert over["fields"]["path"] == "/cards/main.yml" and over["disabled"] == ""
+    assert as_new["label"] == "Save as new file" and as_new["disabled"].startswith("Give a different card file")
+    assert got["relative"].startswith("Give a different")
+    assert got["other"]["disabled"] == "" and got["other"]["fields"]["overwrite"] is False  # never replaces
+    assert got["names"] == ["c.yml", "d.json", "", ""]
+    assert got["empty"] == {"replace": False, "ask": ""}
+    assert got["emptyBad"] == "Main does not apply to this network as it is: lanes on 1 link: missing 9"
+    assert got["one"]["replace"] is True
+    assert got["one"]["ask"] == (
+        "The draft card has 1 uncommitted change. Edit undoes it (network edits included) and loads Main instead."
+    )
+    assert got["two"].startswith("The draft card has 2 uncommitted changes. Edit undoes them")
+    assert got["two"].endswith("as it is: lanes on 1 link: missing 9")
+
+
+def test_the_controller_removes_edits_and_loads_cards(run_js):
+    got = run_js(
+        BOTH,
+        STUB_WB
+        + """
+const DRAFT = { changes: [
+  { index: 0, type: "roadway_property_change", targets: { links: [3, 4] } },
+  { index: 1, type: "roadway_addition", targets: { links: [340] } },
+  { index: 2, type: "roadway_deletion", targets: { links: [] } } ] };
+const get = wb.api.get;
+wb.api.get = async path => (path.startsWith("/card?") ? (calls.push(["get", path]), DRAFT) : get(path));
+const dispatch = wb.api.dispatch;
+wb.api.dispatch = async action => {
+  if (action.type === "select") server.selection = { link_ids: [...action.link_ids].reverse() };  // arrives later
+  return dispatch(action);
+};
+await ctl.removeChange(1, "base");
+await ctl.editCard("main.yml");
+await ctl.editCard("main.yml", { replaceDraft: true, netId: "base" });
+await ctl.editChange(0, "base");
+const outdated = ctl.selectionChanged();  // the selection the form was read for is the one it shows
+await ctl.editChange(1, "base");
+await ctl.editChange(2);
+let missing = null;
+try { await ctl.editChange(5, "base"); } catch (e) { missing = e.message; }
+console.log(JSON.stringify({ outdated, missing, calls: calls.map(c => (c[0] === "dispatch" ? c[1] : c)) }));
+""",
+    )
+    assert got["outdated"] is False
+    assert got["missing"] == "The draft has no change 6"
+    assert got["calls"] == [
+        {"type": "project_cards.remove_change", "index": 1, "net_id": "base"},
+        {"type": "project_cards.edit_card", "card_id": "main.yml", "replace_draft": False},
+        {"type": "project_cards.edit_card", "card_id": "main.yml", "replace_draft": True, "net_id": "base"},
+        ["get", "/card?draft=true&net_id=base"],
+        {"type": "project_cards.remove_change", "index": 0, "net_id": "base"},
+        {"type": "select", "link_ids": [3, 4], "net_id": "base"},
+        ["get", "/form?type=roadway_property_change&use_selection=true"],
+        ["get", "/card?draft=true&net_id=base"],
+        {"type": "project_cards.remove_change", "index": 1, "net_id": "base"},
+        ["get", "/form?type=roadway_addition"],  # an addition: no selection
+        ["get", "/card?draft=true"],
+        {"type": "project_cards.remove_change", "index": 2},
+        ["get", "/form?type=roadway_deletion&use_selection=true"],  # no links to select: the form says so
+        ["get", "/card?draft=true&net_id=base"],
+    ]

@@ -58,9 +58,14 @@ def test_a_pick_is_applied_recorded_and_drafted(session):
     assert session.history[-1].imports == "from netstead_project_cards.actions import AddChange"
     assert draft(session) == {
         "project": "",
+        "tags": [],
+        "dependencies": {"prerequisites": [], "corequisites": [], "conflicts": []},
+        "notes": None,
+        "source": None,
         "count": 1,
         "changes": [
             {
+                "index": 0,
                 "type": "roadway_property_change",
                 "describe": "roadway_property_change link 1: free_speed 40 → 30",
                 "steps": 1,
