@@ -21,6 +21,12 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Changed
 
+- **Workbench Open / Import: Included examples, and a Back chevron.** The wizard's first screen now ends with
+  **Included examples**, the networks bundled with netstead (Leavenworth, WA; RDU I-40) with their link and node
+  counts, each opening in one click (`GET /api/examples`). Bundled examples open even when the install lives outside
+  `io.allowed_roots`; no other path under the package does. Back is now a chevron at the top-left of the dialog
+  header (hidden on the first screen), and the footer only appears when a step has an action (Next, Estimate,
+  Build, Open).
 - **Workbench View tab: swatches beat color-by, collapsible sections, node-first picking, explained overlays.** Picking a
   Links or Nodes color swatch while that layer is colored by a column now turns the column coloring off in the same
   recorded Style action (the swatch's tooltip says so). Each View section folds (remembered per browser). A map click

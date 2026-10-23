@@ -1,6 +1,7 @@
 // Open / Import wizard: source → (browse | URL | area → options → estimate) → exactly one dispatched action.
 // Browse, URL check, place search, and estimate are read-only queries; only Open / Build are recorded actions.
 import { dispatch, getJSON, postJSON } from "./api.js";
+import { examplesHTML } from "./examplesmodel.js";
 import { extrasFor, missingExtras, noticeHTML } from "./extrasnotice.js";
 import { modesProblem, normalizeModes, toggleMode } from "./buildmodes.js";
 import { areaChoice, resetAreaPicker, showAreaMap, wireAreaPicker } from "./areapicker.js";
@@ -74,7 +75,8 @@ function updateFoot() {
   if (wz.step === "options") {
     $("opt-name-err").textContent = ($("opt-name").value.trim() && nameProblem()) || modesProblem(chosenModes());
   }
-  $("wz-back").disabled = wz.step === "source";
+  $("wz-back").hidden = wz.step === "source"; // nothing to go back to on the first screen
+  $("wz-foot").hidden = wz.step === "source"; // no footer action there: choosing a source is the action
   $("wz-next").hidden = wz.step === "source";
   $("wz-next").textContent = wz.step === "run" ? runLabel() : NEXT_LABEL[wz.step] || "Next";
   $("wz-next").disabled = !canAdvance();
@@ -253,6 +255,14 @@ export function applyExtras() {
   $("ap-search").disabled = needPlace.length > 0;
 }
 
+async function loadExamples() {
+  const el = $("wz-examples");
+  let list = [];
+  try { list = await getJSON("/api/examples"); } catch (e) { list = []; }
+  el.innerHTML = examplesHTML(list);
+  el.hidden = !list.length;
+}
+
 async function loadExtras() {
   try { extrasInfo = await getJSON("/api/extras"); } catch (e) { extrasInfo = null; }
   applyExtras();
@@ -275,6 +285,7 @@ export function openWizard() {
   document.querySelector(".wz-choice").focus();
   prefillSettings();
   loadExtras();
+  loadExamples();
 }
 
 export function closeWizard() { $("wizard").hidden = true; }
@@ -291,6 +302,10 @@ export function wireWizard() {
     if (!btn) return;
     const text = btn.parentElement.querySelector("code").textContent;
     navigator.clipboard.writeText(text).then(() => { btn.textContent = "Copied"; }, err => toast(`copy failed: ${err.message}`));
+  });
+  $("wz-examples").addEventListener("click", e => {
+    const btn = e.target.closest("[data-example-source]");
+    if (btn) submit({ type: "open_network", source: btn.dataset.exampleSource, label: btn.dataset.exampleName });
   });
   $("wz-next").onclick = next;
   $("wz-back").onclick = back;

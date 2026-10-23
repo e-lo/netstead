@@ -21,6 +21,7 @@ from .. import build
 from ..actions import BuildNetwork
 from ..errors import ActionError, PathNotAllowed
 from ..estimate import needs_approval
+from ..examples import examples
 from ..extras import optional_module
 from ..files import list_dir
 from ..session import Session
@@ -58,6 +59,11 @@ def io_router(session: Session) -> APIRouter:
         if not isinstance(url, str) or not url.strip():
             raise HTTPException(422, 'body must be {"url": "..."}')
         return check_url(url.strip())
+
+    @router.get("/examples")
+    def example_networks() -> list[dict[str, Any]]:
+        """The example networks bundled with netstead (read-only; computed once)."""
+        return list(examples())
 
     @router.get("/extras")
     def extras() -> dict[str, Any]:

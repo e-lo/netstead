@@ -65,6 +65,11 @@ shared network.
   outlines. You can instead pick a local file: a `.osm` XML file or an Overpass JSON export for OSM, or an
   Overture snapshot folder holding `segment.parquet` + `connector.parquet` (see `netstead.overture.layout`).
 
+Below the four sources, **Included examples** lists the networks that ship with netstead (Leavenworth, WA and an
+RDU I-40 interchange stretch), each with its link and node counts. One click opens it, with no path to look up
+and no need for it to sit under `io.allowed_roots`. Once you pick a source, the **‹** (Back) button at the
+top-left of the dialog returns to this list; **Esc** closes the dialog.
+
 A build always writes to the output folder and format you choose (Parquet, CSV, DuckDB, or Zip) and then opens
 the result from disk, so what you see is what was saved. It never overwrites an existing output; a leftover
 hidden `.partial-*` staging folder from a crashed build is cleaned up automatically once it's more than 24

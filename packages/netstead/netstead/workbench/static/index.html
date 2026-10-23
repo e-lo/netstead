@@ -262,6 +262,7 @@
 <div id="wizard" class="modal" role="dialog" aria-modal="true" aria-labelledby="wz-title" hidden>
   <div class="modal-card">
     <div class="modal-head">
+      <button class="iconbtn" id="wz-back" data-icon="chevron-left" data-tip="Back" aria-label="Back" hidden></button>
       <h3 id="wz-title">Open / Import</h3>
       <button class="mini ghost" id="wz-close" aria-label="Close">&#10005;</button>
     </div>
@@ -273,6 +274,7 @@
         <div class="ex-slot" data-for="osm"></div>
         <button class="wz-choice" data-src="overture"><b>Build from Overture</b><span>Draw an area, search a place, or use a local snapshot folder</span></button>
         <div class="ex-slot" data-for="overture"></div>
+        <div id="wz-examples" hidden></div>
       </section>
       <section class="wz-step" data-step="local" hidden>
         <p class="wz-note">Pick a GMNS folder, .zip, .duckdb, or datapackage.json. It opens in place; nothing is uploaded.</p>
@@ -341,8 +343,7 @@
         <div id="wz-estimate" class="wz-note"></div>
       </section>
     </div>
-    <div class="modal-foot">
-      <button class="mini ghost" id="wz-back">Back</button>
+    <div class="modal-foot" id="wz-foot">
       <button class="mini" id="wz-next">Next</button>
     </div>
   </div>

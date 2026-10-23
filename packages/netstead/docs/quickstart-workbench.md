@@ -73,6 +73,10 @@ uv run netstead app "$LV" --provider stub
 
 Open <http://127.0.0.1:8850> in your browser.
 
+(You can also start `uv run netstead app` with nothing open and pick **Leavenworth, WA** from **Included examples**
+in the Open / Import wizard (**Open → Browse / import…**); the path above is only needed to pass the fixture on the
+command line.)
+
 You should see the **Netstead Workbench** header with the network picker showing `leavenworth`, the count
 **339 links · 121 nodes**, the **Map / Split / Table** view buttons, and the map below. If the map opens zoomed
 out, press the map's **Zoom to full network** button (the second of the small buttons on the map) and the

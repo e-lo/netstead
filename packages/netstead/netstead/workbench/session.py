@@ -96,6 +96,7 @@ from .actions import (
     is_secret_name,
     to_python,
 )
+from .buildid import plugin_build_id
 from .editcheck import CheckResult, check_rows, referencing_keys, touched_keys
 from .editing import EditPlan, EditRefused, plan_add, plan_delete, plan_update, table_keys
 from .errors import ActionError, ApprovalRequired, JobCancelled, NotSupportedYet, PathNotAllowed
@@ -104,7 +105,6 @@ from .events import EventBus
 from .issues import IssueSet, locate_issues, run_validation
 from .jobs import Job, JobContext, JobRunner
 from .ledger import CORE_SOURCE, PYTHON_SOURCE, EditLedger, PendingEdit, PendingEdits
-from .buildid import plugin_build_id
 from .paths import allowed_roots, open_locator, split_source
 from .plugins.discovery import PluginStatus, discover
 from .plugins.host import Host, PluginSettingsError, validate_plugin_settings

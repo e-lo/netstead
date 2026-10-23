@@ -1623,3 +1623,15 @@ def test_type_group_titles_blurbs_and_totals(node_module):
         0,
         "quality.high_speed_residential\u0000warning",
     ]
+
+
+def test_examples_list_renders_one_open_button_per_example(node_module):
+    items = [
+        {"id": "a", "name": "Alpha <WA>", "description": "A & B", "links": 1234, "nodes": 56, "source": "/x/a b"},
+        {"id": "b", "name": "Beta", "description": "Second", "links": 7, "nodes": 3, "source": "/x/b"},
+    ]
+    html = node_module("examplesmodel.js", ["examplesHTML"], f"examplesHTML({json.dumps(items)})")
+    assert html.index("Included examples") < html.index("Alpha")
+    assert html.count("data-example-source=") == 2 and 'data-example-source="/x/a b"' in html
+    assert "Alpha &lt;WA&gt;" in html and "A &amp; B" in html and "1,234 links, 56 nodes" in html
+    assert node_module("examplesmodel.js", ["examplesHTML"], "examplesHTML([])") == ""
