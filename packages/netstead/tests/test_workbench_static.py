@@ -341,7 +341,7 @@ def test_map_draws_every_layer_from_the_registry_in_the_old_order():
 
 def test_the_view_section_lists_overlays_from_the_registry():
     html = (STATIC_DIR / "index.html").read_text()
-    view = html[html.index('id="view-section"') : html.index("</details>")]
+    view = html[html.index('id="dock-view"') : html.index('id="dock-inspect"')]
     assert 'id="plugin-layers"' in view
     assert "export function renderPluginLayers(" in (JS_DIR / "panels.js").read_text()
 
@@ -350,7 +350,7 @@ def test_the_view_controls_live_in_the_find_panel_not_in_map_popovers():
     html = (STATIC_DIR / "index.html").read_text()
     for gone in ("layers-panel", "settings-panel", "btn-layers", "btn-settings"):
         assert f'id="{gone}"' not in html
-    view = html[html.index('id="view-section"') : html.index("</details>")]
+    view = html[html.index('id="dock-view"') : html.index('id="dock-inspect"')]
     for element_id in (
         "tg-links",
         "tg-nodes",
@@ -374,8 +374,12 @@ def test_the_view_controls_live_in_the_find_panel_not_in_map_popovers():
         "plugin-layers",
     ):
         assert f'id="{element_id}"' in view, element_id
-    find = html[html.index('id="dock-find"') : html.index('id="dock-inspect"')]
-    assert 'id="view-section"' in find and 'id="hl-set"' in find and 'id="anchors"' in find
+    find = html[html.index('id="dock-find"') : html.index('id="dock-view"')]
+    assert 'id="view-section"' not in html and 'id="tg-links"' not in find  # View has its own tab now
+    assert 'id="hl-set"' in find and 'id="anchors"' in find
+    for heading in ("Layers", "Color", "Width", "Direction", "Filter"):
+        assert f"<h4>{heading}</h4>" in view
+    assert "<details" not in view
     panels = (JS_DIR / "panels.js").read_text()
     assert "node_color_by: e.target.value" in panels and "populateNodeColorby(" in panels
     assert "settings-panel" not in panels and "btn-layers" not in panels
@@ -440,7 +444,8 @@ def test_map_popovers_sit_over_the_map_not_inside_it():
     for element_id in ("map-btns", "legend"):
         assert f'id="{element_id}"' in overlay and f'id="{element_id}"' not in map_el
     buttons = overlay[overlay.index('<div id="map-btns">') : overlay.index('<div id="legend">')]
-    assert 'id="btn-view"' in buttons and 'data-icon="layers"' in buttons and 'data-tip="Map view settings"' in buttons
+    assert 'id="btn-view"' not in html and "wireViewButton" not in (JS_DIR / "main.js").read_text()
+    assert 'id="btn-fitnet"' in buttons
     assert 'id="boxsel"' in map_el  # the box-select rectangle is measured against the map
     css = (STATIC_DIR / "app.css").read_text()
     assert "#map-overlay { position:absolute; inset:0; z-index:3; pointer-events:none; }" in css
@@ -796,7 +801,7 @@ def test_core_dock_panels_register_icons_and_tabs_render_them_with_tips():
         assert needle in (JS_DIR / name).read_text(), name
     assert 'icon: "shield-check"' in (JS_DIR / "edits.js").read_text()
     ws = (JS_DIR / "workspaces.js").read_text()
-    assert 'data-tip="${esc(item.title)}"' in ws and "aria-label=" in ws and "Object.hasOwn(ICONS" in ws
+    assert 'data-tip="${esc(label)}"' in ws and "aria-label=" in ws and "Object.hasOwn(ICONS" in ws
     icons = (JS_DIR / "icons.js").read_text()
     for name in ("search", "info", "pencil", "cards", "shield-check", "message"):
         assert f"{name}:" in icons or f'"{name}":' in icons, name
@@ -844,3 +849,17 @@ def test_related_steps_control_has_an_info_popover():
     wrap = html.split('id="tbl-hops-wrap"', 1)[1].split('id="tbl-chips"', 1)[0]
     assert 'id="tbl-hops-info"' in wrap and 'data-icon="info"' in wrap and 'data-tip="What is Related?"' in wrap
     assert 'id="tbl-hops-pop"' in wrap and 'aria-haspopup="dialog"' in wrap
+
+
+def test_the_view_tab_is_a_core_panel_right_after_find_and_edit_help_is_dismissible():
+    html = (STATIC_DIR / "index.html").read_text()
+    assert 'data-panel="view" role="tabpanel"' in html
+    panels = (JS_DIR / "panels.js").read_text()
+    assert 'id: "view", title: "View", icon: "sliders", workspace: ALL_WORKSPACES, order: 5' in panels
+    assert "registerViewPanel()" in (JS_DIR / "main.js").read_text()
+    assert "sliders:" in (JS_DIR / "icons.js").read_text()
+    edit = html[html.index('id="dock-edit"') : html.index('id="dock-validate"')]
+    for element_id in ("ed-help", "ed-help-hide", "ed-help-show"):
+        assert f'id="{element_id}"' in edit
+    assert 'data-tip="Hide this help"' in edit and 'data-tip="About this tab"' in edit
+    assert 'wireDismissibleHelp($("ed-help"), helpKey("edit")' in (JS_DIR / "edits.js").read_text()

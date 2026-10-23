@@ -324,7 +324,11 @@ def test_record_issues_and_the_status_line(node_module):
 
 
 def test_the_issues_badge_counts_issues_and_edit_warnings(node_module):
-    assert node_module("issuelist.js", ["issuesBadge"], f"issuesBadge({STATE})") == 10  # 6 issues + 4 warnings
+    assert node_module("issuelist.js", ["issuesBadge"], f"issuesBadge({STATE})") == {
+        "text": "10",  # 6 issues + 4 edit warnings
+        "dirty": False,
+        "title": "1 error, 6 warnings, 3 info",
+    }
     assert node_module(
         "issuelist.js", ["issuesBadge"], '[issuesBadge({active: "b", edits: {}}), issuesBadge(null)]'
     ) == [
@@ -461,7 +465,11 @@ def test_pending_lines_badges_and_undo(node_module):
     panel = node_module(
         "editmodel.js", ["editsBadge"], f'[editsBadge({STATE}), editsBadge({{...{STATE}, active: "b"}})]'
     )
-    assert panel == [{"text": "2", "dirty": True, "title": "2 unsaved"}, None]
+    assert panel == [{"text": "2", "dirty": True, "title": "2 unsaved edits"}, None]
+    one = node_module(
+        "editmodel.js", ["editsBadge"], 'editsBadge({active: "a", edits: {a: {dirty: true, unsaved: 1}}})'
+    )
+    assert one["title"] == "1 unsaved edit"
     blocked = node_module(
         "editmodel.js",
         ["undoBlocked"],
@@ -612,7 +620,17 @@ def test_selection_badge(node_module):
         f"[selectionBadge({json.dumps(SEL)}), selectionBadge({json.dumps({**SEL, 'status': 'resolved'})}),"
         " selectionBadge(null)]"
     )
-    assert node_module("selectmodel.js", ["selectionBadge"], expr) == ["?", 2, None]
+    assert node_module("selectmodel.js", ["selectionBadge"], expr) == [
+        {"text": "?", "dirty": False, "title": "an anchor is ambiguous"},
+        {"text": "2", "dirty": False, "title": "2 selected links"},
+        None,
+    ]
+    one = node_module(
+        "selectmodel.js",
+        ["selectionBadge"],
+        f"selectionBadge({json.dumps({**SEL, 'status': 'resolved', 'link_ids': [7]})})",
+    )
+    assert one["title"] == "1 selected link"
 
 
 def test_link_widths_scale_a_numeric_property(node_module):
@@ -1403,3 +1421,53 @@ def test_related_explanation_is_generic_or_uses_the_real_answer(node_module):
     two = dict(related, hops=2)
     lines = run(f'relatedExplanation({{subject: "link 1", related: {json.dumps(two)}}})')
     assert "nothing more in this network" in lines[2]
+
+
+def test_dismissible_help_remembers_its_choice_and_survives_broken_storage(node_module):
+    harness = """
+const mem = new Map();
+const storage = {
+  getItem: k => (mem.has(k) ? mem.get(k) : null),
+  setItem: (k, v) => mem.set(k, v),
+  removeItem: k => mem.delete(k),
+};
+const boom = () => { throw new Error("blocked"); };
+const broken = { getItem: boom, setItem: boom, removeItem: boom };
+const mk = () => ({ el: { hidden: false }, hideBtn: {}, showBtn: { hidden: true } });
+const a = mk();
+wireDismissibleHelp(a.el, helpKey("edit"), { ...a, storage });
+const shownFirst = [a.el.hidden, a.showBtn.hidden];
+a.hideBtn.onclick();
+const afterHide = [a.el.hidden, a.showBtn.hidden, mem.get("wb.help.edit")];
+const b = mk();
+wireDismissibleHelp(b.el, helpKey("edit"), { ...b, storage });  // a reload: still hidden
+const reload = [b.el.hidden, b.showBtn.hidden];
+b.showBtn.onclick();
+const afterShow = [b.el.hidden, b.showBtn.hidden, mem.has("wb.help.edit")];
+const c = mk();
+wireDismissibleHelp(c.el, "k", { ...c, storage: broken });
+c.hideBtn.onclick();
+const brokenHide = [c.el.hidden, c.showBtn.hidden];
+"""
+    got = node_module(
+        "help.js",
+        ["helpKey", "wireDismissibleHelp"],
+        "(() => {" + harness + "return {shownFirst, afterHide, reload, afterShow, brokenHide};})()",
+    )
+    assert got == {
+        "shownFirst": [False, True],
+        "afterHide": [True, False, "hidden"],
+        "reload": [True, False],
+        "afterShow": [False, True, False],
+        "brokenHide": [True, False],  # the toggle works even when nothing can be remembered
+    }
+
+
+def test_tab_labels_say_what_the_badge_means(node_module):
+    got = node_module(
+        "tabs.js",
+        ["tabLabel", "countOf"],
+        '[tabLabel("Edit", {text: "1", dirty: true, title: countOf(1, "unsaved edit")}), tabLabel("Edit", null),'
+        ' tabLabel("Find", {text: "16", title: "16 selected links"}), tabLabel("Find", 3), countOf(0, "edit")]',
+    )
+    assert got == ["Edit — 1 unsaved edit", "Edit", "Find — 16 selected links", "Find — 3", "0 edits"]

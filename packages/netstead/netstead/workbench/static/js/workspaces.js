@@ -99,8 +99,8 @@ function badgeOf(item) {
   try { return normalizeBadge(item.badge(ctx)); } catch (e) { report(item.owner, "badge", e); return null; }
 }
 
-const badgeHTML = b => (b && b.text ? ` <span class="pcount">${esc(b.text)}</span>` : "") +
-  (b && b.dirty ? ' <span class="dirty" aria-hidden="true">●</span>' : "");
+// One pill per badge: its count, orange ("warn") when something is unsaved; a dirty badge with no count is a dot.
+const badgeHTML = b => (b ? ` <span class="pcount${b.dirty ? " warn" : ""}" aria-hidden="true">${esc(b.text)}</span>` : "");
 
 // Every plugin-supplied string (id, title, badge) is escaped.
 function tabHTML(prefix, item, selected, badge, controls) {
@@ -109,7 +109,7 @@ function tabHTML(prefix, item, selected, badge, controls) {
   const body = iconic ? `${icon(item.icon, { size: 18 })}${badgeHTML(badge)}` : `${esc(item.title)}${badgeHTML(badge)}`;
   return `<button role="tab" id="${prefix}-${esc(item.id)}" data-id="${esc(item.id)}" aria-selected="${selected}" ` +
     `aria-controls="${esc(controls)}" tabindex="${selected ? 0 : -1}" aria-label="${esc(label)}"` +
-    `${iconic ? ` data-tip="${esc(item.title)}"` : ""}${selected || iconic ? ` class="${[selected ? "on" : "", iconic ? "icontab" : ""].join(" ").trim()}"` : ""}>` +
+    `${iconic ? ` data-tip="${esc(label)}"` : ""}${selected || iconic ? ` class="${[selected ? "on" : "", iconic ? "icontab" : ""].join(" ").trim()}"` : ""}>` +
     `${body}</button>`;
 }
 

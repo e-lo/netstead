@@ -21,6 +21,12 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Changed
 
+- **Workbench side panel: a View tab, dismissible Edit help, readable badges.** The map and style controls (layers,
+  color, width, direction, filter) moved out of the Find tab's collapsed section into their own **View** tab right
+  after Find, and the map's layers button is gone. The Edit tab's explanatory paragraph hides behind a "x" (and comes
+  back from an info button; remembered per browser). Each tab's badge is now one pill at the icon's corner, orange
+  while edits are unsaved, and the tab tooltip says what it counts ("Edit — 2 unsaved edits", "Find — 16 selected
+  links", "Validate — 271 warnings, 16 info").
 - **"What is Related?"** An info button beside the table Related steps control opens a short explanation with an
   example, using the real counts for the focused or highlighted records when there are any.
 - **The Workbench table's "Expand a hop" is a "Related: 1 step / 2 steps" control** that shows only when

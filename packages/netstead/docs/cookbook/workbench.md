@@ -236,13 +236,14 @@ Focus is a view. Clicking never changes the selection.
   rotate and the row the browser's own menu.
 - **Workspaces and the dock.** When a plugin adds a workspace, tabs for each appear in the header; each keeps the
   map / split / table view you left it in. The right drawer is a dock, with a tab per panel at its top, in order:
-  The tabs are icons (hover for the name; counts stay as a badge on the icon): **Find** (magnifier; the selection box, anchors, diagnostics, export, saved selections, highlighted links and the **View**
-  controls — layers, color and width, direction, filter links), **Inspect** (info; the focused record; comes forward
+  The tabs are icons (hover for the name; counts stay as a badge on the icon): **Find** (magnifier; the selection box, anchors, diagnostics, export, saved selections and highlighted links), **View** (sliders; the layers, color and width, direction and
+  filter controls), **Inspect** (info; the focused record; comes forward
   automatically when you click a map feature or a table row), **Edit** (pencil; the edit list, undo/redo, edit warnings and
   "Save selection as card…"), **Cards** (stacked cards; the project-cards plugin's panel, when it's installed) and **Validate**
   (shield with a check; run / export, status, facets and the grouped findings list), then **Assistant** (chat bubble), then any panel another plugin
-  adds. The map itself keeps only its zoom/highlight/fit buttons, a **Map view settings** (layers) button and the legend — the old Layers and Map display
-  popovers are gone; their controls live in the Find tab's **View** section, which scrolls if the panel is short; the map's layers button opens it (Find tab, scrolled into view) and a second click collapses it.
+  adds. The map itself keeps only its zoom/highlight/fit buttons and the legend; the old Layers and Map display
+  popovers are gone, and their controls live in the **View** tab. A tab's badge is one pill at its icon's corner (orange while
+  edits are unsaved) and the tooltip says what it counts. The Edit tab's help paragraph hides behind its **×**; the **ⓘ** beside the heading brings it back.
   Draggable handles between the map and the table, and between the map/table and the side panel, resize them
   (double-click a handle to reset; sizes are remembered per browser).
 - **Settings → Plugins** lists the installed [Workbench plugins](workbench-plugins.md): version, the plugin API
@@ -404,8 +405,8 @@ written to, and a copy inside the source folder is refused.
 
 ## Style, filter and navigate
 
-The map's style and link filter are set from the **Find** tab's **View** section (its layer toggles, color
-and width pickers, direction controls and **Filter links** replace the old map popovers); the layers button on the map jumps there.
+The map's style and link filter are set from the **View** tab (its layer toggles, color
+and width pickers, direction controls and **Filter links** replace the old map popovers).
 Nodes colored by `ctrl_type` use a fixed style where size carries meaning too (signals large and red, stop signs orange or amber, yield yellow, uncontrolled nodes small and grey) and signals draw on top; other columns use the generic palette.
 
 - **Color links by** / **Color nodes by** pick a categorical or numeric column for links and nodes
@@ -413,7 +414,7 @@ Nodes colored by `ctrl_type` use a fixed style where size carries meaning too (s
   fresh network defaults to coloring links by `facility_type` and nodes by `ctrl_type` when those columns
   exist, falling back to a single color otherwise.
 - **Width by** sizes links by a numeric column (`app.do(Style(width_by="lanes"))`).
-- **Filter links**, in the same View section, dims every link that doesn't match
+- **Filter links**, in the View tab, dims every link that doesn't match
   (`app.do(Filter(where=[{"col": "lanes", "op": "gte", "val": 2}]))`); the table's **Filtered** scope lists the
   matching links (the filter applies to links: on the node table it lists every node). `Filter(where=None)`
   clears it. Filters are fields and operators only, never free text or SQL: `contains` matches a plain

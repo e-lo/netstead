@@ -1,11 +1,13 @@
-// The Find panel's View section (layers, color links / nodes by, width, direction, filter links) and the map's
+// The View panel (layers, color links / nodes by, width, direction, filter links) and the map's
 // legend. Every control change is a recorded Action: `style` (color, width, switches) or `filter` (Filter links).
 import { dispatch } from "./api.js";
 import { $, esc, toast } from "./dom.js";
 import { filterKey, filterValue, filterView, takesNoValue } from "./filtermodel.js";
 import { hasOffset } from "./map.js";
 import { RAMPS, catColor, fmt, hex2rgb, nodeLegendItems, rgb, rgb2hex } from "./palette.js";
+import { ALL_WORKSPACES, CORE } from "./slots.js";
 import { store } from "./store.js";
+import { addPanel } from "./workspaces.js";
 
 const style = patch => dispatch({ type: "style", ...patch }).catch(e => toast(e.message));
 
@@ -19,6 +21,11 @@ const SWITCHES = [
   ["tg-legend", st => st.show_legend, v => ({ show_legend: v })],
 ];
 const COLORS = [["col-links", "links"], ["col-nodes", "nodes"], ["col-selection", "selection"]];
+
+// The View tab, right after Find: its markup is static (index.html #dock-view), wired by wirePanels below.
+export function registerViewPanel() {
+  addPanel(CORE, { id: "view", title: "View", icon: "sliders", workspace: ALL_WORKSPACES, order: 5 });
+}
 
 export function wirePanels() {
   $("colorby").onchange = e => style({ color_by: e.target.value });

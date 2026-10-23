@@ -2,6 +2,8 @@
 // panel badge. Import-free and DOM-free: unit-tested under node (tests/test_workbench_js.py).
 
 // Anchors placed on the map, then those whose node has no coordinates (marked `unplaced`).
+import { countOf } from "./tabs.js";
+
 const anchorsOf = sel => (sel ? [...(sel.anchors || []), ...(sel.anchors_unplaced || []).map(a => ({ ...a, unplaced: true }))] : []);
 const isPlaced = c => c.lon != null && c.lat != null;
 
@@ -51,7 +53,9 @@ export function exportChoices(sel) {
 // The Selection tab's badge: "?" while an anchor is ambiguous, else the link count; none without a selection.
 export function selectionBadge(sel) {
   if (!sel) return null;
-  return sel.status === "ambiguous" ? "?" : sel.link_ids.length;
+  if (sel.status === "ambiguous") return { text: "?", dirty: false, title: "an anchor is ambiguous" };
+  const n = sel.link_ids.length;
+  return { text: String(n), dirty: false, title: `${countOf(n, "selected link")}` };
 }
 
 // Where keyboard focus goes once a Pin's button is gone: that anchor's Unpin ("pin-<role>-<node>" -> "unpin-<role>").

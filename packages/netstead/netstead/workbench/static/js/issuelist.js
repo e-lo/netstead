@@ -3,6 +3,8 @@
 // An issue's `anchor` places it on the map: {link: id} (its middle vertex), {node: id}, or {lonlat: [x, y]}.
 // The server sends anchors, not coordinates; positions come from the network buffer the browser already has.
 
+import { countOf } from "./tabs.js";
+
 export const SEVERITIES = ["error", "warning", "info"];
 export const SEVERITY_RGB = { error: [224, 82, 77], warning: [240, 170, 60], info: [90, 150, 220] };
 
@@ -64,6 +66,10 @@ export function statusLine(meta) {
 // active network, or null for none.
 export function issuesBadge(state) {
   const meta = issueMeta(state), edits = state && state.edits && state.edits[state.active];
-  const n = (meta ? SEVERITIES.reduce((t, k) => t + ((meta.counts || {})[k] || 0), 0) : 0) + ((edits && edits.warnings) || 0);
-  return n || null;
+  const counts = { ...((meta && meta.counts) || {}) };
+  counts.warning = (counts.warning || 0) + ((edits && edits.warnings) || 0);
+  const n = SEVERITIES.reduce((t, k) => t + (counts[k] || 0), 0);
+  if (!n) return null;
+  const title = SEVERITIES.filter(k => counts[k]).map(k => (k === "info" ? `${counts[k]} info` : countOf(counts[k], k))).join(", ");
+  return { text: String(n), dirty: false, title };
 }

@@ -57,7 +57,6 @@
         <button class="iconbtn" id="btn-highlight" data-tip="Highlight links (click; shift-drag box)" aria-label="Highlight links">&#9647;</button>
         <button class="iconbtn" id="btn-fitnet" data-tip="Zoom to full network" aria-label="Zoom to full network">&#9974;</button>
         <button class="iconbtn" id="btn-fitsel" data-tip="Zoom to selection" aria-label="Zoom to selection">&#9673;</button>
-        <button class="iconbtn" id="btn-view" data-icon="layers" data-tip="Map view settings" aria-label="Map view settings" aria-controls="view-section" aria-expanded="false"></button>
       </div>
       <div id="legend"></div>
       </div>
@@ -127,8 +126,8 @@
         <button class="mini ghost" id="hl-clear">Clear highlights</button>
       </div>
     </div>
-    <details id="view-section">
-      <summary class="label">View</summary>
+    </section>
+    <section class="dock-pane" id="dock-view" data-panel="view" role="tabpanel" aria-labelledby="dtab-view" hidden>
       <h4>Layers</h4>
       <div class="row"><label class="sw"><input type="checkbox" id="tg-links"><span></span></label>
         <span class="lbl">Links</span><input type="color" class="swatch" id="col-links" aria-label="Link color"></div>
@@ -139,22 +138,23 @@
       <div class="row"><label class="sw"><input type="checkbox" id="tg-labels"><span></span></label>
         <span class="lbl">Basemap labels</span></div>
       <div id="plugin-layers"></div>
-      <h4>Color links by</h4>
+      <h4>Color</h4>
+      <div class="sub">Links by</div>
       <div class="row"><select id="colorby" aria-label="Color links by"><option value="none">None (single color)</option></select></div>
-      <h4>Color nodes by</h4>
+      <div class="sub">Nodes by</div>
       <div class="row"><select id="node-colorby" aria-label="Color nodes by"><option value="none">None (single color)</option></select></div>
       <div class="row" id="ramp-row" style="display:none"><span class="lbl">Ramp</span>
         <select id="ramp" aria-label="Color ramp"><option>YlOrRd</option><option>Blues</option><option>Viridis</option></select></div>
-      <h4>Width by</h4>
+      <div class="row"><span class="lbl">Show legend</span>
+        <label class="sw"><input type="checkbox" id="tg-legend"><span></span></label></div>
+      <h4>Width</h4>
       <div class="row"><select id="widthby" aria-label="Width links by"><option value="none">Lane count</option></select></div>
       <h4>Direction</h4>
       <div class="row"><span class="lbl">Show direction</span>
         <label class="sw"><input type="checkbox" id="tg-direction"><span></span></label></div>
       <div class="row"><span class="lbl">Offset directions</span>
         <label class="sw"><input type="checkbox" id="tg-offset"><span></span></label></div>
-      <div class="row"><span class="lbl">Show legend</span>
-        <label class="sw"><input type="checkbox" id="tg-legend"><span></span></label></div>
-      <h4>Filter links</h4>
+      <h4>Filter</h4>
       <div class="row"><select id="flt-col" aria-label="Filter column"></select></div>
       <div class="row flt-cond"><select id="flt-op" aria-label="Filter operator">
           <option value="eq">=</option><option value="ne">≠</option><option value="lt">&lt;</option>
@@ -165,15 +165,16 @@
       <div class="row"><button class="mini" id="flt-apply">Apply</button><button class="mini ghost" id="flt-clear">Clear</button>
         <span id="flt-count" class="diag" role="status"></span></div>
       <div id="flt-note" class="diag" hidden></div>
-    </details>
     </section>
     <section class="dock-pane" id="dock-inspect" data-panel="inspect" role="tabpanel" aria-labelledby="dtab-inspect" hidden>
     <div class="label">Details</div>
     <div id="details"><span class="empty">Click a link or node on the map, or a row in the table.</span></div>
     </section>
     <section class="dock-pane" id="dock-edit" data-panel="edit" role="tabpanel" aria-labelledby="dtab-edit" hidden>
-      <p class="diag">Every change to this network since it was opened, newest first: your edits, Python's and any
-        plugin's. Undo reverses your newest edit. The strip at the bottom is the session history (every action).</p>
+      <div class="label">Changes <button class="iconbtn" id="ed-help-show" data-icon="info" data-tip="About this tab" aria-label="About this tab" hidden></button></div>
+      <p class="diag help" id="ed-help">Every change to this network since it was opened, newest first: your edits, Python's and any
+        plugin's. Undo reverses your newest edit. The strip at the bottom is the session history (every action).
+        <button class="iconbtn" id="ed-help-hide" data-icon="x" data-tip="Hide this help" aria-label="Hide this help"></button></p>
       <div class="row wrap"><button class="iconbtn" id="ed-undo" data-icon="undo" data-tip="Undo last edit" aria-label="Undo last edit" disabled></button>
         <button class="iconbtn" id="ed-redo" data-icon="redo" data-tip="Redo" aria-label="Redo" disabled></button>
         <span class="diag" id="ed-undo-why"></span></div>

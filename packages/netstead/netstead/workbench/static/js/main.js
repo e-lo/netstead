@@ -19,7 +19,7 @@ import { onHistoryEntry, onLLMEvent, onLLMJob, refreshLLM, renderLLMPanel, wireL
 import { layerRegistry } from "./layers.js";
 import { fitBbox, fitLinks, fitNetwork, flyToNode, initMap, render, setBasemap } from "./map.js";
 import { decodeNetwork } from "./netbuf.js";
-import { populateColorby, populateNodeColorby, renderFilter, renderLegend, renderPluginLayers, syncControls, wireFilter, wirePanels } from "./panels.js";
+import { populateColorby, registerViewPanel, populateNodeColorby, renderFilter, renderLegend, renderPluginLayers, syncControls, wireFilter, wirePanels } from "./panels.js";
 import { commandReporters } from "./pluginload.js";
 import { loadPlugins, reportPluginError } from "./plugins.js";
 import { renderPluginsPanel, wirePluginsPanel } from "./pluginspanel.js";
@@ -206,22 +206,6 @@ function wireMapButtons() {
   $("btn-fitnet").onclick = () => fitNetwork();
   $("btn-fitsel").onclick = () => { const sel = activeSelection(store.get()); if (sel) fitLinks(sel.link_ids); };
   $("btn-highlight").onclick = () => store.set({ highlightMode: !store.get().highlightMode });
-  wireViewButton();
-}
-
-// The map's view-settings button: shows Find -> View (opened and scrolled into view); a second click collapses it.
-function wireViewButton() {
-  const btn = $("btn-view"), section = $("view-section"), summary = section.querySelector("summary");
-  const sync = () => { btn.classList.toggle("on", section.open); btn.setAttribute("aria-expanded", String(section.open)); };
-  section.addEventListener("toggle", sync);
-  btn.onclick = () => {
-    if (section.open && section.getClientRects().length) { section.open = false; return; }
-    showPanel("find");
-    section.open = true;
-    section.scrollIntoView({ block: "start" });
-    summary.focus();
-  };
-  sync();
 }
 
 // Server state arrives for any change (style too); the grid reloads only when the selection did.
@@ -283,6 +267,7 @@ async function boot() {
   mountIcons();
   registerCoreSlots();
   registerSelectionPanel();
+  registerViewPanel();
   registerEditPanels();
   registerAssistantPanel();
   wireWorkspaces({ onError: reportPluginError });

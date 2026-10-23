@@ -590,7 +590,7 @@ wb.registerLayer("roadway", "hello.pins", ctx =>
 - Core's layers, bottom to top: `base` 100, `selection` 200, `related` 300, `highlighted` 400,
   `focus` 500, `marker` 600. A plugin layer defaults to 350: above related records, under the user's
   highlights, focus and marker.
-- A `title` lists the layer under the **Find** tab's **View** section, with a show/hide switch (per browser
+- A `title` lists the layer under the **View** tab, with a show/hide switch (per browser
   tab, not recorded).
 - `"transit"` is accepted as a component and not drawn yet.
 
