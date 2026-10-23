@@ -696,7 +696,7 @@ def test_the_select_step_counts_the_shared_selection_and_lists_saved_ones(run_js
 import { savedChoices, selectionStatus } from "./cardmodel.js";
 const preview = { net_id: "base-2", base: "base", describe: "x", stale: false };
 const at = (selection, extra = {}) => ({ selection, plugins: { project_cards: { preview } }, ...extra });
-const resolved = { net_id: "base", status: "resolved", link_ids: [1, 2, 3], projectcard: { picked: true } };
+const resolved = { net_id: "base", status: "resolved", link_ids: [1, 2, 3] };  // as state() reports it
 const saved = [{ name: "ski", net_id: "base", links: 4 }, { name: "one", net_id: "base", links: 1 },
                { name: "far", net_id: "other", links: 2 }];
 console.log(JSON.stringify({
@@ -706,7 +706,7 @@ console.log(JSON.stringify({
   baseFromPreview: selectionStatus(at(resolved), "base-2").ready,
   elsewhere: selectionStatus(at({ ...resolved, net_id: "other" }), "base").ready,
   one: selectionStatus(at({ ...resolved, link_ids: [5] }), "base").label,
-  unresolved: selectionStatus(at({ ...resolved, status: "ambiguous", projectcard: null }), "base"),
+  unresolved: selectionStatus(at({ ...resolved, status: "ambiguous" }), "base"),
   saved: savedChoices(at(null, { saved_selections: saved }), "base-2"),
   noSaved: savedChoices(null, "base"),
 }));

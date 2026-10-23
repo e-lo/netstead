@@ -162,6 +162,7 @@ function createView(wb, ctl, el) {
   dialog.style.cssText = "background:var(--panel);color:var(--ink);border:1px solid var(--edge);border-radius:12px;"
     + "padding:16px;width:min(760px, calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto";
   const heading = text => h("h3", { class: "label", style: "font-size:12px;margin:18px 0 6px", text });
+  el.style.overflowWrap = "anywhere"; // long file paths wrap instead of scrolling the dock sideways
   el.append(
     heading("Catalog"), catalogBox, previewBox, inspectBox,
     heading("Draft"), createBox, composeBox, draftBox, commitBox,
@@ -628,7 +629,7 @@ function createView(wb, ctl, el) {
       act("mini ghost", "Delete", () => deleteCard(row)));
     return h("div", { class: "pc-card", "data-card": row.card_id, style: "margin:6px 0 8px" },
       h("div", {}, badge, " ", h("strong", { text: row.project }),
-        h("span", { class: "muted", text: ` · ${row.changes} change(s)${tags}` })),
+        h("span", { class: "muted", text: ` · ${row.changes} change(s)${tags} · ${row.card_id}` })),
       h("div", { style: "margin:4px 0 0 1.4em" }, preview, " ", apply, " ", inspect, " ", edit),
       details, file,
     );

@@ -276,7 +276,7 @@ export function selectionStatus(state, netId) {
   }
   const count = sel.link_ids.length;
   const links = `${count} link${count === 1 ? "" : "s"}`;
-  if (sel.status !== "resolved" || !sel.projectcard) {
+  if (sel.status !== "resolved") {
     return { count, ready: false, label: `${links} selected, not resolved yet: pin its anchors in the Selection panel.` };
   }
   return { count, ready: true, label: `${links} selected.` };
