@@ -48,10 +48,13 @@ You just loaded the bundled Leavenworth network through the default ibis + DuckD
 The bare `netstead` install is enough for read-only validation. Add `[clean,graph]` to unlock the ops the rest of this guide uses: `[clean]` brings in `shapely` + `geopandas` + `pyproj` for the geometry edits; `[graph]` brings in `scipy` (+ `numpy` + `pandas`) for the scope graph, connected components, and the data-quality rule pack.
 
 ```bash
+uv init --bare
 uv add \
   "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral" \
   "netstead[clean,graph] @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/netstead"
 ```
+
+`uv init --bare` makes a new folder a uv project, which `uv add` needs; skip it when you add netstead to a project you already have.
 
 This is the GitHub form the beta uses until the PyPI release is out; it then becomes `uv add 'netstead[clean,graph]'`, with `corral` coming along as a transitive dependency. For the other install tools (uv pip, pip, pipx), the full list of extras and what each pulls in, `netstead doctor`, and the zsh bracket-quoting rule, see [Install and troubleshoot](install.md).
 

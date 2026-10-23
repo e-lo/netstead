@@ -26,11 +26,13 @@ Requires Python 3.11+. `netstead` 1.0.0b2 is not on PyPI yet (the packages were 
 the beta from GitHub, naming both packages:
 
 ```bash
-# uv (recommended) — `uv pip install` and `pip install` take the same two arguments
+uv init --bare
 uv add \
   "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral" \
   "netstead[all] @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/netstead"
 ```
+
+`uv init --bare` makes a new folder a uv project, which `uv add` needs; skip it when you add netstead to a project you already have. `uv pip install` and `pip install` take the same two package arguments.
 
 Once the PyPI release is out this becomes `uv add netstead` / `pip install netstead` / `pipx install netstead`,
 and `corral` comes along automatically.

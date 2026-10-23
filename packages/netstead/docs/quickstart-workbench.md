@@ -45,10 +45,13 @@ GitHub, both packages in one command (`pip install` takes the same two arguments
 macOS (zsh): see [Install and troubleshoot](install.md#zsh-quote-the-brackets).
 
 ```bash
+uv init --bare
 uv add \
   "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral" \
   "netstead[server,graph,nl] @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/netstead"
 ```
+
+`uv init --bare` makes a new folder a uv project, which `uv add` needs; skip it when you add netstead to a project you already have.
 
 (Once the PyPI release is out: `uv add 'netstead[server,graph,nl]'`.)
 
