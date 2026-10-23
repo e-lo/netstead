@@ -7,6 +7,38 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
 
 ### Added
 
+- **New card mode.** A **New card** button in the Cards panel's Draft section starts a guided mode with a step
+  indicator (Type → Select → Details → Add), Back and Cancel: pick a change type (roadway property change, deletion,
+  addition; the transit types are shown disabled, "not yet supported"), select the facility with the shared
+  selection (links clicked or box-selected in Highlight mode and set as the selection, a description run through core's `select` Action, or
+  a saved selection) with a live count and **Use these N links**, then the change form, Preview and Add to card. It
+  dispatches the existing `project_cards.preview` and `project_cards.add_change`; an addition skips Select. The
+  right-click "New change ▸ …" entry point stays.
+- **Edit a card.** `project_cards.edit_card(card_id, replace_draft=False)` (the catalog row's **Edit**) loads a
+  catalog card into the open network's draft with `import` semantics (all or nothing) and remembers its file; a
+  draft with uncommitted changes is refused unless `replace_draft`, which undoes them first. The commit dialog then
+  offers **Save over <file>** (overwrite) or **Save as new file**. `project_cards.remove_change(index)` removes any
+  change of the draft, not only the last: it undoes the draft back to that change and re-applies the later ones, so
+  the network ends as if the change had never been made, and refuses (changing nothing) when a later change depends
+  on the removed one. The draft's **Edit…** is remove plus re-add through the form. `plugins.project_cards.drafts`
+  entries now carry `tags`, `dependencies`, `notes`, `source` (`{card_id, path}` or `null`) and each change's
+  `index`. A commit inside the open catalog's folder rescans the catalog (its result's `listed`).
+- **Edit the catalog's files.** Each catalog card has a **File** disclosure: **Rename…**
+  (`project_cards.rename_card(card_id, new_name, overwrite=False)`), **Duplicate** (`duplicate_card`, to
+  `<name>-copy.yml`, `-copy-2`, …), **Edit metadata…** (`update_card_meta(card_id, project=, tags=,
+  dependencies=)`, changing only those keys of the file) and **Delete** (`delete_card`, which moves the file to a
+  `.trash` folder inside the catalog folder; never a hard delete), with **Undo delete** in the status line
+  (`restore_card`). Every write goes through `host.writable`, stays inside the catalog folder (one sub-folder, nothing
+  hidden), validates the card with `projectcard` first and never replaces a different file unless `overwrite`. They
+  change files, not a network (`mutates` false), are kept out of the assistant's tools, are rolled back with a
+  failing parent Action, and are listed in the session summary's new **Catalog files** section
+  (`plugins.project_cards.files`; deletions this session are `plugins.project_cards.trash`).
+- **Inspect a card.** **Inspect** on a catalog card (and on the draft) opens a read-only view: project, tags,
+  dependencies, notes and file; each change with its type, facility (ids, or the query and what it resolved to),
+  property changes (existing → set or change) and its applicability on the open network. Clicking a change
+  highlights its links on the map (`wb.highlight`; the map does not zoom, since `wb` has no camera control), and a
+  **YAML** toggle shows the card's text. `GET /api/plugins/project_cards/card?card_id=…` (or `?draft=true`) serves
+  it, reading the file through `host.readable`; nothing is mutated or stored.
 - **A catalog of cards, checked against the network, previewed and applied.** `project_cards.open_catalog(path)`
   (or the new `catalog_dir` setting) lists the ProjectCard files of a folder and one level of its sub-folders, with
   the files that are not cards and why; `refresh_catalog` rescans. `check_card(card_id)` says whether a card applies

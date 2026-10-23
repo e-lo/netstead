@@ -200,6 +200,13 @@ const root = document.createElement("div");
 const { wb } = createWb("project_cards", deps);
 activate(wb);
 const byId = Object.fromEntries(slots.commands.list().map(c => [c.id, c]));
+const settle = () => new Promise(r => setTimeout(r, 0));
+"""
+)
+PANEL_SETUP = PANEL_HARNESS
+PANEL_HARNESS = (
+    PANEL_SETUP
+    + """
 const two = { selectionCount: 2, state: server, network: { id: "base" } };
 const dispatched = () => calls.filter(c => c[0] === "dispatch").map(c => c[1]);
 const setServer = patch => store.set({ server: { ...store.get().server, ...patch } });
@@ -279,7 +286,6 @@ got.noCatalog = catalogBox.textContent.includes("No catalog open");
 const applied = [{ card_id: "lanes", net_id: "base", path: "cards/lanes.yml", project: "Lanes",
                    applied_at: "2026-10-21T09:05:00+00:00", changes: 2, source: "committed", edit_ids: [1, 2] }];
 setServer({ plugins: { project_cards: { drafts: {}, preview: null, catalog: CATALOG, applied } } });
-const settle = () => new Promise(r => setTimeout(r, 0));
 await settle(); await settle();  // the listing is read after the store change
 const cards = walk(catalogBox).filter(e => e.getAttribute("data-card"));
 got.cards = cards.map(c => [c.getAttribute("data-card"), find(c, "SPAN").getAttribute("data-badge"),
@@ -433,3 +439,312 @@ def test_an_addition_needs_no_node_but_a_half_filled_node_is_reported(run_js, se
         }
     ]
     assert got["status"].startswith("Added")
+
+
+CREATE_HARNESS = (
+    PANEL_SETUP
+    + """
+panels[0].render(root);
+const create = elById(root, "pc-create"), compose = elById(root, "pc-compose");
+const setServer = patch => store.set({ server: { ...store.get().server, ...patch } });
+const steps = () => walk(create).filter(e => e.getAttribute("data-step"))
+  .map(e => `${e.getAttribute("data-step")}:${e.getAttribute("data-state")}`);
+const got = {};
+await button(create, "New card").onclick();
+got.types = walk(create).filter(e => e.tagName === "BUTTON").map(b => [b.textContent, b.disabled]);
+got.typeSteps = steps();
+await button(create, "Property change").onclick();
+got.selectSteps = steps();
+got.none = [elById(create, "pc-select-count").textContent, button(create, "Use these 0 links").disabled];
+setServer({ selection: { net_id: "base", status: "resolved", link_ids: [4, 5], projectcard: { picked: true } },
+            saved_selections: [{ name: "ski", net_id: "base", links: 3 }] });
+got.live = [elById(create, "pc-select-count").textContent, button(create, "Use these 2 links").disabled,
+            Boolean(button(create, "Use saved"))];
+elById(create, "pc-utterance").value = "main street";
+await button(create, "Select").onclick();
+await button(create, "Use these 2 links").onclick();
+got.detailsSteps = steps();
+got.form = compose.textContent.startsWith("New change: Property change");
+await button(compose, "Preview").onclick();
+got.addSteps = steps();
+await button(compose, "Add to card").onclick();
+got.added = [steps(), create.textContent.includes("Added to the draft card")];
+await button(create, "Add another change").onclick();
+await button(create, "Addition").onclick();
+got.addition = [steps(), compose.textContent.startsWith("New change: Addition")];
+await button(create, "Cancel").onclick();
+got.cancelled = [Boolean(button(create, "New card")), compose.children.length];
+got.dispatched = calls.filter(c => c[0] === "dispatch").map(c => c[1]);
+got.errors = calls.filter(c => c[0] === "error");
+console.log(JSON.stringify(got));
+"""
+)
+
+
+def test_the_new_card_mode_under_a_fake_dom(run_js):
+    got = run_js(FILES, CREATE_HARNESS)
+    assert got["errors"] == []
+    assert got["types"][:3] == [["Property change", False], ["Deletion", False], ["Addition", False]]
+    assert ["Transit routing change (not yet supported)", True] in got["types"]
+    assert got["types"][-1] == ["Cancel", False]
+    assert got["typeSteps"] == ["type:current", "select:todo", "details:todo", "add:todo"]
+    assert got["selectSteps"] == ["type:done", "select:current", "details:todo", "add:todo"]
+    assert got["none"] == ["Nothing selected on this network yet.", True]
+    assert got["live"] == ["2 links selected.", False, True]  # the count follows the shared selection
+    assert got["detailsSteps"] == ["type:done", "select:done", "details:current", "add:todo"]
+    assert got["form"] is True
+    assert got["addSteps"] == ["type:done", "select:done", "details:done", "add:current"]
+    assert got["added"] == [["type:done", "select:done", "details:done", "add:done"], True]
+    assert got["addition"] == [["type:done", "select:skipped", "details:current", "add:todo"], True]
+    assert got["cancelled"] == [True, 0]
+    assert got["dispatched"] == ["select", "project_cards.preview", "project_cards.add_change"]
+
+
+INSPECT_HARNESS = (
+    PANEL_SETUP
+    + """
+const change = (index, links) => ({ index, type: "roadway_property_change", note: null,
+  facility: { table: "link", ids: links }, property_changes: { lanes: { set: 3, existing: 1 } },
+  targets: { links, nodes: [] }, check: { describe: "x", resolved: links.length, missing: [], reason: null } });
+const DETAIL = { source: "catalog", card_id: "good.yml", path: "/cards/good.yml", net_id: "base", project: "Good",
+  tags: ["t"], dependencies: { prerequisites: [], corequisites: [], conflicts: [] }, notes: null, applies: true,
+  yaml: "project: Good\\n", changes: [change(0, [1, 2]), change(1, [])] };
+const DRAFT = { ...DETAIL, source: "draft", card_id: null, path: null, changes: [{ ...change(0, [7]), check: null }] };
+const read = deps.getJSON;
+deps.getJSON = async p => {
+  if (!p.includes("/card?")) return read(p);
+  calls.push(["get", p]);
+  return p.includes("draft") ? DRAFT : DETAIL;
+};
+panels[0].render(root);
+const setServer = patch => store.set({ server: { ...store.get().server, ...patch } });
+const withDraft = n => ({ project_cards: { drafts: { base: { count: n, project: "", changes: [] } }, preview: null,
+                                           catalog: CATALOG, applied: [] } });
+setServer({ plugins: withDraft(1) });
+await settle(); await settle();
+const inspectBox = elById(root, "pc-inspect"), status = elById(root, "pc-status");
+const card = walk(elById(root, "pc-catalog")).find(e => e.getAttribute("data-card") === "good.yml");
+const got = {};
+await button(card, "Inspect").onclick();
+const shows = text => inspectBox.textContent.includes(text);
+got.view = [shows("Inspect: good.yml"), shows("Project: Good"), shows("lanes: 1 → 3"),
+            shows("Applies: 2 records found"), !elById(inspectBox, "pc-inspect-yaml")];
+button(inspectBox, "YAML").onclick();
+got.yaml = [elById(inspectBox, "pc-inspect-yaml").textContent, button(inspectBox, "YAML").getAttribute("aria-pressed")];
+const pick = i => walk(inspectBox).find(e => e.tagName === "BUTTON" && e.getAttribute("data-index") === String(i));
+pick(0).onclick();
+got.highlighted = [[...store.get().highlights], status.textContent];
+pick(1).onclick();
+got.nothing = status.textContent;
+await button(inspectBox, "Close").onclick();
+got.closed = [inspectBox.children.length, [...store.get().highlights]];
+await button(elById(root, "pc-draft"), "Inspect").onclick();
+got.draft = [inspectBox.textContent.includes("Inspect: the draft on base"),
+             inspectBox.textContent.includes("In the draft: applied to base")];
+setServer({ plugins: withDraft(2) });  // the draft changed: the view reads it again
+await settle(); await settle();
+deps.getJSON = async p => {
+  if (p.includes("/card?")) throw new Error("the draft card on base has no changes");
+  return read(p);
+};
+setServer({ plugins: withDraft(0) });  // emptied: the view closes
+await settle(); await settle();
+got.emptied = inspectBox.children.length;
+got.reads = calls.filter(c => c[0] === "get" && c[1].includes("/card?")).map(c => c[1]);
+got.errors = calls.filter(c => c[0] === "error");
+console.log(JSON.stringify(got));
+"""
+)
+
+
+def test_inspect_under_a_fake_dom(run_js):
+    got = run_js(FILES, INSPECT_HARNESS)
+    assert got["errors"] == []
+    assert got["view"] == [True, True, True, True, True]
+    assert got["yaml"] == ["project: Good\n", "true"]
+    assert got["highlighted"] == [
+        [1, 2],
+        "Highlighted 2 links of change 1 on the map (the map does not zoom to them)",
+    ]
+    assert got["nothing"] == "Change 2 has no links to highlight"
+    assert got["closed"] == [0, []]  # closing clears the highlights it made
+    assert got["draft"] == [True, True]
+    assert got["emptied"] == 0
+    assert got["reads"] == [
+        "/api/plugins/project_cards/card?card_id=good.yml&net_id=base",
+        "/api/plugins/project_cards/card?draft=true&net_id=base",
+        "/api/plugins/project_cards/card?draft=true&net_id=base",
+    ]
+
+
+EDIT_HARNESS = (
+    PANEL_SETUP
+    + """
+const actions = [];
+const real = deps.dispatch;
+deps.dispatch = async a => { actions.push(a); return a.type === "project_cards.edit_card"
+  ? { card_id: a.card_id, count: 2 } : a.type === "project_cards.remove_change"
+  ? { removed: "lanes on link 2", readded: 0 } : real(a); };
+panels[0].render(root);
+const setServer = patch => store.set({ server: { ...store.get().server, ...patch } });
+const source = { card_id: "good.yml", path: "/cards/good.yml" };
+const DRAFT = { count: 2, project: "Good", tags: ["t", "u"], source,
+  changes: [{ index: 0, describe: "lanes on link 1" }, { index: 1, describe: "lanes on link 2" }] };
+setServer({ plugins: { project_cards: { drafts: { base: DRAFT }, preview: null, catalog: CATALOG, applied: [] } } });
+await settle(); await settle();
+const draftBox = elById(root, "pc-draft"), commitBox = elById(root, "pc-commit"), status = elById(root, "pc-status");
+const dialog = find(root, "DIALOG");
+const got = {};
+got.source = elById(draftBox, "pc-draft-source").textContent;
+got.filled = ["pc-project", "pc-tags", "pc-path"].map(id => elById(commitBox, id).value);
+const second = walk(draftBox).find(e => e.getAttribute("data-change") === "1");
+await button(second, "Remove").onclick();
+got.removed = [actions.at(-1), status.textContent];
+await button(commitBox, "Commit…").onclick();
+const choice = key => walk(dialog).find(e => e.getAttribute("data-choice") === key);
+const confirm = find(dialog, "INPUT");
+confirm.checked = true; confirm.onchange();
+got.choices = [choice("over").textContent, choice("over").disabled, choice("new").textContent, choice("new").disabled,
+               dialog.textContent.includes("Give a different card file")];
+await choice("over").onclick();
+got.savedOver = [dialog.open, actions.at(-1)];
+// Edit on a catalog card while the draft has changes asks first, then replaces the draft.
+const card = walk(elById(root, "pc-catalog")).find(e => e.getAttribute("data-card") === "bad.yml");
+await button(card, "Edit").onclick();
+got.ask = [dialog.open, find(dialog, "H3").textContent, dialog.textContent.includes("Edit undoes them")];
+await button(dialog, "Replace the draft").onclick();
+got.edited = [dialog.open, actions.at(-1), status.textContent];
+// With an empty draft and a card that applies, Edit asks nothing.
+setServer({ plugins: { project_cards: { drafts: {}, preview: null, catalog: CATALOG, applied: [] } } });
+await settle(); await settle();
+const good = walk(elById(root, "pc-catalog")).find(e => e.getAttribute("data-card") === "good.yml");
+await button(good, "Edit").onclick();
+got.direct = [dialog.open, actions.at(-1)];
+got.errors = calls.filter(c => c[0] === "error");
+console.log(JSON.stringify(got));
+"""
+)
+
+
+def test_editing_a_card_under_a_fake_dom(run_js):
+    got = run_js(FILES, EDIT_HARNESS)
+    assert got["errors"] == []
+    assert got["source"] == "Editing good.yml (/cards/good.yml)"
+    assert got["filled"] == ["Good", "t, u", "/cards/good.yml"]  # the commit fields take the card's
+    assert got["removed"] == [
+        {"type": "project_cards.remove_change", "index": 1, "net_id": "base"},
+        "Removed: lanes on link 2",
+    ]
+    assert got["choices"] == ["Save over good.yml", False, "Save as new file", True, True]
+    assert got["savedOver"][0] is False
+    commit = got["savedOver"][1]
+    assert commit["type"] == "project_cards.commit" and commit["path"] == "/cards/good.yml"
+    assert commit["overwrite"] is True and commit["project"] == "Good" and commit["tags"] == ["t", "u"]
+    assert got["ask"] == [True, 'Edit "Bad"', True]
+    assert got["edited"] == [
+        False,
+        {"type": "project_cards.edit_card", "card_id": "bad.yml", "replace_draft": True, "net_id": "base"},
+        "Editing bad.yml: 2 change(s) in the draft. Save over it from Commit…",
+    ]
+    assert got["direct"] == [
+        False,
+        {"type": "project_cards.edit_card", "card_id": "good.yml", "replace_draft": False, "net_id": "base"},
+    ]
+
+
+FILES_HARNESS = (
+    PANEL_SETUP
+    + """
+const actions = [];
+const RESULTS = {
+  "project_cards.rename_card": a => ({ action: "renamed", card_id: a.card_id, to: a.new_name }),
+  "project_cards.duplicate_card": a => ({ action: "duplicated", card_id: a.card_id, to: "good-copy.yml" }),
+  "project_cards.delete_card": a => ({ action: "deleted", card_id: a.card_id, to: ".trash/" }),
+  "project_cards.restore_card": a => ({ action: "restored", card_id: a.card_id, to: a.card_id }),
+  "project_cards.update_card_meta": a => ({ action: "updated", card_id: a.card_id, to: "project, tags" }),
+};
+deps.dispatch = async a => { actions.push(a); if (a.type === "project_cards.rename_card" && a.new_name === "bad.yml")
+  throw new Error("bad.yml already exists in the catalog"); return RESULTS[a.type](a); };
+const read = deps.getJSON;
+deps.getJSON = async p => (p.includes("/card?") ? { project: "Good", tags: ["t"],
+  dependencies: { prerequisites: ["Bridge"], corequisites: [], conflicts: [] } } : read(p));
+panels[0].render(root);
+store.set({ server: { ...store.get().server,
+  plugins: { project_cards: { drafts: {}, preview: null, catalog: CATALOG, applied: [] } } } });
+await settle(); await settle();
+const status = elById(root, "pc-status"), dialog = find(root, "DIALOG");
+const row = () => walk(elById(root, "pc-catalog")).find(e => e.getAttribute("data-card") === "good.yml");
+const file = () => walk(row()).find(e => e.getAttribute("class") === "pc-file");
+const got = {};
+// Rename: a refusal stays in the dialog; then it goes through.
+await button(file(), "Rename…").onclick();
+got.renameStart = [dialog.open, elById(dialog, "pc-rename").value];
+elById(dialog, "pc-rename").value = "good.yml";
+await button(dialog, "Rename").onclick();
+got.sameName = [dialog.open, dialog.textContent.includes("already has that name")];
+elById(dialog, "pc-rename").value = "bad.yml";
+await button(dialog, "Rename").onclick();
+got.refused = [dialog.open, dialog.textContent.includes("bad.yml already exists")];
+elById(dialog, "pc-rename").value = "main-street.yml";
+await button(dialog, "Rename").onclick();
+got.renamed = [dialog.open, status.textContent];
+// Duplicate needs no dialog.
+await button(file(), "Duplicate").onclick();
+got.duplicated = status.textContent;
+// Edit metadata: prefilled from the card, saved with every field.
+await button(file(), "Edit metadata…").onclick();
+got.metaStart = ["project", "tags", "prerequisites"].map(k => elById(dialog, `pc-meta-${k}`).value);
+elById(dialog, "pc-meta-project").value = "";
+await button(dialog, "Save").onclick();
+got.noProject = [dialog.open, dialog.textContent.includes("Give the card a project name")];
+elById(dialog, "pc-meta-project").value = "Good street";
+elById(dialog, "pc-meta-tags").value = "t, bike";
+await button(dialog, "Save").onclick();
+got.meta = [dialog.open, status.textContent];
+// Delete, then Undo delete from the status line.
+await button(file(), "Delete").onclick();
+got.deleted = [status.textContent.startsWith("Moved good.yml to the catalog's .trash/ folder"),
+               Boolean(button(status, "Undo delete"))];
+await button(status, "Undo delete").onclick();
+got.restored = status.textContent;
+// The File disclosure stays open across a redraw.
+const before = file();
+before.open = true; before.ontoggle({ target: before });
+store.set({ server: { ...store.get().server,
+  plugins: { project_cards: { drafts: {}, preview: null, catalog: { ...CATALOG }, applied: [], files: [{}] } } } });
+got.stillOpen = [file() !== before, file().getAttribute("open") !== null];
+got.actions = actions;
+got.errors = calls.filter(c => c[0] === "error");
+console.log(JSON.stringify(got));
+"""
+)
+
+
+def test_the_catalog_files_under_a_fake_dom(run_js):
+    got = run_js(FILES, FILES_HARNESS)
+    assert got["errors"] == []
+    assert got["renameStart"] == [True, "good.yml"]
+    assert got["sameName"] == [True, True]  # caught here: nothing dispatched
+    assert got["refused"] == [True, True]
+    assert got["renamed"] == [False, "Renamed good.yml to main-street.yml"]
+    assert got["duplicated"] == "Duplicated good.yml as good-copy.yml"
+    assert got["metaStart"] == ["Good", "t", "Bridge"]
+    assert got["noProject"] == [True, True]
+    assert got["meta"] == [False, "Saved good.yml's project, tags"]
+    assert got["deleted"] == [True, True]
+    assert got["restored"] == "Restored good.yml"
+    assert got["stillOpen"] == [True, True]  # redrawn, and open again
+    assert got["actions"] == [
+        {"type": "project_cards.rename_card", "card_id": "good.yml", "new_name": "bad.yml", "overwrite": False},
+        {"type": "project_cards.rename_card", "card_id": "good.yml", "new_name": "main-street.yml", "overwrite": False},
+        {"type": "project_cards.duplicate_card", "card_id": "good.yml"},
+        {
+            "type": "project_cards.update_card_meta",
+            "card_id": "good.yml",
+            "project": "Good street",
+            "tags": ["t", "bike"],
+            "dependencies": {"prerequisites": ["Bridge"], "corequisites": [], "conflicts": []},
+        },
+        {"type": "project_cards.delete_card", "card_id": "good.yml"},
+        {"type": "project_cards.restore_card", "card_id": "good.yml"},
+    ]

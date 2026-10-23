@@ -6,9 +6,9 @@
 // in cardmodel.js, both tested under node. Card and user text is only ever set as text (`h`'s `text`, or a string
 // child), never parsed as markup.
 import {
-  ROADWAY_TYPES, TRANSIT_TYPES, TYPE_TITLES, appliedRows, applyDefaults, catalogOf, catalogRows, commitFields,
-  commitView, draftBadge, draftNet, draftOf, hasNode, importPath, needsSelection, openPreview, previewLine,
-  summaryFileName,
+  ROADWAY_TYPES, TRANSIT_TYPES, TYPE_TITLES, appliedRows, applyDefaults, catalogOf, catalogRows, commitChoices,
+  commitFields, commitView, draftBadge, editPrompt, fileLine, metaFields, metaForm, renameName, draftNet, draftOf, hasNode, importPath, inspectHeader, inspectRows, needsSelection,
+  openPreview, previewLine, savedChoices, selectionStatus, stepIndicator, summaryFileName, typeChoices,
 } from "./cardmodel.js";
 import { createController } from "./controller.js";
 
@@ -72,6 +72,7 @@ export function activate(wb) {
   });
 
   async function compose(type) {
+    ctl.endCreate(); // the right-click form replaces the New card mode's steps
     if (!(await ctl.start(type))) return; // a transit type: the controller said "not yet supported"; any form stays
     wb.showPanel(PANEL); // the first show renders the panel, which draws the form
     if (view) view.draw();
@@ -125,6 +126,7 @@ export function activate(wb) {
     }
     if (!view) return;
     view.draw();
+    view.draftMoved();
     if (stale) view.checkWentStale();
     if (catalogMoved) view.loadCatalog(); // opened, refreshed, or a card's check dropped: fill the badges again
   });
@@ -132,8 +134,9 @@ export function activate(wb) {
   for (const event of ["catalog", "applied"]) wb.on(event, () => view && view.loadCatalog());
   // A form read from the shared selection is outdated once it changes. Watched as the server's `selection`, not
   // wb.selection: that follows the active network, which opening (or closing) a preview changes.
-  wb.store.subscribe(["selection"], () => {
+  wb.store.subscribe(["selection", "saved_selections"], () => {
     if (ctl.selectionChanged() && view) view.composeWentStale();
+    if (view) view.drawCreate(); // the New card mode's live count
   });
 }
 
@@ -146,6 +149,8 @@ function createView(wb, ctl, el) {
   };
   const catalogBox = h("section", { id: "pc-catalog" });
   const previewBox = h("section", { id: "pc-preview" });
+  const inspectBox = h("section", { id: "pc-inspect", "aria-label": "Inspect a card" });
+  const createBox = h("section", { id: "pc-create" });
   const composeBox = h("section", { id: "pc-compose" });
   const draftBox = h("section", { id: "pc-draft" });
   const commitBox = h("section", { id: "pc-commit" });
@@ -157,15 +162,22 @@ function createView(wb, ctl, el) {
   dialog.style.cssText = "background:var(--panel);color:var(--ink);border:1px solid var(--edge);border-radius:12px;"
     + "padding:16px;width:min(760px, calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto";
   const heading = text => h("h3", { class: "label", style: "font-size:12px;margin:18px 0 6px", text });
+  el.style.overflowWrap = "anywhere"; // long file paths wrap instead of scrolling the dock sideways
   el.append(
-    heading("Catalog"), catalogBox, previewBox,
-    heading("Draft"), composeBox, draftBox, commitBox,
+    heading("Catalog"), catalogBox, previewBox, inspectBox,
+    heading("Draft"), createBox, composeBox, draftBox, commitBox,
     heading("Applied this session"), appliedBox,
     heading("Session summary"), summaryBox,
     status, dialog,
   );
 
   const say = text => { status.textContent = text; };
+  // A status line with one button after it (say, "Undo delete"); the next say() replaces both.
+  const sayWith = (text, label, fn) => {
+    const b = h("button", { class: "mini ghost", id: "pc-status-action" }, label);
+    b.onclick = guard(() => busy([b], fn));
+    status.replaceChildren(text, " ", b);
+  };
   const guard = fn => async () => {
     try { await fn(); } catch (e) { say(e.message); }
   };
@@ -177,6 +189,78 @@ function createView(wb, ctl, el) {
   };
   const server = () => wb.store.get();
   const baseNet = () => draftNet(server(), server().active); // the network whose draft the panel shows
+
+  // The New card mode: the step indicator, then the step's own controls (the form itself is the compose box's).
+  // The description input and the saved-selection list are made once, so a redraw keeps what the user typed.
+  const utterance = h("input", { type: "text", id: "pc-utterance", placeholder: "Main Street from 1st to 5th" });
+  const savedPick = h("select", { id: "pc-saved" });
+  const step = (cls, label, fn) => act(cls, label, async () => { await fn(); draw(); });
+  function selectStep() {
+    const s = server();
+    const status = selectionStatus(s, s.active);
+    const use = step("mini", `Use these ${status.count} link${status.count === 1 ? "" : "s"}`, () => ctl.useFacility());
+    use.disabled = !status.ready;
+    utterance.onkeydown = e => { if (e.key === "Enter") describe.onclick(); };
+    const describe = act("mini", "Select", async () => {
+      await ctl.selectByText(utterance.value);
+      say(`Selected: ${utterance.value.trim()}`);
+    });
+    const choices = savedChoices(s, s.active);
+    const picked = savedPick.value;
+    savedPick.replaceChildren(...choices.map(c => h("option", { value: c.name, text: c.label })));
+    if (choices.some(c => c.name === picked)) savedPick.value = picked;
+    const useSaved = step("mini", "Use saved", () => ctl.useFacility({ saved: savedPick.value }));
+    const nodes = [
+      h("p", { id: "pc-select-count", role: "status", text: status.label }), use,
+      h("p", { class: "muted", text: "Select the facility: turn on Highlight links, click links or shift-drag a box "
+        + "over them and press Set as selection (Find tab), or describe them:" }),
+      h("div", { style: "display:flex;gap:6px;align-items:center" }, utterance, describe),
+    ];
+    if (choices.length) nodes.push(field("Or a saved selection", savedPick), useSaved);
+    return nodes;
+  }
+  function drawCreate() {
+    const mode = ctl.state.create;
+    if (!mode) {
+      redraw(createBox, [step("mini", "New card", () => ctl.beginCreate()),
+        h("span", { class: "muted", text: " a guided change: type, facility, details, add." })]);
+      return;
+    }
+    const steps = h("ol", { class: "pc-steps", "aria-label": "New card steps",
+      style: "display:flex;gap:10px;list-style:none;padding:0;margin:4px 0" },
+    ...stepIndicator(mode).map(st => h("li", {
+      "data-step": st.key, "data-state": st.state, ...(st.state === "current" ? { "aria-current": "step" } : {}),
+      style: st.state === "current" ? "font-weight:700" : st.state === "todo" ? "" : "opacity:.6",
+      text: `${st.state === "done" ? "✓ " : ""}${st.label}${st.state === "skipped" ? " (not needed)" : ""}`,
+    })));
+    const nodes = [h("div", { class: "label", text: "New card" }), steps];
+    if (mode.step === "type") {
+      for (const c of typeChoices()) {
+        const b = step("mini", c.enabled ? c.title : `${c.title} (${c.note})`, () => ctl.chooseCreateType(c.type));
+        b.disabled = !c.enabled;
+        nodes.push(b, " ");
+      }
+    } else if (mode.step === "select") {
+      nodes.push(...selectStep());
+    } else if (mode.step === "added") {
+      nodes.push(h("p", { text: "Added to the draft card. Commit it below, or add another change." }),
+        step("mini", "Add another change", () => ctl.anotherChange()), " ",
+        step("mini ghost", "Done", () => ctl.endCreate()));
+    } else {
+      nodes.push(h("p", { class: "muted", text: mode.step === "add"
+        ? "The preview is on the map: Add to card when it looks right."
+        : "Fill in the change below, Preview it, then Add to card." }));
+    }
+    if (mode.step !== "added") {
+      nodes.push(h("div", { style: "margin-top:6px" },
+        ...(mode.step === "type" ? [] : [step("mini ghost", "Back", () => ctl.backCreate()), " "]),
+        step("mini ghost", "Cancel", async () => { await ctl.cancel(); say(""); })));
+    }
+    const typing = [utterance, savedPick].find(el => el === document.activeElement);
+    if (!typing) { redraw(createBox, nodes); return; }
+    createBox.replaceChildren(...nodes); // a redraw while typing (the live count moved) keeps the caret there
+    if (createBox.contains(typing)) typing.focus();
+  }
 
   // The form is redrawn only for a new compose: redrawing on every state change would wipe what the user typed.
   let drawn = null;
@@ -255,18 +339,37 @@ function createView(wb, ctl, el) {
     const draft = draftOf(server(), server().active);
     if (!draft) {
       redraw(draftBox, [h("p", { class: "empty", tabindex: -1,
-        text: "No draft card for this network yet. Select links, then right-click: New change ▸ …" })], takeFocus);
+        text: "No draft card for this network yet: start one with New card, or select links and right-click: "
+          + "New change ▸ …" })], takeFocus);
       return;
     }
     const name = draft.project ? `: ${draft.project}` : "";
-    const list = h("ol");
-    for (const change of draft.changes) list.append(h("li", { text: change.describe }));
+    const list = h("ol", { id: "pc-draft-changes" });
+    for (const change of draft.changes) {
+      const i = change.index ?? draft.changes.indexOf(change);
+      const remove = act("mini ghost", "Remove", async () => {
+        const result = await ctl.removeChange(i, baseNet());
+        say(`Removed: ${result.removed}${result.readded ? ` (re-added the ${result.readded} after it)` : ""}`);
+      });
+      remove.setAttribute("aria-label", `Remove change ${i + 1}`);
+      const edit = act("mini ghost", "Edit…", async () => {
+        await ctl.editChange(i, baseNet());
+        say(`Removed change ${i + 1}: change the form and Add to card to put it back`);
+        draw();
+      });
+      edit.setAttribute("aria-label", `Edit change ${i + 1}`);
+      list.append(h("li", { "data-change": String(i) }, h("span", { text: change.describe }), " ", edit, " ", remove));
+    }
     const undo = act("mini", "Undo last change", async () => {
       await ctl.undo({ netId: baseNet() });
       say("Undid the last change");
     });
     const heading = h("div", { class: "label", tabindex: -1, text: `Draft card${name} (${draft.count})` });
-    redraw(draftBox, [heading, list, undo], takeFocus);
+    const from = draft.source ? [h("p", { class: "muted", id: "pc-draft-source",
+      text: `Editing ${draft.source.card_id} (${draft.source.path})` })] : [];
+    const inspect = act("mini ghost", "Inspect", () => openInspect(null));
+    redraw(draftBox, [heading, ...from, list, undo, " ", inspect], takeFocus);
+    fillCommit(draft);
   }
 
   // Set while the commit dialog is drawn: marks its check outdated (the draft changed elsewhere).
@@ -276,26 +379,35 @@ function createView(wb, ctl, el) {
     const check = await ctl.check(fields);
     const v = commitView(check);
     const note = h("p", { role: "status" });
-    const commit = h("button", { class: "mini" }, v.button);
+    // One Commit button, or (a draft loaded from a card) "Save over <file>" and "Save as new file".
+    const draft = draftOf(server(), server().active);
+    const choices = commitChoices(fields, draft && draft.source);
+    const buttons = choices.map(c => h("button", { class: "mini", "data-choice": c.key,
+      ...(c.disabled ? { title: c.disabled } : {}) }, c.label || v.button));
     const cancel = h("button", { class: "mini ghost", onclick: () => dialog.close() }, "Cancel");
     const recheck = h("button", { class: "mini" }, "Check again");
     recheck.hidden = true;
     const confirm = h("input", { type: "checkbox", id: "pc-confirm" });
     let outdated = false;
-    const sync = () => { commit.disabled = outdated || v.blocked || (v.needsConfirm && !confirm.checked); };
+    const sync = () => {
+      const off = outdated || v.blocked || (v.needsConfirm && !confirm.checked);
+      buttons.forEach((b, i) => { b.disabled = off || Boolean(choices[i].disabled); });
+    };
     sync();
     confirm.onchange = sync;
-    commit.onclick = async () => {
-      try {
-        const result = await busy([commit, cancel], () => ctl.commit(fields));
-        dialog.close();
-        say(`Committed ${result.card_id} to ${result.path}`);
-      } catch (e) {
-        note.textContent = e.message;
-      } finally {
-        sync();
-      }
-    };
+    buttons.forEach((button, i) => {
+      button.onclick = async () => {
+        try {
+          const result = await busy([...buttons, cancel], () => ctl.commit(choices[i].fields));
+          dialog.close();
+          say(`Committed ${result.card_id} to ${result.path}`);
+        } catch (e) {
+          note.textContent = e.message;
+        } finally {
+          sync();
+        }
+      };
+    });
     recheck.onclick = guard(() => busy([recheck], () => openDialog(fields)));
     markOutdated = () => {
       outdated = true;
@@ -315,18 +427,30 @@ function createView(wb, ctl, el) {
       h("div", { class: "label", text: `Card YAML (${check.net_id})` }),
       h("pre", { text: check.yaml, style: "max-height:45vh;overflow:auto;background:var(--bg)" }), // core's <pre> look
       note,
-      h("div", { style: "display:flex;gap:8px;justify-content:flex-end" }, cancel, recheck, commit),
+      ...choices.filter(c => c.disabled).map(c => h("p", { class: "muted", text: `${c.label}: ${c.disabled}` })),
+      h("div", { style: "display:flex;gap:8px;justify-content:flex-end" }, cancel, recheck, ...buttons),
     );
     if (!dialog.open) dialog.showModal(); // "Check again" redraws an open dialog
-    (v.needsConfirm && !v.blocked ? confirm : commit.disabled ? cancel : commit).focus();
+    const ready = buttons.find(b => !b.disabled);
+    (v.needsConfirm && !v.blocked ? confirm : ready || cancel).focus();
   }
 
   // Drawn once: redrawing on every state change would wipe what the user is typing.
+  const input = (id, placeholder) => h("input", { type: "text", id, placeholder });
+  const project = input("pc-project", "Main Street road diet");
+  const tags = input("pc-tags", "comma separated");
+  const path = input("pc-path", "cards/main-street.yml");
+  // A draft loaded from a card (Edit) fills the commit fields with the card's, once per card loaded.
+  let filledFrom = null;
+  function fillCommit(draft) {
+    const key = draft && draft.source ? JSON.stringify(draft.source) : null;
+    if (!key || key === filledFrom) return;
+    filledFrom = key;
+    project.value = draft.project || "";
+    tags.value = (draft.tags || []).join(", ");
+    path.value = draft.source.path;
+  }
   function drawCommit() {
-    const input = (id, placeholder) => h("input", { type: "text", id, placeholder });
-    const project = input("pc-project", "Main Street road diet");
-    const tags = input("pc-tags", "comma separated");
-    const path = input("pc-path", "cards/main-street.yml");
     const overwrite = h("input", { type: "checkbox", id: "pc-overwrite" });
     const source = input("pc-import", "path/to/card.yml");
     const open = async () => {
@@ -402,6 +526,82 @@ function createView(wb, ctl, el) {
     return [h("p", { class: "muted", text: `Checked on ${a.net_id}` }), list];
   }
 
+  // --------------------------------------------------------------------------------------------- inspecting
+
+  // The read-only Inspect view of a catalog card or the draft. Clicking a change highlights its links on the map;
+  // the map does not zoom to them (the Workbench gives plugins no camera control), so the status says so.
+  let showYaml = false;
+  let highlighted = false;
+  let inspectedDraft = null; // the draft the view shows, to read it again when it changes
+  const highlight = links => {
+    if (typeof wb.highlight !== "function") return false;
+    wb.highlight(links ? { links } : {});
+    highlighted = Boolean(links && links.length);
+    return true;
+  };
+  async function openInspect(cardId) {
+    const detail = await ctl.inspect(cardId, baseNet());
+    showYaml = false;
+    inspectedDraft = cardId ? null : JSON.stringify(draftOf(server(), server().active));
+    drawInspect(true);
+    say(`Inspecting ${detail.card_id || `the draft on ${detail.net_id}`}`);
+  }
+  function closeInspect() {
+    ctl.closeInspect();
+    inspectedDraft = null;
+    if (highlighted) highlight(null);
+    drawInspect(true);
+  }
+  // Called on every server change: a draft being inspected is read again when it changed (or closed when empty).
+  async function draftMoved() {
+    if (inspectedDraft === null) return;
+    const now = JSON.stringify(draftOf(server(), server().active));
+    if (now === inspectedDraft) return;
+    inspectedDraft = now;
+    try {
+      await ctl.inspect(null, baseNet());
+      drawInspect();
+    } catch (e) {
+      closeInspect(); // the draft has no changes any more (committed, or every change removed)
+    }
+  }
+  function drawInspect(force = false) {
+    const detail = ctl.state.inspect;
+    if (!detail) { redraw(inspectBox, [], force); return; }
+    const what = detail.source === "draft" ? `the draft on ${detail.net_id}` : detail.card_id;
+    const yaml = h("button", { class: "mini ghost", "aria-pressed": String(showYaml) }, "YAML");
+    yaml.onclick = () => { showYaml = !showYaml; drawInspect(); yaml.focus(); };
+    const close = act("mini ghost", "Close", async () => closeInspect());
+    const head = h("div", { style: "display:flex;gap:6px;align-items:center" },
+      h("div", { class: "label", tabindex: -1, text: `Inspect: ${what}` }), yaml, close);
+    const lines = inspectHeader(detail).map(([label, text]) => h("div", {},
+      h("span", { class: "muted", text: `${label}: ` }), h("span", { text })));
+    const list = h("ol", { id: "pc-inspect-changes", style: "padding-left:1.2em" });
+    for (const row of inspectRows(detail)) {
+      const pick = h("button", { class: "mini ghost", "data-index": String(row.index),
+        "aria-label": `Highlight change ${row.index + 1} on the map` }, row.title);
+      pick.onclick = () => {
+        const n = row.links.length;
+        if (!highlight(row.links)) say("This Workbench cannot highlight links for plugins");
+        else say(n ? `Highlighted ${n} link${n === 1 ? "" : "s"} of change ${row.index + 1} on the map `
+          + "(the map does not zoom to them)" : `Change ${row.index + 1} has no links to highlight`);
+      };
+      list.append(h("li", { "data-change": String(row.index), style: "margin:4px 0" }, pick,
+        h("div", { class: "muted", text: row.facility }),
+        ...(row.properties.length ? [h("ul", {}, ...row.properties.map(p => h("li", { text: p })))] : []),
+        ...(row.note ? [h("div", { class: "muted", text: `Why: ${row.note}` })] : []),
+        h("div", { "data-check": row.check.state, text: row.check.text })));
+    }
+    const nodes = [head, ...lines, h("p", { class: "muted",
+      text: "Click a change to highlight its links on the map. Inspecting changes nothing." }), list];
+    if (showYaml) {
+      nodes.push(h("pre", { id: "pc-inspect-yaml", text: detail.yaml,
+        style: "max-height:45vh;overflow:auto;background:var(--bg)" }));
+    }
+    redraw(inspectBox, nodes, force);
+  }
+
+  const opened = new Set(); // "details:<card_id>" / "file:<card_id>": the disclosures the user opened
   function cardRow(row) {
     const tags = row.tags.length ? ` · ${row.tags.join(", ")}` : "";
     const badge = h("span", {
@@ -413,12 +613,25 @@ function createView(wb, ctl, el) {
       say(`Previewing ${row.card_id} on ${result.preview}`);
     });
     const apply = act("mini", "Apply…", () => openApplyDialog(row));
-    const details = h("details", {}, h("summary", { class: "muted", text: "Details" }), ...detailRows(row));
+    const inspect = act("mini ghost", "Inspect", () => openInspect(row.card_id));
+    const edit = act("mini ghost", "Edit", () => openEditDialog(row));
+    // A redraw (any server change) keeps the card's Details and File open if they were.
+    const keep = key => ({ ...(opened.has(key) ? { open: "" } : {}),
+      ontoggle: e => { if (e.target.open) opened.add(key); else opened.delete(key); } });
+    const details = h("details", keep(`details:${row.card_id}`), h("summary", { class: "muted", text: "Details" }),
+      ...detailRows(row));
+    const file = h("details", { class: "pc-file", ...keep(`file:${row.card_id}`) },
+      h("summary", { class: "muted", text: "File" }),
+      h("p", { class: "muted", text: row.path }),
+      act("mini ghost", "Rename…", () => openRenameDialog(row)), " ",
+      act("mini ghost", "Duplicate", async () => say(fileLine(await ctl.duplicateCard(row.card_id)))), " ",
+      act("mini ghost", "Edit metadata…", () => openMetaDialog(row)), " ",
+      act("mini ghost", "Delete", () => deleteCard(row)));
     return h("div", { class: "pc-card", "data-card": row.card_id, style: "margin:6px 0 8px" },
       h("div", {}, badge, " ", h("strong", { text: row.project }),
-        h("span", { class: "muted", text: ` · ${row.changes} change(s)${tags}` })),
-      h("div", { style: "margin:4px 0 0 1.4em" }, preview, " ", apply),
-      details,
+        h("span", { class: "muted", text: ` · ${row.changes} change(s)${tags} · ${row.card_id}` })),
+      h("div", { style: "margin:4px 0 0 1.4em" }, preview, " ", apply, " ", inspect, " ", edit),
+      details, file,
     );
   }
 
@@ -438,6 +651,99 @@ function createView(wb, ctl, el) {
         h("ul", {}, ...rejected.map(r => h("li", { class: "muted", text: `${r.card_id}: ${r.error}` })))));
     }
     redraw(catalogList, nodes);
+  }
+
+  // ------------------------------------------------------------------------------------ the catalog's files
+
+  // A dialog with `fields` (labeled controls), a status line and Cancel / `label`: `run()` resolves to the status
+  // text, and a refusal stays in the dialog.
+  function fileDialog(title, fields, label, run) {
+    const note = h("p", { role: "status" });
+    const go = h("button", { class: "mini" }, label);
+    const cancel = h("button", { class: "mini ghost", onclick: () => dialog.close() }, "Cancel");
+    go.onclick = async () => {
+      try {
+        const text = await busy([go, cancel], run);
+        if (text === null) return; // the form itself said what is missing
+        dialog.close();
+        say(text);
+      } catch (e) {
+        note.textContent = e.message;
+      }
+    };
+    dialog.replaceChildren(h("h3", { id: "pc-dialog-title", text: title }), ...fields, note,
+      h("div", { style: "display:flex;gap:8px;justify-content:flex-end" }, cancel, go));
+    if (!dialog.open) dialog.showModal();
+    return note;
+  }
+
+  function openRenameDialog(row) {
+    const name = h("input", { type: "text", id: "pc-rename" });
+    name.value = row.card_id;
+    const overwrite = h("input", { type: "checkbox", id: "pc-rename-overwrite" });
+    const note = fileDialog(`Rename "${row.project}"`, [
+      field("New file name (in the catalog folder)", name), field("Replace an existing file", overwrite)],
+    "Rename", async () => {
+      const { name: newName, error } = renameName(name.value, row.card_id);
+      if (error) { note.textContent = error; return null; }
+      return fileLine(await ctl.renameCard(row.card_id, newName, overwrite.checked));
+    });
+    name.focus();
+  }
+
+  async function openMetaDialog(row) {
+    const start = metaForm(await ctl.cardDetail(row.card_id, baseNet()));
+    const inputs = Object.fromEntries(["project", "tags", "prerequisites", "corequisites", "conflicts"].map(k => {
+      const el = h("input", { type: "text", id: `pc-meta-${k}` });
+      el.value = start[k];
+      return [k, el];
+    }));
+    const labels = { project: "Project name", tags: "Tags (comma separated)",
+      prerequisites: "Prerequisites (projects, comma separated)", corequisites: "Corequisites", conflicts: "Conflicts" };
+    const note = fileDialog(`Edit metadata of "${row.project}"`,
+      Object.entries(inputs).map(([k, el]) => field(labels[k], el)), "Save", async () => {
+        const { fields, error } = metaFields(Object.fromEntries(Object.entries(inputs).map(([k, el]) => [k, el.value])));
+        if (error) { note.textContent = error; return null; }
+        return fileLine(await ctl.updateCardMeta(row.card_id, fields));
+      });
+    inputs.project.focus();
+  }
+
+  // A delete moves the file to the catalog's trash: the status offers it back at once.
+  async function deleteCard(row) {
+    const result = await ctl.deleteCard(row.card_id);
+    sayWith(fileLine(result), "Undo delete", async () => say(fileLine(await ctl.restoreCard(row.card_id))));
+  }
+
+  // Edit: load the card into the draft. An empty draft (and a card that applies) needs no question; otherwise the
+  // dialog says what happens (the draft's changes undone, or the card refused), and a refusal shows in it.
+  async function openEditDialog(row) {
+    const prompt = editPrompt(draftOf(server(), server().active), row);
+    const run = async () => {
+      const result = await ctl.editCard(row.card_id, { replaceDraft: prompt.replace, netId: baseNet() });
+      say(`Editing ${result.card_id}: ${result.count} change(s) in the draft. Save over it from Commit…`);
+      draw();
+    };
+    if (!prompt.ask) { await run(); return; }
+    const note = h("p", { role: "status" });
+    const go = h("button", { class: "mini" }, prompt.replace ? "Replace the draft" : "Edit anyway");
+    const cancel = h("button", { class: "mini ghost", onclick: () => dialog.close() }, "Cancel");
+    go.onclick = async () => {
+      try {
+        await busy([go, cancel], run);
+        dialog.close();
+      } catch (e) {
+        note.textContent = e.message;
+      }
+    };
+    dialog.replaceChildren(
+      h("h3", { id: "pc-dialog-title", text: `Edit "${row.project}"` }),
+      h("p", { text: prompt.ask }),
+      note,
+      h("div", { style: "display:flex;gap:8px;justify-content:flex-end" }, cancel, go),
+    );
+    if (!dialog.open) dialog.showModal();
+    cancel.focus();
   }
 
   // The options apply_card takes, then the card goes to the network (all or nothing); a refusal shows in the dialog.
@@ -521,6 +827,7 @@ function createView(wb, ctl, el) {
 
   function draw() {
     drawCatalog();
+    drawCreate();
     drawCompose();
     drawDraft(drawPreview());
     drawApplied();
@@ -534,5 +841,5 @@ function createView(wb, ctl, el) {
   drawCatalogControls();
   drawCommit();
   drawSummary();
-  return { draw, loadCatalog, checkWentStale, composeWentStale };
+  return { draw, drawCreate, draftMoved, loadCatalog, checkWentStale, composeWentStale };
 }

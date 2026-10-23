@@ -217,3 +217,231 @@ export function appliedRows(state) {
 
 // The file name the session summary downloads as.
 export const summaryFileName = netId => `${netId || "network"}-cards-session.txt`;
+
+// ------------------------------------------------------------------------------------------------- creation mode
+
+// The guided "New card" mode: a change type, then the facility (the shared selection, or a saved one), then the
+// change form, then Add to card. It is the panel's state, never the server's: `{step, type, saved}`, where `step` is
+// "type", "select", "details" (the form is open), "add" (a preview of the form's change is on the map) or "added".
+export const CREATE_STEPS = [["type", "Type"], ["select", "Select"], ["details", "Details"], ["add", "Add"]];
+
+export const startCreate = () => ({ step: "type", type: null, saved: null });
+
+// The change types the mode offers, in order: the roadway ones, then the transit ones (shown, not offered yet).
+export const typeChoices = () => [
+  ...ROADWAY_TYPES.map(type => ({ type, title: TYPE_TITLES[type], enabled: true, note: "" })),
+  ...TRANSIT_TYPES.map(type => ({ type, title: TYPE_TITLES[type], enabled: false, note: "not yet supported" })),
+];
+
+// After picking `type`: a change that acts on a selection goes to "select", an addition straight to "details".
+export function chooseType(mode, type) {
+  if (TRANSIT_TYPES.includes(type)) throw new Error(`${TYPE_TITLES[type]} is not yet supported`);
+  if (!ROADWAY_TYPES.includes(type)) throw new Error(`no change type ${type}`);
+  return { ...mode, type, saved: null, step: needsSelection(type) ? "select" : "details" };
+}
+
+// The mode after `event`: "form" (the form opened, for the shared selection or the saved one `saved`), "previewed",
+// "added", or "back" (one step back: from the form to Select, or to Type for an addition; from Select to Type).
+export function createAfter(mode, event, saved = null) {
+  if (event === "form") return { ...mode, step: "details", saved };
+  if (event === "previewed") return { ...mode, step: "add" };
+  if (event === "added") return { ...mode, step: "added" };
+  if (event === "back") {
+    if ((mode.step === "details" || mode.step === "add") && needsSelection(mode.type)) {
+      return { ...mode, step: "select", saved: null };
+    }
+    return startCreate();
+  }
+  throw new Error(`no creation step event ${event}`);
+}
+
+// The step indicator: each step's label and state ("done", "current", "todo", or "skipped": an addition selects
+// nothing). "added" marks every step done.
+export function stepIndicator(mode) {
+  const order = CREATE_STEPS.map(([key]) => key);
+  const at = mode.step === "added" ? order.length : order.indexOf(mode.step);
+  return CREATE_STEPS.map(([key, label], i) => {
+    if (key === "select" && mode.type && !needsSelection(mode.type)) return { key, label, state: "skipped" };
+    return { key, label, state: i < at ? "done" : i === at ? "current" : "todo" };
+  });
+}
+
+// What the Select step says about the shared selection (server state's `selection`) for the network `netId` (or the
+// base a preview stands for): `{count, ready, label}`. Only a resolved selection on that network can be used.
+export function selectionStatus(state, netId) {
+  const sel = state && state.selection;
+  const nets = [netId, draftNet(state, netId)];
+  if (!sel || !nets.includes(sel.net_id) || !(sel.link_ids || []).length) {
+    return { count: 0, ready: false, label: "Nothing selected on this network yet." };
+  }
+  const count = sel.link_ids.length;
+  const links = `${count} link${count === 1 ? "" : "s"}`;
+  if (sel.status !== "resolved") {
+    return { count, ready: false, label: `${links} selected, not resolved yet: pin its anchors in the Selection panel.` };
+  }
+  return { count, ready: true, label: `${links} selected.` };
+}
+
+// The saved selections a Select step offers: those of the network (or of the base a preview stands for).
+export const savedChoices = (state, netId) => ((state && state.saved_selections) || [])
+  .filter(s => s.net_id === netId || s.net_id === draftNet(state, netId))
+  .map(s => ({ name: s.name, label: `${s.name} (${s.links} link${s.links === 1 ? "" : "s"})` }));
+
+// --------------------------------------------------------------------------------------------- editing a card
+
+// The last part of a path ("/cards/main.yml" -> "main.yml").
+export const baseName = path => String(path || "").split(/[\\/]/).filter(Boolean).pop() || "";
+
+// The commit dialog's buttons for `fields` (commitFields'): one Commit, or, for a draft loaded from a card file
+// (`source`, {card_id, path}), "Save over <file>" (that file, replaced) and "Save as new file" (the Card file field,
+// never replacing the source: `disabled` says why when the field still names it).
+export function commitChoices(fields, source = null) {
+  if (!source || !source.path) return [{ key: "commit", label: null, fields, disabled: "" }];
+  const over = { key: "over", label: `Save over ${baseName(source.path)}`, fields: { ...fields, path: source.path,
+    overwrite: true }, disabled: "" };
+  // The field names the source itself, absolutely or as a path relative to a folder above it (the server refuses
+  // any other existing file without overwrite anyway).
+  const same = fields.path === source.path || String(source.path).endsWith(`/${fields.path}`);
+  const asNew = { key: "new", label: "Save as new file", fields: { ...fields, overwrite: false },
+    disabled: same ? "Give a different card file to save as a new card" : "" };
+  return [over, asNew];
+}
+
+// What Edit on a catalog card asks first: nothing for an empty draft, else whether to replace the draft's changes.
+export function editPrompt(draft, row) {
+  const n = draft ? draft.count || 0 : 0;
+  const warn = row && row.badge === "✗" ? ` ${row.project} does not apply to this network as it is: ${row.tip}` : "";
+  if (!n) return { replace: false, ask: warn ? warn.trim() : "" };
+  const changes = `${n} uncommitted change${n === 1 ? "" : "s"}`;
+  return { replace: true, ask: `The draft card has ${changes}. Edit undoes ${n === 1 ? "it" : "them"} (network edits `
+    + `included) and loads ${row ? row.project : "the card"} instead.${warn}` };
+}
+
+// ------------------------------------------------------------------------------------------ editing the catalog
+
+// "a, b,, c" -> ["a", "b", "c"].
+export const splitList = text => String(text || "").split(",").map(t => t.trim()).filter(Boolean);
+
+// The Edit metadata form ({project, tags, prerequisites, corequisites, conflicts}, comma-separated lists) as the
+// update_card_meta Action's fields, or {error}: a card needs a project name. Every field is sent, so a cleared one
+// is cleared in the file.
+export function metaFields(form = {}) {
+  const project = String(form.project || "").trim();
+  if (!project) return { error: "Give the card a project name" };
+  const dependencies = {};
+  for (const key of ["prerequisites", "corequisites", "conflicts"]) dependencies[key] = splitList(form[key]);
+  return { fields: { project, tags: splitList(form.tags), dependencies } };
+}
+
+// The Edit metadata form's start, from the /card route's answer.
+export const metaForm = detail => ({
+  project: detail.project || "",
+  tags: (detail.tags || []).join(", "),
+  ...Object.fromEntries(["prerequisites", "corequisites", "conflicts"]
+    .map(k => [k, ((detail.dependencies || {})[k] || []).join(", ")])),
+});
+
+// The rename form's new name, or {error}.
+export function renameName(name, cardId) {
+  const trimmed = String(name || "").trim();
+  if (!trimmed) return { error: "Give the card a new file name" };
+  if (trimmed === cardId) return { error: `${cardId} already has that name` };
+  return { name: trimmed };
+}
+
+// What the panel says after a catalog file Action (its result {action, card_id, to}).
+export function fileLine(result) {
+  if (result.action === "renamed") return `Renamed ${result.card_id} to ${result.to}`;
+  if (result.action === "duplicated") return `Duplicated ${result.card_id} as ${result.to}`;
+  if (result.action === "deleted") return `Moved ${result.card_id} to the catalog's ${result.to} folder`;
+  if (result.action === "restored") return `Restored ${result.card_id}`;
+  return `Saved ${result.card_id}'s ${result.to}`;
+}
+
+// ------------------------------------------------------------------------------------------------- inspecting
+
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+// The Inspect view's heading lines (the /card route's answer): [label, text] pairs, the empty ones left out.
+export function inspectHeader(detail) {
+  const deps = detail.dependencies || {};
+  const depText = ["prerequisites", "corequisites", "conflicts"]
+    .filter(k => (deps[k] || []).length).map(k => `${k}: ${deps[k].join(", ")}`).join("; ");
+  return [
+    ["Project", detail.project || "(unnamed)"],
+    ["Tags", (detail.tags || []).join(", ")],
+    ["Dependencies", depText],
+    ["Notes", detail.notes || ""],
+    ["File", detail.path || ""],
+  ].filter(([, text]) => text);
+}
+
+// A query selection as one line: its fields (without ignore_missing), and what it resolved to when made.
+function queryText(facility) {
+  const links = { ...((facility.query || {}).links || {}) };
+  delete links.ignore_missing;
+  const resolved = facility.resolved ? `resolved to ${plural(facility.resolved.length, "link")}`
+    : "no provenance: cannot be applied yet";
+  return `links matching ${JSON.stringify(links)} (${resolved})`;
+}
+
+// What a change aims at, as one line.
+export function facilityText(change) {
+  if (change.type === "roadway_property_change") {
+    const f = change.facility;
+    if (!f) return "no facility";
+    return f.query ? queryText(f) : `${f.table === "node" ? "nodes" : "links"} ${fewIds(f.ids)}`;
+  }
+  const parts = [];
+  if ((change.links || []).length) {
+    const ids = change.type === "roadway_addition" ? change.links.map(r => r.link_id) : change.links;
+    parts.push(`links ${fewIds(ids)}`);
+  }
+  if ((change.nodes || []).length) {
+    const ids = change.type === "roadway_addition" ? change.nodes.map(r => r.node_id) : change.nodes;
+    parts.push(`nodes ${fewIds(ids)}`);
+  }
+  const verb = change.type === "roadway_addition" ? "adds" : change.type === "roadway_deletion" ? "deletes" : "";
+  const extra = change.clean_nodes ? " (and end nodes no other link uses)" : "";
+  return `${verb} ${parts.join("; ") || "nothing"}${extra}`.trim();
+}
+
+// A property change's properties, one line each, existing → set or change: "lanes: 2 → 3", "lanes: 2 → change by
+// +1"; without an existing value, "lanes: change by +1" or "name: set Main St".
+export function propertyLines(change) {
+  return Object.entries(change.property_changes || {}).map(([name, pc]) => {
+    const has = v => v !== undefined && v !== null;
+    const delta = has(pc.change) ? `${pc.change >= 0 ? "+" : ""}${pc.change}` : null;
+    const conflict = has(pc.existing) && pc.existing_value_conflict && pc.existing_value_conflict !== "error"
+      ? ` (if it differs: ${pc.existing_value_conflict})` : "";
+    if (!has(pc.existing)) return delta !== null ? `${name}: change by ${delta}` : `${name}: set ${pc.set}`;
+    const after = delta !== null ? `change by ${delta}` : pc.set;
+    return `${name}: ${pc.existing} → ${after}${conflict}`;
+  });
+}
+
+// One change's check on the open network, as a line and its state: "ok", "no" or "unknown". A draft's changes are
+// on its network already (`draft`).
+export function checkText(check, { draft = false, netId = null } = {}) {
+  if (draft) return { state: "ok", text: `In the draft: applied to ${netId}` };
+  if (!check) return { state: "unknown", text: "Not checked: no network is open" };
+  if (check.reason) return { state: "no", text: `Does not apply: ${check.reason}` };
+  if ((check.missing || []).length) {
+    return { state: "no", text: `${check.resolved} found; missing ${fewIds(check.missing)}` };
+  }
+  return { state: "ok", text: `Applies: ${plural(check.resolved, "record")} found` };
+}
+
+// The Inspect view's rows: one per change, with what to highlight on the map when it is clicked.
+export function inspectRows(detail) {
+  const draft = detail.source === "draft";
+  return (detail.changes || []).map(change => ({
+    index: change.index,
+    title: `${change.index + 1}. ${TYPE_TITLES[change.type] || change.type}`,
+    facility: facilityText(change),
+    properties: propertyLines(change),
+    note: change.note || "",
+    check: checkText(change.check, { draft, netId: detail.net_id }),
+    links: [...((change.targets && change.targets.links) || [])],
+  }));
+}

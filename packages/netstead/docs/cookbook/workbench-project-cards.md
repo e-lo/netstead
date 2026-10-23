@@ -78,17 +78,46 @@ still runs (see [Write a Workbench plugin](workbench-plugins.md#startup-outcomes
       ProjectCard yet: …").
 
     The file is written atomically: a failed write leaves an existing file as it was, and an existing file is
-    replaced only when **Replace an existing file** is ticked. When a catalog is open on the same folder, the card
-    is listed in it too (**Refresh** rescans). A new, empty draft then starts.
+    replaced only when **Replace an existing file** is ticked. When the file is inside the open catalog's folder,
+    the catalog is rescanned and lists the card. A new, empty draft then starts.
 
 Committing writes the card, not the network: the edits stay pending in the **Edit** tab until you save the
 network, as with any edit.
+
+### New card mode
+
+**New card**, at the top of the **Draft** section, walks through steps 1 to 5 as a guided mode. A step indicator
+reads **Type → Select → Details → Add** (done steps are ticked); **Back** returns one step and **Cancel** leaves the
+mode, closing its form and any preview.
+
+1. **Type:** Property change, Deletion or Addition. The transit types are listed, disabled: not yet supported.
+2. **Select** (skipped for an Addition, which needs no selection): select the facility with the shared selection.
+   Turn on **Highlight links**, click links or shift-drag a box over them and press **Set as selection** (as in
+   step 1), or describe them in the mode's own box and press **Select** (core's natural-language selection), or
+   pick a saved selection and
+   press **Use saved**. The mode shows a live count ("3 links selected."); **Use these 3 links** opens the form. A
+   selection that is not resolved yet (an ambiguous anchor) must be pinned in the **Selection** panel first.
+3. **Details:** the same form as step 3 above, prefilled from the selection.
+4. **Add:** **Preview** shows the change on a copy; **Add to card** adds it to the draft. Then **Add another
+   change** starts again at **Type**, or **Done** leaves the mode; commit as in step 7.
+
+The mode dispatches the same Actions as the right-click entry point (`project_cards.preview`,
+`project_cards.add_change`), so history, undo and commit work the same way.
 
 ### Undo
 
 **Undo last change** in the panel (or **Undo the draft card's last change** in the command palette) takes back the
 draft's newest change, network edits included. A deletion with **Also delete end nodes** is two edits, and both are
 undone. Committed cards are not undone.
+
+**Remove**, next to each change of the draft, takes out any change, not only the last. Core undoes only the
+network's newest edit, so the plugin undoes the draft back to that change and applies the later changes again, in
+order: the network ends as if the change had never been made. A later change that depends on the removed one (a
+property change on a link the removed change added, or an `existing` value it set) no longer applies, so the removal
+is refused and nothing changes ("change 3 depends on the removed change 2: …"). **Edit…** next to a change removes
+it and opens its form again on the links it aimed at (selected by id, so a query selection comes back as the ids it
+resolved to): change the form and **Add to card** to put it back, at the end of the draft. Reordering changes is not
+supported.
 
 Core and the plugin each undo only their own edits. Core's **Undo** won't take back a card change, and the plugin's
 undo refuses when the network's newest edit is one you made yourself: undo that one first, in the **Edit** tab.
@@ -118,6 +147,60 @@ distinct from the draft you build above.
 - **Session summary** builds a plain-text summary (network, source, spec version; the applied cards with their
   edit ids; the draft, if any; and this plugin's actions in order, each ok or failed) with **Copy** and
   **Download** buttons. `GET /api/plugins/project_cards/summary.txt` serves the same text.
+
+### Edit a card
+
+**Edit**, on a catalog card, loads it into the open network's draft: every change of the card is applied, as
+**Import** does (all or nothing), and the draft takes the card's project, tags, dependencies and notes. The draft
+remembers the card's file ("Editing main.yml (…)") and the commit fields are filled in with the card's. Then edit
+the draft: **Remove** or **Edit…** its changes, or add new ones (see [Undo](#undo)).
+
+- If the draft already has uncommitted changes, Edit asks first: **Replace the draft** undoes them (network edits
+  included) and loads the card instead.
+- Edit applies the card to the network, so it needs a network the card applies to (a `✓` badge). A card committed
+  in this session is already on its network: reopen the network (or open another copy) to edit it.
+- **Commit…** then offers **Save over main.yml** (replace the card's file) or **Save as new file** (the **Card
+  file** field, which must name another file; an existing one is replaced only with **Replace an existing file**).
+  The catalog is rescanned after either.
+
+From Python: `project_cards.edit_card(card_id, replace_draft=False)` and `project_cards.remove_change(index)`.
+
+### Manage the catalog's files
+
+Each catalog card has a **File** disclosure with its path and four buttons. Each one is a recorded Action, listed in
+the session summary under **Catalog files**; the catalog is rescanned after it. They change files, not the network,
+and the assistant is not offered them.
+
+- **Rename…** gives the file a new name in the catalog folder (or `sub/name.yml`, one sub-folder down). A name
+  without a suffix keeps the card's. An existing file with other content is replaced only when **Replace an existing
+  file** is ticked.
+- **Duplicate** copies the file, byte for byte, to `<name>-copy.yml` (`-copy-2`, … when that is taken).
+- **Edit metadata…** changes the card's project name, tags and dependencies (prerequisites, corequisites,
+  conflicts; comma separated). Only those keys of the file change; its changes and notes stay as they are, though
+  YAML comments are not kept.
+- **Delete** moves the file to a `.trash` folder inside the catalog folder; nothing is deleted for good. The status
+  line offers **Undo delete**, which moves it back (`project_cards.restore_card`). Empty `.trash` yourself when you
+  are sure.
+
+Every new or rewritten file stays inside `io.allowed_roots` and the catalog folder (nothing hidden, at most one
+sub-folder down), and the card is validated with `projectcard` before it is written: a card `projectcard` rejects is
+not renamed, copied or rewritten.
+
+### Inspect a card
+
+**Inspect**, on a catalog card or under the draft, opens a read-only view of the card:
+
+- its **Project**, **Tags**, **Dependencies** (prerequisites, corequisites, conflicts), **Notes** and **File**;
+- each change, numbered, with its type, its facility ("links 1, 2", or `links matching {"name":["Benton Street"]}`
+  with the number of links it resolved to), its property changes as existing → new ("lanes: 1 → 2", "lanes: 1 →
+  change by +1") and whether it applies to the open network ("Applies: 2 records found", "0 found; missing 999999",
+  or the reason it can't be applied). The draft's changes are already on its network: "In the draft: applied to …".
+
+Click a change to highlight its links on the map. The map does not zoom to them: the Workbench gives plugins no
+camera control yet, so pan to them yourself (or use **Find** to zoom to a link). **YAML** shows the card's text: the
+file itself for a catalog card, the YAML a commit would write for the draft. **Close** clears the highlights.
+Inspecting changes nothing; `GET /api/plugins/project_cards/card?card_id=<id>` (or `?draft=true`) serves the same
+view as JSON.
 
 From Python: `project_cards.open_catalog(path)`, `project_cards.refresh_catalog()`, `project_cards.check_card
 (card_id)`, `project_cards.preview_card(card_id)`, `project_cards.apply_card(card_id, existing_value_conflict=
@@ -207,15 +290,22 @@ copied lines import from `netstead_project_cards.actions`:
 |---|---|
 | `project_cards.add_change` (`AddChange`) | Apply one change and add it to the network's draft. |
 | `project_cards.undo_change` (`UndoChange`) | Undo the draft's last change. |
+| `project_cards.remove_change` (`RemoveChange`) | Remove any change of the draft (the later ones are re-applied). |
 | `project_cards.preview` (`PreviewChange`) | Preview a change on a copy of the network. |
 | `project_cards.close_preview` (`ClosePreview`) | Close the preview. |
 | `project_cards.commit` (`CommitCard`) | Write the draft as a card file and start a new draft. |
 | `project_cards.import` (`ImportCard`) | Apply a card or edit log to the draft, all or nothing. |
+| `project_cards.edit_card` (`EditCard`) | Load a catalog card into the draft to edit it, remembering its file. |
 | `project_cards.open_catalog` (`OpenCatalog`) | Open a folder of card files as the catalog. |
 | `project_cards.refresh_catalog` (`RefreshCatalog`) | Rescan the open catalog's folder. |
 | `project_cards.check_card` (`CheckCard`) | Check whether a catalog card applies to the network now, without changing anything. |
 | `project_cards.preview_card` (`PreviewCard`) | Preview a catalog card's changes on a copy of the network. |
 | `project_cards.apply_card` (`ApplyCard`) | Apply a catalog card to the network, all or nothing; record it as applied. |
+| `project_cards.rename_card` (`RenameCard`) | Rename a catalog card's file. |
+| `project_cards.duplicate_card` (`DuplicateCard`) | Copy a catalog card to `<name>-copy.yml` (or a name you give). |
+| `project_cards.delete_card` (`DeleteCard`) | Move a catalog card's file to the catalog's `.trash` folder. |
+| `project_cards.restore_card` (`RestoreCard`) | Move a deleted card back from `.trash`. |
+| `project_cards.update_card_meta` (`UpdateCardMeta`) | Change a catalog card's project, tags and dependencies. |
 | `project_cards.session_summary` (`SessionSummary`) | The session summary as plain text. |
 
 `session.dispatch` (or its alias `app.do`) runs them. A change targets the shared selection (`use_selection=True`),
@@ -272,9 +362,9 @@ app.dispatch(ImportCard(path="cards/edit-log.yaml"))
 ```
 
 Over HTTP, `POST /api/actions` takes the same Actions as JSON (`{"type": "project_cards.add_change", ...}`). The
-panel also reads two routes: `GET /api/plugins/project_cards/form` (the form for a change type on the selection)
-and `GET /api/plugins/project_cards/commit-check` (the warnings, problems and YAML the commit dialog shows). Both
-only read.
+panel also reads routes: `GET /api/plugins/project_cards/form` (the form for a change type on the selection),
+`GET /api/plugins/project_cards/commit-check` (the warnings, problems and YAML the commit dialog shows), `/catalog`
+(the open catalog), `/card` (the Inspect view) and `/summary.txt`. All only read.
 
 The library behind the Actions is usable on its own: `DraftCard` builds a card from the change model and writes it
 with `to_yaml()`, `read_card_file` reads one back, and `netstead_project_cards.validate.card_problems` runs

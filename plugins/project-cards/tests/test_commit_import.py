@@ -54,6 +54,7 @@ def test_commit_writes_a_card_projectcard_reads_and_starts_a_new_draft(session, 
         "changes": 1,
         "warnings": 0,
         "catalog": False,
+        "listed": False,
     }
     card = projectcard.read_card(path, validate=True)
     assert card.project == "Speed fixes" and card.tags == ["fixes"]

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import weakref
+from pathlib import Path
 from typing import Any
 
 from netstead.workbench.plugins import ActionError, ActionSpec, Host
@@ -21,11 +22,13 @@ from .actions import (
     CheckCard,
     ClosePreview,
     CommitCard,
+    EditCard,
     ImportCard,
     OpenCatalog,
     PreviewCard,
     PreviewChange,
     RefreshCatalog,
+    RemoveChange,
     SessionSummary,
     UndoChange,
 )
@@ -48,7 +51,7 @@ from .flow import (
 )
 from .lower import Applied, apply_change, describe, few
 from .mapping import FieldMap
-from .state import AppliedCard, CardsState, Preview, timestamp
+from .state import AppliedCard, CardsState, Entry, Preview, timestamp
 from .types import NetworkChange
 from .validate import card_problems
 
@@ -69,8 +72,10 @@ class Handlers:
         return (
             ActionSpec(AddChange, self.add_change),
             ActionSpec(UndoChange, self.undo_change),
+            ActionSpec(RemoveChange, self.remove_change),
             ActionSpec(CommitCard, self.commit),
             ActionSpec(ImportCard, self.import_card),
+            ActionSpec(EditCard, self.edit_card),
             ActionSpec(PreviewChange, self.preview),
             ActionSpec(ClosePreview, self.close_preview),
             ActionSpec(OpenCatalog, self.open_catalog),
@@ -138,6 +143,96 @@ class Handlers:
             count = self.state.pop(net, entry)
         host.publish("changed", {"net_id": net, "count": count})
         return {"net_id": net, "undone": describe(entry.change), "count": count}
+
+    def remove_change(self, host: Host, action: RemoveChange) -> dict[str, Any]:
+        """Remove change ``index`` of the draft: undo it and every later change, then apply the later ones again.
+
+        ``host.undo`` takes back only the network's newest edit, so a change in the middle is removed by undoing to it
+        and re-adding what came after (each through the same lowering as ``add_change``): the network ends as if the
+        change had never been made. A later change that no longer applies (it depends on the removed one) fails the
+        Action, whose rollback puts every undone edit back; the draft is touched only once everything succeeded.
+        """
+        with as_action_errors():
+            net = target_network(host, self.state, action.net_id)
+        entries = self.state.entries(net)
+        if action.index >= len(entries):
+            n = len(entries)
+            raise ActionError(
+                f"the draft card on {net} has {n} change{'s' if n != 1 else ''}: there is no change {action.index + 1}"
+            )
+        removed = entries[action.index :]
+        with self.state.undoing(net):
+            self._undo_entries(host, net, removed)
+            applied = self._reapply(host, net, action.index, [e.change for e in removed[1:]])
+            count = self.state.replace_tail(net, host.network(net), action.index, removed, applied)
+        host.publish("changed", {"net_id": net, "count": count})
+        return {
+            "net_id": net,
+            "index": action.index,
+            "removed": describe(removed[0].change),
+            "readded": len(applied),
+            "count": count,
+        }
+
+    def _undo_entries(self, host: Host, net: str, entries: list[Entry]) -> None:
+        """Undo ``entries`` (the draft's last changes, oldest first) newest first, each mutation checked by its seq.
+
+        Call it inside ``state.undoing(net)`` from a handler: a refusal fails the Action, whose rollback redoes them.
+        """
+        for entry in reversed(entries):
+            for mark in reversed(entry.marks):
+                undone = host.undo(net)
+                if undone["seq"] != mark.seq:
+                    raise ActionError(
+                        f"the newest project cards edit on {net} ({undone['note']}) is not the draft's "
+                        f"({mark.note}); nothing was changed"
+                    )
+
+    def _reapply(self, host: Host, net: str, index: int, changes: list[NetworkChange]) -> list[Applied]:
+        """Apply the changes that came after the removed change ``index`` again, in order."""
+        applied: list[Applied] = []
+        for k, change in enumerate(changes, start=index + 2):
+            with as_action_errors(f"change {k} depends on the removed change {index + 1} ({describe(change)}): "):
+                again = apply_change(host, net, change)
+            if not again.marks:
+                raise ActionError(
+                    f"change {k} depends on the removed change {index + 1}: nothing on {net} matches it any more; "
+                    "nothing was removed"
+                )
+            applied.append(again)
+        return applied
+
+    def edit_card(self, host: Host, action: EditCard) -> dict[str, Any]:
+        """Load a catalog card into the draft to edit it (``import`` semantics), remembering its file.
+
+        A draft with uncommitted changes is refused unless ``replace_draft``: they are then undone first (network
+        edits included). The card's changes are applied all or nothing; a failure rolls back the undos too. The draft
+        takes the card's project, tags, dependencies and notes, and its source (``{card_id, path}``), whatever it
+        had; an enclosing Action that fails afterwards puts those back (``host.on_rollback``).
+        """
+        with as_action_errors():
+            net = target_network(host, self.state, action.net_id)
+        entry = catalog_entry(self.state, action.card_id)
+        path = host.readable(entry.path)
+        with as_action_errors():
+            incoming = read_card_file(path, self.mapping)
+            if not incoming.changes:
+                raise CardError(f"{entry.card_id} has no changes to edit")
+        current = self.state.entries(net)
+        if current and not action.replace_draft:
+            n = len(current)
+            raise ActionError(
+                f"the draft card on {net} has {n} uncommitted change{'s' if n != 1 else ''}: edit with "
+                f"replace_draft=True to undo {'them' if n != 1 else 'it'} and load {entry.card_id} instead"
+            )
+        source = {"card_id": entry.card_id, "path": str(path)}
+        with self.state.undoing(net):
+            self._undo_entries(host, net, current)
+            applied = self._apply_all(host, net, incoming.changes)
+            count, undo = self.state.load(net, host.network(net), current, applied, incoming, source)
+        host.on_rollback(undo)
+        host.publish("changed", {"net_id": net, "count": count})
+        return {**source, "net_id": net, "project": incoming.project, "count": count, "replaced": len(current)}
 
     def _undo_card(self, host: Host, net: str, card: AppliedCard) -> dict[str, Any]:
         """Undo every edit of an applied catalog card (newest first) and drop it from ``applied``.
@@ -215,6 +310,7 @@ class Handlers:
             uncommit()
 
         host.on_rollback(roll_back)
+        listed = self._rescan_for(host, path)
         host.publish("committed", {"net_id": net, "card_id": card_id, "path": str(path)})
         return {
             "card_id": card_id,
@@ -223,7 +319,26 @@ class Handlers:
             "changes": len(card.changes),
             "warnings": len(warnings),
             "catalog": catalog,
+            "listed": listed,
         }
+
+    def _rescan_for(self, host: Host, path: Path) -> bool:
+        """Rescan the open catalog when ``path`` (a file just written) is in its folder; whether it was.
+
+        A folder that can no longer be read keeps the catalog as it was (logged): the file is written either way.
+        An enclosing Action that fails puts the older listing back (``host.on_rollback``).
+        """
+        current = self.state.catalog()
+        if current is None or not path.is_relative_to(current.path):
+            return False
+        try:
+            catalog = load_catalog(host, current.path, self.mapping)
+        except ActionError as exc:
+            logger.warning("project_cards: the catalog at %s was not rescanned: %s", current.path, exc)
+            return False
+        host.on_rollback(self.state.swap_catalog(catalog))
+        host.publish("catalog", {"path": catalog.path, "cards": len(catalog.cards)})
+        return True
 
     def import_card(self, host: Host, action: ImportCard) -> dict[str, Any]:
         """Read a card (or an offline edit log) and apply its changes to the draft, all or nothing.

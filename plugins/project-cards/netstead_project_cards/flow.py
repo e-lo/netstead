@@ -250,4 +250,5 @@ def summary_text(host: Host, state: CardsState, net_id: str | None) -> str:
     card = state.card(net) if net is not None else None
     draft = {"project": card.project, "changes": [describe(c) for c in card.changes]} if card is not None else None
     applied = [a.to_dict() for a in state.applied]
-    return build_summary(network, applied, draft, host.history("project_cards."), datetime.now(UTC))
+    history = host.history("project_cards.")
+    return build_summary(network, applied, draft, history, datetime.now(UTC), files=[dict(f) for f in state.files])

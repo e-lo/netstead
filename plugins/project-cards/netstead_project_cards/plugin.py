@@ -19,6 +19,7 @@ from netstead.workbench.plugins import ActionError, Host, WorkbenchPlugin
 from pydantic import BaseModel, ConfigDict
 
 from ._version import __version__
+from .catalog_edits import CatalogEdits
 from .flow import load_catalog, open_handle, pending_seqs
 from .handlers import Handlers
 from .mapping import load_mapping
@@ -67,7 +68,7 @@ def plugin() -> WorkbenchPlugin:
         name="Project cards",
         version=__version__,
         requires_api=REQUIRES_API,
-        actions=handlers.specs(),
+        actions=(*handlers.specs(), *CatalogEdits(state, mapping).specs()),
         router=lambda host: build_router(host, state, mapping),
         static_dir=STATIC,
         settings_model=CardsSettings,

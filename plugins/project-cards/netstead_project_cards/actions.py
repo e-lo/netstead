@@ -1,10 +1,10 @@
 """The project cards plugin's Actions: recorded in history, replayable with "Copy as Python", dispatchable over HTTP.
 
 The ones that change a network, register or close a preview network, or write a file set ``mutates``: the
-natural-language assistant drafts them for the user to approve. The ones that need no file path (adding, undoing and
-previewing a change, closing the preview, previewing and applying a catalog card) set ``assistant_compact``, so a
-model on this machine is offered them too. Opening, refreshing and checking the catalog, and the session summary,
-read only (the catalog is the plugin's own state, not a network).
+natural-language assistant drafts them for the user to approve. The ones that need no file path (adding, undoing,
+removing and previewing a change, closing the preview, previewing, applying and editing a catalog card) set
+``assistant_compact``, so a model on this machine is offered them too. Opening, refreshing and checking the
+catalog, and the session summary, read only (the catalog is the plugin's own state, not a network).
 """
 
 from __future__ import annotations
@@ -22,13 +22,20 @@ __all__ = [
     "CheckCard",
     "ClosePreview",
     "CommitCard",
+    "DeleteCard",
+    "DuplicateCard",
+    "EditCard",
     "ImportCard",
     "OpenCatalog",
     "PreviewCard",
     "PreviewChange",
     "RefreshCatalog",
+    "RemoveChange",
+    "RenameCard",
+    "RestoreCard",
     "SessionSummary",
     "UndoChange",
+    "UpdateCardMeta",
 ]
 
 
@@ -73,12 +80,46 @@ class UndoChange(BaseAction):
     net_id: str | None = None
 
 
+class RemoveChange(BaseAction):
+    """Remove any change of a network's draft card (``index``, from 0), network edits included.
+
+    The draft's changes from ``index`` on are undone, newest first, and the later ones are applied again in order, so
+    the network ends as if the removed change had never been made. A later change that depends on the removed one (a
+    property change on a link it added, an ``existing`` value it set) no longer applies: the Action is then refused
+    and nothing changes. The network's newest edit must be the draft's, as for ``project_cards.undo_change``.
+    """
+
+    type: Literal["project_cards.remove_change"] = "project_cards.remove_change"
+    mutates: ClassVar[bool] = True
+    assistant_compact: ClassVar[bool] = True
+    net_id: str | None = None
+    index: int = Field(ge=0)
+
+
+class EditCard(BaseAction):
+    """Load a catalog card into a network's draft to edit it: its changes are applied, as ``project_cards.import`` does.
+
+    The draft takes the card's project, tags, dependencies and notes, and remembers the card's file, so a commit can
+    save over it. A draft with uncommitted changes is refused unless ``replace_draft``: its changes are then undone
+    first (network edits included). The card is read from its file again; all or nothing.
+    """
+
+    type: Literal["project_cards.edit_card"] = "project_cards.edit_card"
+    mutates: ClassVar[bool] = True
+    assistant_compact: ClassVar[bool] = True
+    net_id: str | None = None
+    card_id: str = Field(min_length=1, max_length=1000)
+    replace_draft: bool = False
+
+
 class CommitCard(BaseAction):
     """Write a network's draft card as a ProjectCard YAML file and start a new, empty draft.
 
     Live edit warnings must be confirmed (``confirm_warnings``), the same rule core applies before saving a copy.
-    ``path`` must be inside ``io.allowed_roots``; an existing file is replaced only with ``overwrite``. When the
-    ``catalog`` plugin is installed, the card is also added to it (``catalog.add_card``).
+    ``path`` must be inside ``io.allowed_roots``; an existing file is replaced only with ``overwrite`` (a draft loaded
+    with ``project_cards.edit_card`` is saved over its card this way). When the ``catalog`` plugin is installed, the
+    card is also added to it (``catalog.add_card``); when the path is inside the open catalog's folder, the catalog is
+    rescanned so the card is listed.
     """
 
     type: Literal["project_cards.commit"] = "project_cards.commit"
@@ -194,6 +235,79 @@ class ApplyCard(BaseAction):
     card_id: str = Field(min_length=1, max_length=1000)
     existing_value_conflict: Literal["error", "warn", "skip"] | None = None
     ignore_missing: bool | None = None
+
+
+class _CatalogFileAction(BaseAction):
+    """Fields an Action that changes a catalog card's file shares (not an Action itself: it has no ``type``).
+
+    These change files, not a network (``mutates`` is false), and are kept out of the assistant's tools: a file is
+    renamed, copied, trashed or rewritten only when the user asks. Each is recorded in history and listed in the
+    session summary; the catalog is rescanned afterwards.
+    """
+
+    assistant: ClassVar[bool] = False
+    card_id: str = Field(min_length=1, max_length=1000)
+
+
+#: A new card file name: a file name (``main-v2.yml``) or a path relative to the catalog folder (``sub/main.yml``).
+_NAME = Field(min_length=1, max_length=255)
+
+
+class RenameCard(_CatalogFileAction):
+    """Rename a catalog card's file (``new_name``: a name in the catalog folder, or ``sub/name.yml``).
+
+    A name without a suffix keeps the card's (``.yml``, ``.yaml`` or ``.json``). The new path must stay inside the
+    catalog folder (one level of sub-folders, nothing hidden) and ``io.allowed_roots``; an existing different file
+    there is replaced only with ``overwrite``. The card is validated with ``projectcard`` first.
+    """
+
+    type: Literal["project_cards.rename_card"] = "project_cards.rename_card"
+    new_name: str = _NAME
+    overwrite: bool = False
+
+
+class DuplicateCard(_CatalogFileAction):
+    """Copy a catalog card to a new file: ``new_name``, or ``<name>-copy.yml`` (``-copy-2``, … when taken).
+
+    The same rules as ``project_cards.rename_card``; the copy is byte for byte.
+    """
+
+    type: Literal["project_cards.duplicate_card"] = "project_cards.duplicate_card"
+    new_name: str | None = Field(default=None, min_length=1, max_length=255)
+    overwrite: bool = False
+
+
+class DeleteCard(_CatalogFileAction):
+    """Move a catalog card's file to the ``.trash`` folder inside the catalog folder (never a hard delete).
+
+    ``project_cards.restore_card`` puts it back. A card already in the trash under that name gets ``-2``, ``-3``, …
+    """
+
+    type: Literal["project_cards.delete_card"] = "project_cards.delete_card"
+
+
+class RestoreCard(_CatalogFileAction):
+    """Move a card ``project_cards.delete_card`` trashed back to where it was (``card_id``: its id then).
+
+    The newest deletion of that card this session is restored, else ``.trash/<card_id>``. A different file now at
+    its place is replaced only with ``overwrite``.
+    """
+
+    type: Literal["project_cards.restore_card"] = "project_cards.restore_card"
+    overwrite: bool = False
+
+
+class UpdateCardMeta(_CatalogFileAction):
+    """Change a catalog card's project, tags and dependencies, and save the file (``None``: left as it is).
+
+    Only those keys of the file change (the changes and notes are kept as they are; comments are not), and the card
+    is validated with ``projectcard`` before it is written.
+    """
+
+    type: Literal["project_cards.update_card_meta"] = "project_cards.update_card_meta"
+    project: str | None = Field(default=None, min_length=1, max_length=200)
+    tags: list[str] | None = None
+    dependencies: dict[Literal["prerequisites", "corequisites", "conflicts"], list[str]] | None = None
 
 
 class SessionSummary(BaseAction):
