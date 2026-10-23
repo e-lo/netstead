@@ -64,6 +64,13 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
 
 ### Changed
 
+- **A status pill says whether a card fits.** The catalog's `✓` / `✗` / `?` glyph is now a pill: green "Fits this
+  network", red "Doesn't fit" (its first reason inline, every reason in the tooltip: "missing link 999999",
+  "conflict: …", "already applied …" with apply on) or gray "Not checked" with a check button
+  (`project_cards.check_card`). The heading reads "Catalog · checked against <network>". Each catalog entry
+  (`state()` and `GET /catalog`) carries `fit`: `{state: fits | no | unchecked, label, reasons, warnings, net_id}`
+  (`netstead_project_cards.catalog.fit`); a change's check lists `lacks` (`"link 999999"`) for the missing ids that
+  refuse it.
 - **"This session", not "Applied this session".** The panel's third section lists what the session did with cards,
   newest first with the time and an icon: "Saved <file>" (a commit), the catalog file actions (renamed, duplicated,
   deleted, restored, metadata edited) and "Applied <card> to <network>" only while `enable_apply` is on. It reads

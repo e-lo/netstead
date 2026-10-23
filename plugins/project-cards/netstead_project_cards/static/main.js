@@ -7,7 +7,7 @@
 // in cardmodel.js, both tested under node. Card and user text is only ever set as text (`h`'s `text`, or a string
 // child), never parsed as markup.
 import {
-  ROADWAY_TYPES, TRANSIT_TYPES, TYPE_TITLES, applyDefaults, applyEnabled, catalogOf, catalogRows, commitChoices,
+  ROADWAY_TYPES, TRANSIT_TYPES, TYPE_TITLES, applyDefaults, applyEnabled, catalogOf, checkedAgainst, catalogRows, commitChoices,
   commitFields, commitView, draftBadge, editPrompt, fileLine, metaFields, metaForm, renameName, draftNet, draftOf, hasNode, importPath, inspectHeader, inspectRows, needsSelection,
   openPreview, previewLine, savedChoices, selectionStatus, sessionRows, stepIndicator, summaryFileName, typeChoices,
 } from "./cardmodel.js";
@@ -74,6 +74,12 @@ const LOCAL_ICONS = {
 };
 const svgOf = body => '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" '
   + `stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+// The catalog's status pills: green fits, red doesn't, gray not checked (core's dark theme).
+const PILL_STYLES = {
+  fits: "background:#173322;color:#5fd38a;border-color:#2f6b45",
+  no: "background:#3a1c1c;color:#ff7a75;border-color:#6b2f2f",
+  unchecked: "background:#20242e;color:var(--muted);border-color:var(--edge)",
+};
 // A row of icon buttons, kept compact (a card's actions, a section's controls).
 const actionRow = (...buttons) => h("div", { class: "pc-actions",
   style: "display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin:4px 0" }, ...buttons);
@@ -197,9 +203,10 @@ function createView(wb, ctl, el) {
   dialog.style.cssText = "background:var(--panel);color:var(--ink);border:1px solid var(--edge);border-radius:12px;"
     + "padding:16px;width:min(760px, calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto";
   const heading = text => h("h3", { class: "label", style: "font-size:12px;margin:18px 0 6px", text });
+  const catalogHeading = heading("Catalog"); // names the network the cards were checked against (drawCatalog)
   el.style.overflowWrap = "anywhere"; // long file paths wrap instead of scrolling the dock sideways
   el.append(
-    heading("Catalog"), catalogBox, previewBox, inspectBox,
+    catalogHeading, catalogBox, previewBox, inspectBox,
     heading("Draft"), createBox, composeBox, draftBox, commitBox,
     heading("This session"), sessionBox,
     heading("Session summary"), summaryBox,
@@ -543,7 +550,7 @@ function createView(wb, ctl, el) {
     );
   }
 
-  // A listing is read when one is open (the route checks unchecked cards, so the `?` badges fill in).
+  // A listing is read when one is open (the route checks unchecked cards, so the "Not checked" pills fill in).
   let loading = null;
   function loadCatalog() {
     if (loading) return loading;
@@ -647,11 +654,22 @@ function createView(wb, ctl, el) {
   const opened = new Set(); // the cards whose Details the user opened
   function cardRow(row) {
     const tags = row.tags.length ? ` · ${row.tags.join(", ")}` : "";
-    const badge = h("span", {
-      class: "pc-badge", title: row.tip, "aria-label": row.tip, "data-badge": row.badge,
-      style: "display:inline-block;width:1.4em;font-weight:700", text: row.badge,
-    });
     const of = `${row.project} (${row.card_id})`;
+    // The status pill: green fits, red doesn't (its first reason beside it, every reason in the tooltip), gray not
+    // checked (with a button that checks it).
+    const pill = h("span", { class: "pc-fit", "data-fit": row.fit, title: row.tip,
+      style: `display:inline-block;padding:1px 8px;border:1px solid;border-radius:999px;font-size:11px;`
+        + `font-weight:600;white-space:nowrap;${PILL_STYLES[row.fit] || PILL_STYLES.unchecked}`, text: row.label });
+    const status = [pill];
+    if (row.fit === "no") {
+      status.push(h("span", { class: "muted pc-fit-reason", title: row.tip, style: "font-size:11px", text: row.reason }));
+    } else if (row.fit === "unchecked") {
+      status.push(iconAct("check-circle", "Check against this network", async () => {
+        const result = await ctl.checkCard(row.card_id, baseNet());
+        say(`Checked ${row.card_id}: ${result.ok ? "fits" : "doesn't fit"} ${result.net_id}`);
+        drawCatalog();
+      }, `Check ${of} against this network`));
+    }
     const preview = iconAct("play", "Preview", async () => {
       const result = await ctl.previewCard(row.card_id, baseNet());
       say(`Previewing ${row.card_id} on ${result.preview}`);
@@ -663,7 +681,7 @@ function createView(wb, ctl, el) {
     const edit = iconAct("pencil", "Edit", () => openEditDialog(row), `Edit ${of} in the draft`);
     // The Details toggle shows the card's file and its check; a redraw (any server change) keeps it open if it was.
     const isOpen = opened.has(row.card_id);
-    const details = h("div", { class: "pc-details", style: "margin:2px 0 0 1.4em" },
+    const details = h("div", { class: "pc-details", style: "margin:2px 0 0" },
       h("p", { class: "muted", text: row.path }), ...detailRows(row));
     details.hidden = !isOpen;
     const toggle = glyph(h("button", { class: `iconbtn${isOpen ? " on" : ""}`, "data-tip": "Details",
@@ -680,16 +698,19 @@ function createView(wb, ctl, el) {
       iconAct("copy", "Duplicate", async () => say(fileLine(await ctl.duplicateCard(row.card_id))), `Duplicate ${of}`),
       iconAct("tag", "Edit metadata…", () => openMetaDialog(row), `Edit the metadata of ${of}…`),
       iconAct("trash", "Delete", () => deleteCard(row), `Delete ${of}`));
-    actions.style.marginLeft = "1.4em";
-    return h("div", { class: "pc-card", "data-card": row.card_id, style: "margin:6px 0 8px" },
-      h("div", {}, badge, " ", h("strong", { text: row.project }),
+    return h("div", { class: "pc-card", "data-card": row.card_id, style: "margin:8px 0 10px" },
+      h("div", {}, h("strong", { text: row.project }),
         h("span", { class: "muted", text: ` · ${row.changes} change(s)${tags} · ${row.card_id}` })),
+      h("div", { class: "pc-status", style: "display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:3px 0" },
+        ...status),
       actions, details,
     );
   }
 
   function drawCatalog() {
     const listing = ctl.catalog();
+    const against = listing ? checkedAgainst(listing) : null;
+    catalogHeading.textContent = against ? `Catalog · checked against ${against}` : "Catalog";
     if (!listing) {
       catalogLine.textContent = "";
       redraw(catalogList, [h("p", { class: "empty", tabindex: -1, text: "No catalog open: open a folder of cards." })]);
@@ -822,7 +843,7 @@ function createView(wb, ctl, el) {
     };
     dialog.replaceChildren(
       h("h3", { id: "pc-dialog-title", text: `Apply "${row.project}"` }),
-      h("p", { class: "muted", text: `${row.badge} ${row.tip}` }),
+      h("p", { class: "muted", text: `${row.label}: ${row.tip}` }),
       field("When a property's current value differs from the card's", conflict),
       field("Skip ids the network does not have", ignore),
       note,

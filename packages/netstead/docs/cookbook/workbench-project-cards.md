@@ -132,11 +132,14 @@ distinct from the draft you build above.
   starts (see the [Settings reference](../reference/settings.md)). The folder is
   scanned non-recursively, plus one level of sub-folders, for `.yml` / `.yaml` / `.json` card files; files that
   are not cards are listed with why not. **Refresh** rescans (new, changed and removed files).
-- **Applicability badges.** Each listed card shows `✓` (it applies cleanly to the network as it is now), `✗`
-  (some ids are missing, a property's `existing` value differs from the network's and the card says
-  `existing_value_conflict: error`, the card was already applied on this network this session, or a change can't
-  be applied — hover for the reason; `warn` and `skip` conflicts stay `✓` and list a warning), or `?` (not checked yet; the
-  panel checks up to 50 unchecked cards per request). A query selection with no netstead provenance reads and
+- **Does it fit?** Each listed card has a status pill, and the section's heading names the network they were
+  checked against ("Catalog · checked against leavenworth"). A green **Fits this network** pill means the card
+  applies cleanly to the network as it is now (`warn` and `skip` conflicts still fit; hover for the warning). A red
+  **Doesn't fit** pill has its first reason beside it in small text, and every reason in its tooltip: "missing link
+  999999", "conflict: lanes: expected 1, found 2 on 1 of 1 links" (a property's `existing` value differs and the card
+  says `existing_value_conflict: error`), "already applied on leavenworth at 10:15" (with `enable_apply` on), or why
+  a change can't be applied. A gray **Not checked** pill has a check button beside it; the panel also checks up to 50
+  unchecked cards per request. A query selection with no netstead provenance reads and
   lists fine, but is refused when applying: "query without provenance; re-resolution not supported".
 - **Preview** shows every change of the card on a copy of the network (as in step 4 above) and highlights the
   links and nodes it targets on the map, so you can see what it touches before committing to it.
@@ -144,7 +147,7 @@ distinct from the draft you build above.
   `project_cards.apply_card` is refused while it is) applies the card to the network, all or nothing, through the
   same path as a draft change — no file
   is written, since the card already exists. Its dialog offers **If a current value differs when the card is
-  applied** (`existing_value_conflict`: error / warn / skip) and, for a `✗` card, **ignore missing ids**: with it
+  applied** (`existing_value_conflict`: error / warn / skip) and, for a card that doesn't fit, **ignore missing ids**: with it
   checked, a missing id is skipped and listed instead of refusing the whole card.
 - **This session** lists what this session did with cards, newest first, each with an icon, a verb and the time:
   **Saved <file>** for a draft committed to a file, **Renamed**, **Duplicated**, **Deleted**, **Restored** and
@@ -163,7 +166,7 @@ the draft: **Remove** or **Edit…** its changes, or add new ones (see [Undo](#u
 
 - If the draft already has uncommitted changes, Edit asks first: **Replace the draft** undoes them (network edits
   included) and loads the card instead.
-- Edit applies the card to the network, so it needs a network the card applies to (a `✓` badge). A card committed
+- Edit applies the card to the network, so it needs a network the card applies to (a **Fits this network** pill). A card committed
   in this session is already on its network: reopen the network (or open another copy) to edit it.
 - **Commit…** then offers **Save over main.yml** (replace the card's file) or **Save as new file** (the **Card
   file** field, which must name another file; an existing one is replaced only with **Replace an existing file**).

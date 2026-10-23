@@ -86,6 +86,7 @@ def test_open_catalog_lists_the_cards_and_the_rejected_files(session, folder):
         "tags": ["fix"],
         "change_count": 2,
         "applicability": None,
+        "fit": {"state": "unchecked", "label": "Not checked", "reasons": [], "warnings": [], "net_id": None},
     }
     assert [r["card_id"] for r in catalog["rejected"]] == ["notes.yml"]
     assert session.network(NET).version == 0  # nothing on the network changed

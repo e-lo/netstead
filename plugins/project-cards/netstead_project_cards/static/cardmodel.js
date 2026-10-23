@@ -166,22 +166,34 @@ export function fewIds(ids, n = 5) {
 // Every id a card's check found missing, across its changes.
 export const missingIds = applicability => ((applicability && applicability.changes) || []).flatMap(c => c.missing || []);
 
-// The badge for a card's applicability (the /catalog listing's, `null` until checked): `✓` applies, `✗` does not
-// (`tip` names each change's reason or missing ids), `?` not checked yet.
-export function applicabilityBadge(applicability) {
-  if (!applicability) return { badge: "?", tip: "Not checked yet" };
-  const changes = applicability.changes || [];
-  const warnings = changes.filter(c => c.warnings && c.warnings.length).map(c => `${c.describe}: ${c.warnings.join("; ")}`);
-  if (applicability.ok) return { badge: "✓", tip: [`Applies to ${applicability.net_id}`, ...warnings].join("\n") };
-  const problems = changes
-    .filter(c => c.reason || (c.missing && c.missing.length))
-    .map(c => `${c.describe}: ${c.reason || `missing ${fewIds(c.missing)}`}`);
-  const lines = [...(applicability.reason ? [applicability.reason] : []), ...problems, ...warnings];
-  return { badge: "✗", tip: lines.join("\n") || "Does not apply" };
+// A catalog card's status pill, from the server's `fit` (catalog.fit: {state, reasons, warnings, net_id}): `fit` is
+// "fits" (green "Fits this network"), "no" (red "Doesn't fit", `reason` its first reason, shown inline) or
+// "unchecked" (gray "Not checked"); `tip` lists every reason, then the warnings. An entry without `fit` (an older
+// server) gets one from its applicability.
+export function fitPill(entry) {
+  const a = (entry && entry.applicability) || null;
+  const f = (entry && entry.fit) || { state: a ? (a.ok ? "fits" : "no") : "unchecked", reasons: [], warnings: [],
+    net_id: a ? a.net_id : null };
+  const warnings = f.warnings || [];
+  if (f.state === "fits") {
+    return { fit: "fits", label: "Fits this network", reason: "", tip: [`Fits ${f.net_id}`, ...warnings].join("\n") };
+  }
+  if (f.state === "no") {
+    const reasons = f.reasons && f.reasons.length ? f.reasons : ["does not apply"];
+    return { fit: "no", label: "Doesn't fit", reason: reasons[0], tip: [...reasons, ...warnings].join("\n") };
+  }
+  return { fit: "unchecked", label: "Not checked", reason: "", tip: "Not checked against this network yet" };
 }
 
-// The catalog's cards as the panel lists them: one row per card, with its badge, in the listing's order. `catalog`
-// is the listing to show (by default the one in `state`): the /catalog route's answer carries fresher checks.
+// The network a listing's cards were checked against (the first checked card's), or null.
+export function checkedAgainst(catalog) {
+  const checked = ((catalog && catalog.cards) || []).find(c => (c.fit && c.fit.net_id) || c.applicability);
+  if (!checked) return null;
+  return (checked.fit && checked.fit.net_id) || checked.applicability.net_id || null;
+}
+
+// The catalog's cards as the panel lists them: one row per card, with its status pill, in the listing's order.
+// `catalog` is the listing to show (by default the one in `state`): the /catalog route's answer carries fresher checks.
 export function catalogRows(state, catalog = catalogOf(state)) {
   return ((catalog && catalog.cards) || []).map(entry => ({
     card_id: entry.card_id,
@@ -190,7 +202,7 @@ export function catalogRows(state, catalog = catalogOf(state)) {
     changes: entry.change_count || 0,
     tags: entry.tags || [],
     applicability: entry.applicability || null,
-    ...applicabilityBadge(entry.applicability),
+    ...fitPill(entry),
   }));
 }
 
@@ -322,7 +334,7 @@ export function commitChoices(fields, source = null) {
 // What Edit on a catalog card asks first: nothing for an empty draft, else whether to replace the draft's changes.
 export function editPrompt(draft, row) {
   const n = draft ? draft.count || 0 : 0;
-  const warn = row && row.badge === "✗" ? ` ${row.project} does not apply to this network as it is: ${row.tip}` : "";
+  const warn = row && row.fit === "no" ? ` ${row.project} does not fit this network as it is: ${row.tip}` : "";
   if (!n) return { replace: false, ask: warn ? warn.trim() : "" };
   const changes = `${n} uncommitted change${n === 1 ? "" : "s"}`;
   return { replace: true, ask: `The draft card has ${changes}. Edit undoes ${n === 1 ? "it" : "them"} (network edits `

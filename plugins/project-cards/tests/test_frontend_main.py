@@ -187,8 +187,10 @@ PANEL_HARNESS = (
   bad: { ok: false, net_id: "base", version: 1,
          changes: [{ describe: "lanes on 3 links", resolved: 2, missing: [999999], reason: null }] },
 };
+const FITS = { "good.yml": { state: "fits", reasons: [], warnings: [], net_id: "base" },
+  "bad.yml": { state: "no", reasons: ["missing link 999999"], warnings: [], net_id: "base" } };
 const entry = (card_id, project, applicability) => ({ card_id, path: `/cards/${card_id}`, project, tags: ["t"],
-                                                      change_count: 1, applicability });
+  change_count: 1, applicability, fit: applicability ? FITS[card_id] : undefined });
 const CATALOG = { path: "/cards", rejected: [{ card_id: "notes.yml", path: "/cards/notes.yml", error: "not a card" }],
                   cards: [entry("good.yml", "Good", null), entry("bad.yml", "Bad", null)] };
 const LISTING = { ...CATALOG, cards: [entry("good.yml", "Good", CHECKS.good), entry("bad.yml", "Bad", CHECKS.bad)] };
@@ -297,8 +299,10 @@ setServer({ plugins: { project_cards: { drafts: {}, preview: null, catalog: CATA
   enable_apply: true } } });
 await settle(); await settle();
 const cards = walk(catalogBox).filter(e => e.getAttribute("data-card"));
-got.cards = cards.map(c => [c.getAttribute("data-card"), find(c, "SPAN").getAttribute("data-badge"),
-                            find(c, "SPAN").getAttribute("title")]);
+const pillOf = c => walk(c).find(e => e.getAttribute("class") === "pc-fit");
+got.cards = cards.map(c => [c.getAttribute("data-card"), pillOf(c).getAttribute("data-fit"), pillOf(c).textContent,
+                            pillOf(c).getAttribute("title"), c.textContent.includes("missing link 999999")]);
+got.catalogHeading = root.children.filter(e => e.tagName === "H3")[0].textContent;
 got.catalogLine = elById(root, "pc-catalog-line").textContent;
 got.rejected = find(catalogBox, "SUMMARY", "Not cards (1)") !== undefined;
 got.session = walk(sessionBox).filter(e => e.tagName === "LI").map(e => [e.getAttribute("data-kind"), e.textContent]);
@@ -359,10 +363,11 @@ def test_the_panel_under_a_fake_dom(run_js):
     assert got["sections"] == ["Catalog", "Draft", "This session", "Session summary"]
     assert got["noCatalog"] is True
     assert got["cards"] == [
-        ["good.yml", "✓", "Applies to base"],
-        ["bad.yml", "✗", "lanes on 3 links: missing 999999"],
+        ["good.yml", "fits", "Fits this network", "Fits base", False],
+        ["bad.yml", "no", "Doesn't fit", "missing link 999999", True],
     ]
     assert got["catalogLine"] == "/cards" and got["rejected"] is True
+    assert got["catalogHeading"] == "Catalog · checked against base"
     assert got["noSession"] == "Nothing yet: saved cards and catalog file changes are listed here."
     # A saved card reads "Saved <file>", never "applied" (the icon's text stand-in is the bullet).
     assert got["session"] == [["saved", "•Saved lanes.yml · 2 change(s) from base09:05"]]
@@ -756,6 +761,7 @@ def test_the_catalog_files_under_a_fake_dom(run_js):
     assert got["stillOpen"] == [True, False]  # redrawn, and open again
     # Every action of a card is an icon button with a tooltip, named for the card it acts on.
     assert got["iconButtons"] == [
+        ["iconbtn", "Check against this network", "Check Good (good.yml) against this network"],  # not checked yet
         ["iconbtn", "Preview", "Preview Good (good.yml)"],
         ["iconbtn", "Inspect", "Inspect Good (good.yml)"],
         ["iconbtn", "Edit", "Edit Good (good.yml) in the draft"],

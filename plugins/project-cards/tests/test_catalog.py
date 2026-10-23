@@ -71,6 +71,7 @@ def test_scan_lists_cards_one_level_deep_and_reports_what_is_not_a_card(folder, 
         "tags": ["fix"],
         "change_count": 2,
         "applicability": None,
+        "fit": {"state": "unchecked", "label": "Not checked", "reasons": [], "warnings": [], "net_id": None},
     }
 
 

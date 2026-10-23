@@ -24,8 +24,8 @@ description run through core's natural-language **Select**, or a saved selection
 **Use these N links**, then fill in the form, **Preview** and **Add to card**. It dispatches the same Actions
 (`project_cards.preview`, `project_cards.add_change`) as the right-click entry point, which stays.
 
-The **Cards** panel has four sections, in order: **Catalog** (open a folder of cards; each card shows `✓` / `✗` / `?`
-for whether it applies to the open network, with **Preview**, **Apply…** (only with `enable_apply` on) and
+The **Cards** panel has four sections, in order: **Catalog** (open a folder of cards; each card has a status pill, **Fits
+this network**, **Doesn't fit** (with its first reason) or **Not checked**, against the network the heading names, with **Preview**, **Apply…** (only with `enable_apply` on) and
 **Details**; files that are not cards
 are listed under "Not cards"), **Draft** (the compose, draft and commit UI above), **This session** (what the
 session did with cards, newest first with the time: "Saved <file>", the catalog file actions, and "Applied …" when
