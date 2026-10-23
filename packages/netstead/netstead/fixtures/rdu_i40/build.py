@@ -18,7 +18,7 @@ OUT = Path("packages/netstead/netstead/fixtures/rdu_i40")
 bbox = (-78.850, 35.855, -78.760, 35.895)  # proven: I-40 stretch w/ S Miami / Page / Airport
 HOPS = 4
 
-net = build_network_from_osm(bbox, network_type="drive", extra_tags=["ref"], engine=IbisEngine())
+net = build_network_from_osm(bbox, network_type="roads", extra_tags=["ref"], engine=IbisEngine())
 
 
 def tp(t):

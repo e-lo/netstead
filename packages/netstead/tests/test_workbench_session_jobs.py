@@ -346,13 +346,13 @@ def test_build_from_local_osm_with_several_network_types_keeps_the_union(make_se
         )
         return len(session.registry.get(session.dispatch(action)["net_id"]).links_df())
 
-    drive = link_count("drive-only")
-    assert link_count("drive-walk", network_types=["drive", "walk"]) > drive  # the footway joins the residential way
+    roads = link_count("roads-only")
+    assert link_count("roads-paths", network_types=["roads", "paths"]) > roads  # the footway joins the residential way
 
 
 def test_area_build_sends_the_union_of_modes_to_overpass(make_session, out_dir):
     http = FakeOverpass(ways=10)
-    make_session(http=http).dispatch(_bbox_build(out_dir, network_types=["drive", "walk"]))
+    make_session(http=http).dispatch(_bbox_build(out_dir, network_types=["roads", "paths"]))
     body = http.queries[-1]
     assert "footway" in body and "motorway" in body
 

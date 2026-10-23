@@ -34,7 +34,7 @@ built network use `gmns-clean`; to interpret validation use `gmns-validate`.
 ```python
 from netstead.osm import build_network_from_osm
 
-net = build_network_from_osm("Leavenworth, WA", network_type="drive")
+net = build_network_from_osm("Leavenworth, WA", network_type="roads")
 net.write("net", format="csv", overwrite=True)
 ```
 

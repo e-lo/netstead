@@ -68,23 +68,23 @@ class TestParseOverpassElements:
 
 class TestBuildOverpassQuery:
     def test_bbox_drive_has_highway_filter_and_bbox(self):
-        q = query.build_overpass_query(bbox=(-71.1, 42.0, -71.0, 42.1), network_type="drive")
+        q = query.build_overpass_query(bbox=(-71.1, 42.0, -71.0, 42.1), network_type="roads")
         assert "out:json" in q
         assert "highway" in q
         assert "residential" in q  # part of the drive allow-list regex
         assert "42.0,-71.1,42.1,-71.0" in q  # overpass order: south,west,north,east
 
-    def test_all_network_type_has_no_class_regex(self):
-        q = query.build_overpass_query(bbox=(-71.1, 42.0, -71.0, 42.1), network_type="all")
-        assert '["highway"]' in q
+    def test_every_network_type_has_a_class_regex(self):
+        q = query.build_overpass_query(bbox=(-71.1, 42.0, -71.0, 42.1), network_type=["roads", "paths"])
+        assert '["highway"~"^(' in q and '["highway"]' not in q
 
     def test_polygon_uses_poly_filter(self):
-        q = query.build_overpass_query(polygon=[(42.0, -71.1), (42.1, -71.1), (42.1, -71.0)], network_type="drive")
+        q = query.build_overpass_query(polygon=[(42.0, -71.1), (42.1, -71.1), (42.1, -71.0)], network_type="roads")
         assert "poly:" in q
 
     def test_requires_bbox_or_polygon(self):
         with pytest.raises(ValueError):
-            query.build_overpass_query(network_type="drive")
+            query.build_overpass_query(network_type="roads")
 
 
 class TestFetchOsm:
@@ -179,7 +179,7 @@ class TestFetchNetworkElements:
 
 class TestCountQuery:
     def test_count_query_counts_ways_without_recursing(self):
-        q = query.build_overpass_query(bbox=(-71.1, 42.0, -71.0, 42.1), network_type="drive", out="count")
+        q = query.build_overpass_query(bbox=(-71.1, 42.0, -71.0, 42.1), network_type="roads", out="count")
         assert q.endswith("(42.0,-71.1,42.1,-71.0);out count;")
         assert "(._;>;)" not in q
 

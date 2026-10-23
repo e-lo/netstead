@@ -39,7 +39,7 @@ def build_network_from_overture(
     area: str | Sequence[float],
     *,
     buffer_m: float = 0.0,
-    network_type: NetworkTypes = "drive",
+    network_type: NetworkTypes = "roads",
     extra_tags: list[str] | None = None,
     spec_version: str = DEFAULT_SPEC,
     engine: Any = None,
@@ -53,7 +53,7 @@ def build_network_from_overture(
             ``(west, south, east, north)`` bbox. (Place strings are geocoded via
             the OSM source's Nominatim helper and need the ``[osm]`` extra.)
         buffer_m: Buffer in metres applied when ``area`` is a point.
-        network_type: One of ``drive``/``walk``/``bike``/``all`` (filters on
+        network_type: One of ``roads``/``paths`` or a list (filters on
             Overture ``class``; see ``overture_network_filters.yaml``).
         extra_tags: Extra Overture segment property paths (dotted, e.g.
             ``"subclass"`` / ``"road_surface"``) to carry onto each link as

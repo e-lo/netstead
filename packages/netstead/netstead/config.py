@@ -28,6 +28,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 
 from netstead._quality_thresholds import check_rule_thresholds
 from netstead.llm.secrets import origin_of, settings_secret_problem
+from netstead.network_types import normalize_types
 from netstead.spec import DEFAULT_SPEC
 
 __all__ = [
@@ -136,9 +137,17 @@ class OvertureSettings(_Section):
 class BuildSettings(_Section):
     """Defaults the Open / Import wizard prefills for OSM and Overture builds."""
 
-    network_type: str = "drive"
+    network_type: list[str] = Field(default_factory=lambda: ["roads"], min_length=1)
     buffer_m: float = Field(default=1000.0, gt=0)
     extra_tags: list[str] = Field(default_factory=list)
+
+    @field_validator("network_type", mode="before")
+    @classmethod
+    def _network_types(cls, value: Any) -> Any:
+        """``roads`` and/or ``paths`` (one name or a list); the retired drive/walk/bike/all names are mapped."""
+        if isinstance(value, str | list | tuple):
+            return normalize_types(value)
+        return value
 
 
 class RuleSettings(_Section):

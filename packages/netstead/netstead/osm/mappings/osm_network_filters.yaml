@@ -1,59 +1,39 @@
-# Allowed OSM `highway` tag values per network_type (maintained data).
+# Allowed OSM `highway` tag values per network type (maintained data).
 #
 # The Overpass query keeps only ways whose `highway` value is in the list for
-# the requested network_type. `all` is special-cased: an empty list means "no
-# restriction — accept any value of the highway tag" (see tags.accepts_highway).
+# the requested network types (a build with several keeps the union). The old
+# names still replay: drive -> roads; walk, bike, all -> roads + paths (see
+# netstead.network_types).
 #
-# These are intentionally simple allow-lists (more legible than OSM exclusion
-# filters) and cover the common cases; extend them here as needs grow.
+# Deliberately absent from both lists: proposed, construction, corridor, and the
+# other non-network highway values (raceway, elevator, platform, abandoned,
+# disused, ...). They are not usable network, so no type ever includes them.
 
-drive:
+# Vehicle network: the drive classes plus dedicated busways.
+roads:
   - motorway
+  - motorway_link
   - trunk
+  - trunk_link
   - primary
+  - primary_link
   - secondary
+  - secondary_link
   - tertiary
+  - tertiary_link
   - unclassified
   - residential
   - living_street
   - service
   - road
-  - motorway_link
-  - trunk_link
-  - primary_link
-  - secondary_link
-  - tertiary_link
+  - busway
 
-walk:
+# Off-road and non-motorized ways.
+paths:
+  - bridleway
   - footway
   - path
   - pedestrian
   - steps
   - track
-  - living_street
-  - residential
-  - unclassified
-  - tertiary
-  - secondary
-  - primary
-  - service
-  - road
-
-bike:
   - cycleway
-  - path
-  - track
-  - living_street
-  - residential
-  - unclassified
-  - tertiary
-  - secondary
-  - primary
-  - service
-  - road
-  - tertiary_link
-  - secondary_link
-  - primary_link
-
-# Empty list => accept any highway value (no server-side class filter).
-all: []

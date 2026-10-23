@@ -87,13 +87,13 @@ def _parse_json(path: Path) -> tuple[dict[int, tuple[float, float]], list[dict[s
 
 
 def read_osm_file(
-    path: str | Path, *, network_type: NetworkTypes = "drive"
+    path: str | Path, *, network_type: NetworkTypes = "roads"
 ) -> tuple[dict[int, tuple[float, float]], list[dict[str, Any]]]:
     """Read ``path`` and return ``(nodes, ways)`` for :func:`netstead.osm.convert.build_node_link_tables`.
 
     Args:
         path: An ``.osm`` XML file or an Overpass ``[out:json]`` export (``.json``).
-        network_type: One of the keys in ``osm_network_filters.yaml`` (``drive``/``walk``/``bike``/``all``).
+        network_type: One of the keys in ``osm_network_filters.yaml`` (``roads``/``paths``).
 
     Returns:
         ``(nodes, ways)``: ``{osm_node_id: (lon, lat)}`` for every node in the file, and the

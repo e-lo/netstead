@@ -61,8 +61,8 @@ class TestDataRoot:
 
 
 class TestReadSegments:
-    def test_drive_excludes_footway_and_returns_wkt(self, engine):
-        segs = query.read_segments(WORLD_BBOX, network_type="drive", data_root=FIXTURE_ROOT, engine=engine)
+    def test_roads_exclude_footway_and_return_wkt(self, engine):
+        segs = query.read_segments(WORLD_BBOX, network_type="roads", data_root=FIXTURE_ROOT, engine=engine)
         classes = {s["class"] for s in segs}
         assert "footway" not in classes
         assert {"residential", "primary"} <= classes
@@ -72,8 +72,8 @@ class TestReadSegments:
         assert main["names"]["primary"] == "Main St"
         assert isinstance(main["connectors"], list)
 
-    def test_walk_includes_footway(self, engine):
-        segs = query.read_segments(WORLD_BBOX, network_type="walk", data_root=FIXTURE_ROOT, engine=engine)
+    def test_paths_include_footway(self, engine):
+        segs = query.read_segments(WORLD_BBOX, network_type="paths", data_root=FIXTURE_ROOT, engine=engine)
         assert "footway" in {s["class"] for s in segs}
 
     def test_bbox_filters_out_of_range(self, engine):
@@ -92,7 +92,7 @@ class TestReadConnectors:
         assert conns["cc"] == pytest.approx((0.0, 0.002))
 
     def test_returns_only_connectors_the_segments_reference(self, engine):
-        drive = _segments(FIXTURE_ROOT, network_type="drive", engine=engine)
+        drive = _segments(FIXTURE_ROOT, network_type="roads", engine=engine)
         conns = query.read_connectors(drive, data_root=FIXTURE_ROOT, engine=engine)
         assert set(conns) == {"ca", "cb", "cc", "cd"}  # "ce" is only on the excluded footway
 
@@ -103,7 +103,7 @@ class TestReadConnectors:
 class TestFetchNetworkElements:
     def test_returns_segments_and_connectors(self, engine):
         segs, conns = query.fetch_network_elements(
-            WORLD_BBOX, network_type="drive", data_root=FIXTURE_ROOT, engine=engine
+            WORLD_BBOX, network_type="roads", data_root=FIXTURE_ROOT, engine=engine
         )
         assert len(segs) == 2  # residential + primary (footway excluded)
         # every connector referenced by a drive segment is resolvable
@@ -224,10 +224,11 @@ class TestNativeGeometryEncoding:
 
 
 class TestSeveralNetworkTypes:
-    def test_drive_plus_walk_is_the_union(self, engine):
+    def test_roads_plus_paths_is_the_union(self, engine):
         def ids(network_type):
             segs = query.read_segments(WORLD_BBOX, network_type=network_type, data_root=FIXTURE_ROOT, engine=engine)
             return {s["id"] for s in segs}
 
-        drive, walk = ids("drive"), ids("walk")
-        assert ids(["drive", "walk"]) == drive | walk != drive
+        roads, paths = ids("roads"), ids("paths")
+        assert ids(["roads", "paths"]) == roads | paths != roads
+        assert ids("walk") == roads | paths and ids("drive") == roads  # retired names still read

@@ -311,12 +311,11 @@ def load_network_filters() -> dict[str, list[str]]:
     """Load the per-``network_type`` allowed-``class`` lists from YAML.
 
     Returns:
-        Mapping ``{network_type: [allowed class values]}``. An empty list means
-        "accept any class" (used by ``all``).
+        Mapping ``{network_type: [allowed class values]}``.
 
     Examples:
         >>> f = load_network_filters()
-        >>> "drive" in f and "all" in f
+        >>> "roads" in f and "paths" in f
         True
     """
     return _load_mapping_yaml("overture_network_filters.yaml")
@@ -327,19 +326,18 @@ def allowed_classes(network_type: NetworkTypes) -> frozenset[str]:
 
     Args:
         network_type: One of the keys in ``overture_network_filters.yaml``
-            (``drive``, ``walk``, ``bike``, ``all``).
+            (``roads``, ``paths``; legacy ``drive``/``walk``/``bike``/``all`` map onto them).
 
     Returns:
-        A frozenset of allowed ``class`` values. Empty for ``all`` (meaning no
-        restriction — see :func:`accepts_class`).
+        A frozenset of allowed ``class`` values.
 
     Raises:
         ValueError: If ``network_type`` is not a known key.
 
     Examples:
-        >>> "motorway" in allowed_classes("drive")
+        >>> "motorway" in allowed_classes("roads")
         True
-        >>> "footway" in allowed_classes("drive")
+        >>> "footway" in allowed_classes("roads")
         False
     """
     return allowed_union(load_network_filters(), network_type)
@@ -348,29 +346,23 @@ def allowed_classes(network_type: NetworkTypes) -> frozenset[str]:
 def accepts_class(network_type: NetworkTypes, class_value: Any) -> bool:
     """Report whether a ``class`` value belongs to ``network_type``.
 
-    An empty allow-list (``all``) accepts any value.
-
     Args:
         network_type: One of the keys in ``overture_network_filters.yaml``.
         class_value: The Overture ``class`` value to test.
 
     Returns:
-        ``True`` if the value is in the network's allow-list (or the list is
-        empty), else ``False``.
+        ``True`` if the value is in the network's allow-list, else ``False``.
 
     Raises:
         ValueError: If ``network_type`` is not a known key.
 
     Examples:
-        >>> accepts_class("drive", "residential")
+        >>> accepts_class("roads", "residential")
         True
-        >>> accepts_class("all", "anything")
+        >>> accepts_class("paths", "footway")
         True
     """
-    allowed = allowed_classes(network_type)
-    if not allowed:
-        return True
-    return class_value in allowed
+    return class_value in allowed_classes(network_type)
 
 
 def apply_mapping(segment: Mapping[str, Any], extra_tags: list[str] | None = None) -> dict[str, Any]:

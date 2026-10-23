@@ -121,7 +121,7 @@ The Workbench notes this section as "not used yet: networks open with DuckDB's o
 
 | Key | Type | Default | Meaning | Applies |
 |---|---|---|---|---|
-| `build.network_type` | `str` | `"drive"` | Network type the wizard prefills. | live |
+| `build.network_type` | `list[str]` | `["roads"]` | Network types the wizard prefills: `roads`, `paths` or both. A single name is accepted; the old `drive` reads as `roads` and `walk`, `bike`, `all` as both. | live |
 | `build.buffer_m` | `float` (> 0) | `1000.0` | Buffer in metres the wizard prefills for a point area. | live |
 | `build.extra_tags` | `list[str]` | `[]` | Extra OSM tags the wizard prefills. | live |
 
