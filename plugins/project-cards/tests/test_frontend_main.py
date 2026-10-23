@@ -498,3 +498,80 @@ def test_the_new_card_mode_under_a_fake_dom(run_js):
     assert got["addition"] == [["type:done", "select:skipped", "details:current", "add:todo"], True]
     assert got["cancelled"] == [True, 0]
     assert got["dispatched"] == ["select", "project_cards.preview", "project_cards.add_change"]
+
+
+INSPECT_HARNESS = (
+    PANEL_SETUP
+    + """
+const change = (index, links) => ({ index, type: "roadway_property_change", note: null,
+  facility: { table: "link", ids: links }, property_changes: { lanes: { set: 3, existing: 1 } },
+  targets: { links, nodes: [] }, check: { describe: "x", resolved: links.length, missing: [], reason: null } });
+const DETAIL = { source: "catalog", card_id: "good.yml", path: "/cards/good.yml", net_id: "base", project: "Good",
+  tags: ["t"], dependencies: { prerequisites: [], corequisites: [], conflicts: [] }, notes: null, applies: true,
+  yaml: "project: Good\\n", changes: [change(0, [1, 2]), change(1, [])] };
+const DRAFT = { ...DETAIL, source: "draft", card_id: null, path: null, changes: [{ ...change(0, [7]), check: null }] };
+const read = deps.getJSON;
+deps.getJSON = async p => {
+  if (!p.includes("/card?")) return read(p);
+  calls.push(["get", p]);
+  return p.includes("draft") ? DRAFT : DETAIL;
+};
+panels[0].render(root);
+const setServer = patch => store.set({ server: { ...store.get().server, ...patch } });
+const withDraft = n => ({ project_cards: { drafts: { base: { count: n, project: "", changes: [] } }, preview: null,
+                                           catalog: CATALOG, applied: [] } });
+setServer({ plugins: withDraft(1) });
+await settle(); await settle();
+const inspectBox = elById(root, "pc-inspect"), status = elById(root, "pc-status");
+const card = walk(elById(root, "pc-catalog")).find(e => e.getAttribute("data-card") === "good.yml");
+const got = {};
+await button(card, "Inspect").onclick();
+const shows = text => inspectBox.textContent.includes(text);
+got.view = [shows("Inspect: good.yml"), shows("Project: Good"), shows("lanes: 1 → 3"),
+            shows("Applies: 2 records found"), !elById(inspectBox, "pc-inspect-yaml")];
+button(inspectBox, "YAML").onclick();
+got.yaml = [elById(inspectBox, "pc-inspect-yaml").textContent, button(inspectBox, "YAML").getAttribute("aria-pressed")];
+const pick = i => walk(inspectBox).find(e => e.tagName === "BUTTON" && e.getAttribute("data-index") === String(i));
+pick(0).onclick();
+got.highlighted = [[...store.get().highlights], status.textContent];
+pick(1).onclick();
+got.nothing = status.textContent;
+await button(inspectBox, "Close").onclick();
+got.closed = [inspectBox.children.length, [...store.get().highlights]];
+await button(elById(root, "pc-draft"), "Inspect").onclick();
+got.draft = [inspectBox.textContent.includes("Inspect: the draft on base"),
+             inspectBox.textContent.includes("In the draft: applied to base")];
+setServer({ plugins: withDraft(2) });  // the draft changed: the view reads it again
+await settle(); await settle();
+deps.getJSON = async p => {
+  if (p.includes("/card?")) throw new Error("the draft card on base has no changes");
+  return read(p);
+};
+setServer({ plugins: withDraft(0) });  // emptied: the view closes
+await settle(); await settle();
+got.emptied = inspectBox.children.length;
+got.reads = calls.filter(c => c[0] === "get" && c[1].includes("/card?")).map(c => c[1]);
+got.errors = calls.filter(c => c[0] === "error");
+console.log(JSON.stringify(got));
+"""
+)
+
+
+def test_inspect_under_a_fake_dom(run_js):
+    got = run_js(FILES, INSPECT_HARNESS)
+    assert got["errors"] == []
+    assert got["view"] == [True, True, True, True, True]
+    assert got["yaml"] == ["project: Good\n", "true"]
+    assert got["highlighted"] == [
+        [1, 2],
+        "Highlighted 2 links of change 1 on the map (the map does not zoom to them)",
+    ]
+    assert got["nothing"] == "Change 2 has no links to highlight"
+    assert got["closed"] == [0, []]  # closing clears the highlights it made
+    assert got["draft"] == [True, True]
+    assert got["emptied"] == 0
+    assert got["reads"] == [
+        "/api/plugins/project_cards/card?card_id=good.yml&net_id=base",
+        "/api/plugins/project_cards/card?draft=true&net_id=base",
+        "/api/plugins/project_cards/card?draft=true&net_id=base",
+    ]

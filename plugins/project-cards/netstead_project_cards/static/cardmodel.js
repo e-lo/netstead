@@ -286,3 +286,91 @@ export function selectionStatus(state, netId) {
 export const savedChoices = (state, netId) => ((state && state.saved_selections) || [])
   .filter(s => s.net_id === netId || s.net_id === draftNet(state, netId))
   .map(s => ({ name: s.name, label: `${s.name} (${s.links} link${s.links === 1 ? "" : "s"})` }));
+
+// ------------------------------------------------------------------------------------------------- inspecting
+
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+// The Inspect view's heading lines (the /card route's answer): [label, text] pairs, the empty ones left out.
+export function inspectHeader(detail) {
+  const deps = detail.dependencies || {};
+  const depText = ["prerequisites", "corequisites", "conflicts"]
+    .filter(k => (deps[k] || []).length).map(k => `${k}: ${deps[k].join(", ")}`).join("; ");
+  return [
+    ["Project", detail.project || "(unnamed)"],
+    ["Tags", (detail.tags || []).join(", ")],
+    ["Dependencies", depText],
+    ["Notes", detail.notes || ""],
+    ["File", detail.path || ""],
+  ].filter(([, text]) => text);
+}
+
+// A query selection as one line: its fields (without ignore_missing), and what it resolved to when made.
+function queryText(facility) {
+  const links = { ...((facility.query || {}).links || {}) };
+  delete links.ignore_missing;
+  const resolved = facility.resolved ? `resolved to ${plural(facility.resolved.length, "link")}`
+    : "no provenance: cannot be applied yet";
+  return `links matching ${JSON.stringify(links)} (${resolved})`;
+}
+
+// What a change aims at, as one line.
+export function facilityText(change) {
+  if (change.type === "roadway_property_change") {
+    const f = change.facility;
+    if (!f) return "no facility";
+    return f.query ? queryText(f) : `${f.table === "node" ? "nodes" : "links"} ${fewIds(f.ids)}`;
+  }
+  const parts = [];
+  if ((change.links || []).length) {
+    const ids = change.type === "roadway_addition" ? change.links.map(r => r.link_id) : change.links;
+    parts.push(`links ${fewIds(ids)}`);
+  }
+  if ((change.nodes || []).length) {
+    const ids = change.type === "roadway_addition" ? change.nodes.map(r => r.node_id) : change.nodes;
+    parts.push(`nodes ${fewIds(ids)}`);
+  }
+  const verb = change.type === "roadway_addition" ? "adds" : change.type === "roadway_deletion" ? "deletes" : "";
+  const extra = change.clean_nodes ? " (and end nodes no other link uses)" : "";
+  return `${verb} ${parts.join("; ") || "nothing"}${extra}`.trim();
+}
+
+// A property change's properties, one line each, existing → set or change: "lanes: 2 → 3", "lanes: 2 → change by
+// +1"; without an existing value, "lanes: change by +1" or "name: set Main St".
+export function propertyLines(change) {
+  return Object.entries(change.property_changes || {}).map(([name, pc]) => {
+    const has = v => v !== undefined && v !== null;
+    const delta = has(pc.change) ? `${pc.change >= 0 ? "+" : ""}${pc.change}` : null;
+    const conflict = has(pc.existing) && pc.existing_value_conflict && pc.existing_value_conflict !== "error"
+      ? ` (if it differs: ${pc.existing_value_conflict})` : "";
+    if (!has(pc.existing)) return delta !== null ? `${name}: change by ${delta}` : `${name}: set ${pc.set}`;
+    const after = delta !== null ? `change by ${delta}` : pc.set;
+    return `${name}: ${pc.existing} → ${after}${conflict}`;
+  });
+}
+
+// One change's check on the open network, as a line and its state: "ok", "no" or "unknown". A draft's changes are
+// on its network already (`draft`).
+export function checkText(check, { draft = false, netId = null } = {}) {
+  if (draft) return { state: "ok", text: `In the draft: applied to ${netId}` };
+  if (!check) return { state: "unknown", text: "Not checked: no network is open" };
+  if (check.reason) return { state: "no", text: `Does not apply: ${check.reason}` };
+  if ((check.missing || []).length) {
+    return { state: "no", text: `${check.resolved} found; missing ${fewIds(check.missing)}` };
+  }
+  return { state: "ok", text: `Applies: ${plural(check.resolved, "record")} found` };
+}
+
+// The Inspect view's rows: one per change, with what to highlight on the map when it is clicked.
+export function inspectRows(detail) {
+  const draft = detail.source === "draft";
+  return (detail.changes || []).map(change => ({
+    index: change.index,
+    title: `${change.index + 1}. ${TYPE_TITLES[change.type] || change.type}`,
+    facility: facilityText(change),
+    properties: propertyLines(change),
+    note: change.note || "",
+    check: checkText(change.check, { draft, netId: detail.net_id }),
+    links: [...((change.targets && change.targets.links) || [])],
+  }));
+}

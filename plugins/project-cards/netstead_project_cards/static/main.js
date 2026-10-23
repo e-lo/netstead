@@ -7,8 +7,8 @@
 // child), never parsed as markup.
 import {
   ROADWAY_TYPES, TRANSIT_TYPES, TYPE_TITLES, appliedRows, applyDefaults, catalogOf, catalogRows, commitFields,
-  commitView, draftBadge, draftNet, draftOf, hasNode, importPath, needsSelection, openPreview, previewLine,
-  savedChoices, selectionStatus, stepIndicator, summaryFileName, typeChoices,
+  commitView, draftBadge, draftNet, draftOf, hasNode, importPath, inspectHeader, inspectRows, needsSelection,
+  openPreview, previewLine, savedChoices, selectionStatus, stepIndicator, summaryFileName, typeChoices,
 } from "./cardmodel.js";
 import { createController } from "./controller.js";
 
@@ -126,6 +126,7 @@ export function activate(wb) {
     }
     if (!view) return;
     view.draw();
+    view.draftMoved();
     if (stale) view.checkWentStale();
     if (catalogMoved) view.loadCatalog(); // opened, refreshed, or a card's check dropped: fill the badges again
   });
@@ -148,6 +149,7 @@ function createView(wb, ctl, el) {
   };
   const catalogBox = h("section", { id: "pc-catalog" });
   const previewBox = h("section", { id: "pc-preview" });
+  const inspectBox = h("section", { id: "pc-inspect", "aria-label": "Inspect a card" });
   const createBox = h("section", { id: "pc-create" });
   const composeBox = h("section", { id: "pc-compose" });
   const draftBox = h("section", { id: "pc-draft" });
@@ -161,7 +163,7 @@ function createView(wb, ctl, el) {
     + "padding:16px;width:min(760px, calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto";
   const heading = text => h("h3", { class: "label", style: "font-size:12px;margin:18px 0 6px", text });
   el.append(
-    heading("Catalog"), catalogBox, previewBox,
+    heading("Catalog"), catalogBox, previewBox, inspectBox,
     heading("Draft"), createBox, composeBox, draftBox, commitBox,
     heading("Applied this session"), appliedBox,
     heading("Session summary"), summaryBox,
@@ -342,7 +344,8 @@ function createView(wb, ctl, el) {
       say("Undid the last change");
     });
     const heading = h("div", { class: "label", tabindex: -1, text: `Draft card${name} (${draft.count})` });
-    redraw(draftBox, [heading, list, undo], takeFocus);
+    const inspect = act("mini ghost", "Inspect", () => openInspect(null));
+    redraw(draftBox, [heading, list, undo, " ", inspect], takeFocus);
   }
 
   // Set while the commit dialog is drawn: marks its check outdated (the draft changed elsewhere).
@@ -478,6 +481,81 @@ function createView(wb, ctl, el) {
     return [h("p", { class: "muted", text: `Checked on ${a.net_id}` }), list];
   }
 
+  // --------------------------------------------------------------------------------------------- inspecting
+
+  // The read-only Inspect view of a catalog card or the draft. Clicking a change highlights its links on the map;
+  // the map does not zoom to them (the Workbench gives plugins no camera control), so the status says so.
+  let showYaml = false;
+  let highlighted = false;
+  let inspectedDraft = null; // the draft the view shows, to read it again when it changes
+  const highlight = links => {
+    if (typeof wb.highlight !== "function") return false;
+    wb.highlight(links ? { links } : {});
+    highlighted = Boolean(links && links.length);
+    return true;
+  };
+  async function openInspect(cardId) {
+    const detail = await ctl.inspect(cardId, baseNet());
+    showYaml = false;
+    inspectedDraft = cardId ? null : JSON.stringify(draftOf(server(), server().active));
+    drawInspect(true);
+    say(`Inspecting ${detail.card_id || `the draft on ${detail.net_id}`}`);
+  }
+  function closeInspect() {
+    ctl.closeInspect();
+    inspectedDraft = null;
+    if (highlighted) highlight(null);
+    drawInspect(true);
+  }
+  // Called on every server change: a draft being inspected is read again when it changed (or closed when empty).
+  async function draftMoved() {
+    if (inspectedDraft === null) return;
+    const now = JSON.stringify(draftOf(server(), server().active));
+    if (now === inspectedDraft) return;
+    inspectedDraft = now;
+    try {
+      await ctl.inspect(null, baseNet());
+      drawInspect();
+    } catch (e) {
+      closeInspect(); // the draft has no changes any more (committed, or every change removed)
+    }
+  }
+  function drawInspect(force = false) {
+    const detail = ctl.state.inspect;
+    if (!detail) { redraw(inspectBox, [], force); return; }
+    const what = detail.source === "draft" ? `the draft on ${detail.net_id}` : detail.card_id;
+    const yaml = h("button", { class: "mini ghost", "aria-pressed": String(showYaml) }, "YAML");
+    yaml.onclick = () => { showYaml = !showYaml; drawInspect(); yaml.focus(); };
+    const close = act("mini ghost", "Close", async () => closeInspect());
+    const head = h("div", { style: "display:flex;gap:6px;align-items:center" },
+      h("div", { class: "label", tabindex: -1, text: `Inspect: ${what}` }), yaml, close);
+    const lines = inspectHeader(detail).map(([label, text]) => h("div", {},
+      h("span", { class: "muted", text: `${label}: ` }), h("span", { text })));
+    const list = h("ol", { id: "pc-inspect-changes", style: "padding-left:1.2em" });
+    for (const row of inspectRows(detail)) {
+      const pick = h("button", { class: "mini ghost", "data-index": String(row.index),
+        "aria-label": `Highlight change ${row.index + 1} on the map` }, row.title);
+      pick.onclick = () => {
+        const n = row.links.length;
+        if (!highlight(row.links)) say("This Workbench cannot highlight links for plugins");
+        else say(n ? `Highlighted ${n} link${n === 1 ? "" : "s"} of change ${row.index + 1} on the map `
+          + "(the map does not zoom to them)" : `Change ${row.index + 1} has no links to highlight`);
+      };
+      list.append(h("li", { "data-change": String(row.index), style: "margin:4px 0" }, pick,
+        h("div", { class: "muted", text: row.facility }),
+        ...(row.properties.length ? [h("ul", {}, ...row.properties.map(p => h("li", { text: p })))] : []),
+        ...(row.note ? [h("div", { class: "muted", text: `Why: ${row.note}` })] : []),
+        h("div", { "data-check": row.check.state, text: row.check.text })));
+    }
+    const nodes = [head, ...lines, h("p", { class: "muted",
+      text: "Click a change to highlight its links on the map. Inspecting changes nothing." }), list];
+    if (showYaml) {
+      nodes.push(h("pre", { id: "pc-inspect-yaml", text: detail.yaml,
+        style: "max-height:45vh;overflow:auto;background:var(--bg)" }));
+    }
+    redraw(inspectBox, nodes, force);
+  }
+
   function cardRow(row) {
     const tags = row.tags.length ? ` · ${row.tags.join(", ")}` : "";
     const badge = h("span", {
@@ -489,11 +567,12 @@ function createView(wb, ctl, el) {
       say(`Previewing ${row.card_id} on ${result.preview}`);
     });
     const apply = act("mini", "Apply…", () => openApplyDialog(row));
+    const inspect = act("mini ghost", "Inspect", () => openInspect(row.card_id));
     const details = h("details", {}, h("summary", { class: "muted", text: "Details" }), ...detailRows(row));
     return h("div", { class: "pc-card", "data-card": row.card_id, style: "margin:6px 0 8px" },
       h("div", {}, badge, " ", h("strong", { text: row.project }),
         h("span", { class: "muted", text: ` · ${row.changes} change(s)${tags}` })),
-      h("div", { style: "margin:4px 0 0 1.4em" }, preview, " ", apply),
+      h("div", { style: "margin:4px 0 0 1.4em" }, preview, " ", apply, " ", inspect),
       details,
     );
   }
@@ -611,5 +690,5 @@ function createView(wb, ctl, el) {
   drawCatalogControls();
   drawCommit();
   drawSummary();
-  return { draw, drawCreate, loadCatalog, checkWentStale, composeWentStale };
+  return { draw, drawCreate, draftMoved, loadCatalog, checkWentStale, composeWentStale };
 }

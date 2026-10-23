@@ -95,6 +95,7 @@ class Draft:
     card: DraftCard = field(default_factory=DraftCard)
     entries: list[Entry] = field(default_factory=list)
     undone: list[Undone] = field(default_factory=list)
+    source: dict[str, str] | None = None  # ``{card_id, path}``: the catalog card the draft was loaded from (Edit)
 
     def reconcile(self, pending: Pending) -> None:
         """Make the draft describe the network: put back changes whose undo was rolled back, drop changes that were.
@@ -361,6 +362,12 @@ class CardsState:
             d.undone.append(Undone(entry, self._generation))
             d.card = d.card.model_copy(update={"changes": [e.change for e in d.entries]})
             return len(d.entries)
+
+    def source(self, net_id: str) -> dict[str, str] | None:
+        """The catalog card (``{card_id, path}``) ``net_id``'s draft was loaded from to edit, if any."""
+        with self._lock:
+            d = self._drafts.get(net_id)
+            return dict(d.source) if d is not None and d.source is not None else None
 
     def project(self, net_id: str) -> str:
         """The project name of ``net_id``'s draft (``""`` when unnamed)."""

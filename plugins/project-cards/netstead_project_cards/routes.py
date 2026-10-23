@@ -3,7 +3,9 @@
 ``GET /form`` describes the form for a change type on the shared (or a saved) selection: the targets, each column
 with its current value, and the options. ``GET /commit-check`` returns the live edit warnings, the schema problems and
 the draft as YAML, for the commit dialog. ``GET /catalog`` lists the open catalog, checking unchecked cards against
-the network a few at a time; ``GET /summary.txt`` serves the session summary. All only read; every change is an
+the network a few at a time; ``GET /card`` is the Inspect view of a catalog card or the draft (its changes, their
+check, and the card's text, :mod:`~netstead_project_cards.inspection`); ``GET /summary.txt`` serves the session
+summary. All only read; every change is an
 Action. They run outside the session lock: each Host call takes it, and the draft state has its own
 (:class:`~netstead_project_cards.state.CardsState`).
 """
@@ -21,6 +23,7 @@ from netstead.workbench.plugins import ActionError, Host
 from .card import DraftCard
 from .errors import CardError, not_supported
 from .flow import SELECTABLE, check_entries, selection_facility, selection_networks, summary_text, target_network
+from .inspection import inspect_card
 from .lower import KEYS, rows_by_key
 from .mapping import FieldMap
 from .state import CardsState
@@ -225,6 +228,14 @@ def build_router(host: Host, state: CardsState, mapping: FieldMap) -> APIRouter:
             if net is not None:
                 check_entries(host, state, net, pending)
         return current.to_dict()
+
+    @api.get("/card")
+    def card(card_id: str | None = None, draft: bool = False, net_id: str | None = None) -> dict[str, Any]:
+        """The Inspect view of a catalog card (``card_id``) or of the draft (``draft=true``); see ``inspection``."""
+        try:
+            return inspect_card(host, state, mapping, card_id=card_id, draft=draft, net_id=net_id)
+        except (CardError, ActionError) as exc:
+            raise HTTPException(400, str(exc)) from exc
 
     @api.get("/summary.txt", response_class=PlainTextResponse)
     def summary(net_id: str | None = None) -> str:

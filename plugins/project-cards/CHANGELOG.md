@@ -14,6 +14,12 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
   a saved selection) with a live count and **Use these N links**, then the change form, Preview and Add to card. It
   dispatches the existing `project_cards.preview` and `project_cards.add_change`; an addition skips Select. The
   right-click "New change ▸ …" entry point stays.
+- **Inspect a card.** **Inspect** on a catalog card (and on the draft) opens a read-only view: project, tags,
+  dependencies, notes and file; each change with its type, facility (ids, or the query and what it resolved to),
+  property changes (existing → set or change) and its applicability on the open network. Clicking a change
+  highlights its links on the map (`wb.highlight`; the map does not zoom, since `wb` has no camera control), and a
+  **YAML** toggle shows the card's text. `GET /api/plugins/project_cards/card?card_id=…` (or `?draft=true`) serves
+  it, reading the file through `host.readable`; nothing is mutated or stored.
 - **A catalog of cards, checked against the network, previewed and applied.** `project_cards.open_catalog(path)`
   (or the new `catalog_dir` setting) lists the ProjectCard files of a folder and one level of its sub-folders, with
   the files that are not cards and why; `refresh_catalog` rescans. `check_card(card_id)` says whether a card applies

@@ -29,6 +29,12 @@ for whether it applies to the open network, with **Preview**, **Apply…** and *
 are listed under "Not cards"), **Draft** (the compose, draft and commit UI above), **Applied this session** (cards
 committed or applied, newest first, marked `committed` or `catalog`) and **Session summary** (Copy and Download).
 
+**Inspect** (on a catalog card, and on the draft) opens a read-only view: the project, tags, dependencies, notes and
+file, then each change with its type, facility (ids, or the query and what it resolved to), property changes
+(existing → set or change) and whether it applies to the open network. Clicking a change highlights its links on
+the map (`wb.highlight`; the map does not zoom to them, since the Workbench gives plugins no camera control yet), and
+**YAML** shows the card's text. Nothing changes.
+
 The library the Workbench pieces build on:
 
 - **The change model** (`netstead_project_cards.types`): one pydantic record per ProjectCard change type
@@ -63,7 +69,9 @@ the plugin's history for the session.
   unless `assistant.compact_tools = "off"`.
 
 **Routes** (read-only, for the panel): `GET /api/plugins/project_cards/form`, `/commit-check`, `/catalog` (the open
-catalog, checking unchecked cards a few at a time) and `/summary.txt`.
+catalog, checking unchecked cards a few at a time), `/card` (the Inspect view of a catalog card, `card_id=`, or of
+the draft, `draft=true`: its changes with their targets and check, and the card's text, read through
+`host.readable`) and `/summary.txt`.
 
 **Settings** (`[plugins.project_cards]`): `catalog_dir`, a folder inside `io.allowed_roots` opened as the catalog when
 the session starts.

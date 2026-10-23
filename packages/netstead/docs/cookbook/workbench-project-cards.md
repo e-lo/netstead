@@ -139,6 +139,22 @@ distinct from the draft you build above.
   edit ids; the draft, if any; and this plugin's actions in order, each ok or failed) with **Copy** and
   **Download** buttons. `GET /api/plugins/project_cards/summary.txt` serves the same text.
 
+### Inspect a card
+
+**Inspect**, on a catalog card or under the draft, opens a read-only view of the card:
+
+- its **Project**, **Tags**, **Dependencies** (prerequisites, corequisites, conflicts), **Notes** and **File**;
+- each change, numbered, with its type, its facility ("links 1, 2", or `links matching {"name":["Benton Street"]}`
+  with the number of links it resolved to), its property changes as existing → new ("lanes: 1 → 2", "lanes: 1 →
+  change by +1") and whether it applies to the open network ("Applies: 2 records found", "0 found; missing 999999",
+  or the reason it can't be applied). The draft's changes are already on its network: "In the draft: applied to …".
+
+Click a change to highlight its links on the map. The map does not zoom to them: the Workbench gives plugins no
+camera control yet, so pan to them yourself (or use **Find** to zoom to a link). **YAML** shows the card's text: the
+file itself for a catalog card, the YAML a commit would write for the draft. **Close** clears the highlights.
+Inspecting changes nothing; `GET /api/plugins/project_cards/card?card_id=<id>` (or `?draft=true`) serves the same
+view as JSON.
+
 From Python: `project_cards.open_catalog(path)`, `project_cards.refresh_catalog()`, `project_cards.check_card
 (card_id)`, `project_cards.preview_card(card_id)`, `project_cards.apply_card(card_id, existing_value_conflict=
 ..., ignore_missing=...)` and `project_cards.session_summary()` — see [From Python](#from-python) below for the

@@ -15,7 +15,7 @@ const query = params => Object.entries(params)
   .join("&");
 
 export function createController(wb) {
-  const state = { compose: null, check: null, catalog: null, create: null };
+  const state = { compose: null, check: null, catalog: null, create: null, inspect: null };
   const previewOpen = () => openPreview(wb.store.get()) !== null;
   let running = false;
   const oneAtATime = fn => async (...args) => {
@@ -253,6 +253,15 @@ export function createController(wb) {
     return result;
   }
 
+  // The Inspect view (GET /card, read only) of a catalog card, or of the draft (`cardId` null), kept in
+  // `state.inspect` until closed or inspected again. Reads only; nothing on the server changes.
+  async function inspect(cardId = null, netId = null) {
+    const params = cardId ? { card_id: cardId, net_id: netId } : { draft: "true", net_id: netId };
+    state.inspect = await wb.api.get(`/card?${query(params)}`);
+    return state.inspect;
+  }
+  const closeInspect = () => { state.inspect = null; };
+
   // The session summary as text (GET /summary.txt).
   async function summary(netId = null) {
     const response = await wb.api.fetch(`/summary.txt?${query({ net_id: netId })}`);
@@ -262,7 +271,7 @@ export function createController(wb) {
 
   return {
     state, start, changeFrom, check, serverChanged, selectionChanged, loadCatalog, catalog, catalogChanged, summary,
-    anotherChange, endCreate,
+    anotherChange, endCreate, inspect, closeInspect,
     ...Object.fromEntries(Object.entries({
       preview, closePreview, add, cancel, undo, commit, importCard, reload, openCatalog, refreshCatalog, previewCard,
       applyCard, beginCreate, chooseCreateType, useFacility, backCreate, selectByText,

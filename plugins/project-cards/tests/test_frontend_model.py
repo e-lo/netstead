@@ -273,7 +273,7 @@ console.log(JSON.stringify({ calls, error, kept, addition, after: ctl.state }));
         ],
         ["dispatch", {"type": "project_cards.import", "path": "cards/a.yml"}],
     ]
-    assert got["after"] == {"compose": None, "check": None, "catalog": None, "create": None}
+    assert got["after"] == {"compose": None, "check": None, "catalog": None, "create": None, "inspect": None}
 
 
 def test_a_preview_closed_elsewhere_is_not_closed_again(run_js):
