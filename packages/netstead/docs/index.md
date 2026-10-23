@@ -102,10 +102,13 @@ net = Network.from_source("./network.duckdb")              # single duckdb
 Requires Python 3.11+. `netstead` 1.0.0b2 is not on PyPI yet (the first release under the new names is pending), so one command installs both packages from GitHub, with every optional extra:
 
 ```bash
+uv init --bare
 uv add \
   "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral" \
   "netstead[all] @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/netstead"
 ```
+
+`uv init --bare` makes a new folder a uv project, which `uv add` needs; skip it when you add netstead to a project you already have.
 
 The four install tools (uv, uv pip, pip, pipx), the full table of extras and what each pulls in, `netstead doctor`, and the first-run errors are all on one page: [Install and troubleshoot](install.md). zsh users: [quote the brackets](install.md#zsh-quote-the-brackets).
 
