@@ -82,8 +82,14 @@ class CatalogEdits:
         self._refuse_existing(dest, source, overwrite=action.overwrite, verb="rename")
         with as_action_errors():
             moved = move_file(source, dest, overwrite=action.overwrite or dest.exists())
-        host.on_rollback(lambda: self._undo(undo_move(moved), dest))
         new_id = self._card_id(dest)
+        follow = self.state.follow_file(str(source), {"card_id": new_id, "path": str(dest)})  # open drafts' sources
+
+        def roll_back() -> None:
+            follow()
+            self._undo(undo_move(moved), dest)
+
+        host.on_rollback(roll_back)
         return self._done(host, {"action": "renamed", "card_id": entry.card_id, "to": new_id, "path": str(dest)})
 
     def duplicate_card(self, host: Host, action: DuplicateCard) -> dict[str, Any]:
@@ -111,9 +117,11 @@ class CatalogEdits:
             moved = move_file(source, trash, overwrite=False)
         record = {"card_id": entry.card_id, "path": str(source), "trash": str(trash)}
         forget = self.state.trashed(record)
+        follow = self.state.follow_file(str(source), None)  # open drafts lose their source: save as a new file
 
         def roll_back() -> None:
             forget()
+            follow()
             self._undo(undo_move(moved), source)
 
         host.on_rollback(roll_back)
@@ -135,13 +143,15 @@ class CatalogEdits:
         with as_action_errors():
             moved = move_file(trash, dest, overwrite=action.overwrite or dest.exists())
         remember = self.state.restored(action.card_id)
+        new_id = self._card_id(dest)
+        follow = self.state.follow_file(str(dest), {"card_id": new_id, "path": str(dest)}, restore=True)
 
         def roll_back() -> None:
             remember()
+            follow()
             self._undo(undo_move(moved), trash)
 
         host.on_rollback(roll_back)
-        new_id = self._card_id(dest)
         return self._done(host, {"action": "restored", "card_id": new_id, "to": new_id, "path": str(dest)})
 
     def update_card_meta(self, host: Host, action: UpdateCardMeta) -> dict[str, Any]:

@@ -38,7 +38,17 @@ from .types import (
     incomplete,
 )
 
-__all__ = ["KEYS", "Applied", "Mark", "Pending", "apply_change", "describe", "few", "rows_by_key"]
+__all__ = [
+    "KEYS",
+    "Applied",
+    "Mark",
+    "Pending",
+    "apply_change",
+    "describe",
+    "existing_mismatches",
+    "few",
+    "rows_by_key",
+]
 
 #: The key column of each table a roadway change edits (GMNS names), from the mapping file's selectors.
 KEYS = {table: load_mapping().selector(table)[0] for table in ("link", "node")}
@@ -244,6 +254,18 @@ def _same(current: Any, existing: Any) -> bool:
         return str(current) == str(existing)
 
 
+def existing_mismatches(
+    pc: PropertyChange, ids: Sequence[Any], current: dict[str, dict[str, Any]], prop: str
+) -> list[Any]:
+    """The ``ids`` whose current ``prop`` differs from the change's ``existing`` (none when it names no ``existing``).
+
+    The one reading of ``existing`` that applying a change and checking whether a card applies share.
+    """
+    if pc.existing is None:
+        return []
+    return [i for i in ids if not _same(current[str(i)][prop], pc.existing)]
+
+
 def _groups(
     pc: PropertyChange, ids: list[Any], current: dict[str, dict[str, Any]], table: str, prop: str
 ) -> dict[Any, list[Any]]:
@@ -294,7 +316,7 @@ def _property_change(host: Host, net_id: str, change: RoadwayPropertyChange, not
     plans: list[EditPlan] = []
     for prop, pc in change.property_changes.items():
         if pc.existing is not None:
-            bad = [i for i in ids if not _same(current[str(i)][prop], pc.existing)]
+            bad = existing_mismatches(pc, ids, current, prop)
             if bad:
                 found = current[str(bad[0])][prop]
                 message = f"{prop}: expected {pc.existing!r} on {sel.table} {few(bad)}, found {found!r}"

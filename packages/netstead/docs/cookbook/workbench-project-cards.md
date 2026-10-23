@@ -133,7 +133,9 @@ distinct from the draft you build above.
   scanned non-recursively, plus one level of sub-folders, for `.yml` / `.yaml` / `.json` card files; files that
   are not cards are listed with why not. **Refresh** rescans (new, changed and removed files).
 - **Applicability badges.** Each listed card shows `✓` (it applies cleanly to the network as it is now), `✗`
-  (some ids are missing, or a change can't be applied — hover for the reason), or `?` (not checked yet; the
+  (some ids are missing, a property's `existing` value differs from the network's and the card says
+  `existing_value_conflict: error`, the card was already applied on this network this session, or a change can't
+  be applied — hover for the reason; `warn` and `skip` conflicts stay `✓` and list a warning), or `?` (not checked yet; the
   panel checks up to 50 unchecked cards per request). A query selection with no netstead provenance reads and
   lists fine, but is refused when applying: "query without provenance; re-resolution not supported".
 - **Preview** shows every change of the card on a copy of the network (as in step 4 above) and highlights the

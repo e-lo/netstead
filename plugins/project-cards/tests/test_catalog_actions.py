@@ -253,7 +253,9 @@ def test_apply_card_always_refuses_a_query_without_provenance(session, folder):
 def test_apply_card_overrides_the_cards_conflict_rule(session, folder):
     write(DraftCard(project="Stale", changes=[lanes(1, existing=7)]), folder / "stale.yml")
     session.dispatch(OpenCatalog(path=str(folder)))
-    with pytest.raises(ActionError, match="change 1 of 1: conflict: lanes: expected 7"):
+    with pytest.raises(
+        ActionError, match=r"does not apply to .*: conflict: lanes: expected 7, found 1 on 1 of 1 links"
+    ):
         session.dispatch(ApplyCard(card_id="stale.yml"))
     result = session.dispatch(ApplyCard(card_id="stale.yml", existing_value_conflict="warn"))
     assert result["warnings"] == ["lanes: expected 7 on link 1, found 1"] and cell(session, 1, "lanes") == [3]

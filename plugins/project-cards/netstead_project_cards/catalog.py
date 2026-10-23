@@ -18,7 +18,7 @@ from typing import Any
 
 from .card import DraftCard
 from .errors import CardError
-from .lower import KEYS, describe, few, rows_by_key
+from .lower import KEYS, describe, existing_mismatches, few, rows_by_key
 from .types import (
     TRANSIT_TYPES,
     UNRESOLVED_QUERY,
@@ -172,12 +172,14 @@ def with_options(
 def applicability(card: DraftCard, links: Any, nodes: Any) -> dict[str, Any]:
     """Whether ``card`` applies to a network whose link and node tables are ``links`` and ``nodes`` (pandas frames).
 
-    Returns ``{ok, changes: [{describe, resolved, missing, reason}]}``: per change, how many of its target records
-    the network has (``resolved``), the ids it lacks (``missing``), and ``reason`` when the change cannot be applied
-    at all (a transit change, an incomplete one, a query without provenance, an added record whose id is taken, or
+    Returns ``{ok, changes: [{describe, resolved, missing, reason, warnings?}]}``: per change, how many of its target
+    records the network has (``resolved``), the ids it lacks (``missing``), and ``reason`` when the change cannot be
+    applied at all (a property whose ``existing`` differs from the network's value under ``existing_value_conflict:
+    error``, a transit change, an incomplete one, a query without provenance, an added record whose id is taken, or
     an added link whose end node is absent). ``ok`` is false when any change has a reason, or lacks an id its
-    selection does not ignore (``ignore_missing``): the lowering would refuse it. Missing ids a selection ignores
-    are listed but do not make the card inapplicable (they would be skipped). Nothing is mutated.
+    selection does not ignore (``ignore_missing``): the lowering would refuse it. ``warnings`` appears when a
+    conflict is only warned about or skipped. Missing ids a selection ignores are listed but do not make the card
+    inapplicable (they would be skipped). Nothing is mutated.
     """
     results = [_check(change, links, nodes) for change in card.changes]
     oks = [r.pop("_ok") for r in results]
@@ -195,13 +197,48 @@ def _check(change: NetworkChange, links: Any, nodes: Any) -> dict[str, Any]:
         if sel is None or sel.unresolved:
             return _refuse(out, UNRESOLVED_QUERY)
         frame = links if sel.table == "link" else nodes
-        return _resolve(out, frame, sel.table, sel.target_ids(), ignore_missing=sel.ignore_missing)
+        _resolve(out, frame, sel.table, sel.target_ids(), ignore_missing=sel.ignore_missing)
+        return _existing(out, change, sel.table, frame, list(dict.fromkeys(sel.target_ids())))
     if isinstance(change, RoadwayDeletion):
         _resolve(out, links, "link", list(change.links), ignore_missing=change.ignore_missing)
         return _resolve(out, nodes, "node", list(change.nodes))  # nodes are always aimed at specific records
     if isinstance(change, RoadwayAddition):
         return _addition(out, change, links, nodes)
     return _refuse(out, f"{change.type} cannot be checked in this version")  # a type added after this module
+
+
+def _existing(
+    out: dict[str, Any], change: RoadwayPropertyChange, table: str, frame: Any, wanted: list[Any]
+) -> dict[str, Any]:
+    """Compare each property's ``existing`` with the target rows' current values, as applying the change would.
+
+    ``existing_value_conflict`` decides: ``error`` makes the change not ok (a ``conflict:`` reason), ``warn`` adds a
+    warning, ``skip`` adds a note that the property will be skipped.
+    """
+    props = {p: pc for p, pc in change.property_changes.items() if pc.existing is not None}
+    if not props:
+        return out
+    unknown = [p for p in props if p not in frame.columns]
+    if unknown:
+        return _refuse(out, f"{table} has no column(s) {', '.join(unknown)}")
+    current = rows_by_key(frame, KEYS[table], wanted, list(props))
+    ids = [i for i in wanted if str(i) in current]
+    errors: list[str] = []
+    for prop, pc in props.items():
+        bad = existing_mismatches(pc, ids, current, prop)
+        if not bad:
+            continue
+        found = current[str(bad[0])][prop]
+        message = f"{prop}: expected {pc.existing}, found {found} on {len(bad)} of {len(ids)} {table}s"
+        if pc.existing_value_conflict == "error":
+            errors.append(message)
+        elif pc.existing_value_conflict == "skip":
+            out.setdefault("warnings", []).append(f"{message}; {prop} will be skipped")
+        else:
+            out.setdefault("warnings", []).append(message)
+    if errors:
+        return _refuse(out, f"conflict: {'; '.join(errors)}")
+    return out
 
 
 def _refuse(out: dict[str, Any], reason: str) -> dict[str, Any]:

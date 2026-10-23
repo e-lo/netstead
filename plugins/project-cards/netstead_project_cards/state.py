@@ -96,6 +96,7 @@ class Draft:
     entries: list[Entry] = field(default_factory=list)
     undone: list[Undone] = field(default_factory=list)
     source: dict[str, str] | None = None  # ``{card_id, path}``: the catalog card the draft was loaded from (Edit)
+    detached: dict[str, str] | None = None  # the ``source`` a deleted file left behind, which a restore gives back
 
     def reconcile(self, pending: Pending) -> None:
         """Make the draft describe the network: put back changes whose undo was rolled back, drop changes that were.
@@ -251,6 +252,11 @@ class CardsState:
 
         return undo
 
+    def applied_card(self, net_id: str, path: str) -> AppliedCard | None:
+        """The newest card from the file at ``path`` that this session put on ``net_id`` (and still has there)."""
+        with self._lock:
+            return next((a for a in reversed(self.applied) if a.net_id == net_id and a.path == path), None)
+
     def last_catalog_card(self, net_id: str) -> AppliedCard | None:
         """The most recently applied catalog card (source ``"catalog"``) still recorded on ``net_id``, if any.
 
@@ -371,6 +377,29 @@ class CardsState:
             d = self._drafts.get(net_id)
             return dict(d.source) if d is not None and d.source is not None else None
 
+    def follow_file(self, path: str, to: dict[str, str] | None, *, restore: bool = False) -> Callable[[], None]:
+        """Point every draft whose source is the file at ``path`` at ``to`` (``{card_id, path}``); return the undo.
+
+        A rename passes the new place; a delete passes ``None`` (the draft then has no source, and its commit offers
+        only "Save as new file") and the drafts remember what they lost; a restore (``restore=True``) gives that back
+        to the drafts that lost the file at ``path``, now at ``to``.
+        """
+        with self._lock:
+            before = [(d, d.source, d.detached) for d in self._drafts.values()]
+            for d in self._drafts.values():
+                if restore and d.source is None and d.detached is not None and d.detached["path"] == path:
+                    d.source, d.detached = (dict(to) if to else None), None
+                elif not restore and d.source is not None and d.source["path"] == path:
+                    d.detached = dict(d.source) if to is None else d.detached
+                    d.source = dict(to) if to is not None else None
+
+        def undo() -> None:
+            with self._lock:
+                for d, source, detached in before:
+                    d.source, d.detached = source, detached
+
+        return undo
+
     def entries(self, net_id: str) -> list[Entry]:
         """``net_id``'s draft changes, oldest first (a new list; the entries are shared and frozen)."""
         with self._lock:
@@ -435,7 +464,7 @@ class CardsState:
             d.entries.extend(Entry(a.change, tuple(a.marks)) for a in applied)
             meta = {"project": card.project, "tags": list(card.tags), "dependencies": card.dependencies}
             d.card = d.card.model_copy(update={**meta, "notes": card.notes, "changes": [e.change for e in d.entries]})
-            d.source = dict(source)
+            d.source, d.detached = dict(source), None
             count = len(d.entries)
 
         def undo() -> None:

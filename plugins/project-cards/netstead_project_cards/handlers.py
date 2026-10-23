@@ -33,7 +33,7 @@ from .actions import (
     UndoChange,
 )
 from .card import Dependencies, read_card_file
-from .catalog import card_targets, with_options
+from .catalog import applicability, card_targets, with_options
 from .errors import CardError
 from .files import undo_write, write_file
 from .flow import (
@@ -475,7 +475,11 @@ class Handlers:
         with as_action_errors():
             net = target_network(host, self.state, action.net_id)
         entry = catalog_entry(self.state, action.card_id)
-        check = check_entries(host, self.state, net, [entry])[0]
+        changes = with_options(
+            entry.card, existing_value_conflict=action.existing_value_conflict, ignore_missing=action.ignore_missing
+        )
+        handle = host.network(net)  # checked with the options being applied: a warn or skip is not a conflict
+        check = applicability(entry.card.model_copy(update={"changes": changes}), handle.links_df(), handle.nodes_df())
         problems = [
             f"{c['describe']}: {c['reason'] or 'missing ' + few(c['missing'])}"
             for c in check["changes"]
@@ -485,9 +489,6 @@ class Handlers:
             more = f" (+{len(problems) - 1} more)" if len(problems) > 1 else ""
             hint = "" if any(c["reason"] for c in check["changes"]) else "; apply with ignore_missing=True to skip them"
             raise ActionError(f"{entry.card_id} does not apply to {net}: {problems[0]}{more}{hint}")
-        changes = with_options(
-            entry.card, existing_value_conflict=action.existing_value_conflict, ignore_missing=action.ignore_missing
-        )
         applied = self._apply_all(host, net, changes)
         seqs = tuple(m.seq for a in applied for m in a.marks if m.seq is not None)
         record = AppliedCard(entry.card_id, net, entry.path, entry.project, timestamp(), len(changes), "catalog", seqs)

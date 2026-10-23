@@ -230,6 +230,9 @@ def check_entries(host: Host, state: CardsState, net: str, entries: Sequence[Cat
     results = []
     for entry in entries:
         result = {**applicability(entry.card, links, nodes), "net_id": net, "version": version}
+        if (done := state.applied_card(net, entry.path)) is not None:  # a ✓/✗ alone would hide that
+            result["ok"] = False
+            result["reason"] = f"already applied on {net} at {done.applied_at[11:16]}"
         state.set_applicability(entry, result)
         results.append(result)
     return results

@@ -167,11 +167,14 @@ export const missingIds = applicability => ((applicability && applicability.chan
 // (`tip` names each change's reason or missing ids), `?` not checked yet.
 export function applicabilityBadge(applicability) {
   if (!applicability) return { badge: "?", tip: "Not checked yet" };
-  if (applicability.ok) return { badge: "✓", tip: `Applies to ${applicability.net_id}` };
-  const problems = (applicability.changes || [])
+  const changes = applicability.changes || [];
+  const warnings = changes.filter(c => c.warnings && c.warnings.length).map(c => `${c.describe}: ${c.warnings.join("; ")}`);
+  if (applicability.ok) return { badge: "✓", tip: [`Applies to ${applicability.net_id}`, ...warnings].join("\n") };
+  const problems = changes
     .filter(c => c.reason || (c.missing && c.missing.length))
     .map(c => `${c.describe}: ${c.reason || `missing ${fewIds(c.missing)}`}`);
-  return { badge: "✗", tip: problems.join("\n") || "Does not apply" };
+  const lines = [...(applicability.reason ? [applicability.reason] : []), ...problems, ...warnings];
+  return { badge: "✗", tip: lines.join("\n") || "Does not apply" };
 }
 
 // The catalog's cards as the panel lists them: one row per card, with its badge, in the listing's order. `catalog`

@@ -539,6 +539,31 @@ console.log(JSON.stringify({ rows, none: catalogRows({ plugins: { project_cards:
     assert got["none"] == [] and got["fresher"] == ["✓"] and got["open"] == "/cards"
 
 
+def test_a_conflict_badge_is_a_cross_with_the_reason_in_its_tip(run_js):
+    got = run_js(
+        MODEL,
+        'import { applicabilityBadge } from "./cardmodel.js";'
+        + """
+const conflict = { ok: false, net_id: "base", changes: [{ describe: "lanes on 4 links", resolved: 4, missing: [],
+  reason: "conflict: lanes: expected 1, found 2 on 4 of 4 links" }] };
+const warned = { ok: true, net_id: "base", changes: [{ describe: "lanes on 2 links", resolved: 2, missing: [],
+  reason: null, warnings: ["lanes: expected 1, found 2 on 2 of 2 links"] }] };
+const applied = { ok: false, net_id: "base", reason: "already applied on base at 09:05", changes: [] };
+console.log(JSON.stringify({ conflict: applicabilityBadge(conflict), warned: applicabilityBadge(warned),
+  applied: applicabilityBadge(applied) }));
+""",
+    )
+    assert got["conflict"] == {
+        "badge": "✗",
+        "tip": "lanes on 4 links: conflict: lanes: expected 1, found 2 on 4 of 4 links",
+    }
+    assert got["warned"] == {
+        "badge": "✓",
+        "tip": "Applies to base\nlanes on 2 links: lanes: expected 1, found 2 on 2 of 2 links",
+    }
+    assert got["applied"] == {"badge": "✗", "tip": "already applied on base at 09:05"}
+
+
 def test_apply_defaults_ignore_missing_only_for_missing_ids(run_js):
     got = run_js(
         MODEL,

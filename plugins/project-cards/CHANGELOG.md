@@ -86,6 +86,17 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
 
 ### Fixed
 
+- **Applicability checks `existing` values.** A card whose property change expects a value the network no longer
+  has (for example one already applied on this network) used to show `✓` and then fail when applied. The check now
+  compares each property's `existing` with the target rows, the same way applying does (1 matches 1.0), following
+  `existing_value_conflict`: `error` makes the change not ok (`conflict: lanes: expected 1, found 2 on 4 of 4 links`,
+  shown as `✗` with the reason in the tooltip), `warn` and `skip` stay ok and list a `warnings` entry. A card
+  applied on the network this session says "already applied on <net> at HH:MM". `project_cards.apply_card` checks
+  with its `existing_value_conflict` / `ignore_missing` overrides, so a `warn` or `skip` override is not refused.
+- **Renaming, deleting or restoring a card's file updates an open draft's source.** A draft loaded with Edit kept
+  the old path after `rename_card` (so "Save over" wrote the old name); it now follows the rename, loses its source
+  on `delete_card` (the commit dialog then offers only "Save as new file"), gets it back on `restore_card`, and
+  all three are undone with a rolled-back Action.
 - **`project_cards.undo_change` undoes an applied catalog card.** Core's Edit panel refuses its own Undo on a card
   applied from the catalog ("the last change was made by project_cards; undo it there"), pointing at this plugin's
   undo — but it used to answer "nothing to undo" for it (it only ever took back the draft's last change), leaving
