@@ -1,8 +1,7 @@
 """HTTP surface of Workbench plugins: status listing, plugin routers, plugin static files, plugin actions."""
 
-from typing import Literal
-
 import re
+from typing import Literal
 
 import pytest
 from fastapi import APIRouter
@@ -102,7 +101,9 @@ def test_plugins_listing(client):
     body = client.get("/api/plugins").json()
     assert body["host_api"] == HOST_API
     by_id = {p["id"]: p for p in body["plugins"]}
-    assert by_id["hello"]["state"] == "loaded" and re.fullmatch(r"/plugins/hello/b/\w{10}/main\.js", by_id["hello"]["frontend"])
+    assert by_id["hello"]["state"] == "loaded" and re.fullmatch(
+        r"/plugins/hello/b/\w{10}/main\.js", by_id["hello"]["frontend"]
+    )
     assert by_id["broken"]["state"] == "error" and "router exploded" in by_id["broken"]["error"]
     assert by_id["broken"]["frontend"] is None
     assert by_id["missing"]["state"] == "error" and by_id["missing"]["frontend"] is None

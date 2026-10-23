@@ -7,8 +7,8 @@ import shutil
 import pytest
 from fastapi.testclient import TestClient
 from netstead.workbench import Session, build_app
-from netstead.workbench.server import STATIC_DIR
 from netstead.workbench.buildid import static_build_id
+from netstead.workbench.server import STATIC_DIR
 
 JS_DIR = STATIC_DIR / "js"
 _IMPORT = re.compile(r'import\s*\{([^}]*)\}\s*from\s*"\./([\w-]+\.js)"')
@@ -952,3 +952,14 @@ def test_validate_groups_by_type_from_the_summary_and_labels_its_facets():
     for label, select in (("Severity", "iss-sev"), ("Table", "iss-table"), ("Type", "iss-code")):
         assert f'<label class="iss-facet"><span>{label}</span><select id="{select}">' in pane
     assert "iss-prev" not in pane and "iss-next" not in pane  # no page to turn: members have "Show more"
+
+
+def test_wizard_back_is_a_header_chevron_and_the_first_step_has_no_footer():
+    html = (STATIC_DIR / "index.html").read_text()
+    head = html[html.index('id="wizard"') :]
+    assert head.index('id="wz-back"') < head.index('id="wz-title"') < head.index('id="wz-foot"')
+    assert 'id="wz-back" data-icon="chevron-left" data-tip="Back" aria-label="Back" hidden' in html
+    wizard = (JS_DIR / "wizard.js").read_text()
+    assert '$("wz-back").hidden = wz.step === "source"' in wizard
+    assert '$("wz-foot").hidden = wz.step === "source"' in wizard
+    assert '"chevron-left"' in (JS_DIR / "icons.js").read_text()

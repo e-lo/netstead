@@ -40,5 +40,5 @@ def static_build_id(directory: Path, salt: str = "") -> str:
 
 @cache
 def plugin_build_id(directory: Path, plugin_id: str, plugin_version: str) -> str:
-    """:func:`static_build_id` for a plugin's static dir, computed once per process so the session and the mount agree."""
+    """:func:`static_build_id` for a plugin's static dir, once per process so the session and the mount agree."""
     return static_build_id(directory, f"{plugin_id}\0{plugin_version}")

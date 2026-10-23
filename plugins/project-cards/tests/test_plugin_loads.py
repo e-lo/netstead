@@ -47,8 +47,10 @@ def test_the_front_end_is_served(make_session):
 
     session = make_session(open_network=False)
     (status,) = [s for s in session.plugin_status if s.id == "project_cards"]
-    assert status.frontend == "/plugins/project_cards/main.js"
+    prefix, _, build = status.frontend.partition("/b/")
+    assert prefix == "/plugins/project_cards" and build.endswith("/main.js")  # served under a per-build URL
     client = TestClient(build_app(session))
+    assert client.get(status.frontend).status_code == 200
     for name in ("main.js", "controller.js", "cardmodel.js"):
         response = client.get(f"/plugins/project_cards/{name}")
         assert response.status_code == 200 and "javascript" in response.headers["content-type"]
