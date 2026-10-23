@@ -579,14 +579,16 @@ class CardsState:
 
         return card_id, undo
 
-    def snapshot(self, network: Callable[[str], Any | None], pending: Callable[[str], Pending]) -> dict[str, Any]:
+    def snapshot(
+        self, network: Callable[[str], Any | None], pending: Callable[[str], Pending], *, apply_enabled: bool = False
+    ) -> dict[str, Any]:
         """JSON-safe state for ``/api/state`` (``plugins.project_cards``), each draft reconciled with its network.
 
         ``network(net_id)`` is the open network's handle, or ``None``: the drafts of a closed network are dropped (its
         pending edits went with it, so its draft can never be committed or undone), and so is a preview whose network
         or base is gone (:meth:`Preview.stands_for_base`). ``pending(net_id)`` is the plugin's pending edits on an
         open network (:class:`~netstead_project_cards.lower.Pending`). Both are called before the lock is taken, never
-        under it.
+        under it. ``apply_enabled`` is the ``enable_apply`` setting, reported so the panel offers Apply only when on.
         """
         with self._lock:
             ids = list(self._drafts)
@@ -630,4 +632,5 @@ class CardsState:
                 "preview": reported,
                 "change_types": list(CHANGE_TYPES),
                 "supported": sorted(ROADWAY_TYPES),
+                "enable_apply": apply_enabled,
             }

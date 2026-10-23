@@ -20,7 +20,7 @@ from pydantic import BaseModel, ConfigDict
 
 from ._version import __version__
 from .catalog_edits import CatalogEdits
-from .flow import load_catalog, open_handle, pending_seqs
+from .flow import apply_enabled, load_catalog, open_handle, pending_seqs
 from .handlers import Handlers
 from .mapping import load_mapping
 from .routes import build_router
@@ -40,11 +40,14 @@ class CardsSettings(BaseModel):
     """The ``[plugins.project_cards]`` settings table.
 
     ``catalog_dir`` is a folder of ProjectCard files (inside ``io.allowed_roots``) opened as the catalog when the
-    session starts; a folder that cannot be opened is logged and the session starts without one.
+    session starts; a folder that cannot be opened is logged and the session starts without one. ``enable_apply``
+    turns on applying catalog cards to a network (``project_cards.apply_card`` and the panel's **Apply…**): off, the
+    Action is refused and the panel offers no Apply.
     """
 
     model_config = ConfigDict(extra="forbid")
     catalog_dir: str | None = None
+    enable_apply: bool = False
 
 
 def plugin() -> WorkbenchPlugin:
@@ -73,7 +76,9 @@ def plugin() -> WorkbenchPlugin:
         static_dir=STATIC,
         settings_model=CardsSettings,
         state=lambda host: state.snapshot(
-            lambda net_id: open_handle(host, net_id), lambda net_id: pending_seqs(host, state, net_id)
+            lambda net_id: open_handle(host, net_id),
+            lambda net_id: pending_seqs(host, state, net_id),
+            apply_enabled=apply_enabled(host),
         ),
         on_load=on_load,
     )

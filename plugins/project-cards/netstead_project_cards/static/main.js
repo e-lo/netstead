@@ -6,7 +6,7 @@
 // in cardmodel.js, both tested under node. Card and user text is only ever set as text (`h`'s `text`, or a string
 // child), never parsed as markup.
 import {
-  ROADWAY_TYPES, TRANSIT_TYPES, TYPE_TITLES, appliedRows, applyDefaults, catalogOf, catalogRows, commitChoices,
+  ROADWAY_TYPES, TRANSIT_TYPES, TYPE_TITLES, appliedRows, applyDefaults, applyEnabled, catalogOf, catalogRows, commitChoices,
   commitFields, commitView, draftBadge, editPrompt, fileLine, metaFields, metaForm, renameName, draftNet, draftOf, hasNode, importPath, inspectHeader, inspectRows, needsSelection,
   openPreview, previewLine, savedChoices, selectionStatus, stepIndicator, summaryFileName, typeChoices,
 } from "./cardmodel.js";
@@ -655,7 +655,9 @@ function createView(wb, ctl, el) {
       const result = await ctl.previewCard(row.card_id, baseNet());
       say(`Previewing ${row.card_id} on ${result.preview}`);
     }, `Preview ${of}`);
-    const apply = iconAct("check-circle", "Apply…", () => openApplyDialog(row), `Apply ${of}…`);
+    // Applying is off unless the enable_apply setting is on: the server refuses it then, so the row offers none.
+    const apply = applyEnabled(server()) ? [iconAct("check-circle", "Apply…", () => openApplyDialog(row), `Apply ${of}…`)]
+      : [];
     const inspect = iconAct("search", "Inspect", () => openInspect(row.card_id), `Inspect ${of}`);
     const edit = iconAct("pencil", "Edit", () => openEditDialog(row), `Edit ${of} in the draft`);
     // The Details toggle shows the card's file and its check; a redraw (any server change) keeps it open if it was.
@@ -672,7 +674,7 @@ function createView(wb, ctl, el) {
       toggle.setAttribute("aria-expanded", String(now));
       toggle.setAttribute("class", `iconbtn${now ? " on" : ""}`);
     };
-    const actions = actionRow(preview, apply, inspect, edit, toggle,
+    const actions = actionRow(preview, ...apply, inspect, edit, toggle,
       iconAct("rename", "Rename…", () => openRenameDialog(row), `Rename ${of}…`),
       iconAct("copy", "Duplicate", async () => say(fileLine(await ctl.duplicateCard(row.card_id))), `Duplicate ${of}`),
       iconAct("tag", "Edit metadata…", () => openMetaDialog(row), `Edit the metadata of ${of}…`),

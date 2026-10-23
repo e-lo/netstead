@@ -25,7 +25,8 @@ description run through core's natural-language **Select**, or a saved selection
 (`project_cards.preview`, `project_cards.add_change`) as the right-click entry point, which stays.
 
 The **Cards** panel has four sections, in order: **Catalog** (open a folder of cards; each card shows `✓` / `✗` / `?`
-for whether it applies to the open network, with **Preview**, **Apply…** and **Details**; files that are not cards
+for whether it applies to the open network, with **Preview**, **Apply…** (only with `enable_apply` on) and
+**Details**; files that are not cards
 are listed under "Not cards"), **Draft** (the compose, draft and commit UI above), **Applied this session** (cards
 committed or applied, newest first, marked `committed` or `catalog`) and **Session summary** (Copy and Download).
 
@@ -66,7 +67,8 @@ The library the Workbench pieces build on:
 the open network without changing it (`check_card`: the ids each change resolves, the ids the network lacks, and a
 reason when a change cannot be applied, such as a query selection without netstead provenance), previewed on a copy
 with the links it aims at highlighted (`preview_card`), and applied to the network through the same lowering as a
-draft change (`apply_card`, all or nothing, with `ignore_missing` and `existing_value_conflict` overrides). Cards
+draft change (`apply_card`, all or nothing, with `ignore_missing` and `existing_value_conflict` overrides; off unless
+the `enable_apply` setting is on). Cards
 applied this session, from the catalog or committed from the draft, are listed in `plugins.project_cards.applied`;
 `project_cards.session_summary` (and `GET /api/plugins/project_cards/summary.txt`) writes them up as plain text with
 the plugin's history for the session.
@@ -83,7 +85,7 @@ the plugin's history for the session.
 - Usable from Python (`app.do(...)`), over HTTP (`/api/actions`), from the command palette, and by the assistant: opt
   in with `assistant.plugins`. A local model is offered every Action except commit and import (which need a path)
   unless `assistant.compact_tools = "off"`. The catalog file Actions (rename, duplicate, delete, restore, update
-  metadata) are never offered to the assistant.
+  metadata) and `apply_card` are never offered to the assistant.
 
 **Routes** (read-only, for the panel): `GET /api/plugins/project_cards/form`, `/commit-check`, `/catalog` (the open
 catalog, checking unchecked cards a few at a time), `/card` (the Inspect view of a catalog card, `card_id=`, or of
@@ -91,6 +93,8 @@ the draft, `draft=true`: its changes with their targets and check, and the card'
 `host.readable`) and `/summary.txt`.
 
 **Settings** (`[plugins.project_cards]`): `catalog_dir`, a folder inside `io.allowed_roots` opened as the catalog when
-the session starts.
+the session starts; `enable_apply` (default `false`), which turns on applying catalog cards to a network
+(`project_cards.apply_card` and the panel's **Apply…**). Off, `apply_card` is refused with "applying cards is turned
+off (plugins.project_cards.enable_apply)" and the panel offers no Apply.
 
 Needs Host API 1.7 (`host.readable`, `host.list_dir`, `host.history`).

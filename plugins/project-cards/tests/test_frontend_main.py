@@ -289,6 +289,9 @@ const applied = [{ card_id: "lanes", net_id: "base", path: "cards/lanes.yml", pr
                    applied_at: "2026-10-21T09:05:00+00:00", changes: 2, source: "committed", edit_ids: [1, 2] }];
 setServer({ plugins: { project_cards: { drafts: {}, preview: null, catalog: CATALOG, applied } } });
 await settle(); await settle();  // the listing is read after the store change
+got.noApply = walk(catalogBox).filter(e => e.getAttribute("data-card")).map(c => Boolean(button(c, "Apply…")));
+setServer({ plugins: { project_cards: { drafts: {}, preview: null, catalog: CATALOG, applied, enable_apply: true } } });
+await settle(); await settle();
 const cards = walk(catalogBox).filter(e => e.getAttribute("data-card"));
 got.cards = cards.map(c => [c.getAttribute("data-card"), find(c, "SPAN").getAttribute("data-badge"),
                             find(c, "SPAN").getAttribute("title")]);
@@ -357,6 +360,7 @@ def test_the_panel_under_a_fake_dom(run_js):
     ]
     assert got["catalogLine"] == "/cards" and got["rejected"] is True
     assert got["applied"] == ["Lanes [committed] 2 change(s) on base at 09:05"]
+    assert got["noApply"] == [False, False]  # enable_apply is off: no Apply…
     assert got["applyDialog"] == [True, True, "error", 'Apply "Bad"']
     assert got["applied2"] == [False, True, True]
     assert got["applyGood"] == [True, False]
@@ -747,7 +751,6 @@ def test_the_catalog_files_under_a_fake_dom(run_js):
     # Every action of a card is an icon button with a tooltip, named for the card it acts on.
     assert got["iconButtons"] == [
         ["iconbtn", "Preview", "Preview Good (good.yml)"],
-        ["iconbtn", "Apply…", "Apply Good (good.yml)…"],
         ["iconbtn", "Inspect", "Inspect Good (good.yml)"],
         ["iconbtn", "Edit", "Edit Good (good.yml) in the draft"],
         ["iconbtn on", "Details", "Details of Good (good.yml)"],
@@ -776,14 +779,14 @@ ICONS_HARNESS = (
     PANEL_SETUP
     + """
 // A host that draws icons: core's by name (one it lacks throws, as core's icon() does), the panel's own for the rest.
-deps.icon = name => { if (name === "check-circle") throw new Error(`unknown icon "${name}"`); return `<svg>${name}</svg>`; };
+deps.icon = name => { if (name === "search") throw new Error(`unknown icon "${name}"`); return `<svg>${name}</svg>`; };
 panels[0].render(root);
 store.set({ server: { ...store.get().server,
   plugins: { project_cards: { drafts: {}, preview: null, catalog: CATALOG, applied: [] } } } });
 await settle(); await settle();
 const row = walk(elById(root, "pc-catalog")).find(e => e.getAttribute("data-card") === "good.yml");
 const shown = tip => { const b = button(row, tip); return [b.innerHTML || null, b.textContent]; };
-console.log(JSON.stringify({ preview: shown("Preview"), trash: shown("Delete"), missing: shown("Apply…"),
+console.log(JSON.stringify({ preview: shown("Preview"), trash: shown("Delete"), missing: shown("Inspect"),
   errors: calls.filter(c => c[0] === "error") }));
 """
 )
@@ -794,4 +797,4 @@ def test_icon_buttons_draw_the_hosts_icons_and_fall_back_to_text(run_js):
     assert got["errors"] == []
     assert got["preview"] == ["<svg>play</svg>", ""]  # core's icon
     assert got["trash"][0].startswith("<svg") and "<polyline" in got["trash"][0]  # the panel's own
-    assert got["missing"] == [None, "Apply…"]  # a name the host lacks: the text
+    assert got["missing"] == [None, "Inspect"]  # a name the host lacks: the text

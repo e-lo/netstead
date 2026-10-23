@@ -22,7 +22,9 @@ from .types import TRANSIT_TYPES, NetworkChange, RoadwayDeletion, RoadwayPropert
 from .validate import card_problems
 
 __all__ = [
+    "APPLY_OFF",
     "SELECTABLE",
+    "apply_enabled",
     "as_action_errors",
     "catalog_entry",
     "check_card_shape",
@@ -84,6 +86,15 @@ def pending_seqs(host: Host, state: CardsState, net_id: str) -> Pending:
         return Pending(frozenset(), 0, generation)
     seqs = frozenset(e["seq"] for e in pending.edits if e["source"] == host.plugin_id)
     return Pending(seqs, pending.issued, generation)
+
+
+#: What ``project_cards.apply_card`` says while ``enable_apply`` is off.
+APPLY_OFF = "applying cards is turned off (plugins.project_cards.enable_apply)"
+
+
+def apply_enabled(host: Host) -> bool:
+    """Whether ``[plugins.project_cards] enable_apply`` is on (applying catalog cards to a network; off by default)."""
+    return bool(getattr(host.settings, "enable_apply", False))
 
 
 def target_network(host: Host, state: CardsState, net_id: str | None) -> str:
@@ -222,15 +233,17 @@ def check_entries(host: Host, state: CardsState, net: str, entries: Sequence[Cat
     """Compute and store each entry's applicability on the open network ``net`` (read once); return the results.
 
     Each result is :func:`~netstead_project_cards.catalog.applicability`'s dict plus the ``net_id`` and ``version``
-    it was computed on. Nothing is mutated.
+    it was computed on. With ``enable_apply`` on, a card this session already put on ``net`` does not fit ("already
+    applied ..."): applying it again would apply it twice. Nothing is mutated.
     """
     handle = host.network(net)
     version = handle.version  # before the frames (cached per version): a result never claims a newer version
     links, nodes = handle.links_df(), handle.nodes_df()
+    applying = apply_enabled(host)
     results = []
     for entry in entries:
         result = {**applicability(entry.card, links, nodes), "net_id": net, "version": version}
-        if (done := state.applied_card(net, entry.path)) is not None:  # a ✓/✗ alone would hide that
+        if applying and (done := state.applied_card(net, entry.path)) is not None:  # a pill alone would hide that
             result["ok"] = False
             result["reason"] = f"already applied on {net} at {done.applied_at[11:16]}"
         state.set_applicability(entry, result)

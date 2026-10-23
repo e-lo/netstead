@@ -37,6 +37,8 @@ from .catalog import applicability, card_targets, with_options
 from .errors import CardError
 from .files import undo_write, write_file
 from .flow import (
+    APPLY_OFF,
+    apply_enabled,
     as_action_errors,
     catalog_entry,
     check_card_shape,
@@ -470,8 +472,10 @@ class Handlers:
         The card is checked first; it is refused when a change cannot be applied at all, or lacks an id and
         ``ignore_missing`` is not true. A failing change fails the Action, whose rollback undoes the ones already
         applied; the record is made last and taken back by ``host.on_rollback`` if an enclosing Action fails. The
-        card's applicability is unknown again afterwards (the network changed).
+        card's applicability is unknown again afterwards (the network changed). Refused while ``enable_apply`` is off.
         """
+        if not apply_enabled(host):
+            raise ActionError(APPLY_OFF)
         with as_action_errors():
             net = target_network(host, self.state, action.net_id)
         entry = catalog_entry(self.state, action.card_id)

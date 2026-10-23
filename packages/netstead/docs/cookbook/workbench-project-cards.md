@@ -140,7 +140,9 @@ distinct from the draft you build above.
   lists fine, but is refused when applying: "query without provenance; re-resolution not supported".
 - **Preview** shows every change of the card on a copy of the network (as in step 4 above) and highlights the
   links and nodes it targets on the map, so you can see what it touches before committing to it.
-- **Apply…** applies the card to the network, all or nothing, through the same path as a draft change — no file
+- **Apply…** (only when `[plugins.project_cards] enable_apply = true`; it is off by default, and
+  `project_cards.apply_card` is refused while it is) applies the card to the network, all or nothing, through the
+  same path as a draft change — no file
   is written, since the card already exists. Its dialog offers **If a current value differs when the card is
   applied** (`existing_value_conflict`: error / warn / skip) and, for a `✗` card, **ignore missing ids**: with it
   checked, a missing id is skipped and listed instead of refusing the whole card.

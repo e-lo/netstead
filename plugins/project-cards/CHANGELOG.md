@@ -64,6 +64,11 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
 
 ### Changed
 
+- **Applying cards is off by default.** The new setting `[plugins.project_cards] enable_apply` (default `false`)
+  gates `project_cards.apply_card`: off, it is refused with "applying cards is turned off
+  (plugins.project_cards.enable_apply)", the panel offers no **Apply…** (`plugins.project_cards.enable_apply` in the
+  state says which), and a card saved this session no longer reads as "already applied". The assistant is never
+  offered `apply_card` (`assistant = False`). The apply code and its tests stay (run with the setting on).
 - **Icon buttons.** The Cards panel's per-card and per-section actions are icon buttons with a tooltip and an
   accessible name that says what they act on (`iconbtn`, core's icons through `wb.icon`, plus a few drawn by the
   panel; an older host shows their text). A catalog card's actions sit in one row; its **File** disclosure is gone

@@ -226,10 +226,15 @@ class ApplyCard(BaseAction):
     any missing id, and the default (``null``) follows each selection's own ``ignore_missing``. A change that cannot
     be applied at all (a query without provenance) is always refused. ``existing_value_conflict`` overrides every
     property's ``existing_value_conflict`` for this application (``null``: as the card says).
+
+    Applying is off unless ``[plugins.project_cards] enable_apply`` is true: it is refused with "applying cards is
+    turned off (plugins.project_cards.enable_apply)". The assistant is never offered it (``assistant = False``): the
+    setting is per session, the tool list is per Action class.
     """
 
     type: Literal["project_cards.apply_card"] = "project_cards.apply_card"
     mutates: ClassVar[bool] = True
+    assistant: ClassVar[bool] = False
     assistant_compact: ClassVar[bool] = True
     net_id: str | None = None
     card_id: str = Field(min_length=1, max_length=1000)

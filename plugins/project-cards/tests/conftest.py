@@ -29,10 +29,18 @@ def isolated_env(tmp_path: Path) -> dict[str, str]:
 
 @pytest.fixture
 def make_session(tmp_path: Path, isolated_env: dict[str, str]) -> Callable[..., Session]:
-    """``make_session(*extra_plugins, provider=None, overrides=None, open_network=True)``: cards always installed."""
+    """``make_session(*extra_plugins, provider=None, overrides=None, open_network=True, enable_apply=True)``.
+
+    The cards plugin is always installed. Its ``enable_apply`` setting is on here (it is off by default) so the
+    apply_card tests run; ``enable_apply=False`` is the shipped default.
+    """
 
     def build(
-        *extra: Any, provider: Any = None, overrides: dict[str, Any] | None = None, open_network: bool = True
+        *extra: Any,
+        provider: Any = None,
+        overrides: dict[str, Any] | None = None,
+        open_network: bool = True,
+        enable_apply: bool = True,
     ) -> Session:
         session = Session(
             project_dir=tmp_path,
@@ -40,7 +48,7 @@ def make_session(tmp_path: Path, isolated_env: dict[str, str]) -> Callable[..., 
             parser=StubParser(),
             plugins=[plugin(), *extra],
             assistant_provider=provider,
-            overrides=overrides or {},
+            overrides={"plugins.project_cards.enable_apply": enable_apply, **(overrides or {})},
             keyring=None,  # never touch the real OS keychain
         )
         if open_network:

@@ -153,6 +153,9 @@ export function commitView(check) {
 // The open catalog as state() reports it ({path, cards, rejected}), or null.
 export const catalogOf = state => cards(state).catalog || null;
 
+// Whether applying catalog cards is on (`[plugins.project_cards] enable_apply`; off by default).
+export const applyEnabled = state => Boolean(cards(state).enable_apply);
+
 // The first few ids, and how many more (as the server's `few`).
 export function fewIds(ids, n = 5) {
   const items = [...(ids || [])];
