@@ -64,6 +64,10 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
 
 ### Changed
 
+- **Icon buttons.** The Cards panel's per-card and per-section actions are icon buttons with a tooltip and an
+  accessible name that says what they act on (`iconbtn`, core's icons through `wb.icon`, plus a few drawn by the
+  panel; an older host shows their text). A catalog card's actions sit in one row; its **File** disclosure is gone
+  (the file actions are in the row, the path is under **Details**). The dialogs keep their text buttons.
 - **The panel is the dock's Cards tab.** It registers as `cards` (the bare id core reserves for this plugin), titled
   "Cards", between core's Edit and Validate tabs (order 25); it was `project_cards.draft`, titled "Card", last.
 - **A query selection without provenance reads; applying it is what is refused.** A card that selects links by a

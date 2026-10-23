@@ -35,13 +35,21 @@ async function busy(buttons, fn) {
   try { return await fn(); } finally { buttons.forEach((b, i) => { b.disabled = was[i]; }); }
 }
 
-// Fills `box` with `nodes`. If focus was in the box (or `force`), it moves to the new button, else to the heading
-// (tabindex -1), so a redraw never drops keyboard focus. Returns true when the box has neither to take it.
+// Every button in `nodes` and their descendants, in document order.
+const buttonsIn = nodes => nodes.flatMap(n => (n.tagName === "BUTTON" ? [n] : n.children ? buttonsIn([...n.children]) : []));
+
+// Fills `box` with `nodes`. If focus was in the box (or `force`), it moves to the new button with the same name as the
+// focused one, else the first button, else the heading (tabindex -1), so a redraw never drops keyboard focus. Returns
+// true when the box has none of them to take it.
 function redraw(box, nodes, force = false) {
-  const had = force || box.contains(document.activeElement);
+  const was = document.activeElement;
+  const had = force || box.contains(was);
+  const name = had && was && was.getAttribute ? was.getAttribute("aria-label") : null;
   box.replaceChildren(...nodes);
   if (!had) return false;
-  const target = nodes.find(n => n.tagName === "BUTTON") || nodes.find(n => n.getAttribute("tabindex") === "-1");
+  const buttons = buttonsIn(nodes);
+  const target = (name && buttons.find(b => b.getAttribute("aria-label") === name)) || buttons[0]
+    || nodes.find(n => n.getAttribute && n.getAttribute("tabindex") === "-1");
   if (target) target.focus();
   return !target;
 }
@@ -50,6 +58,24 @@ function redraw(box, nodes, force = false) {
 const field = (label, control) => h("div", { class: "sf-field" }, h("label", { for: control.id, text: label }), control);
 
 const ctxNet = ctx => (ctx.network ? ctx.network.id : null);
+
+// The icons this panel needs that core has no name for, drawn in core's style (24×24 strokes in currentColor).
+const LOCAL_ICONS = {
+  plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  trash: '<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>'
+    + '<path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>',
+  rename: '<path d="M4 7V5h9v2"/><line x1="8.5" y1="5" x2="8.5" y2="19"/><line x1="6.5" y1="19" x2="10.5" y2="19"/>'
+    + '<line x1="17" y1="4" x2="17" y2="20"/><line x1="15" y1="4" x2="19" y2="4"/><line x1="15" y1="20" x2="19" y2="20"/>',
+  tag: '<path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/>'
+    + '<circle cx="7.5" cy="7.5" r="1.5"/>',
+  table: '<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/>'
+    + '<line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="10" x2="9" y2="20"/>',
+};
+const svgOf = body => '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" '
+  + `stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+// A row of icon buttons, kept compact (a card's actions, a section's controls).
+const actionRow = (...buttons) => h("div", { class: "pc-actions",
+  style: "display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin:4px 0" }, ...buttons);
 
 export function activate(wb) {
   const ctl = createController(wb);
@@ -141,9 +167,17 @@ export function activate(wb) {
 }
 
 function createView(wb, ctl, el) {
-  // Core's SVG icon in `button` (Host API 1.7's wb.icon), else the text glyph an older host still shows.
+  // Whether the host draws icons (Host API 1.7's wb.icon): an older host gets every icon button's text instead.
+  const hostIcons = (() => {
+    try { return typeof wb.icon === "function" && Boolean(wb.icon("x")); } catch (e) { return false; }
+  })();
+  // `name`'s SVG in `button`: core's icon, or one of this panel's own (LOCAL_ICONS); else the text `fallback`.
   const glyph = (button, name, fallback) => {
-    const svg = typeof wb.icon === "function" ? wb.icon(name) : "";
+    let svg = "";
+    if (hostIcons) {
+      if (Object.hasOwn(LOCAL_ICONS, name)) svg = svgOf(LOCAL_ICONS[name]);
+      else try { svg = wb.icon(name); } catch (e) { svg = ""; } // a name this host does not have: the text
+    }
     if (svg) button.innerHTML = svg; else button.textContent = fallback;
     return button;
   };
@@ -187,6 +221,13 @@ function createView(wb, ctl, el) {
     b.onclick = guard(() => busy([b], fn));
     return b;
   };
+  // An icon button (core's `iconbtn`) that runs `fn`: `tip` is its tooltip, and its text where the host draws no
+  // icons; `label` its accessible name (the tip and the card it acts on, say).
+  const iconAct = (name, tip, fn, label = tip) => {
+    const b = glyph(h("button", { class: "iconbtn", "data-tip": tip, "aria-label": label }), name, tip);
+    b.onclick = guard(() => busy([b], fn));
+    return b;
+  };
   const server = () => wb.store.get();
   const baseNet = () => draftNet(server(), server().active); // the network whose draft the panel shows
 
@@ -222,8 +263,10 @@ function createView(wb, ctl, el) {
   function drawCreate() {
     const mode = ctl.state.create;
     if (!mode) {
-      redraw(createBox, [step("mini", "New card", () => ctl.beginCreate()),
-        h("span", { class: "muted", text: " a guided change: type, facility, details, add." })]);
+      const begin = iconAct("plus", "New card", async () => { await ctl.beginCreate(); draw(); },
+        "New card: a guided change");
+      redraw(createBox, [h("div", { style: "display:flex;gap:6px;align-items:center" }, begin,
+        h("span", { class: "muted", text: "New card: a guided change (type, facility, details, add)." }))]);
       return;
     }
     const steps = h("ol", { class: "pc-steps", "aria-label": "New card steps",
@@ -331,8 +374,9 @@ function createView(wb, ctl, el) {
   // Returns true when focus was in the box and the preview has gone: the draft box takes it.
   function drawPreview() {
     const preview = openPreview(server());
-    return redraw(previewBox, preview ? [h("p", { text: previewLine(preview) }),
-      act("mini ghost", "Back to the network", async () => { await ctl.closePreview(); say(""); })] : []);
+    return redraw(previewBox, preview ? [h("div", { style: "display:flex;gap:6px;align-items:center" },
+      iconAct("x", "Back to the network", async () => { await ctl.closePreview(); say(""); }),
+      h("span", { text: previewLine(preview) }))] : []);
   }
 
   function drawDraft(takeFocus) {
@@ -347,28 +391,27 @@ function createView(wb, ctl, el) {
     const list = h("ol", { id: "pc-draft-changes" });
     for (const change of draft.changes) {
       const i = change.index ?? draft.changes.indexOf(change);
-      const remove = act("mini ghost", "Remove", async () => {
+      const remove = iconAct("x", "Remove", async () => {
         const result = await ctl.removeChange(i, baseNet());
         say(`Removed: ${result.removed}${result.readded ? ` (re-added the ${result.readded} after it)` : ""}`);
-      });
-      remove.setAttribute("aria-label", `Remove change ${i + 1}`);
-      const edit = act("mini ghost", "Edit…", async () => {
+      }, `Remove change ${i + 1}`);
+      const edit = iconAct("pencil", "Edit…", async () => {
         await ctl.editChange(i, baseNet());
         say(`Removed change ${i + 1}: change the form and Add to card to put it back`);
         draw();
-      });
-      edit.setAttribute("aria-label", `Edit change ${i + 1}`);
-      list.append(h("li", { "data-change": String(i) }, h("span", { text: change.describe }), " ", edit, " ", remove));
+      }, `Edit change ${i + 1}`);
+      list.append(h("li", { "data-change": String(i), style: "display:flex;gap:4px;align-items:center" },
+        h("span", { style: "flex:1", text: change.describe }), edit, remove));
     }
-    const undo = act("mini", "Undo last change", async () => {
+    const undo = iconAct("undo", "Undo last change", async () => {
       await ctl.undo({ netId: baseNet() });
       say("Undid the last change");
     });
     const heading = h("div", { class: "label", tabindex: -1, text: `Draft card${name} (${draft.count})` });
     const from = draft.source ? [h("p", { class: "muted", id: "pc-draft-source",
       text: `Editing ${draft.source.card_id} (${draft.source.path})` })] : [];
-    const inspect = act("mini ghost", "Inspect", () => openInspect(null));
-    redraw(draftBox, [heading, ...from, list, undo, " ", inspect], takeFocus);
+    const inspect = iconAct("search", "Inspect", () => openInspect(null), "Inspect the draft card");
+    redraw(draftBox, [heading, ...from, list, actionRow(undo, inspect)], takeFocus);
     fillCommit(draft);
   }
 
@@ -468,10 +511,10 @@ function createView(wb, ctl, el) {
       h("div", { class: "label", text: "Commit" }),
       field("Project name", project), field("Tags", tags), field("Card file", path),
       field("Replace an existing file", overwrite),
-      act("mini", "Commit…", open),
+      actionRow(iconAct("save", "Commit…", open, "Commit the draft card…")),
       h("div", { class: "label", text: "Import a card" }),
       field("Card or edit log", source),
-      act("mini", "Import", importIt),
+      actionRow(iconAct("download", "Import", importIt, "Import the card or edit log")),
     );
   }
 
@@ -482,18 +525,16 @@ function createView(wb, ctl, el) {
   const catalogLine = h("p", { class: "muted", id: "pc-catalog-line" });
   const catalogList = h("div", { id: "pc-catalog-list" });
   function drawCatalogControls() {
-    const open = act("mini", "Open", async () => {
+    const open = iconAct("folder-open", "Open", async () => {
       const path = catalogPath.value.trim();
       if (!path) { say("Give a folder of cards"); return; }
       const result = await ctl.openCatalog(path);
       say(`Opened ${result.path}: ${result.cards} card(s)`);
-    });
-    const refresh = glyph(h("button", { class: "iconbtn", "data-tip": "Rescan the folder",
-      "aria-label": "Rescan the folder" }), "refresh", "↻");
-    refresh.onclick = guard(() => busy([refresh], async () => {
+    }, "Open the folder of cards");
+    const refresh = iconAct("refresh", "Rescan the folder", async () => {
       const result = await ctl.refreshCatalog();
       say(`Rescanned ${result.path}: ${result.cards} card(s)`);
-    }));
+    });
     catalogPath.onkeydown = e => { if (e.key === "Enter") open.onclick(); };
     catalogBox.append(
       h("div", { style: "display:flex;gap:6px;align-items:center" }, catalogPath, open, refresh),
@@ -569,9 +610,10 @@ function createView(wb, ctl, el) {
     const detail = ctl.state.inspect;
     if (!detail) { redraw(inspectBox, [], force); return; }
     const what = detail.source === "draft" ? `the draft on ${detail.net_id}` : detail.card_id;
-    const yaml = h("button", { class: "mini ghost", "aria-pressed": String(showYaml) }, "YAML");
-    yaml.onclick = () => { showYaml = !showYaml; drawInspect(); yaml.focus(); };
-    const close = act("mini ghost", "Close", async () => closeInspect());
+    const yaml = glyph(h("button", { class: `iconbtn${showYaml ? " on" : ""}`, "data-tip": "YAML",
+      "aria-label": "Show the card's YAML", "aria-pressed": String(showYaml) }), "code", "YAML");
+    yaml.onclick = () => { showYaml = !showYaml; drawInspect(); };
+    const close = iconAct("x", "Close", async () => closeInspect(), "Close the Inspect view");
     const head = h("div", { style: "display:flex;gap:6px;align-items:center" },
       h("div", { class: "label", tabindex: -1, text: `Inspect: ${what}` }), yaml, close);
     const lines = inspectHeader(detail).map(([label, text]) => h("div", {},
@@ -601,37 +643,45 @@ function createView(wb, ctl, el) {
     redraw(inspectBox, nodes, force);
   }
 
-  const opened = new Set(); // "details:<card_id>" / "file:<card_id>": the disclosures the user opened
+  const opened = new Set(); // the cards whose Details the user opened
   function cardRow(row) {
     const tags = row.tags.length ? ` · ${row.tags.join(", ")}` : "";
     const badge = h("span", {
       class: "pc-badge", title: row.tip, "aria-label": row.tip, "data-badge": row.badge,
       style: "display:inline-block;width:1.4em;font-weight:700", text: row.badge,
     });
-    const preview = act("mini", "Preview", async () => {
+    const of = `${row.project} (${row.card_id})`;
+    const preview = iconAct("play", "Preview", async () => {
       const result = await ctl.previewCard(row.card_id, baseNet());
       say(`Previewing ${row.card_id} on ${result.preview}`);
-    });
-    const apply = act("mini", "Apply…", () => openApplyDialog(row));
-    const inspect = act("mini ghost", "Inspect", () => openInspect(row.card_id));
-    const edit = act("mini ghost", "Edit", () => openEditDialog(row));
-    // A redraw (any server change) keeps the card's Details and File open if they were.
-    const keep = key => ({ ...(opened.has(key) ? { open: "" } : {}),
-      ontoggle: e => { if (e.target.open) opened.add(key); else opened.delete(key); } });
-    const details = h("details", keep(`details:${row.card_id}`), h("summary", { class: "muted", text: "Details" }),
-      ...detailRows(row));
-    const file = h("details", { class: "pc-file", ...keep(`file:${row.card_id}`) },
-      h("summary", { class: "muted", text: "File" }),
-      h("p", { class: "muted", text: row.path }),
-      act("mini ghost", "Rename…", () => openRenameDialog(row)), " ",
-      act("mini ghost", "Duplicate", async () => say(fileLine(await ctl.duplicateCard(row.card_id)))), " ",
-      act("mini ghost", "Edit metadata…", () => openMetaDialog(row)), " ",
-      act("mini ghost", "Delete", () => deleteCard(row)));
+    }, `Preview ${of}`);
+    const apply = iconAct("check-circle", "Apply…", () => openApplyDialog(row), `Apply ${of}…`);
+    const inspect = iconAct("search", "Inspect", () => openInspect(row.card_id), `Inspect ${of}`);
+    const edit = iconAct("pencil", "Edit", () => openEditDialog(row), `Edit ${of} in the draft`);
+    // The Details toggle shows the card's file and its check; a redraw (any server change) keeps it open if it was.
+    const isOpen = opened.has(row.card_id);
+    const details = h("div", { class: "pc-details", style: "margin:2px 0 0 1.4em" },
+      h("p", { class: "muted", text: row.path }), ...detailRows(row));
+    details.hidden = !isOpen;
+    const toggle = glyph(h("button", { class: `iconbtn${isOpen ? " on" : ""}`, "data-tip": "Details",
+      "aria-label": `Details of ${of}`, "aria-expanded": String(isOpen) }), "info", "Details");
+    toggle.onclick = () => {
+      const now = !opened.has(row.card_id);
+      if (now) opened.add(row.card_id); else opened.delete(row.card_id);
+      details.hidden = !now;
+      toggle.setAttribute("aria-expanded", String(now));
+      toggle.setAttribute("class", `iconbtn${now ? " on" : ""}`);
+    };
+    const actions = actionRow(preview, apply, inspect, edit, toggle,
+      iconAct("rename", "Rename…", () => openRenameDialog(row), `Rename ${of}…`),
+      iconAct("copy", "Duplicate", async () => say(fileLine(await ctl.duplicateCard(row.card_id))), `Duplicate ${of}`),
+      iconAct("tag", "Edit metadata…", () => openMetaDialog(row), `Edit the metadata of ${of}…`),
+      iconAct("trash", "Delete", () => deleteCard(row), `Delete ${of}`));
+    actions.style.marginLeft = "1.4em";
     return h("div", { class: "pc-card", "data-card": row.card_id, style: "margin:6px 0 8px" },
       h("div", {}, badge, " ", h("strong", { text: row.project }),
         h("span", { class: "muted", text: ` · ${row.changes} change(s)${tags} · ${row.card_id}` })),
-      h("div", { style: "margin:4px 0 0 1.4em" }, preview, " ", apply, " ", inspect, " ", edit),
-      details, file,
+      actions, details,
     );
   }
 
@@ -798,19 +848,14 @@ function createView(wb, ctl, el) {
   }
 
   function drawSummary() {
-    const iconButton = (tip, name, fallback, fn) => {
-      const b = glyph(h("button", { class: "iconbtn", "data-tip": tip, "aria-label": tip }), name, fallback);
-      b.onclick = guard(() => busy([b], fn));
-      return b;
-    };
-    const copy = iconButton("Copy the session summary", "copy", "⎘", async () => {
+    const copy = iconAct("copy", "Copy the session summary", async () => {
       const text = await ctl.summary(baseNet());
       const clipboard = globalThis.navigator && globalThis.navigator.clipboard;
       if (!clipboard) throw new Error("The clipboard is not available here: download the summary instead");
       await clipboard.writeText(text);
       say("Copied the session summary");
     });
-    const download = iconButton("Download the session summary", "download", "⤓", async () => {
+    const download = iconAct("download", "Download the session summary", async () => {
       const text = await ctl.summary(baseNet());
       const url = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
       const a = h("a", { href: url, download: summaryFileName(baseNet()) });

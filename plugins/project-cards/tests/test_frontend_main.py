@@ -158,7 +158,9 @@ globalThis.document = { activeElement: null, createElement: tag => new El(tag) }
 const walk = el => [el, ...el.children.filter(c => c instanceof El).flatMap(walk)];
 const find = (root, tag, text) =>
   walk(root).find(e => e.tagName === tag && (text === undefined || e.textContent === text));
-const button = (root, text) => find(root, "BUTTON", text);
+// A button by its text, its tooltip (an icon button's data-tip) or its accessible name.
+const button = (root, text) => walk(root).find(e => e.tagName === "BUTTON" && (e.textContent === text ||
+  e.getAttribute("data-tip") === text || e.getAttribute("aria-label") === text));
 const elById = (root, id) => walk(root).find(e => e.id === id);
 """
 
@@ -320,7 +322,7 @@ got.keepCleared = store.get().highlightsKeep;
 const copied = [];
 Object.defineProperty(globalThis, "navigator", { value: { clipboard: { writeText: async t => copied.push(t) } },
                                                   configurable: true });
-await find(elById(root, "pc-summary"), "BUTTON", "⎘").onclick();
+await button(elById(root, "pc-summary"), "Copy the session summary").onclick();
 got.copied = [copied, calls.filter(c => c[0] === "fetch").map(c => c[1]), status.textContent];
 got.errors = calls.filter(c => c[0] === "error");
 console.log(JSON.stringify(got));
@@ -674,7 +676,7 @@ store.set({ server: { ...store.get().server,
 await settle(); await settle();
 const status = elById(root, "pc-status"), dialog = find(root, "DIALOG");
 const row = () => walk(elById(root, "pc-catalog")).find(e => e.getAttribute("data-card") === "good.yml");
-const file = () => walk(row()).find(e => e.getAttribute("class") === "pc-file");
+const file = () => row();
 const got = {};
 // Rename: a refusal stays in the dialog; then it goes through.
 await button(file(), "Rename…").onclick();
@@ -707,12 +709,18 @@ got.deleted = [status.textContent.startsWith("Moved good.yml to the catalog's .t
                Boolean(button(status, "Undo delete"))];
 await button(status, "Undo delete").onclick();
 got.restored = status.textContent;
-// The File disclosure stays open across a redraw.
-const before = file();
-before.open = true; before.ontoggle({ target: before });
+// The Details toggle shows the card's file, and stays open across a redraw.
+const details = () => walk(row()).find(e => e.getAttribute("class") === "pc-details");
+const before = details();
+got.detailsStart = [before.hidden, button(row(), "Details").getAttribute("aria-expanded")];
+button(row(), "Details").onclick();
+got.detailsOpen = [before.hidden, button(row(), "Details").getAttribute("aria-expanded"),
+                   before.textContent.includes("/cards/good.yml")];
 store.set({ server: { ...store.get().server,
   plugins: { project_cards: { drafts: {}, preview: null, catalog: { ...CATALOG }, applied: [], files: [{}] } } } });
-got.stillOpen = [file() !== before, file().getAttribute("open") !== null];
+got.stillOpen = [details() !== before, details().hidden];
+got.iconButtons = walk(row()).filter(e => e.tagName === "BUTTON").map(b => [b.getAttribute("class"),
+  b.getAttribute("data-tip"), b.getAttribute("aria-label")]);
 got.actions = actions;
 got.errors = calls.filter(c => c[0] === "error");
 console.log(JSON.stringify(got));
@@ -733,7 +741,21 @@ def test_the_catalog_files_under_a_fake_dom(run_js):
     assert got["meta"] == [False, "Saved good.yml's project, tags"]
     assert got["deleted"] == [True, True]
     assert got["restored"] == "Restored good.yml"
-    assert got["stillOpen"] == [True, True]  # redrawn, and open again
+    assert got["detailsStart"] == [True, "false"]
+    assert got["detailsOpen"] == [False, "true", True]
+    assert got["stillOpen"] == [True, False]  # redrawn, and open again
+    # Every action of a card is an icon button with a tooltip, named for the card it acts on.
+    assert got["iconButtons"] == [
+        ["iconbtn", "Preview", "Preview Good (good.yml)"],
+        ["iconbtn", "Apply…", "Apply Good (good.yml)…"],
+        ["iconbtn", "Inspect", "Inspect Good (good.yml)"],
+        ["iconbtn", "Edit", "Edit Good (good.yml) in the draft"],
+        ["iconbtn on", "Details", "Details of Good (good.yml)"],
+        ["iconbtn", "Rename…", "Rename Good (good.yml)…"],
+        ["iconbtn", "Duplicate", "Duplicate Good (good.yml)"],
+        ["iconbtn", "Edit metadata…", "Edit the metadata of Good (good.yml)…"],
+        ["iconbtn", "Delete", "Delete Good (good.yml)"],
+    ]
     assert got["actions"] == [
         {"type": "project_cards.rename_card", "card_id": "good.yml", "new_name": "bad.yml", "overwrite": False},
         {"type": "project_cards.rename_card", "card_id": "good.yml", "new_name": "main-street.yml", "overwrite": False},
@@ -748,3 +770,28 @@ def test_the_catalog_files_under_a_fake_dom(run_js):
         {"type": "project_cards.delete_card", "card_id": "good.yml"},
         {"type": "project_cards.restore_card", "card_id": "good.yml"},
     ]
+
+
+ICONS_HARNESS = (
+    PANEL_SETUP
+    + """
+// A host that draws icons: core's by name (one it lacks throws, as core's icon() does), the panel's own for the rest.
+deps.icon = name => { if (name === "check-circle") throw new Error(`unknown icon "${name}"`); return `<svg>${name}</svg>`; };
+panels[0].render(root);
+store.set({ server: { ...store.get().server,
+  plugins: { project_cards: { drafts: {}, preview: null, catalog: CATALOG, applied: [] } } } });
+await settle(); await settle();
+const row = walk(elById(root, "pc-catalog")).find(e => e.getAttribute("data-card") === "good.yml");
+const shown = tip => { const b = button(row, tip); return [b.innerHTML || null, b.textContent]; };
+console.log(JSON.stringify({ preview: shown("Preview"), trash: shown("Delete"), missing: shown("Apply…"),
+  errors: calls.filter(c => c[0] === "error") }));
+"""
+)
+
+
+def test_icon_buttons_draw_the_hosts_icons_and_fall_back_to_text(run_js):
+    got = run_js(FILES, ICONS_HARNESS)
+    assert got["errors"] == []
+    assert got["preview"] == ["<svg>play</svg>", ""]  # core's icon
+    assert got["trash"][0].startswith("<svg") and "<polyline" in got["trash"][0]  # the panel's own
+    assert got["missing"] == [None, "Apply…"]  # a name the host lacks: the text

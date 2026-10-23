@@ -34,7 +34,10 @@ uncommitted changes is replaced only when you confirm). **Remove** takes out any
 are re-applied, so the network ends as if it had never been made), **Edit…** removes a change and reopens its form,
 and **Commit…** offers **Save over <file>** or **Save as new file**.
 
-Each catalog card's **File** disclosure has **Rename…**, **Duplicate** (`<name>-copy.yml`), **Edit metadata…**
+The panel's actions are icon buttons (hover for the name): a catalog card's row reads **Preview**, **Inspect**,
+**Edit**, **Details** (its file and its check), then its file actions.
+
+Each catalog card's file actions are **Rename…**, **Duplicate** (`<name>-copy.yml`), **Edit metadata…**
 (project, tags, dependencies) and **Delete** (moves the file to a `.trash` folder inside the catalog folder, with
 **Undo delete** in the status line). Every write stays inside `io.allowed_roots` and the catalog folder, validates
 the card with `projectcard` first and never replaces a different file unless asked; the session summary lists them.

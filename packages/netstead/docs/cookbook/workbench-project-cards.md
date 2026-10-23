@@ -169,7 +169,8 @@ From Python: `project_cards.edit_card(card_id, replace_draft=False)` and `projec
 
 ### Manage the catalog's files
 
-Each catalog card has a **File** disclosure with its path and four buttons. Each one is a recorded Action, listed in
+Each catalog card's row of icon buttons (hover one for its name) ends with four file actions; **Details** shows the
+card's path. Each one is a recorded Action, listed in
 the session summary under **Catalog files**; the catalog is rescanned after it. They change files, not the network,
 and the assistant is not offered them.
 
