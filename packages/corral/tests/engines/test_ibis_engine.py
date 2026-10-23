@@ -445,7 +445,12 @@ def test_write_duckdb_while_a_reader_holds_the_file(engine: IbisEngine, tmp_path
     reader._find_backend().disconnect()
     del reader
     gc.collect()
-    reopened = subprocess.run([sys.executable, "-c", _REOPEN, str(f)], capture_output=True, text=True, check=False)
+    # ``close_fds=False`` (with the absolute ``sys.executable``) lets :mod:`subprocess` use ``posix_spawn`` rather
+    # than fork. A fork runs the worker's atfork handlers in the child, and PROJ's (loaded by the geo tests on the
+    # same xdist worker) closes its cached SQLite handles there, which on macOS segfaults before exec (exit -11).
+    reopened = subprocess.run(
+        [sys.executable, "-c", _REOPEN, str(f)], capture_output=True, text=True, check=False, close_fds=False
+    )
     assert reopened.returncode == 0, reopened.stderr
     assert reopened.stdout.strip() == "[('a', 1), ('b', 2)]"
 
