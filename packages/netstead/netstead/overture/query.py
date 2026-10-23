@@ -37,6 +37,8 @@ import ibis.expr.datatypes as dt
 from corral.engines import get_engine
 from ibis import udf
 
+from netstead.network_types import NetworkTypes
+
 from . import attrs
 from ._geo import parse_wkt_linestring
 
@@ -320,7 +322,7 @@ def _bbox_intersects(table: Any, bbox: tuple[float, float, float, float]) -> Any
 
 def _matching_segments(
     bbox: tuple[float, float, float, float],
-    network_type: str,
+    network_type: NetworkTypes,
     overture_release: str,
     data_root: str | None,
     engine: Any,
@@ -346,7 +348,7 @@ def _matching_segments(
 def count_segments(
     bbox: tuple[float, float, float, float],
     *,
-    network_type: str = "drive",
+    network_type: NetworkTypes = "drive",
     overture_release: str = OVERTURE_RELEASE,
     data_root: str | None = None,
     engine: Any = None,
@@ -373,7 +375,7 @@ def count_segments(
 def read_segments(
     bbox: tuple[float, float, float, float],
     *,
-    network_type: str = "drive",
+    network_type: NetworkTypes = "drive",
     overture_release: str = OVERTURE_RELEASE,
     data_root: str | None = None,
     engine: Any = None,
@@ -472,7 +474,7 @@ def fetch_network_elements(
     area: str | Sequence[float],
     *,
     buffer_m: float = 0.0,
-    network_type: str = "drive",
+    network_type: NetworkTypes = "drive",
     overture_release: str = OVERTURE_RELEASE,
     data_root: str | None = None,
     engine: Any = None,

@@ -112,7 +112,7 @@ While the beta installs from GitHub, the extras go in the same place inside the 
 
 | Extra | Pulls in | When you need it |
 |---|---|---|
-| `osm` | `requests` + `pyyaml` | `netstead build --source osm` — build a network from OpenStreetMap |
+| `osm` | `requests` + `pyyaml` | `netstead build --source osm` — build a network from OpenStreetMap; the Workbench's Open → Place search and OSM build also need it |
 | `overture` | `pyyaml` | `netstead build --source overture` — build a network from Overture Maps (place-name areas also need `[osm]` for geocoding) |
 | `clean` | `shapely` + `geopandas` + `pyproj` | Network editing (`netstead.clean`: simplify, merge, orphans, lengths) |
 | `graph` | `scipy` + `numpy` + `pandas` | Scope from nodes, connected components, `netstead quality` / `run_quality` |

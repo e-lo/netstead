@@ -304,6 +304,12 @@
   #ap-cands { max-height:150px; overflow:auto; margin-top:6px; }
   .cand { padding:5px 8px; cursor:pointer; border-radius:6px; font-size:12.5px; }
   .cand:hover, .cand.on { background:#20242e; }
+  .form-lbl { font-size:13px; }
+  #opt-modes { display:flex; flex-wrap:wrap; gap:4px 14px; }
+  #opt-modes label { display:flex; align-items:center; gap:5px; font-size:13px; }
+  #opt-outdir.unset { color:var(--muted); font-style:italic; }
+  #opt-out-hint { margin:0 0 6px; }
+  .fb-use { flex:none; }
   .form { display:grid; grid-template-columns:150px 1fr; gap:8px 12px; align-items:center; margin-bottom:12px; }
   .fb { border:1px solid var(--edge); border-radius:8px; }
   .fb-bar { display:flex; align-items:center; gap:8px; padding:6px 8px; border-bottom:1px solid var(--edge); }
@@ -317,10 +323,15 @@
   .fb-kind { font-size:11px; padding:1px 7px; border-radius:999px; background:#20242e; color:var(--hl); }
 
   /* ---- language models: header picker + panel ---- */
-  #nl-picker { display:flex; align-items:center; gap:6px; flex:none; min-width:0; }
-  #nl-picker .dot { margin-right:0; flex:none; }
+  #nl-wrap { position:relative; }
+  #nl-btn .dot { position:absolute; top:3px; right:3px; margin:0; width:8px; height:8px; box-shadow:0 0 0 2px #171a21; }
+  #nl-picker { position:absolute; top:calc(100% + 4px); right:0; z-index:7; width:260px; max-width:calc(100vw - 24px);
+               box-sizing:border-box; display:flex; flex-direction:column; gap:8px; padding:10px;
+               background:rgba(23,26,33,.98); border:1px solid var(--edge); border-radius:10px; }
+  #nl-picker[hidden] { display:none; }
+  #nl-picker .row { margin:0; }
   #nl-picker select { background:#0c0e12; color:var(--ink); border:1px solid var(--edge); border-radius:8px;
-                      padding:7px 6px; max-width:150px; font-size:12.5px; }
+                      padding:7px 6px; width:100%; min-width:0; font-size:12.5px; }
   .dot.ok { background:var(--from); }
   .dot.ok.local { background:var(--hl); }
   .dot.warn { background:var(--accent); }
@@ -349,8 +360,6 @@
   #find-bar { display:flex; flex-direction:column; gap:8px; margin-bottom:8px; }
   #find-bar #utterance { width:100%; box-sizing:border-box; font-size:13px; padding:8px 10px; }
   #find-go { margin:0; } #find-go button { padding:7px 14px; }
-  #find-bar #nl-picker { flex-wrap:wrap; }
-  #find-bar #nl-picker select { flex:1 1 110px; max-width:100%; min-width:0; }
   /* View: the map's layer, color, width, direction and filter controls, folded under the selection. */
   #view-section summary { cursor:pointer; list-style:none; }
   #view-section summary::before { content:"▸ "; }
@@ -359,9 +368,6 @@
   #view-section h4 { margin:14px 0 6px; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
   @media (max-width: 800px) {
     header h1, #count { display:none; }
-  }
-  @media (max-width: 640px) {
-    #nl-default { display:none; } /* also in Settings → Language models */
   }
   /* ---- settings dialog ---- */
   .set-card { width:min(920px, calc(100vw - 32px)); }

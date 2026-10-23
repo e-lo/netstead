@@ -31,9 +31,10 @@ nothing leaves your computer and you need no API key.
 
 ## Prerequisites
 
-Python 3.11 or newer, and `netstead` with three extras: `[server]` is the Workbench itself, `[graph]` runs the
-quality rules inside validation and the path search behind "between", and `[nl]` adds the language-model
-providers you can switch to later (the offline parser needs none of them). If anything below fails to
+Python 3.11 or newer, and `netstead` with four extras: `[server]` is the Workbench itself, `[graph]` runs the
+quality rules inside validation and the path search behind "between", `[nl]` adds the language-model
+providers you can switch to later (the offline parser needs none of them), and `[osm]` powers Open → Place search
+and building a network from OpenStreetMap. If anything below fails to
 install or start, see [Install and troubleshoot](install.md).
 
 ## Steps
@@ -48,12 +49,12 @@ macOS (zsh): see [Install and troubleshoot](install.md#zsh-quote-the-brackets).
 uv init --bare
 uv add \
   "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral" \
-  "netstead[server,graph,nl] @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/netstead"
+  "netstead[server,graph,nl,osm] @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/netstead"
 ```
 
 `uv init --bare` makes a new folder a uv project, which `uv add` needs; skip it when you add netstead to a project you already have.
 
-(Once the PyPI release is out: `uv add 'netstead[server,graph,nl]'`.)
+(Once the PyPI release is out: `uv add 'netstead[server,graph,nl,osm]'`.)
 
 The Leavenworth fixture ships inside the `netstead` wheel, so there is nothing to download. Ask Python where
 it landed and keep the path in a shell variable:

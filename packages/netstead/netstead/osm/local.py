@@ -21,6 +21,8 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
+from netstead.network_types import NetworkTypes
+
 from . import tags
 from .query import parse_overpass_elements
 
@@ -85,7 +87,7 @@ def _parse_json(path: Path) -> tuple[dict[int, tuple[float, float]], list[dict[s
 
 
 def read_osm_file(
-    path: str | Path, *, network_type: str = "drive"
+    path: str | Path, *, network_type: NetworkTypes = "drive"
 ) -> tuple[dict[int, tuple[float, float]], list[dict[str, Any]]]:
     """Read ``path`` and return ``(nodes, ways)`` for :func:`netstead.osm.convert.build_node_link_tables`.
 

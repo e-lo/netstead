@@ -21,6 +21,13 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Changed
 
+- **The Workbench table's "Expand a hop" is a "Related: 1 step / 2 steps" control** that shows only when
+  **Show** is Related, with a tooltip explaining how far foreign keys are followed.
+
+- **The Workbench model picker is a header icon.** A robot button in the header opens the provider and model
+  picker as a popover (the privacy dot is a badge on it; the tooltip names the provider and model). The picker no
+  longer sits in the Find tab.
+
 - **Workbench: a map button for the View settings, Open as an icon, nodes styled by control type.** The map
   gets a layers button that opens the Find tab's View section; the header's Open is an icon button with the
   same recents menu; and nodes colored by `ctrl_type` use red (large) signals, orange/amber stop signs, yellow
@@ -31,6 +38,16 @@ This file is for the **netstead** package only. The underlying generic engine `c
   after 3 s.
 
 ### Fixed
+
+- **Workbench build form: several network types and a visible folder chooser.** Network type is now a set of
+  checkboxes (drive, walk, bike, or all highways), and a build keeps a way or segment if any chosen type allows it.
+  `BuildNetwork` takes `network_types: list[str]` (a recorded single `network_type` is still read), and the OSM and
+  Overture builders accept a list of network types. The output-folder step shows the chosen path (or "not chosen
+  yet"), a hint, and a **Use** button on each folder; Estimate stays disabled until a folder is chosen.
+
+- **Workbench place search shows why it failed.** A failed place search (for example, the `[osm]` extra is missing,
+  or the geocoder is down) now says so in the Area step instead of "No matches."; the Workbench quickstart
+  installs `netstead[server,graph,nl,osm]`.
 
 - **Categorical cell edits in the Workbench grid are offered the spec's allowed
   values, and an out-of-enum value is kept and flagged, never silently lost.**

@@ -34,6 +34,15 @@
       <button id="valid-light" class="iconbtn vl-unknown" data-tip="Not validated yet" aria-label="Validation: not validated yet"></button>
       <span id="count"></span>
       <span class="spacer" id="cmd-slot"><button id="cmd-btn" class="iconbtn" data-icon="terminal" data-tip="Commands (⌘K / Ctrl+K)" aria-label="Commands" aria-keyshortcuts="Control+K Meta+K"></button></span>
+      <span id="nl-wrap">
+        <button id="nl-btn" class="iconbtn" data-tip="Language model: offline (pattern)" aria-label="Language model: offline (pattern)" aria-haspopup="dialog" aria-controls="nl-picker" aria-expanded="false"><span data-icon="bot"></span><span id="nl-dot" class="dot off" aria-hidden="true"></span></button>
+        <div id="nl-picker" role="dialog" aria-label="Language model" hidden>
+          <select id="nl-provider" aria-label="Language model provider (this session)"></select>
+          <select id="nl-model" aria-label="Language model (this session)"></select>
+          <div class="row"><button id="nl-default" class="mini ghost" title="Save this provider and model as your default" disabled>Make default</button>
+          <button id="nl-manage" class="mini ghost" aria-label="Manage language models">Models…</button></div>
+        </div>
+      </span>
       <button id="jobs-btn" class="mini ghost" data-tip="Background jobs" aria-label="Background jobs"><span data-icon="play"></span><span id="jobs-count" class="pcount">0</span></button>
       <button id="settings-btn" class="iconbtn" data-icon="gear" data-tip="Settings" aria-label="Settings"></button>
     </div>
@@ -68,7 +77,9 @@
             <option value="related">Related</option>
             <option value="filtered">Filtered</option>
           </select>
-          <button class="mini ghost" id="tbl-hops" title="Follow keys one more step">Expand a hop</button></div>
+          <span id="tbl-hops-wrap" hidden><label for="tbl-hops">Related</label>
+            <select id="tbl-hops" aria-label="Related records: how many steps to follow">
+              <option value="1">1 step</option><option value="2">2 steps</option></select></span></div>
         <div id="tbl-chips" aria-label="Active column filters" hidden></div>
         <div id="tbl-grid-wrap"><table id="tbl-grid"></table></div>
         <datalist id="cell-opts"></datalist>
@@ -86,13 +97,6 @@
       <input id="utterance" placeholder='e.g. "I-40 EB between South Miami Boulevard and Airport Boulevard"' aria-label="Selection utterance" />
       <div class="row wrap" id="find-go"><button id="go">Select</button>
         <button id="ask" class="ghost" title="Ask the assistant (Ctrl+Enter, ⌘Enter on a Mac)" aria-keyshortcuts="Control+Enter Meta+Enter">Ask</button></div>
-      <span id="nl-picker">
-        <span id="nl-dot" class="dot off" aria-hidden="true"></span>
-        <select id="nl-provider" aria-label="Language model provider (this session)"></select>
-        <select id="nl-model" aria-label="Language model (this session)"></select>
-        <button id="nl-default" class="mini ghost" title="Save this provider and model as your default" disabled>Make default</button>
-        <button id="nl-manage" class="mini ghost" aria-label="Manage language models">Models…</button>
-      </span>
     </div>
     <div id="thinking" class="diag" role="status" aria-live="polite" hidden></div>
     <div id="status-wrap"></div>
@@ -302,8 +306,13 @@
       </section>
       <section class="wz-step" data-step="options" hidden>
         <div class="form">
-          <label for="opt-network-type">Network type</label>
-          <select id="opt-network-type"><option>drive</option><option>walk</option><option>bike</option><option>all</option></select>
+          <span class="form-lbl" id="opt-modes-lbl">Network types</span>
+          <div id="opt-modes" role="group" aria-labelledby="opt-modes-lbl">
+            <label><input type="checkbox" data-mode="drive" /> Drive</label>
+            <label><input type="checkbox" data-mode="walk" /> Walk</label>
+            <label><input type="checkbox" data-mode="bike" /> Bike</label>
+            <label><input type="checkbox" data-mode="all" /> All highways</label>
+          </div>
           <label for="opt-extra-tags">Extra tags</label><input id="opt-extra-tags" placeholder="surface, maxheight" />
           <label for="opt-spec">GMNS spec version</label><input id="opt-spec" />
           <label for="opt-release" class="ovt-only">Overture release</label><input id="opt-release" class="ovt-only" />
@@ -311,9 +320,10 @@
           <label for="opt-format">Output format</label>
           <select id="opt-format"><option value="parquet">Parquet folder</option><option value="csv">CSV folder</option>
             <option value="duckdb">DuckDB file</option><option value="zip">Zip</option></select>
-          <label>Output folder</label><code id="opt-outdir">choose below</code>
+          <span class="form-lbl">Output folder</span><code id="opt-outdir" class="unset">not chosen yet</code>
         </div>
         <div id="opt-name-err" class="wz-note err" role="alert"></div>
+        <div class="wz-note" id="opt-out-hint">Choose the output folder: open a folder, then press <b>Use this folder</b> (or <b>Use</b> beside one).</div>
         <div class="fb" id="opt-out-fb"></div>
       </section>
       <section class="wz-step" data-step="run" hidden>

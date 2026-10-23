@@ -27,6 +27,7 @@ from typing import Any
 
 from netstead._network_build import network_from_records
 from netstead.network import Network
+from netstead.network_types import NetworkTypes
 from netstead.spec import DEFAULT_SPEC
 
 from . import convert, query
@@ -38,7 +39,7 @@ def build_network_from_overture(
     area: str | Sequence[float],
     *,
     buffer_m: float = 0.0,
-    network_type: str = "drive",
+    network_type: NetworkTypes = "drive",
     extra_tags: list[str] | None = None,
     spec_version: str = DEFAULT_SPEC,
     engine: Any = None,

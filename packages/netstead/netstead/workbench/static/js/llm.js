@@ -146,7 +146,7 @@ async function renderPicker() {
   }
   $("nl-provider").innerHTML = html.join("");
   $("nl-dot").className = `dot ${dotClass(current || providerRow(provider))}`;
-  $("nl-picker").title = current ? privacyNote(current) : `${provider} is not set up: open Models… to add a key or start it.`;
+  $("nl-wrap").title = current ? privacyNote(current) : `${provider} is not set up: open Models… to add a key or start it.`;
   $("nl-default").disabled = !canMakeDefault();
   const shadow = shadowingLayers();
   $("nl-default").title = shadow.length
@@ -154,6 +154,26 @@ async function renderPicker() {
     : "Save this provider and model as your default";
   if (panelOpen()) $("llm-privacy").textContent = privacyNote(providerRow(provider));
   await renderModels(provider, model);
+  syncButtonTip(current, provider);
+}
+
+// The header robot button names the provider and model in its tooltip and accessible name.
+function syncButtonTip(current, provider) {
+  const row = current || providerRow(provider);
+  const modelId = $("nl-model").value;
+  const tip = !row || provider === "stub" ? "Language model: offline (pattern)"
+    : `Language model: ${row.label}${modelId ? ` · ${modelId}` : ""}`;
+  $("nl-btn").dataset.tip = tip;
+  $("nl-btn").setAttribute("aria-label", tip);
+}
+
+function pickerIsOpen() { return !$("nl-picker").hidden; }
+
+function setPicker(open, { refocus = false } = {}) {
+  $("nl-picker").hidden = !open;
+  $("nl-btn").setAttribute("aria-expanded", String(open));
+  if (open) $("nl-provider").focus();
+  else if (refocus) $("nl-btn").focus();
 }
 
 async function fetchModels(provider) {
@@ -195,6 +215,7 @@ function syncModelTitle(note = "") {
   const full = chosen ? chosen.textContent : "";
   box.dataset.full = full;
   box.title = [full, note].filter(Boolean).join(" — ");
+  if (llm) syncButtonTip(providerRow(llm.selected.provider), llm.selected.provider);
 }
 
 // The picker changes this session only; "Make default" saves the current choice to the user file.
@@ -567,10 +588,13 @@ function trackHeaderHeight() {
 
 export function wireLLM() {
   trackHeaderHeight();
+  $("nl-btn").onclick = () => setPicker(!pickerIsOpen());
+  $("nl-wrap").onkeydown = e => { if (e.key === "Escape" && pickerIsOpen()) { e.preventDefault(); setPicker(false, { refocus: true }); } };
+  document.addEventListener("pointerdown", e => { if (pickerIsOpen() && !e.target.closest("#nl-wrap")) setPicker(false); });
   $("nl-provider").onchange = e => onProviderChange(e.target.value);
   $("nl-model").onchange = e => { syncModelTitle(); onModelChange(e.target.value); };
   $("nl-default").onclick = () => makeDefault();
-  $("nl-manage").onclick = () => openSettings("llm").catch(report);
+  $("nl-manage").onclick = () => { setPicker(false); openSettings("llm").catch(report); };
   $("llm-providers").onclick = e => {
     const button = e.target.closest("button[data-act]");
     if (!button) return;

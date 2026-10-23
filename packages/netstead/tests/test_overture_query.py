@@ -221,3 +221,13 @@ class TestNativeGeometryEncoding:
         wkb = build.build_network_from_overture(WORLD_BBOX, data_root=FIXTURE_ROOT, engine=engine)
         assert len(native.links.to_pandas()) == len(wkb.links.to_pandas()) == 5
         assert len(native.nodes.to_pandas()) == len(wkb.nodes.to_pandas())
+
+
+class TestSeveralNetworkTypes:
+    def test_drive_plus_walk_is_the_union(self, engine):
+        def ids(network_type):
+            segs = query.read_segments(WORLD_BBOX, network_type=network_type, data_root=FIXTURE_ROOT, engine=engine)
+            return {s["id"] for s in segs}
+
+        drive, walk = ids("drive"), ids("walk")
+        assert ids(["drive", "walk"]) == drive | walk != drive

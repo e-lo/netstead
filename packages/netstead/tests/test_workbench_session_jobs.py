@@ -337,6 +337,26 @@ def test_build_from_local_osm_writes_then_opens_from_disk(make_session, out_dir)
     assert session.jobs.snapshots()[0]["label"] == "build tiny"
 
 
+def test_build_from_local_osm_with_several_network_types_keeps_the_union(make_session, out_dir):
+    session = make_session()
+
+    def link_count(name, **kw):
+        action = BuildNetwork(
+            source="osm", input_file=OSM_FILE, output_dir=out_dir, output_format="parquet", name=name, **kw
+        )
+        return len(session.registry.get(session.dispatch(action)["net_id"]).links_df())
+
+    drive = link_count("drive-only")
+    assert link_count("drive-walk", network_types=["drive", "walk"]) > drive  # the footway joins the residential way
+
+
+def test_area_build_sends_the_union_of_modes_to_overpass(make_session, out_dir):
+    http = FakeOverpass(ways=10)
+    make_session(http=http).dispatch(_bbox_build(out_dir, network_types=["drive", "walk"]))
+    body = http.queries[-1]
+    assert "footway" in body and "motorway" in body
+
+
 def test_build_from_local_overture_snapshot_to_duckdb(make_session, out_dir):
     session = make_session()
     result = session.dispatch(

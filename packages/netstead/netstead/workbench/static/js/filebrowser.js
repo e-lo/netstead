@@ -5,7 +5,7 @@ import { esc, toast } from "./dom.js";
 const KIND_LABEL = { gmns: "GMNS", zip: "zip", duckdb: "DuckDB", datapackage: "datapackage", osm: "OSM XML",
   json: "JSON", overture: "Overture" };
 
-// el: container element. opts.kinds: entry kinds that can be picked. opts.pickFolder: offer "Use this folder".
+// el: container element. opts.kinds: entry kinds that can be picked. opts.pickFolder: offer "Use this folder" and a "Use" button on each folder row.
 // opts.onPick(entry): called with the picked entry ({path, target, kind, is_dir}).
 export function createFileBrowser(el, opts) {
   let listing = null, picked = null, seq = 0;
@@ -18,6 +18,7 @@ export function createFileBrowser(el, opts) {
       const ok = opts.kinds.includes(e.kind), on = picked && picked.path === e.path;
       return `<div class="fb-row${ok ? " ok" : ""}${on ? " on" : ""}" data-i="${i}">` +
         `<span class="fb-ico">${e.is_dir ? "&#128193;" : "&#128196;"}</span><span class="fb-name">${esc(e.name)}</span>` +
+        (opts.pickFolder && e.is_dir ? '<button class="mini fb-use" data-use>Use</button>' : "") +
         (e.kind ? `<span class="fb-kind">${esc(KIND_LABEL[e.kind] || e.kind)}</span>` : "") + "</div>";
     });
     const more = listing.truncated ? '<div class="empty">Showing the first 2000 entries.</div>' : "";
@@ -37,6 +38,12 @@ export function createFileBrowser(el, opts) {
   function pick(entry) { picked = entry; render(); opts.onPick(entry); }
 
   el.addEventListener("click", ev => {
+    const use = ev.target.closest("[data-use]");
+    if (use && listing) { // "Use" beside a folder row picks that folder without opening it
+      const row = listing.entries[Number(use.closest("[data-i]").dataset.i)];
+      pick({ path: row.path, target: row.path, kind: null, is_dir: true });
+      return;
+    }
     const t = ev.target.closest("[data-up],[data-here],[data-i]");
     if (!t || !listing) return;
     if (t.hasAttribute("data-up")) { show(listing.parent); return; }

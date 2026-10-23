@@ -1298,3 +1298,48 @@ def test_thinking_text_adds_seconds_after_three(node_module):
     )
     got = node_module("assistmodel.js", ["thinkingText"], expr)
     assert got == ["Thinking… (ollama · qwen)", "Thinking… 7 s", "Thinking… (ollama)", "Thinking…"]
+
+
+def test_place_search_shows_real_errors_not_no_matches(node_module):
+    names = ["candidatesHTML"]
+
+    def render(result_js: str) -> str:
+        return node_module("placesearch.js", names, f"candidatesHTML({result_js})")
+
+    assert "No matches." in render("{candidates: []}")
+    listed = render('{candidates: [{display_name: "King County <WA>", type: "administrative"}]}')
+    assert 'data-i="0"' in listed and "King County &lt;WA&gt;" in listed and "No matches" not in listed
+    missing = render('{error: Object.assign(new Error("requires the osm extra"), {status: 501})}')
+    assert "Place search needs the [osm] extra: requires the osm extra" in missing and "No matches" not in missing
+    failed = render('{error: Object.assign(new Error("place search failed: Timeout: slow"), {status: 502})}')
+    assert "Place search failed: Timeout: slow" in failed and "failed: place search failed" not in failed
+
+
+def test_build_modes_allow_several_and_all_stands_alone(node_module):
+    names = ["toggleMode", "normalizeModes", "modesProblem"]
+
+    def run(expr):
+        return node_module("buildmodes.js", names, expr)
+
+    assert run('toggleMode(["drive"], "bike", true)') == ["drive", "bike"]
+    assert run('toggleMode(["drive", "bike", "walk"], "bike", false)') == ["drive", "walk"]
+    assert run('toggleMode(["drive", "walk"], "all", true)') == ["all"]
+    assert run('toggleMode(["all"], "walk", true)') == ["walk"]
+    assert run('normalizeModes("bike")') == ["bike"]
+    assert run('normalizeModes(["walk", "boat", "drive"])') == ["drive", "walk"]
+    assert run('normalizeModes("hovercraft")') == ["drive"]
+    assert run("modesProblem([])") != "" and run('modesProblem(["drive"])') == ""
+
+
+def test_related_steps_control_shows_only_for_the_related_scope(node_module):
+    names = ["hopsView", "hopsFromValue", "HOPS_TIP"]
+
+    def run(expr):
+        return node_module("hops.js", names, expr)
+
+    assert run('hopsView("related", 2)') == {"hidden": False, "value": "2"}
+    assert run('hopsView("related", 1)') == {"hidden": False, "value": "1"}
+    for scope in ("all", "selection", "highlighted", "filtered"):
+        assert run(f'hopsView("{scope}", 2)')["hidden"] is True
+    assert run('[hopsFromValue("2"), hopsFromValue("1"), hopsFromValue("x")]') == [2, 1, 1]
+    assert "1 step" in run("HOPS_TIP") and "2 steps" in run("HOPS_TIP")

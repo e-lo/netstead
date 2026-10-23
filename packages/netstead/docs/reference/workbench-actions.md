@@ -279,7 +279,7 @@ Build a GMNS network from OSM or Overture, write it to `output_dir`, then open i
 | `output_dir` | `str` | required |
 | `output_format` | `"parquet" \| "csv" \| "duckdb" \| "zip"` | required |
 | `name` | `str` (file-name characters, ≤ 100) | required |
-| `network_type` | `str` | `"drive"` |
+| `network_types` | `list[str]` (one or more of `drive`, `walk`, `bike`, `all`; kept if any allows it) | `["drive"]` (a recorded single `network_type` is still read) |
 | `extra_tags` | `list[str] \| None` | `None` |
 | `spec_version` | `str \| None` | `None` (`io.spec_version`) |
 | `overture_release` | `str \| None` | `None` (`overture.release`; only with `source="overture"`) |

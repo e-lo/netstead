@@ -22,6 +22,8 @@ from typing import Any
 
 import yaml
 
+from netstead.network_types import NetworkTypes, allowed_union
+
 __all__ = [
     "TRANSFORMS",
     "accepts_class",
@@ -320,7 +322,7 @@ def load_network_filters() -> dict[str, list[str]]:
     return _load_mapping_yaml("overture_network_filters.yaml")
 
 
-def allowed_classes(network_type: str) -> frozenset[str]:
+def allowed_classes(network_type: NetworkTypes) -> frozenset[str]:
     """Return the set of Overture ``class`` values allowed for ``network_type``.
 
     Args:
@@ -340,13 +342,10 @@ def allowed_classes(network_type: str) -> frozenset[str]:
         >>> "footway" in allowed_classes("drive")
         False
     """
-    filters = load_network_filters()
-    if network_type not in filters:
-        raise ValueError(f"unknown network_type {network_type!r}; expected one of {sorted(filters)}")
-    return frozenset(filters[network_type] or [])
+    return allowed_union(load_network_filters(), network_type)
 
 
-def accepts_class(network_type: str, class_value: Any) -> bool:
+def accepts_class(network_type: NetworkTypes, class_value: Any) -> bool:
     """Report whether a ``class`` value belongs to ``network_type``.
 
     An empty allow-list (``all``) accepts any value.
