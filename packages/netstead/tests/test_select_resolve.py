@@ -7,7 +7,7 @@ import pytest
 from netstead.fixtures import leavenworth
 from netstead.select.errors import IntentError
 from netstead.select.intent import Facility, SelectionIntent
-from netstead.select.resolve import resolve_frames
+from netstead.select.resolve import _apply_modes, resolve_frames
 
 
 @pytest.fixture(scope="module")
@@ -225,3 +225,59 @@ def test_a_pin_off_the_facility_is_unresolved(leav):
 def test_a_pin_needs_its_anchor():
     with pytest.raises(IntentError, match="from_node pins from_anchor"):
         SelectionIntent(facility=Facility(name="X"), from_node=1)
+
+
+def _cedar(**pins):
+    return SelectionIntent(
+        facility=Facility(name="Cedar Street"), from_anchor="Central Avenue", to_anchor="Price Avenue", **pins
+    )
+
+
+@pytest.mark.parametrize("mode", ["drive", "bike", "DRIVE", "walk"])
+def test_mode_filter_matches_gmns_uses(leav, mode):
+    links, nodes = leav
+    r = resolve_frames(_cedar(modes=[mode]), links, nodes)
+    assert r.status == "resolved" and r.link_ids == [57, 129]
+
+
+def test_mode_filter_with_no_matching_use_explains_itself(leav):
+    links, nodes = leav
+    r = resolve_frames(_cedar(modes=["transit"]), links, nodes)
+    assert r.status == "not_found"
+    assert any("mode filter ['transit'] matched none of" in d and "allowed_uses: auto" in d for d in r.diagnostics)
+
+
+def _frames(uses):
+    return pd.DataFrame({"link_id": range(len(uses)), "allowed_uses": uses})
+
+
+def test_apply_modes_is_case_insensitive_on_data():
+    kept, applied, _ = _apply_modes(_frames(["Auto,Bike", "WALK"]), ["DRIVE"])
+    assert applied and kept["link_id"].tolist() == [0]
+
+
+def test_apply_modes_unknown_mode_matches_literally():
+    kept, _, _ = _apply_modes(_frames(["auto,ferry", "auto"]), ["ferry"])
+    assert kept["link_id"].tolist() == [0]
+
+
+def test_apply_modes_expands_use_groups():
+    groups = {"motorized": {"auto", "truck"}}
+    kept, _, _ = _apply_modes(_frames(["truck", "bike"]), ["motorized"], groups)
+    assert kept["link_id"].tolist() == [0]
+
+
+def test_apply_modes_any_is_no_filter():
+    kept, applied, diags = _apply_modes(_frames(["bike", "walk"]), ["any"])
+    assert len(kept) == 2 and not applied and diags == []
+
+
+def test_apply_modes_reports_partial_removal():
+    _, _, diags = _apply_modes(_frames(["bike", "auto", "bike"]), ["bike"])
+    assert diags == ["mode filter ['bike']: 3 -> 2 link(s)"]
+
+
+def test_apply_modes_truncates_listed_uses():
+    uses = [",".join(f"u{i:02d}" for i in range(12))]
+    _, _, diags = _apply_modes(_frames(uses), ["drive"])
+    assert "u09, ..." in diags[0] and "u10" not in diags[0]

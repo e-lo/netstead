@@ -215,3 +215,9 @@ def test_the_llm_tool_schema_never_offers_pins():
     props = INTENT_TOOL["input_schema"]["properties"]
     assert "from_node" not in props and "to_node" not in props
     assert INTENT_TOOL["input_schema"]["additionalProperties"] is False  # a model's pin is a schema error
+
+
+def test_modes_description_says_to_set_only_when_named():
+    desc = INTENT_TOOL["input_schema"]["properties"]["modes"]["description"]
+    assert "ONLY when the user explicitly names a travel mode" in desc
+    assert "never default to drive" in desc
