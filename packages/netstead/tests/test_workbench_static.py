@@ -863,3 +863,12 @@ def test_the_view_tab_is_a_core_panel_right_after_find_and_edit_help_is_dismissi
         assert f'id="{element_id}"' in edit
     assert 'data-tip="Hide this help"' in edit and 'data-tip="About this tab"' in edit
     assert 'wireDismissibleHelp($("ed-help"), helpKey("edit")' in (JS_DIR / "edits.js").read_text()
+
+
+def test_the_robot_shows_status_by_color_and_dot_shape():
+    css = (STATIC_DIR / "app.css").read_text()
+    llm = (JS_DIR / "llm.js").read_text()
+    for state in ("ready", "offline", "unavailable"):
+        assert f"#nl-btn.llm-{state}" in css and f"#nl-btn .dot.llm-{state}" in css
+    assert "llmStatus(" in llm and 'btn.className = `iconbtn llm-${status.state}`' in llm
+    assert "import " not in (JS_DIR / "llmstatus.js").read_text()  # pure

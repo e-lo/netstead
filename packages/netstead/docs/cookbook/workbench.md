@@ -504,6 +504,14 @@ pair with `scope="user"`, and warns first if a project setting or a `NETSTEAD_SE
 Language models panel: set, replace, remove and test keys, point at another Ollama server, pull an
 Ollama model, tune quality and context, and browse the model catalog.
 
+The robot itself shows whether the choice can answer, by color and by the shape of its small dot:
+**green** (circle) when the provider and model are ready (a configured key, or a reachable Ollama with
+the model pulled), **yellow** (diamond) when only the offline pattern parser is in use, and **red**
+(square) when the chosen provider is not available (missing key, Ollama not running, model not
+pulled). Hover for the state in words, for example "Language model: Ollama · qwen3:4b — ready"
+or "… — not available: Ollama is not running", followed by what each selection sends; whether data
+leaves the machine is only ever said in that text, never by the color.
+
 The defaults are each provider's small, fast model — enough for one selection at a time — and are
 maintained in `netstead/llm/models.toml`:
 

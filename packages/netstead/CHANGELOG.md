@@ -21,6 +21,10 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Changed
 
+- **The Workbench robot shows its status by color.** The header's language-model icon (and a small dot whose
+  shape says the same) is green when the chosen provider and model are ready, yellow when only the offline pattern
+  parser is in use, and red when the provider is unavailable (missing key, Ollama not running, model not pulled).
+  The tooltip says it in words and keeps the privacy note; the old blue/gray privacy colors are gone.
 - **Workbench Validate badge counts what needs attention.** The tab's pill shows the number of errors (red) when there
   are any, else warnings (amber), else nothing; info findings are never counted. The tooltip still gives the whole
   breakdown ("Validate — 3 errors, 1 warning, 16 info"), or says "clean" or "not run yet".

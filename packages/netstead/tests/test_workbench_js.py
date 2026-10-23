@@ -1488,3 +1488,39 @@ def test_tab_labels_say_what_the_badge_means(node_module):
         ' tabLabel("Find", {text: "16", title: "16 selected links"}), tabLabel("Find", 3), countOf(0, "edit")]',
     )
     assert got == ["Edit — 1 unsaved edit", "Edit", "Find — 16 selected links", "Find — 3", "0 edits"]
+
+
+# ---- llmstatus.js: the header robot's status (color from readiness; privacy stays in the tooltip words)
+
+_OLLAMA = '{provider: "ollama", label: "Ollama", kind: "local", usable: true, configured: true}'
+_DOWN = '{provider: "ollama", label: "Ollama", kind: "local", usable: false, configured: false, error: "Ollama is not running"}'
+_NOKEY = '{provider: "anthropic", label: "Anthropic", kind: "remote", usable: false, configured: false, error: null}'
+_KEYED = '{provider: "anthropic", label: "Anthropic", kind: "remote", usable: true, configured: true}'
+
+
+def test_the_robot_status_is_green_yellow_or_red(node_module):
+    expr = (
+        "[llmStatus({provider: 'ollama', row: %s, model: 'qwen2.5:7b', privacy: 'Nothing leaves this machine.'}),"
+        " llmStatus({provider: 'stub', privacy: 'Offline pattern parser: nothing leaves this machine.'}),"
+        " llmStatus({provider: 'ollama', row: %s, model: 'qwen2.5:7b'}),"
+        " llmStatus({provider: 'ollama', row: %s, model: 'qwen2.5:7b', modelMissing: true}),"
+        " llmStatus({provider: 'anthropic', row: %s, model: 'claude-x'}),"
+        " llmStatus({provider: 'anthropic', row: %s, model: 'claude-x'}),"
+        " llmStatus({provider: 'nope', row: null})]"
+    ) % (_OLLAMA, _DOWN, _OLLAMA, _NOKEY, _KEYED)
+    got = node_module("llmstatus.js", ["llmStatus"], expr)
+    assert [g["state"] for g in got] == [
+        "ready",
+        "offline",
+        "unavailable",
+        "unavailable",
+        "unavailable",
+        "ready",
+        "unavailable",
+    ]
+    assert got[0]["text"] == "Language model: Ollama · qwen2.5:7b — ready. Nothing leaves this machine."
+    assert got[1]["text"].startswith("Language model: Offline (pattern) — offline pattern parser only.")
+    assert "not available: Ollama is not running" in got[2]["text"]
+    assert "qwen2.5:7b is not installed; run: ollama pull qwen2.5:7b" in got[3]["text"]
+    assert "no Anthropic API key is set" in got[4]["text"]
+    assert "nope is not set up" in got[6]["text"]
