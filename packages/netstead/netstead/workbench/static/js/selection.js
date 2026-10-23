@@ -5,7 +5,7 @@
 // Every server string is escaped. Pinning, saving, using and deleting are Actions, so each is recorded.
 import { dispatch, getJSON } from "./api.js";
 import { ask } from "./assistant.js";
-import { barRoute } from "./assistmodel.js";
+import { barRoute, thinkingText } from "./assistmodel.js";
 import { addCommandTo } from "./commands.js";
 import { $, esc, toast } from "./dom.js";
 import { addLayer, fitLinks } from "./map.js";
@@ -27,7 +27,7 @@ const selectionKey = s => {
 };
 
 export function registerSelectionPanel() {
-  panel = addPanel(CORE, { id: "find", title: "Find", workspace: ALL_WORKSPACES, order: 0,
+  panel = addPanel(CORE, { id: "find", title: "Find", icon: "search", workspace: ALL_WORKSPACES, order: 0,
     badge: ctx => selectionBadge(ctx.selection) });
   addLayer(CORE, "roadway", "candidates", c => {
     const pts = candidatePoints(c.selection);
@@ -139,25 +139,64 @@ async function download(name) {
 }
 
 // The utterance box: Enter selects, as it always has; Ask, Ctrl+Enter or ⌘Enter sends the text to the assistant.
+let thinking = null; // the request in flight: {button, timer, started, netKey}, or null
+
+// Show the request as running: both buttons disabled, a spinner in `button`, and a status line that gains the elapsed
+// seconds after 3 s. Returns the function that clears it all.
+function startThinking(button) {
+  stopThinking();
+  const pick = id => { const el = $(id); return el.selectedOptions && el.selectedOptions[0] ? el.selectedOptions[0].textContent : el.value; };
+  const provider = pick("nl-provider"), model = $("nl-model").value ? pick("nl-model") : "";
+  const line = $("thinking"), started = Date.now();
+  const paint = () => { line.textContent = thinkingText({ provider, model, elapsedMs: Date.now() - started }); };
+  paint();
+  line.hidden = false;
+  for (const id of ["go", "ask"]) $(id).disabled = true;
+  button.classList.add("busy");
+  button.insertAdjacentHTML("afterbegin", '<span class="spin" aria-hidden="true"></span>');
+  thinking = { button, timer: setInterval(paint, 1000), netKey: store.get().netKey };
+  return stopThinking;
+}
+
+function stopThinking() {
+  if (!thinking) return;
+  clearInterval(thinking.timer);
+  thinking.button.classList.remove("busy");
+  for (const s of thinking.button.querySelectorAll(".spin")) s.remove();
+  for (const id of ["go", "ask"]) $(id).disabled = false;
+  $("thinking").hidden = true;
+  $("thinking").textContent = "";
+  thinking = null;
+}
+
+// Run `work` with the thinking indicator on `button`; one request at a time.
+async function withThinking(button, work) {
+  if (thinking) return;
+  const stop = startThinking(button);
+  try { await work(); } finally { stop(); }
+}
+
 function wireUtterance() {
-  const select = async () => {
+  const select = () => {
     const utterance = $("utterance").value.trim();
-    if (!utterance) return;
-    $("go").disabled = true;
-    try {
-      const sel = await dispatch({ type: "select", utterance });
-      fitLinks(sel.link_ids);
-    } catch (e) { toast(e.message); }
-    $("go").disabled = false;
+    if (!utterance) return Promise.resolve();
+    return withThinking($("go"), async () => {
+      try {
+        const sel = await dispatch({ type: "select", utterance });
+        fitLinks(sel.link_ids);
+      } catch (e) { toast(e.message); }
+    });
   };
+  const askBar = () => withThinking($("ask"), () => ask($("utterance").value, { fromBar: true }));
   $("go").onclick = select;
-  $("ask").onclick = () => ask($("utterance").value, { fromBar: true });
+  $("ask").onclick = askBar;
   $("utterance").onkeydown = e => {
     if (e.isComposing) return;
     const route = barRoute(e);
     if (route === "select") select();
-    else if (route === "ask") { e.preventDefault(); ask($("utterance").value, { fromBar: true }); }
+    else if (route === "ask") { e.preventDefault(); askBar(); }
   };
+  store.subscribe(["netKey"], () => stopThinking());
 }
 
 export function wireSelectionPanel() {

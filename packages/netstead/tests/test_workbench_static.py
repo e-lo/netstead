@@ -104,6 +104,11 @@ def test_open_menu_lists_recents_from_the_pure_module_then_browse():
     html = (STATIC_DIR / "index.html").read_text()
     row = html[html.index("<header>") : html.index("</header>")]
     assert 'id="open-wizard"' in row and 'aria-haspopup="menu"' in row and 'aria-controls="open-menu"' in row
+    button = row[row.index('<button id="open-wizard"') : row.index("</button>", row.index('id="open-wizard"'))]
+    assert (
+        'class="iconbtn"' in button and 'data-tip="Open a network' in button and 'aria-label="Open a network"' in button
+    )
+    assert "Open…" not in button and 'data-icon="folder-open"' in button  # an icon, no text
     assert '<div id="open-menu" role="menu"' in html and 'id="open-browse"' in html
     header = (JS_DIR / "header.js").read_text()
     assert 'from "./recents.js"' in header and "recentEntries(" in header and "openWizard()" in header
@@ -361,7 +366,7 @@ def test_the_view_controls_live_in_the_find_panel_not_in_map_popovers():
     assert "node_color_by: e.target.value" in panels and "populateNodeColorby(" in panels
     assert "settings-panel" not in panels and "btn-layers" not in panels
     assert "renderLegend(s.server.style, s.prop, s.nodeProp)" in (JS_DIR / "main.js").read_text()
-    assert "buildNodeColors(" in (JS_DIR / "map.js").read_text()  # nodes take their colours from node_color_by
+    assert "buildNodeStyle(" in (JS_DIR / "map.js").read_text()  # nodes take their colours from node_color_by
 
 
 def test_the_dock_tabs_are_find_inspect_edit_cards_validate_assistant():
@@ -372,15 +377,18 @@ def test_the_dock_tabs_are_find_inspect_edit_cards_validate_assistant():
     for gone in ("dock-details", "dock-selection", "dock-issues", "dock-edits"):
         assert gone not in html
     registrations = {
-        "selection.js": 'addPanel(CORE, { id: "find", title: "Find", workspace: ALL_WORKSPACES, order: 0',
-        "workspaces.js": 'slots.addPanel(CORE, { id: "inspect", title: "Inspect", workspace: ALL_WORKSPACES, order: 10',
-        "edits.js": 'addPanel(CORE, { id: "edit", title: "Edit", workspace: ALL_WORKSPACES, order: 20',
-        "assistant.js": 'addPanel(CORE, { id: "assistant", title: "Assistant", workspace: ALL_WORKSPACES, order: 40',
+        "selection.js": 'title: "Find", icon: "search", workspace: ALL_WORKSPACES, order: 0',
+        "workspaces.js": 'title: "Inspect", icon: "info", workspace: ALL_WORKSPACES, order: 10',
+        "edits.js": 'title: "Edit", icon: "pencil", workspace: ALL_WORKSPACES, order: 20',
+        "assistant.js": 'title: "Assistant", icon: "message", workspace: ALL_WORKSPACES, order: 40',
     }
     for name, text in registrations.items():
         assert text in (JS_DIR / name).read_text(), name
     edits = (JS_DIR / "edits.js").read_text()
-    assert 'addPanel(CORE, { id: "validate", title: "Validate", workspace: ALL_WORKSPACES, order: 30' in edits
+    assert (
+        'addPanel(CORE, { id: "validate", title: "Validate", icon: "shield-check", workspace: ALL_WORKSPACES, order: 30'
+        in edits
+    )
     # Order 25 is the project-cards plugin's Cards tab: core reserves the bare id for it.
     assert 'RESERVED_IDS = { cards: "project_cards" }' in (JS_DIR / "slots.js").read_text()
     assert 'const CARDS_PANEL = "cards"' in edits and 'hub.on("core.panels", syncCardButton)' in edits
@@ -417,6 +425,8 @@ def test_map_popovers_sit_over_the_map_not_inside_it():
     overlay = wrap[wrap.index('<div id="map-overlay">') :]
     for element_id in ("map-btns", "legend"):
         assert f'id="{element_id}"' in overlay and f'id="{element_id}"' not in map_el
+    buttons = overlay[overlay.index('<div id="map-btns">') : overlay.index('<div id="legend">')]
+    assert 'id="btn-view"' in buttons and 'data-icon="layers"' in buttons and 'data-tip="Map view settings"' in buttons
     assert 'id="boxsel"' in map_el  # the box-select rectangle is measured against the map
     css = (STATIC_DIR / "app.css").read_text()
     assert "#map-overlay { position:absolute; inset:0; z-index:3; pointer-events:none; }" in css
@@ -759,3 +769,22 @@ def test_column_filters_are_popovers_and_chips_not_header_inputs():
     assert 'from "./gridfilter.js"' in table and "TBL.filters.conditions()" in table
     assert 'icon("filter"' in table and 'class="iconbtn fbtn' in table and "data-tip=" in table
     assert 'tablePath("distinct")' in table
+
+
+def test_core_dock_panels_register_icons_and_tabs_render_them_with_tips():
+    expected = {
+        "selection.js": 'icon: "search"',
+        "workspaces.js": 'icon: "info"',
+        "edits.js": 'icon: "pencil"',
+        "assistant.js": 'icon: "message"',
+    }
+    for name, needle in expected.items():
+        assert needle in (JS_DIR / name).read_text(), name
+    assert 'icon: "shield-check"' in (JS_DIR / "edits.js").read_text()
+    ws = (JS_DIR / "workspaces.js").read_text()
+    assert 'data-tip="${esc(item.title)}"' in ws and "aria-label=" in ws and "Object.hasOwn(ICONS" in ws
+    icons = (JS_DIR / "icons.js").read_text()
+    for name in ("search", "info", "pencil", "cards", "shield-check", "message"):
+        assert f"{name}:" in icons or f'"{name}":' in icons, name
+    plugin = (STATIC_DIR.parents[4] / "plugins/project-cards/netstead_project_cards/static/main.js").read_text()
+    assert 'icon: "cards"' in plugin

@@ -22,7 +22,7 @@ validate, fix, replay and save on the bundled Leavenworth network in ten minutes
 uv run netstead app ./my-network
 ```
 
-Open <http://127.0.0.1:8850>. Open more networks with **Open…** in the header: it opens a menu with up to
+Open <http://127.0.0.1:8850>. Open more networks with the **Open** (folder) icon in the header: it opens a menu with up to
 three recent networks, then **Browse / import…** for the full wizard (see below). Switch between open
 networks with the network picker. `netstead viz` and `netstead select-serve`
 are aliases of `netstead app` (the old standalone apps they used to start are gone).
@@ -54,7 +54,7 @@ shared network.
 
 ## Open or import a network
 
-**Open… → Browse / import…** opens a wizard with four sources:
+**Open → Browse / import…** opens a wizard with four sources:
 
 - **GMNS on this machine**: a server-side file browser. Entries are tagged (GMNS folder, `.zip`, `.duckdb`,
   `datapackage.json`); pick one and it opens in place. Nothing is uploaded.
@@ -94,7 +94,7 @@ Credentials never go in the URL: a source with `user:password@` in it is refused
 credential cascade looks instead (environment variables, the system keyring, or `~/.netrc`). A presigned URL's
 query string (`?X-Amz-Signature=…`, an Azure SAS token) is accepted and kept in the session history, because
 the replay script needs it to open the same object; it is stripped from error messages, job labels, the network
-summary, and the **Open…** menu's recents list. Treat a copied **Session as Python** script that opened a
+summary, and the **Open** menu's recents list. Treat a copied **Session as Python** script that opened a
 signed URL as holding that (expiring) signature.
 
 ```toml
@@ -233,13 +233,13 @@ Focus is a view. Clicking never changes the selection.
   rotate and the row the browser's own menu.
 - **Workspaces and the dock.** When a plugin adds a workspace, tabs for each appear in the header; each keeps the
   map / split / table view you left it in. The right drawer is a dock, with a tab per panel at its top, in order:
-  **Find** (the selection box, anchors, diagnostics, export, saved selections, highlighted links and the **View**
-  controls — layers, colour and width, direction, filter links), **Inspect** (the focused record; comes forward
-  automatically when you click a map feature or a table row), **Edit** (the edit list, undo/redo, edit warnings and
-  "Save selection as card…"), **Cards** (the project-cards plugin's panel, when it's installed) and **Validate**
-  (run / export, status, facets and the grouped findings list), then **Assistant**, then any panel another plugin
-  adds. The map itself keeps only its zoom/highlight/fit buttons and the legend — the old Layers and Map display
-  popovers are gone; their controls live in the Find tab's **View** section, which scrolls if the panel is short.
+  The tabs are icons (hover for the name; counts stay as a badge on the icon): **Find** (magnifier; the selection box, anchors, diagnostics, export, saved selections, highlighted links and the **View**
+  controls — layers, colour and width, direction, filter links), **Inspect** (info; the focused record; comes forward
+  automatically when you click a map feature or a table row), **Edit** (pencil; the edit list, undo/redo, edit warnings and
+  "Save selection as card…"), **Cards** (stacked cards; the project-cards plugin's panel, when it's installed) and **Validate**
+  (shield with a check; run / export, status, facets and the grouped findings list), then **Assistant** (chat bubble), then any panel another plugin
+  adds. The map itself keeps only its zoom/highlight/fit buttons, a **Map view settings** (layers) button and the legend — the old Layers and Map display
+  popovers are gone; their controls live in the Find tab's **View** section, which scrolls if the panel is short; the map's layers button opens it (Find tab, scrolled into view) and a second click collapses it.
   Draggable handles between the map and the table, and between the map/table and the side panel, resize them
   (double-click a handle to reset; sizes are remembered per browser).
 - **Settings → Plugins** lists the installed [Workbench plugins](workbench-plugins.md): version, the plugin API
@@ -402,7 +402,8 @@ written to, and a copy inside the source folder is refused.
 ## Style, filter and navigate
 
 The map's style and link filter are set from the **Find** tab's **View** section (its layer toggles, colour
-and width pickers, direction controls and **Filter links** replace the old map popovers).
+and width pickers, direction controls and **Filter links** replace the old map popovers); the layers button on the map jumps there.
+Nodes coloured by `ctrl_type` use a fixed style where size carries meaning too (signals large and red, stop signs orange or amber, yield yellow, uncontrolled nodes small and grey) and signals draw on top; other columns use the generic palette.
 
 - **Color links by** / **Color nodes by** pick a categorical or numeric column for links and nodes
   independently (`app.do(Style(color_by="facility_type"))`, `app.do(Style(node_color_by="ctrl_type"))`). A

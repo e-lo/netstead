@@ -19,6 +19,17 @@ This file is for the **netstead** package only. The underlying generic engine `c
   `io.allowed_roots` entry (`[""]`, which resolved to the current folder) is now
   a settings error.
 
+### Changed
+
+- **Workbench: a map button for the View settings, Open as an icon, nodes styled by control type.** The map
+  gets a layers button that opens the Find tab's View section; the header's Open is an icon button with the
+  same recents menu; and nodes coloured by `ctrl_type` use red (large) signals, orange/amber stop signs, yellow
+  yield and small grey uncontrolled nodes, with a dark outline, signals drawn on top, and a legend that shows
+  each category at its size. The side panel's dock tabs are icons with tooltips (badges stay as a pill on the
+  icon), so they no longer wrap onto two lines. A natural-language Select or Ask now
+  shows it is working: a spinner in the button and a "Thinking… (provider · model)" line that counts seconds
+  after 3 s.
+
 ### Fixed
 
 - **Categorical cell edits in the Workbench grid are offered the spec's allowed

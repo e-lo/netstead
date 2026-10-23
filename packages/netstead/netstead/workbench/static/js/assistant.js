@@ -18,7 +18,7 @@ let panel = null, catalog = null;
 let asking = null; // the question in flight (shown with "Thinking…" until the answer arrives), or null
 
 export function registerAssistantPanel() {
-  panel = addPanel(CORE, { id: "assistant", title: "Assistant", workspace: ALL_WORKSPACES, order: 40,
+  panel = addPanel(CORE, { id: "assistant", title: "Assistant", icon: "message", workspace: ALL_WORKSPACES, order: 40,
     badge: () => assistBadge(store.get().assistant) });
   addCommandTo(slots, store, CORE, { id: "ask_assistant", title: "Ask the assistant…", contexts: ["palette"],
     run: () => { showPanel("assistant"); $("as-input").focus(); } });
@@ -27,7 +27,7 @@ export function registerAssistantPanel() {
 function setBusy(busy) {
   for (const id of ["as-send", "ask"]) {
     $(id).disabled = busy;
-    $(id).textContent = busy ? "Asking…" : "Ask";
+    if (id === "as-send") $(id).textContent = busy ? "Asking…" : "Ask"; // the header's Ask shows a spinner instead
   }
 }
 

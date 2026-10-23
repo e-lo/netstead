@@ -4,7 +4,7 @@ import { dispatch } from "./api.js";
 import { $, esc, toast } from "./dom.js";
 import { filterKey, filterValue, filterView, takesNoValue } from "./filtermodel.js";
 import { hasOffset } from "./map.js";
-import { RAMPS, catColor, fmt, hex2rgb, rgb, rgb2hex } from "./palette.js";
+import { RAMPS, catColor, fmt, hex2rgb, nodeLegendItems, rgb, rgb2hex } from "./palette.js";
 import { store } from "./store.js";
 
 const style = patch => dispatch({ type: "style", ...patch }).catch(e => toast(e.message));
@@ -134,8 +134,12 @@ function legendBlock(st, prop, what, shape) {
     html += `<div class="lg-grad" style="background:linear-gradient(90deg, ${RAMPS[st.ramp].map(rgb).join(", ")})"></div>` +
       `<div class="lg-scale"><span>${fmt(prop.min)}</span><span>${fmt(prop.max)}</span></div>`;
   } else {
-    html += prop.categories.map((c, i) =>
-      `<div class="lg-item"><span class="lg-sw ${shape}" style="background:${rgb(catColor(prop, c, i))}"></span>${esc(c)}</div>`).join("");
+    const items = shape === "lg-dot" ? nodeLegendItems(prop)
+      : prop.categories.map((c, i) => ({ category: c, color: catColor(prop, c, i), radius: null }));
+    html += items.map(it => {
+      const size = it.radius ? `width:${it.radius * 2}px;height:${it.radius * 2}px;margin:0 ${8 - it.radius}px;` : "";
+      return `<div class="lg-item"><span class="lg-sw ${shape}" style="${size}background:${rgb(it.color)}"></span>${esc(it.category)}</div>`;
+    }).join("");
   }
   return `<div class="lg-block">${html}</div>`;
 }

@@ -18,7 +18,7 @@
       <nav id="ws-tabs" role="tablist" aria-label="Workspaces" hidden></nav>
       <select id="net-select" aria-label="Active network"></select>
       <span id="open-wrap">
-        <button id="open-wizard" class="mini" aria-haspopup="menu" aria-controls="open-menu" aria-expanded="false"><span data-icon="folder-open"></span>Open…<span class="caret" data-icon="chevron-down"></span></button>
+        <button id="open-wizard" class="iconbtn" data-tip="Open a network (recent, browse, import)" aria-label="Open a network" aria-haspopup="menu" aria-controls="open-menu" aria-expanded="false"><span data-icon="folder-open"></span><span class="caret" data-icon="chevron-down"></span></button>
         <div id="open-menu" role="menu" aria-label="Open a network" hidden>
           <div id="open-recents"></div>
           <div class="menu-sep" role="separator"></div>
@@ -48,6 +48,7 @@
         <button class="iconbtn" id="btn-highlight" data-tip="Highlight links (click; shift-drag box)" aria-label="Highlight links">&#9647;</button>
         <button class="iconbtn" id="btn-fitnet" data-tip="Zoom to full network" aria-label="Zoom to full network">&#9974;</button>
         <button class="iconbtn" id="btn-fitsel" data-tip="Zoom to selection" aria-label="Zoom to selection">&#9673;</button>
+        <button class="iconbtn" id="btn-view" data-icon="layers" data-tip="Map view settings" aria-label="Map view settings" aria-controls="view-section" aria-expanded="false"></button>
       </div>
       <div id="legend"></div>
       </div>
@@ -93,6 +94,7 @@
         <button id="nl-manage" class="mini ghost" aria-label="Manage language models">Models…</button>
       </span>
     </div>
+    <div id="thinking" class="diag" role="status" aria-live="polite" hidden></div>
     <div id="status-wrap"></div>
     <div id="sel-stale" class="warnbox" role="alert" hidden></div>
     <div id="sel-cmds-wrap" hidden><button class="mini ghost" id="sel-cmds" aria-haspopup="menu" aria-expanded="false">Selection actions &#9662;</button></div>

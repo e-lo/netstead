@@ -63,6 +63,52 @@ export function buildNodeColors(net, style, prop) {
   return c;
 }
 
+// Semantic node styling: for these columns a category carries both a colour and a size, most important first.
+export const NODE_SEMANTIC = {
+  ctrl_type: {
+    signal: { color: [214, 39, 40], radius: 7 },
+    stop_4_way: { color: [245, 130, 32], radius: 5.5 },
+    stop: { color: [240, 180, 40], radius: 4.5 },
+    stop_2_way: { color: [240, 180, 40], radius: 4.5 },
+    yield: { color: [250, 220, 70], radius: 4 },
+    no_control: { color: [150, 155, 165, 150], radius: 2.5 },
+  },
+};
+export const NODE_RADIUS = 2, SEMANTIC_ALPHA = 230;
+
+// Per-node colours (RGBA) and radii (px) for `style.node_color_by`. A semantic column (NODE_SEMANTIC) maps known
+// categories to their colour and size; anything else uses the generic palette at NODE_RADIUS. `order` lists node
+// indices from smallest to largest radius (stable), so larger markers draw last; null when all radii are equal.
+export function buildNodeStyle(net, style, prop) {
+  const p = prop && style.node_color_by !== "none" && prop.name === style.node_color_by ? prop : null;
+  const sem = p && NODE_SEMANTIC[p.name];
+  const colors = buildNodeColors(net, style, p), n = net.N.count, radii = new Float32Array(n).fill(NODE_RADIUS);
+  if (!sem) return { colors, radii, order: null };
+  let uniform = true;
+  for (let i = 0; i < n; i++) {
+    const s = sem[p.values[i]];
+    if (!s) continue;
+    colors.set([s.color[0], s.color[1], s.color[2], s.color[3] === undefined ? SEMANTIC_ALPHA : s.color[3]], i * 4);
+    radii[i] = s.radius;
+    if (s.radius !== NODE_RADIUS) uniform = false;
+  }
+  if (uniform) return { colors, radii, order: null };
+  const order = Uint32Array.from({ length: n }, (_, i) => i).sort((a, b) => radii[a] - radii[b] || a - b);
+  return { colors, radii, order };
+}
+
+// The legend entries for a node column: [{category, color, radius}] in importance order for a semantic column
+// (known categories first, signal to no_control), the generic palette (radius null: the legend's own size) otherwise.
+export function nodeLegendItems(prop) {
+  const sem = NODE_SEMANTIC[prop.name];
+  const generic = prop.categories.map((c, i) => ({ category: c, color: catColor(prop, c, i), radius: null }));
+  if (!sem) return generic;
+  const rank = Object.keys(sem);
+  const known = prop.categories.filter(c => sem[c]).sort((a, b) => rank.indexOf(a) - rank.indexOf(b));
+  const rest = generic.filter(g => !sem[g.category]);
+  return [...known.map(c => ({ category: c, color: sem[c].color.slice(0, 3), radius: sem[c].radius })), ...rest];
+}
+
 const MIN_W = 1.5, MAX_W = 10, NULL_W = 1;
 
 // Per-vertex link widths for `style.width_by` (a continuous property), linear between MIN_W and MAX_W; null values

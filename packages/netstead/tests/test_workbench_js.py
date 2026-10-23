@@ -1201,6 +1201,30 @@ def test_node_colours_single_categorical_continuous_and_null(node_module):
     assert num == [[255, 237, 160, 215], [254, 178, 76, 215], [240, 59, 32, 215]]  # the ramp's ends and middle
 
 
+def test_node_style_semantic_for_ctrl_type_generic_otherwise(node_module):
+    expr = (
+        "(() => { const net = {N: {count: 5}};"
+        " const rows = (c, n) => [...Array(n).keys()].map(i => [...c.slice(i * 4, i * 4 + 4)]);"
+        f" const ct = buildNodeStyle(net, {{node_color_by: 'ctrl_type', {_NODE_STYLE}}},"
+        " {name: 'ctrl_type', kind: 'categorical', categories: ['signal', 'no_control', 'odd'],"
+        " values: ['no_control', 'signal', 'odd', null, 'signal']});"
+        f" const gen = buildNodeStyle(net, {{node_color_by: 'z', {_NODE_STYLE}}},"
+        " {name: 'z', kind: 'categorical', categories: ['a', 'b'], values: ['a', 'b', 'a', 'b', 'a']});"
+        f" const none = buildNodeStyle(net, {{node_color_by: 'none', {_NODE_STYLE}}}, null);"
+        " return [rows(ct.colors, 5), [...ct.radii], ct.order && [...ct.order], rows(gen.colors, 2), [...gen.radii],"
+        " gen.order, rows(none.colors, 1), [...none.radii], none.order]; })()"
+    )
+    got = node_module("palette.js", ["buildNodeStyle"], expr)
+    ct, ct_r, order, gen, gen_r, gen_order, none, none_r, none_order = got
+    assert ct[1][:3] == [214, 39, 40] and ct_r[1] == 7 and ct_r[4] == 7  # signal: red, 7 px
+    assert ct[0] == [150, 155, 165, 150] and ct_r[0] == 2.5  # no_control: grey, 2.5 px
+    assert ct[2][:3] == [77, 175, 74] and ct_r[2] == 2  # unknown value: its generic palette colour, default radius
+    assert ct[3][:3] == [205, 208, 214] and ct_r[3] == 2  # null: the default
+    assert order[-2:] == [1, 4]  # signals draw last
+    assert gen[0][:3] == [228, 66, 62] and gen[1][:3] == [57, 126, 184] and set(gen_r) == {2} and gen_order is None
+    assert none[0] == [1, 2, 3, 150] and set(none_r) == {2} and none_order is None
+
+
 # ---- issuegroups.js: the Validate panel's client-side grouping (mirrors corral.reports.grouping.group_issues)
 
 _STRUCTURAL = (
@@ -1259,3 +1283,13 @@ def test_located_means_an_anchor_the_map_can_use(node_module):
         " located({anchor: null}), located({key: 7}), located(null)]"
     )
     assert node_module("issuegroups.js", ["located"], expr) == [True, True, True, False, False, False]
+
+
+def test_thinking_text_adds_seconds_after_three(node_module):
+    expr = (
+        "[thinkingText({provider: 'ollama', model: 'qwen', elapsedMs: 1200}),"
+        " thinkingText({provider: 'ollama', model: 'qwen', elapsedMs: 7200}),"
+        " thinkingText({provider: 'ollama', model: '', elapsedMs: 0}), thinkingText({elapsedMs: 100})]"
+    )
+    got = node_module("assistmodel.js", ["thinkingText"], expr)
+    assert got == ["Thinking… (ollama · qwen)", "Thinking… 7 s", "Thinking… (ollama)", "Thinking…"]

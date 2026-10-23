@@ -3,7 +3,7 @@ import { $, esc } from "./dom.js";
 import { createClickGuard } from "./gesture.js";
 import { layerRegistry } from "./layers.js";
 import { arrowPixelOffset, arrowSize, buildArrows, linkPaths, widthForLanes } from "./netbuf.js";
-import { buildLinkColors, buildLinkWidths, buildNodeColors, dimUnmatched } from "./palette.js";
+import { buildLinkColors, buildLinkWidths, buildNodeStyle, dimUnmatched } from "./palette.js";
 import { commandContext, frozenCopy } from "./commands.js";
 import { CORE } from "./slots.js";
 import { activeSelection, store } from "./store.js";
@@ -26,7 +26,7 @@ const TOOLTIP_STYLE = { background: "#11151a", color: "#e6e8ec", fontSize: "12px
 
 let map = null, overlay = null;
 let handlers = { onLinkClick() {}, onNodeClick() {}, onBoxSelect() {}, onContextMenu() {}, onLayerError(e) { console.error(e); } };
-let colorCache = { key: null, colors: null }, widthCache = { key: null, widths: null }, nodeColorCache = { key: null, colors: null };
+let colorCache = { key: null, colors: null }, widthCache = { key: null, widths: null }, nodeCache = { key: null };
 let pathsCache = { key: null, paths: null }, arrowCache = { key: null, arrows: null };
 let labelsShown = true;
 // Whether the current style's layers exist (style.load fired). Not map.isStyleLoaded(): that also waits for
@@ -82,13 +82,23 @@ function linkColors(s) {
   return colorCache.colors;
 }
 
-// Per-node colours for `style.node_color_by` (or the single node colour), cached like the links'.
-function nodeColors(s) {
+// Per-node colours and radii (semantic for ctrl_type), with positions in draw order (larger markers last), cached
+// like the links'. `order` maps a drawn index back to the node's index (null: the same).
+function nodeStyle(s) {
   const st = s.server.style, np = s.nodeProp;
   const key = JSON.stringify([s.netKey, st.node_color_by, st.ramp, st.colors.nodes, np && np.name, np && np.netKey]);
-  if (nodeColorCache.key !== key) nodeColorCache = { key, colors: buildNodeColors(s.net, st, np) };
-  return nodeColorCache.colors;
+  if (nodeCache.key !== key) {
+    const { colors, radii, order } = buildNodeStyle(s.net, st, np), pos = s.net.nodePositions;
+    if (!order) nodeCache = { key, colors, radii, positions: pos, order };
+    else {
+      const positions = new Float64Array(pos.length), c = new Uint8Array(colors.length), r = new Float32Array(radii.length);
+      order.forEach((src, k) => { positions.set(pos.subarray(src * 2, src * 2 + 2), k * 2); c.set(colors.subarray(src * 4, src * 4 + 4), k * 4); r[k] = radii[src]; });
+      nodeCache = { key, colors: c, radii: r, positions, order };
+    }
+  }
+  return nodeCache;
 }
+const nodeIndex = i => (nodeCache.order ? nodeCache.order[i] : i);
 
 // Per-vertex widths for `style.width_by`, or null (the lane-count widths).
 function linkWidths(s) {
@@ -136,11 +146,13 @@ function baseLayers(s) {
   // Nodes draw above links, and are pickable, so a map click can focus a node. Their colours come from the node
   // table's `node_color_by` column (nodeColors), the single node colour without one.
   if (style.show.nodes) layers.push(new deck.ScatterplotLayer({ id: "nodes",
-    data: { length: net.N.count, attributes: { getPosition: { value: net.nodePositions, size: 2 },
-                                               getFillColor: { value: nodeColors(s), size: 4 } } },
-    getRadius: 1.8, radiusUnits: "pixels", radiusMinPixels: 2,
+    data: { length: net.N.count, attributes: { getPosition: { value: nodeStyle(s).positions, size: 2 },
+                                               getFillColor: { value: nodeStyle(s).colors, size: 4 },
+                                               getRadius: { value: nodeStyle(s).radii, size: 1 } } },
+    radiusUnits: "pixels", stroked: true, filled: true, lineWidthMinPixels: 1, lineWidthUnits: "pixels",
+    getLineColor: [20, 20, 30, 220],
     pickable: true, autoHighlight: true, highlightColor: [255, 140, 59, 235],
-    onClick: info => { if (info && info.index >= 0) handlers.onNodeClick(net.nodeIds[info.index]); } }));
+    onClick: info => { if (info && info.index >= 0) handlers.onNodeClick(net.nodeIds[nodeIndex(info.index)]); } }));
   return layers;
 }
 
@@ -273,7 +285,7 @@ function recordAt(point) {
   const info = overlay.pickObject({ x: point.x, y: point.y, radius: 4, layerIds: ["nodes", "links"] });
   if (!info || info.index == null || info.index < 0 || !s.net) return null;
   if (info.layer.id === "links") return { table: "link", id: s.attrs.link_id[info.index] };
-  if (info.layer.id === "nodes") return { table: "node", id: s.net.nodeIds[info.index] };
+  if (info.layer.id === "nodes") return { table: "node", id: s.net.nodeIds[nodeIndex(info.index)] };
   return null;
 }
 

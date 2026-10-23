@@ -226,7 +226,8 @@
                 padding:7px 8px; max-width:180px; }
   /* the Open menu: recents (label; the path is the title), a rule, Browse / import… */
   #open-wrap { position:relative; }
-  #open-wizard .caret { margin:0 0 0 4px; }
+  #open-wizard { width:auto; padding:0 6px; gap:2px; }
+  #open-wizard .caret { margin:0; display:flex; }
   #open-wizard .caret svg { width:12px; height:12px; }
   #open-menu { position:absolute; top:calc(100% + 4px); left:0; z-index:7; min-width:220px; max-width:360px; padding:6px;
                background:rgba(23,26,33,.98); border:1px solid var(--edge); border-radius:10px; }
@@ -394,6 +395,22 @@
   #ws-tabs, #dock-tabs { display:flex; gap:2px; flex-wrap:wrap; }
   #ws-tabs button, #dock-tabs button { background:none; color:var(--muted); border:0; border-radius:6px 6px 0 0;
     padding:6px 10px; font-size:12.5px; font-weight:600; }
+  #dock-tabs button.icontab { position:relative; display:flex; align-items:center; justify-content:center; flex:1 1 0; min-width:0; padding:6px 4px; }
+  #dock-tabs button.icontab svg { width:18px; height:18px; display:block; }
+  #dock-tabs button.icontab .pcount, #dock-tabs button.icontab .dirty { position:absolute; top:0; right:0; margin:0; padding:0 5px;
+    font-size:10px; line-height:15px; }
+  #dock-tabs button.icontab .dirty { color:var(--accent); padding:0; right:3px; }
+  #dock-tabs [data-tip]:hover::after, #dock-tabs [data-tip]:focus-visible::after { top:calc(100% + 6px); right:auto; left:50%; transform:translateX(-50%); }
+  #dock-tabs [data-tip]:last-child:hover::after { left:auto; right:0; transform:none; }
+  #thinking { margin:4px 0; }
+  button.busy { display:inline-flex; align-items:center; gap:6px; }
+  .spin { width:11px; height:11px; border:2px solid currentColor; border-top-color:transparent; border-radius:50%;
+          animation:spin .8s linear infinite; flex:none; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  @keyframes pulse { 50% { opacity:.25; } }
+  @media (prefers-reduced-motion: reduce) {
+    .spin { border:0; background:currentColor; animation:pulse 1.2s ease-in-out infinite; width:8px; height:8px; }
+  }
   #ws-tabs button.on, #dock-tabs button.on { color:var(--ink); box-shadow:inset 0 -2px 0 var(--accent); }
   #ws-tabs button:focus-visible, #dock-tabs button:focus-visible { outline:2px solid var(--hl); outline-offset:-2px; }
   #dock-tabs { margin:-4px 0 12px; border-bottom:1px solid var(--edge); }

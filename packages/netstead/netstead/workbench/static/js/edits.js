@@ -23,8 +23,8 @@ const activeId = () => { const s = store.get().server; return s && s.active; };
 
 // Badges read the server state (ctx.state), so the dock refreshes them on every state event.
 export function registerEditPanels() {
-  addPanel(CORE, { id: "edit", title: "Edit", workspace: ALL_WORKSPACES, order: 20, badge: c => editsBadge(c.state) });
-  addPanel(CORE, { id: "validate", title: "Validate", workspace: ALL_WORKSPACES, order: 30, badge: c => issuesBadge(c.state) });
+  addPanel(CORE, { id: "edit", title: "Edit", icon: "pencil", workspace: ALL_WORKSPACES, order: 20, badge: c => editsBadge(c.state) });
+  addPanel(CORE, { id: "validate", title: "Validate", icon: "shield-check", workspace: ALL_WORKSPACES, order: 30, badge: c => issuesBadge(c.state) });
 }
 
 export async function loadEdits() {
