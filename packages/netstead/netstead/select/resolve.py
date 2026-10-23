@@ -25,6 +25,7 @@ from ._support import (
     to_py,
 )
 from .intent import SelectionIntent
+from .modes import mode_uses, split_uses
 from .result import SelectionResult
 
 __all__ = ["resolve", "resolve_frames"]
@@ -98,20 +99,35 @@ def _apply_conditions(base, conditions: dict):
     return base, missing
 
 
-def _apply_modes(base, modes):
-    """Best-effort mode filter (GMNS mode modelling varies).
+def _apply_modes(base, modes, use_groups=None):
+    """Mode filter: ``(links, applied, diagnostics)``.
 
-    Filters on an ``allowed_uses``/``modes`` column when present; otherwise a
-    no-op carried through to the emitted selection for ProjectCard fidelity.
+    Modes are ProjectCard names (``drive``, ``bike``, ...); they are mapped to GMNS use names
+    (:func:`~netstead.select.modes.mode_uses`) and matched against the ``allowed_uses``/``modes``
+    column. ``use_groups`` maps a use_group name to its member uses. Without mode data the
+    selection is unfiltered (modes are still emitted).
     """
     if not modes:
-        return base, False
+        return base, False, []
+    want = mode_uses(modes, use_groups)
+    if want is None:
+        return base, False, []
     for col in ("allowed_uses", "modes"):
         if col in base.columns:
-            want = set(modes)
-            keep = base[col].apply(lambda v, want=want: bool(want & set(str(v).replace(",", " ").split())))
-            return base[keep], True
-    return base, False  # no mode data — selection unfiltered (modes still emitted)
+            tokens = base[col].apply(split_uses)
+            kept = base[tokens.apply(lambda have: bool(want & have))]
+            label = list(modes)
+            if kept.empty:
+                seen = sorted(set().union(*tokens)) if len(tokens) else []
+                shown = ", ".join(seen[:10]) + (", ..." if len(seen) > 10 else "")
+                return (
+                    kept,
+                    True,
+                    [f"mode filter {label} matched none of {len(base)} link(s); their {col}: {shown or '(empty)'}"],
+                )
+            diags = [f"mode filter {label}: {len(base)} -> {len(kept)} link(s)"] if len(kept) < len(base) else []
+            return kept, True, diags
+    return base, False, []  # no mode data: selection unfiltered (modes still emitted)
 
 
 def _base_selection(intent, links):
@@ -218,8 +234,11 @@ def _surface_segment(intent, base, links, nx, ny, diags):
     )
 
 
-def resolve_frames(intent: SelectionIntent, links, nodes) -> SelectionResult:
-    """Resolve against materialized pandas link/node frames (the testable core)."""
+def resolve_frames(intent: SelectionIntent, links, nodes, use_groups=None) -> SelectionResult:
+    """Resolve against materialized pandas link/node frames (the testable core).
+
+    ``use_groups`` (use_group name -> member uses) widens mode filters; see :func:`_apply_modes`.
+    """
     nx, ny = _node_coords(nodes)
 
     # 1. base selection
@@ -238,8 +257,8 @@ def resolve_frames(intent: SelectionIntent, links, nodes) -> SelectionResult:
 
     # 3. modes + attribute conditions (AND)
     base, missing_cols = _apply_conditions(base, intent.conditions)
-    base, _mode_applied = _apply_modes(base, intent.modes)
-    diags = [*notes, f"{source}: {len(base)} link(s)"]
+    base, _mode_applied, mode_diags = _apply_modes(base, intent.modes, use_groups)
+    diags = [*notes, f"{source}: {len(base)} link(s)", *mode_diags]
     if missing_cols:
         diags.append(f"ignored conditions on unknown column(s): {missing_cols}")
     if base.empty:
@@ -261,4 +280,13 @@ def resolve(intent: SelectionIntent, net) -> SelectionResult:
     def _pd(table):
         return table.to_pandas() if hasattr(table, "to_pandas") else table.execute()
 
-    return resolve_frames(intent, _pd(net.links), _pd(net.nodes))
+    groups = getattr(net, "use_group", None)
+    group_df = _pd(groups) if groups is not None else None
+    return resolve_frames(intent, _pd(net.links), _pd(net.nodes), use_groups=_use_groups(group_df))
+
+
+def _use_groups(df) -> dict[str, set[str]]:
+    """``{use_group: member uses}`` from a ``use_group`` frame (empty when absent or malformed)."""
+    if df is None or not {"use_group", "uses"} <= set(df.columns):
+        return {}
+    return {str(g): split_uses(u) for g, u in zip(df["use_group"], df["uses"], strict=False)}

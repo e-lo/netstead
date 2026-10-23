@@ -32,6 +32,10 @@ This file is for the **netstead** package only. The underlying generic engine `c
   say "comma-separated"); a cell with an open edit warning is outlined in red
   with a warning icon and the message as its tooltip; and leaving a cell
   applies the edit, as in a spreadsheet (Escape discards it).
+- **Selection mode filters match GMNS uses.** `drive` now keeps links whose
+  `allowed_uses` list `auto`/`truck`/...; it used to drop every link. An emptied
+  or narrowed selection says why, and the parser sets `modes` only when you
+  name a travel mode.
 - **The Workbench map draws link shapes kept in the `geometry` table.** A
   network whose links carry a `geometry_id` into a separate `geometry` table
   (the bundled Leavenworth network, for one) drew every link as a straight
