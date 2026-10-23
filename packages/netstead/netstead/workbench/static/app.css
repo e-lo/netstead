@@ -304,6 +304,12 @@
   #ap-cands { max-height:150px; overflow:auto; margin-top:6px; }
   .cand { padding:5px 8px; cursor:pointer; border-radius:6px; font-size:12.5px; }
   .cand:hover, .cand.on { background:#20242e; }
+  .ex-notice { margin:0 0 10px; padding:8px 10px; border:1px solid var(--accent); border-radius:8px; font-size:12.5px; }
+  .ex-notice a { color:var(--hl); }
+  .ex-cmd { display:flex; align-items:center; gap:8px; margin:6px 0; }
+  .ex-cmd code { flex:1; min-width:0; overflow-x:auto; white-space:nowrap; padding:5px 8px; background:#0c0e12; border-radius:6px; }
+  .ex-tool { color:var(--muted); width:26px; flex:none; }
+  .wz-choice:disabled { opacity:.5; cursor:not-allowed; }
   .form-lbl { font-size:13px; }
   #opt-modes { display:flex; flex-wrap:wrap; gap:4px 14px; }
   #opt-modes label { display:flex; align-items:center; gap:5px; font-size:13px; }

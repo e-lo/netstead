@@ -172,6 +172,12 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Added
 
+- **The Open / Import wizard says up front when an extra is missing.** The OpenStreetMap and Overture choices (and
+  place search under Overture) are disabled with an "Install the [osm] extra to use this:" notice, the uv and pip
+  commands with Copy buttons, and a link to the install docs; nothing is installed from the page. A new read-only
+  `GET /api/extras` reports what imports, sharing its probes with `netstead doctor` (which now also checks
+  `[overture]`).
+
 - **Workbench: Find / Inspect / Edit / Cards / Validate panels; the map colored
   by default.** The side panel's tabs, in order: **Find** (the utterance box
   with Select / Ask and the model picker, moved out of the header's second row,

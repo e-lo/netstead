@@ -1,6 +1,7 @@
 // Open / Import wizard: source → (browse | URL | area → options → estimate) → exactly one dispatched action.
 // Browse, URL check, place search, and estimate are read-only queries; only Open / Build are recorded actions.
 import { dispatch, getJSON, postJSON } from "./api.js";
+import { extrasFor, missingExtras, noticeHTML } from "./extrasnotice.js";
 import { modesProblem, normalizeModes, toggleMode } from "./buildmodes.js";
 import { areaChoice, resetAreaPicker, showAreaMap, wireAreaPicker } from "./areapicker.js";
 import { $, esc, toast } from "./dom.js";
@@ -15,6 +16,8 @@ const NAME_RE = /^[A-Za-z0-9](?:[A-Za-z0-9_.-]*[A-Za-z0-9_-])?$/; // BuildNetwor
 const NAME_MAX = 100;
 const OUTPUT_SUFFIXES = ["zip", "duckdb", "csv", "parquet"]; // a name ending in one must match output_format
 const NEXT_LABEL = { local: "Open", url: "Open", area: "Next", options: "Estimate" };
+
+let extrasInfo = null; // GET /api/extras: which extras import, and the install commands
 
 const wz = { src: null, step: "source", local: null, urlOk: false, outDir: null, estimate: null, prefilled: false,
   retry: null, autoName: null };
@@ -234,11 +237,33 @@ function back() {
   go(flow[Math.max(flow.indexOf(wz.step) - 1, 0)]);
 }
 
+// Disable the source choices whose extra is missing and say how to install it; on the Overture Place tab, the same
+// for [osm]. Read-only: nothing is installed from the page.
+export function applyExtras() {
+  const installed = extrasInfo && extrasInfo.installed;
+  for (const b of document.querySelectorAll(".wz-choice[data-src]")) {
+    const missing = missingExtras(extrasFor(b.dataset.src), installed);
+    b.disabled = missing.length > 0;
+    b.setAttribute("aria-disabled", String(missing.length > 0));
+    const slot = document.querySelector(`.ex-slot[data-for="${b.dataset.src}"]`);
+    if (slot) slot.innerHTML = noticeHTML(missing, extrasInfo);
+  }
+  const needPlace = wz.src === "overture" ? missingExtras(["osm"], installed) : [];
+  $("ap-place-note").innerHTML = noticeHTML(needPlace, extrasInfo);
+  $("ap-search").disabled = needPlace.length > 0;
+}
+
+async function loadExtras() {
+  try { extrasInfo = await getJSON("/api/extras"); } catch (e) { extrasInfo = null; }
+  applyExtras();
+}
+
 function choose(src) {
   wz.src = src;
   if (src === "local") { wz.local = null; localFb.reset(); }
   if (src === "url") { wz.urlOk = false; $("wz-url-result").textContent = ""; }
   if (src === "osm" || src === "overture") resetAreaPicker(src);
+  applyExtras();
   go(FLOWS[src][1]);
 }
 
@@ -249,6 +274,7 @@ export function openWizard() {
   go("source");
   document.querySelector(".wz-choice").focus();
   prefillSettings();
+  loadExtras();
 }
 
 export function closeWizard() { $("wizard").hidden = true; }
@@ -260,6 +286,12 @@ export function wireWizard() {
   });
   wireAreaPicker(updateFoot);
   for (const b of document.querySelectorAll(".wz-choice")) b.onclick = () => choose(b.dataset.src);
+  $("wizard").addEventListener("click", e => { // Copy buttons in an install notice
+    const btn = e.target.closest("[data-copy]");
+    if (!btn) return;
+    const text = btn.parentElement.querySelector("code").textContent;
+    navigator.clipboard.writeText(text).then(() => { btn.textContent = "Copied"; }, err => toast(`copy failed: ${err.message}`));
+  });
   $("wz-next").onclick = next;
   $("wz-back").onclick = back;
   $("wz-close").onclick = closeWizard;

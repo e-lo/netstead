@@ -1343,3 +1343,38 @@ def test_related_steps_control_shows_only_for_the_related_scope(node_module):
         assert run(f'hopsView("{scope}", 2)')["hidden"] is True
     assert run('[hopsFromValue("2"), hopsFromValue("1"), hopsFromValue("x")]') == [2, 1, 1]
     assert "1 step" in run("HOPS_TIP") and "2 steps" in run("HOPS_TIP")
+
+
+INFO = {
+    "installed": {"osm": False, "overture": True},
+    "install": {
+        "osm": {"uv": "uv add 'x[osm]'", "pip": "pip install 'x[osm]'"},
+        "overture": {"uv": "uv add 'x[overture]'", "pip": "pip install 'x[overture]'"},
+        "osm,overture": {"uv": "uv add 'x[osm,overture]'", "pip": "pip install 'x[osm,overture]'"},
+    },
+    "docs_url": "https://example.test/install/",
+}
+
+
+def test_extras_a_choice_needs(node_module):
+    names = ["extrasFor", "missingExtras"]
+
+    def run(expr):
+        return node_module("extrasnotice.js", names, expr)
+
+    assert run('extrasFor("osm")') == ["osm"] and run('extrasFor("overture")') == ["overture"]
+    assert run('extrasFor("overture", {place: true})') == ["overture", "osm"] and run('extrasFor("local")') == []
+    installed = json.dumps(INFO["installed"])
+    assert run(f'missingExtras(["overture", "osm"], {installed})') == ["osm"]
+    assert run('missingExtras(["osm"], null)') == []  # not answered yet: do not block
+
+
+def test_extras_notice_shows_both_commands_with_copy_and_the_docs_link(node_module):
+    names = ["noticeHTML"]
+    html = node_module("extrasnotice.js", names, f'noticeHTML(["osm"], {json.dumps(INFO)})')
+    assert "Install the [osm] extra to use this:" in html
+    assert html.index("uv add") < html.index("pip install") and html.count("data-copy") == 2
+    assert 'href="https://example.test/install/"' in html and "How to install" in html
+    both = node_module("extrasnotice.js", names, f'noticeHTML(["overture", "osm"], {json.dumps(INFO)})')
+    assert "[overture] and [osm] extras" in both and "x[osm,overture]" in both
+    assert node_module("extrasnotice.js", names, f"noticeHTML([], {json.dumps(INFO)})") == ""

@@ -15,6 +15,8 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
+from netstead.extras_probe import extra_installed, install_commands
+
 from .. import build
 from ..actions import BuildNetwork
 from ..errors import ActionError, PathNotAllowed
@@ -25,6 +27,10 @@ from ..session import Session
 from ..urlcheck import check_url
 
 __all__ = ["io_router"]
+
+#: The extras the Open / Import wizard needs: OpenStreetMap builds and place search, and Overture builds.
+WIZARD_EXTRAS = ("osm", "overture")
+INSTALL_DOCS_URL = "https://e-lo.github.io/netstead/netstead/install/"
 
 
 def io_router(session: Session) -> APIRouter:
@@ -52,6 +58,14 @@ def io_router(session: Session) -> APIRouter:
         if not isinstance(url, str) or not url.strip():
             raise HTTPException(422, 'body must be {"url": "..."}')
         return check_url(url.strip())
+
+    @router.get("/extras")
+    def extras() -> dict[str, Any]:
+        """Which wizard-relevant extras import, and the commands that install the missing ones (nothing is run)."""
+        installed = {name: extra_installed(name) for name in WIZARD_EXTRAS}
+        # Keyed by the comma-joined, sorted extras a choice needs: one extra, or both for an Overture place search.
+        install = {key: install_commands(*key.split(",")) for key in ("osm", "overture", "osm,overture")}
+        return {"installed": installed, "install": install, "docs_url": INSTALL_DOCS_URL}
 
     @router.get("/geocode")
     def geocode(q: str, limit: int = 8) -> dict[str, Any]:
