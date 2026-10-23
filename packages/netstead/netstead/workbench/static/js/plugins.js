@@ -32,7 +32,7 @@ export async function loadPlugins() {
   for (const spec of actionCommands(actions, plugins)) addCommand(spec.owner, { ...spec, run: () => openActionForm(spec.entry) });
   const shared = { hostApi, actionTypes: new Set(actions.map(a => a.type)), schemas: new Map(actions.map(a => [a.type, a.schema])) };
   await activatePlugins(plugins, {
-    importModule: status => import(`${status.frontend}?v=${encodeURIComponent(status.version)}`),
+    importModule: status => import(status.frontend),
     createWb: id => createWb(id, hostDeps(shared)),
     timeoutMs: ACTIVATE_TIMEOUT_MS,
     report: reportPluginError,

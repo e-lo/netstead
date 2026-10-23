@@ -2,6 +2,8 @@
 
 from typing import Literal
 
+import re
+
 import pytest
 from fastapi import APIRouter
 from fastapi.testclient import TestClient
@@ -100,7 +102,7 @@ def test_plugins_listing(client):
     body = client.get("/api/plugins").json()
     assert body["host_api"] == HOST_API
     by_id = {p["id"]: p for p in body["plugins"]}
-    assert by_id["hello"]["state"] == "loaded" and by_id["hello"]["frontend"] == "/plugins/hello/main.js"
+    assert by_id["hello"]["state"] == "loaded" and re.fullmatch(r"/plugins/hello/b/\w{10}/main\.js", by_id["hello"]["frontend"])
     assert by_id["broken"]["state"] == "error" and "router exploded" in by_id["broken"]["error"]
     assert by_id["broken"]["frontend"] is None
     assert by_id["missing"]["state"] == "error" and by_id["missing"]["frontend"] is None
@@ -149,6 +151,14 @@ def test_plugin_router_and_static_are_mounted(client):
     assert client.get("/api/plugins/hello/whoami").json() == {"plugin": "hello"}
     r = client.get("/plugins/hello/main.js")
     assert r.status_code == 200 and "activate" in r.text
+    assert r.headers["cache-control"] == "no-cache"
+
+
+def test_plugin_versioned_main_js_loads_with_immutable_caching(client):
+    frontend = next(p["frontend"] for p in client.get("/api/plugins").json()["plugins"] if p["id"] == "hello")
+    r = client.get(frontend)
+    assert r.status_code == 200 and "activate" in r.text
+    assert r.headers["cache-control"] == "public, max-age=31536000, immutable"
 
 
 def test_plugin_action_over_http(client):

@@ -1,5 +1,6 @@
 """Static front-end checks: served, module graph consistent, JS syntax valid."""
 
+import os
 import re
 import shutil
 
@@ -7,6 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 from netstead.workbench import Session, build_app
 from netstead.workbench.server import STATIC_DIR
+from netstead.workbench.buildid import static_build_id
 
 JS_DIR = STATIC_DIR / "js"
 _IMPORT = re.compile(r'import\s*\{([^}]*)\}\s*from\s*"\./([\w-]+\.js)"')
@@ -19,10 +21,43 @@ def client(tmp_path_factory):
     return TestClient(build_app(Session(project_dir=tmp, environ={"NETSTEAD_CONFIG_DIR": str(tmp / "u")})))
 
 
-def test_index_loads_main_module(client):
+def test_index_loads_main_module_from_the_versioned_prefix(client):
     html = client.get("/").text
-    assert '<script type="module" src="/static/js/main.js">' in html
-    assert "/static/app.css" in html
+    build_id = static_build_id(STATIC_DIR)
+    assert f'<script type="module" src="/static/b/{build_id}/js/main.js">' in html
+    assert f"/static/b/{build_id}/app.css" in html
+
+
+def test_index_references_only_versioned_local_paths(client):
+    refs = re.findall(r'(?:src|href)="(/[^"]*)"', client.get("/").text)
+    assert refs and all(r.startswith("/static/b/") for r in refs)
+
+
+def test_build_id_is_stable_and_follows_the_files(tmp_path):
+    (tmp_path / "a.js").write_text("one")
+    first = static_build_id(tmp_path)
+    assert static_build_id(tmp_path) == first and re.fullmatch(r"[0-9a-f]{10}", first)
+    (tmp_path / "a.js").write_text("three")  # size changes
+    changed = static_build_id(tmp_path)
+    assert changed != first
+    os.utime(tmp_path / "a.js", (1, 1))  # only the mtime changes
+    assert static_build_id(tmp_path) != changed
+    (tmp_path / "b.css").write_text("x")  # a new file
+    assert static_build_id(tmp_path) != changed
+
+
+def test_versioned_assets_are_immutable_and_unversioned_still_revalidate(client):
+    build_id = static_build_id(STATIC_DIR)
+    r = client.get(f"/static/b/{build_id}/js/main.js")
+    assert r.status_code == 200 and "javascript" in r.headers["content-type"]
+    assert r.headers["cache-control"] == "public, max-age=31536000, immutable"
+    assert client.get("/static/js/main.js").headers["cache-control"] == "no-cache"
+    assert client.get("/static/b/0000000000/js/main.js").status_code == 404
+
+
+def test_no_module_hardcodes_an_absolute_static_url():
+    for path in JS_DIR.glob("*.js"):
+        assert "/static/" not in path.read_text(), path.name
 
 
 @pytest.mark.parametrize("name", sorted(p.name for p in JS_DIR.glob("*.js")))

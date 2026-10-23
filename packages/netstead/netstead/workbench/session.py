@@ -104,6 +104,7 @@ from .events import EventBus
 from .issues import IssueSet, locate_issues, run_validation
 from .jobs import Job, JobContext, JobRunner
 from .ledger import CORE_SOURCE, PYTHON_SOURCE, EditLedger, PendingEdit, PendingEdits
+from .buildid import plugin_build_id
 from .paths import allowed_roots, open_locator, split_source
 from .plugins.discovery import PluginStatus, discover
 from .plugins.host import Host, PluginSettingsError, validate_plugin_settings
@@ -552,7 +553,10 @@ class Session:
         or a ``static_dir`` that isn't a directory is an install failure like any other: no Actions,
         no state, status ``error``.
         """
-        frontend = f"/plugins/{plugin.id}/{plugin.frontend}" if plugin.static_dir is not None else None
+        frontend = None
+        if plugin.static_dir is not None:
+            build_id = plugin_build_id(plugin.static_dir, plugin.id, plugin.version)
+            frontend = f"/plugins/{plugin.id}/b/{build_id}/{plugin.frontend}"
         status = PluginStatus(plugin.id, plugin.name, plugin.version, plugin.requires_api, "loaded", frontend=frontend)
         if plugin.id in disabled:
             return replace(status, state="disabled", frontend=None)

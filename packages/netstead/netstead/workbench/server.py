@@ -13,6 +13,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 
+from .buildid import plugin_build_id, static_build_id
 from .plugins import HOST_API
 from .redact import describe_error
 from .routes.assistant import assistant_router
@@ -118,6 +119,9 @@ def build_app(session: Session) -> FastAPI:
                     return PlainTextResponse("Cross-origin request rejected", status_code=403)
             return await call_next(request)
 
+    build_id = static_build_id(STATIC_DIR)
+    # The versioned tree first (a mount matches by prefix): every build gets URLs no old cache entry can hold.
+    app.mount(f"/static/b/{build_id}", ImmutableStaticFiles(directory=STATIC_DIR), name="static-versioned")
     app.mount("/static", RevalidatedStaticFiles(directory=STATIC_DIR), name="static")
     app.include_router(core_router(session))
     app.include_router(io_router(session))
@@ -135,9 +139,19 @@ def build_app(session: Session) -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse)
     def index() -> str:
-        return (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        return html.replace('="/static/', f'="/static/b/{build_id}/')
 
     return app
+
+
+class ImmutableStaticFiles(StaticFiles):
+    """Static files under a build-id URL: the URL changes with the content, so browsers may cache them forever."""
+
+    def file_response(self, *args: Any, **kwargs: Any) -> Response:
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
 
 
 class RevalidatedStaticFiles(StaticFiles):
@@ -168,11 +182,14 @@ def _mount_plugins(app: FastAPI, session: Session) -> None:
             if router is not None:
                 staged.include_router(router, prefix=f"/api/plugins/{plugin_id}")
             static = RevalidatedStaticFiles(directory=static_dir) if static_dir is not None else None
+            versioned = ImmutableStaticFiles(directory=static_dir) if static_dir is not None else None
         # boundary: third-party code must not stop the app (not even with ``sys.exit``)
         except (Exception, SystemExit) as exc:
             logger.exception("mounting workbench plugin %r failed", plugin_id)
             session.unload_plugin(plugin_id, describe_error(exc))
             continue
         app.include_router(staged)
-        if static is not None:
+        if static is not None and versioned is not None:
+            build_id = plugin_build_id(static_dir, plugin_id, session.plugins[plugin_id].version)
+            app.mount(f"/plugins/{plugin_id}/b/{build_id}", versioned, name=f"plugin-{plugin_id}-versioned")
             app.mount(f"/plugins/{plugin_id}", static, name=f"plugin-{plugin_id}")
