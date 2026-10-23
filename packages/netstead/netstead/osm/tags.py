@@ -17,6 +17,8 @@ from typing import Any
 
 import yaml
 
+from netstead.network_types import NetworkTypes, allowed_union
+
 __all__ = [
     "TRANSFORMS",
     "accepts_highway",
@@ -223,7 +225,7 @@ def load_network_filters() -> dict[str, list[str]]:
     return _load_mapping_yaml("osm_network_filters.yaml")
 
 
-def allowed_highways(network_type: str) -> frozenset[str]:
+def allowed_highways(network_type: NetworkTypes) -> frozenset[str]:
     """Return the set of OSM ``highway`` values allowed for ``network_type``.
 
     Args:
@@ -243,13 +245,10 @@ def allowed_highways(network_type: str) -> frozenset[str]:
         >>> "footway" in allowed_highways("drive")
         False
     """
-    filters = load_network_filters()
-    if network_type not in filters:
-        raise ValueError(f"unknown network_type {network_type!r}; expected one of {sorted(filters)}")
-    return frozenset(filters[network_type] or [])
+    return allowed_union(load_network_filters(), network_type)
 
 
-def accepts_highway(network_type: str, highway: Any) -> bool:
+def accepts_highway(network_type: NetworkTypes, highway: Any) -> bool:
     """Report whether a ``highway`` value belongs to ``network_type``.
 
     An empty allow-list (``all``) accepts any value.

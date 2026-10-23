@@ -802,3 +802,24 @@ def test_core_dock_panels_register_icons_and_tabs_render_them_with_tips():
         assert f"{name}:" in icons or f'"{name}":' in icons, name
     plugin = (STATIC_DIR.parents[4] / "plugins/project-cards/netstead_project_cards/static/main.js").read_text()
     assert 'icon: "cards"' in plugin
+
+
+def test_build_form_has_mode_checkboxes_and_a_folder_chooser():
+    html = (STATIC_DIR / "index.html").read_text()
+    form = html.split('data-step="options"', 1)[1].split('data-step="run"', 1)[0]
+    assert 'id="opt-network-type"' not in form
+    for mode in ("drive", "walk", "bike", "all"):
+        assert f'<input type="checkbox" data-mode="{mode}"' in form
+    # The chooser's container, the chosen-path display and a hint all sit in the step, and the path starts unset.
+    for marker in ('id="opt-out-fb"', 'id="opt-outdir" class="unset"', 'id="opt-out-hint"'):
+        assert marker in form
+    wizard = (JS_DIR / "wizard.js").read_text()
+    assert (
+        "network_types: chosenModes()" in wizard
+        and "network_type:" not in wizard.split("function buildAction", 1)[1][:600]
+    )
+    assert "Boolean(wz.outDir)" in wizard  # Estimate stays disabled until a folder is chosen
+    assert (
+        "pickFolder" in (JS_DIR / "filebrowser.js").read_text()
+        and "data-use" in (JS_DIR / "filebrowser.js").read_text()
+    )

@@ -175,9 +175,9 @@ def _count(action: BuildNetwork, plan: BuildPlan, settings: Settings, http: Any,
         return plan.input_path.stat().st_size
     if plan.kind == "osm":
         assert action.area is not None
-        return count_osm(action.area, network_type=action.network_type, http=http, **_osm_options(settings))
+        return count_osm(action.area, network_type=tuple(action.network_types), http=http, **_osm_options(settings))
     read = _overture_read(action, plan, settings)
-    return count_overture(read.pop("bbox"), network_type=action.network_type, engine=engine, **read)
+    return count_overture(read.pop("bbox"), network_type=tuple(action.network_types), engine=engine, **read)
 
 
 def close_quietly(engine: Any) -> None:
@@ -218,13 +218,13 @@ def _osm_records(action: BuildNetwork, plan: BuildPlan, settings: Settings, http
     local = optional_module("netstead.osm.local", "osm")
     query = optional_module("netstead.osm.query", "osm")
     if plan.input_path is not None:
-        nodes, ways = local.read_osm_file(plan.input_path, network_type=action.network_type)
+        nodes, ways = local.read_osm_file(plan.input_path, network_type=tuple(action.network_types))
     else:
         assert action.area is not None
         q = query.build_overpass_query(
             bbox=action.area.to_bbox(),
             polygon=action.area.to_polygon(),
-            network_type=action.network_type,
+            network_type=tuple(action.network_types),
             timeout=settings.osm.timeout,
         )
         options = {"timeout": settings.osm.timeout, "retries": settings.osm.retries, **_osm_options(settings)}
@@ -239,7 +239,7 @@ def _overture_records(action: BuildNetwork, plan: BuildPlan, settings: Settings,
     read = _overture_read(action, plan, settings)
     bbox = read.pop("bbox")
     segments = query.read_segments(
-        bbox, network_type=action.network_type, extra_tags=action.extra_tags, engine=engine, **read
+        bbox, network_type=tuple(action.network_types), extra_tags=action.extra_tags, engine=engine, **read
     )
     connectors = query.read_connectors(segments, engine=engine, **read)
     tick("convert", 0.5)
@@ -278,7 +278,7 @@ def fetch_and_convert(
         # (ValueError, LookupError) and Overpass or object-store I/O (requests' errors subclass OSError).
         raise ActionError(f"build failed: {exc}") from exc
     if not link_records:
-        raise ActionError(f"nothing in this {action.source} area matched network_type={action.network_type!r}")
+        raise ActionError(f"nothing in this {action.source} area matched network_types={action.network_types!r}")
     return network_from_records(
         node_records,
         link_records,

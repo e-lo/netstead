@@ -338,12 +338,24 @@ class BuildNetwork(BaseAction):
     output_dir: str
     output_format: Literal["parquet", "csv", "duckdb", "zip"]
     name: str = Field(pattern=_NAME_PATTERN, max_length=100)
-    network_type: str = "drive"
+    network_types: list[str] = Field(default_factory=lambda: ["drive"], min_length=1)
     extra_tags: list[str] | None = None
     spec_version: str | None = None
     overture_release: str | None = None
     label: str | None = None
     approved: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def _legacy_network_type(cls, data: Any) -> Any:
+        """Recorded builds name one ``network_type``; read it as a one-element ``network_types``."""
+        if isinstance(data, dict) and "network_type" in data:
+            data = dict(data)
+            single = data.pop("network_type")
+            if "network_types" in data:
+                raise ValueError("give network_types, not both network_types and network_type")
+            data["network_types"] = [single]
+        return data
 
     @model_validator(mode="after")
     def _one_input(self) -> BuildNetwork:

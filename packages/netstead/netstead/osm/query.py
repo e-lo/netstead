@@ -27,6 +27,8 @@ from typing import Any, Literal
 
 import requests
 
+from netstead.network_types import NetworkTypes
+
 from . import tags
 
 __all__ = [
@@ -121,7 +123,7 @@ def build_overpass_query(
     *,
     bbox: tuple[float, float, float, float] | None = None,
     polygon: Sequence[tuple[float, float]] | None = None,
-    network_type: str = "drive",
+    network_type: NetworkTypes = "drive",
     timeout: int = 180,
     out: Literal["body", "count"] = "body",
 ) -> str:
@@ -392,7 +394,7 @@ def fetch_network_elements(
     area: str | Sequence[float],
     *,
     buffer_m: float = 0.0,
-    network_type: str = "drive",
+    network_type: NetworkTypes = "drive",
     endpoint: str = OVERPASS_URL,
     session: Any = None,
     user_agent: str = USER_AGENT,

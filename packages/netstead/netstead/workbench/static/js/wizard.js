@@ -1,6 +1,7 @@
 // Open / Import wizard: source → (browse | URL | area → options → estimate) → exactly one dispatched action.
 // Browse, URL check, place search, and estimate are read-only queries; only Open / Build are recorded actions.
 import { dispatch, getJSON, postJSON } from "./api.js";
+import { modesProblem, normalizeModes, toggleMode } from "./buildmodes.js";
 import { areaChoice, resetAreaPicker, showAreaMap, wireAreaPicker } from "./areapicker.js";
 import { $, esc, toast } from "./dom.js";
 import { createFileBrowser } from "./filebrowser.js";
@@ -38,12 +39,22 @@ function nameProblem() {
   return "";
 }
 
+const modeBoxes = () => [...document.querySelectorAll("#opt-modes input[data-mode]")];
+const chosenModes = () => modeBoxes().filter(b => b.checked).map(b => b.dataset.mode);
+function setModes(modes) { for (const b of modeBoxes()) b.checked = modes.includes(b.dataset.mode); }
+
+function showOutDir() {
+  const el = $("opt-outdir");
+  el.textContent = wz.outDir || "not chosen yet";
+  el.classList.toggle("unset", !wz.outDir);
+}
+
 function canAdvance() {
   switch (wz.step) {
     case "local": return Boolean(wz.local);
     case "url": return wz.urlOk;
     case "area": return Boolean(areaChoice());
-    case "options": return Boolean(wz.outDir) && !nameProblem();
+    case "options": return Boolean(wz.outDir) && !nameProblem() && !modesProblem(chosenModes());
     case "run": return Boolean(wz.estimate);
     default: return false;
   }
@@ -57,7 +68,9 @@ function runLabel() {
 }
 
 function updateFoot() {
-  if (wz.step === "options") $("opt-name-err").textContent = $("opt-name").value.trim() ? nameProblem() : "";
+  if (wz.step === "options") {
+    $("opt-name-err").textContent = ($("opt-name").value.trim() && nameProblem()) || modesProblem(chosenModes());
+  }
   $("wz-back").disabled = wz.step === "source";
   $("wz-next").hidden = wz.step === "source";
   $("wz-next").textContent = wz.step === "run" ? runLabel() : NEXT_LABEL[wz.step] || "Next";
@@ -85,7 +98,7 @@ function buildAction() {
   const action = {
     type: "build_network", source: wz.src, ...areaChoice(),
     output_dir: wz.outDir, output_format: $("opt-format").value, name: $("opt-name").value.trim(),
-    network_type: $("opt-network-type").value, spec_version: $("opt-spec").value.trim() || null,
+    network_types: chosenModes(), spec_version: $("opt-spec").value.trim() || null,
   };
   if (tags.length) action.extra_tags = tags;
   if (wz.src === "overture" && $("opt-release").value.trim()) action.overture_release = $("opt-release").value.trim();
@@ -97,8 +110,7 @@ async function prefillSettings() {
   if (wz.prefilled) return;
   try {
     const v = (await getJSON("/api/settings")).values;
-    const types = [...$("opt-network-type").options].map(o => o.value);
-    $("opt-network-type").value = types.includes(v.build.network_type) ? v.build.network_type : "drive";
+    setModes(normalizeModes(v.build.network_type));
     $("opt-extra-tags").value = v.build.extra_tags.join(", ");
     $("opt-spec").value = v.io.spec_version;
     $("opt-format").value = v.io.default_format;
@@ -110,6 +122,7 @@ async function prefillSettings() {
 
 function prefillOptions() {
   outFb.reset(wz.outDir);
+  showOutDir();
   const choice = areaChoice();
   const base = choice && choice.area && choice.area.kind === "place" ? choice.area.name.split(",")[0] : "network";
   // Fill the name in, and keep it current after Back + a new source or place, until the user types their own.
@@ -243,7 +256,7 @@ export function closeWizard() { $("wizard").hidden = true; }
 export function wireWizard() {
   localFb = createFileBrowser($("wz-local-fb"), { kinds: GMNS_KINDS, onPick: e => { wz.local = e; updateFoot(); } });
   outFb = createFileBrowser($("opt-out-fb"), {
-    kinds: [], pickFolder: true, onPick: e => { wz.outDir = e.path; $("opt-outdir").textContent = e.path; updateFoot(); },
+    kinds: [], pickFolder: true, onPick: e => { wz.outDir = e.path; showOutDir(); updateFoot(); },
   });
   wireAreaPicker(updateFoot);
   for (const b of document.querySelectorAll(".wz-choice")) b.onclick = () => choose(b.dataset.src);
@@ -254,6 +267,7 @@ export function wireWizard() {
   $("wz-url").oninput = () => { wz.urlOk = false; updateFoot(); };
   $("wz-url").onkeydown = e => { if (e.key === "Enter") checkUrl(); };
   $("opt-name").oninput = updateFoot;
+  $("opt-modes").onchange = e => { setModes(toggleMode(chosenModes(), e.target.dataset.mode, e.target.checked)); updateFoot(); };
   $("opt-format").onchange = updateFoot;
   document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("wizard").hidden) closeWizard(); });
 }

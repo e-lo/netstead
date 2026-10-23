@@ -36,6 +36,12 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Fixed
 
+- **Workbench build form: several network types and a visible folder chooser.** Network type is now a set of
+  checkboxes (drive, walk, bike, or all highways), and a build keeps a way or segment if any chosen type allows it.
+  `BuildNetwork` takes `network_types: list[str]` (a recorded single `network_type` is still read), and the OSM and
+  Overture builders accept a list of network types. The output-folder step shows the chosen path (or "not chosen
+  yet"), a hint, and a **Use** button on each folder; Estimate stays disabled until a folder is chosen.
+
 - **Workbench place search shows why it failed.** A failed place search (for example, the `[osm]` extra is missing,
   or the geocoder is down) now says so in the Area step instead of "No matches."; the Workbench quickstart
   installs `netstead[server,graph,nl,osm]`.

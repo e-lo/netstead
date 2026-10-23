@@ -1313,3 +1313,19 @@ def test_place_search_shows_real_errors_not_no_matches(node_module):
     assert "Place search needs the [osm] extra: requires the osm extra" in missing and "No matches" not in missing
     failed = render('{error: Object.assign(new Error("place search failed: Timeout: slow"), {status: 502})}')
     assert "Place search failed: Timeout: slow" in failed and "failed: place search failed" not in failed
+
+
+def test_build_modes_allow_several_and_all_stands_alone(node_module):
+    names = ["toggleMode", "normalizeModes", "modesProblem"]
+
+    def run(expr):
+        return node_module("buildmodes.js", names, expr)
+
+    assert run('toggleMode(["drive"], "bike", true)') == ["drive", "bike"]
+    assert run('toggleMode(["drive", "bike", "walk"], "bike", false)') == ["drive", "walk"]
+    assert run('toggleMode(["drive", "walk"], "all", true)') == ["all"]
+    assert run('toggleMode(["all"], "walk", true)') == ["walk"]
+    assert run('normalizeModes("bike")') == ["bike"]
+    assert run('normalizeModes(["walk", "boat", "drive"])') == ["drive", "walk"]
+    assert run('normalizeModes("hovercraft")') == ["drive"]
+    assert run("modesProblem([])") != "" and run('modesProblem(["drive"])') == ""

@@ -21,6 +21,7 @@ from typing import Any
 
 from netstead._network_build import network_from_records as _network_from_records
 from netstead.network import Network
+from netstead.network_types import NetworkTypes
 from netstead.spec import DEFAULT_SPEC
 
 from . import convert, local, query
@@ -69,7 +70,7 @@ def build_network_from_osm(
     area: str | Sequence[float],
     *,
     buffer_m: float = 0.0,
-    network_type: str = "drive",
+    network_type: NetworkTypes = "drive",
     extra_tags: list[str] | None = None,
     spec_version: str = DEFAULT_SPEC,
     engine: Any = None,
@@ -123,7 +124,7 @@ def build_network_from_osm(
 def build_network_from_osm_file(
     path: str | Path,
     *,
-    network_type: str = "drive",
+    network_type: NetworkTypes = "drive",
     extra_tags: list[str] | None = None,
     spec_version: str = DEFAULT_SPEC,
     engine: Any = None,
