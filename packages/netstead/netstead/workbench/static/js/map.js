@@ -2,7 +2,7 @@
 import { $, esc } from "./dom.js";
 import { createClickGuard } from "./gesture.js";
 import { layerRegistry } from "./layers.js";
-import { arrowPixelOffset, arrowSize, buildArrows, linkPaths, widthForLanes } from "./netbuf.js";
+import { arrowPixelOffset, arrowSize, buildArrows, linkPaths, nodeRadiusScale, widthForLanes } from "./netbuf.js";
 import { buildLinkColors, buildLinkWidths, buildNodeStyle, dimUnmatched } from "./palette.js";
 import { commandContext, frozenCopy } from "./commands.js";
 import { CORE } from "./slots.js";
@@ -43,7 +43,7 @@ export function initMap(style, hooks) {
   map.addControl(overlay);
   wireContextMenu();
   new ResizeObserver(() => map.resize()).observe($("map"));
-  map.on("zoomend", () => { const s = store.get(); if (s.server && s.server.style.show_direction) render(); });
+  map.on("zoomend", () => { if (store.get().server) render(); }); // arrows and node sizes follow the zoom
   // Ready once the style is parsed, not on "load": that waits for every basemap tile of the opening
   // (continental) view, so the network would be drawn and fitted seconds late, or never offline.
   map.on("style.load", () => { styleReady = true; });
@@ -149,7 +149,8 @@ function baseLayers(s) {
     data: { length: net.N.count, attributes: { getPosition: { value: nodeStyle(s).positions, size: 2 },
                                                getFillColor: { value: nodeStyle(s).colors, size: 4 },
                                                getRadius: { value: nodeStyle(s).radii, size: 1 } } },
-    radiusUnits: "pixels", stroked: true, filled: true, lineWidthMinPixels: 1, lineWidthUnits: "pixels",
+    radiusUnits: "pixels", radiusScale: nodeRadiusScale(map.getZoom()), radiusMinPixels: 1.5,
+    stroked: true, filled: true, lineWidthMinPixels: 1, lineWidthUnits: "pixels",
     getLineColor: [20, 20, 30, 220],
     pickable: true, autoHighlight: true, highlightColor: [255, 140, 59, 235],
     onClick: info => { if (info && info.index >= 0) handlers.onNodeClick(net.nodeIds[nodeIndex(info.index)]); } }));

@@ -29,6 +29,14 @@ def test_index_loads_main_module(client):
 def test_every_module_is_served_as_javascript(client, name):
     r = client.get(f"/static/js/{name}")
     assert r.status_code == 200 and "javascript" in r.headers["content-type"]
+    # Revalidated on every load, so an upgrade never pairs a cached old module with a fresh one.
+    assert r.headers["cache-control"] == "no-cache"
+
+
+def test_an_unchanged_module_revalidates_as_not_modified(client):
+    first = client.get("/static/js/main.js")
+    again = client.get("/static/js/main.js", headers={"if-none-match": first.headers["etag"]})
+    assert again.status_code == 304
 
 
 def test_relative_imports_resolve_to_real_exports():

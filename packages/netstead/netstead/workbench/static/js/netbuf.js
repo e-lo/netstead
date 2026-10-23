@@ -75,6 +75,10 @@ export function arrowPixelOffset(angle, side, widthPx, amt) {
 // Arrow height in pixels: readable at the zoom they first appear (13), growing to 18 px by zoom 18.
 export function arrowSize(zoom) { return Math.max(8, Math.min(18, 8 + 2 * (zoom - 13))); }
 
+// Node markers shrink as the map zooms out, so a whole city's intersections don't merge into one blob: full size at
+// zoom 14 and above, down to 40% at zoom 11 and below.
+export function nodeRadiusScale(zoom) { return Math.max(0.4, Math.min(1, 0.4 + 0.2 * (zoom - 11))); }
+
 export function decodeNetwork(buf) {
   const hlen = new DataView(buf).getUint32(0, true);
   const header = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 4, hlen)));

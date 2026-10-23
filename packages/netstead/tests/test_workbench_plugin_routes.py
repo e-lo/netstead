@@ -120,14 +120,14 @@ def test_a_mount_that_fails_while_attaching_unloads_the_plugin(tmp_path, isolate
 
     static = tmp_path / "static"
     static.mkdir()
-    real = server.StaticFiles
+    real = server.RevalidatedStaticFiles
 
     def refuse_plugin_dirs(*, directory):
         if directory == static:
             raise RuntimeError("cannot serve")
         return real(directory=directory)
 
-    monkeypatch.setattr(server, "StaticFiles", refuse_plugin_dirs)
+    monkeypatch.setattr(server, "RevalidatedStaticFiles", refuse_plugin_dirs)
     hello = WorkbenchPlugin(
         id="hello",
         name="Hello",

@@ -923,6 +923,11 @@ def test_arrow_size_grows_with_zoom_between_8_and_18_px(node_module, zoom, size)
     assert node_module("netbuf.js", ["arrowSize"], f"arrowSize({zoom})") == size
 
 
+@pytest.mark.parametrize(("zoom", "scale"), [(8, 0.4), (11, 0.4), (12.5, 0.7), (14, 1), (18, 1)])
+def test_node_markers_shrink_when_zoomed_out(node_module, zoom, scale):
+    assert node_module("netbuf.js", ["nodeRadiusScale"], f"nodeRadiusScale({zoom})") == pytest.approx(scale)
+
+
 # ---- gridfilter.js: the table's per-column filter model and its chip text ----
 
 _GF = ["createGridFilter", "chipText"]

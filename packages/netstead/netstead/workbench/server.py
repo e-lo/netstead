@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .plugins import HOST_API
@@ -117,7 +118,7 @@ def build_app(session: Session) -> FastAPI:
                     return PlainTextResponse("Cross-origin request rejected", status_code=403)
             return await call_next(request)
 
-    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    app.mount("/static", RevalidatedStaticFiles(directory=STATIC_DIR), name="static")
     app.include_router(core_router(session))
     app.include_router(io_router(session))
     app.include_router(network_router(session))
@@ -139,6 +140,20 @@ def build_app(session: Session) -> FastAPI:
     return app
 
 
+class RevalidatedStaticFiles(StaticFiles):
+    """Static files the browser must revalidate (``Cache-Control: no-cache``) before reusing.
+
+    The front end is ES modules importing one another; a heuristically cached old module next to a fresh one
+    breaks the page after an upgrade (a missing export is a SyntaxError). Revalidation is cheap: an unchanged
+    file answers 304 against its ETag.
+    """
+
+    def file_response(self, *args: Any, **kwargs: Any) -> Response:
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 def _mount_plugins(app: FastAPI, session: Session) -> None:
     """Attach each installed plugin's router (``/api/plugins/<id>``) and static dir (``/plugins/<id>``).
 
@@ -152,7 +167,7 @@ def _mount_plugins(app: FastAPI, session: Session) -> None:
             staged = APIRouter()
             if router is not None:
                 staged.include_router(router, prefix=f"/api/plugins/{plugin_id}")
-            static = StaticFiles(directory=static_dir) if static_dir is not None else None
+            static = RevalidatedStaticFiles(directory=static_dir) if static_dir is not None else None
         # boundary: third-party code must not stop the app (not even with ``sys.exit``)
         except (Exception, SystemExit) as exc:
             logger.exception("mounting workbench plugin %r failed", plugin_id)
