@@ -38,7 +38,8 @@ Code                          When emitted
                               target column(s). Severity: ERROR.
 ``fk.null_in_required_fk``    The source FK column is null AND the schema marks
                               that source field ``required=True``. Severity: ERROR.
-``fk.unverifiable``           Target table isn't in the ``tables`` mapping — we
+``fk.unverifiable``           Target table isn't in the ``tables`` mapping and the source
+                              column holds at least one non-null value — we
                               can't check the FK. Severity: WARNING (or ERROR
                               under ``strict=True``).
 ``fk.target_field_missing``   Target table is present but doesn't have the
@@ -194,6 +195,21 @@ def _emit_null_in_required_fk_issues(
     return issues
 
 
+def _source_has_fk_values(src: Any, source_fields: list[str]) -> bool:
+    """Return whether any row holds a non-null value in a source FK column.
+
+    Absent columns count as empty. Uses one pushed-down ``COUNT`` over
+    the present columns rather than materializing the table.
+    """
+    present = [f for f in source_fields if f in src.columns]
+    if not present:
+        return False
+    has_value = src[present[0]].notnull()
+    for name in present[1:]:
+        has_value = has_value | src[name].notnull()
+    return count(src.filter(has_value)) > 0
+
+
 def _missing_target_predicate(
     src: ir.Table,
     tgt: ir.Table,
@@ -282,6 +298,9 @@ def check_foreign_key(
 
     # 1. Unverifiable — target table not in the mapping.
     if target_expr is None:
+        if not _source_has_fk_values(to_ibis(source_expr), source_fields):
+            # Nothing to verify: the source column is absent or all null.
+            return []
         severity = Severity.ERROR if strict else Severity.WARNING
         return [
             Issue(

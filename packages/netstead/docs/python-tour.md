@@ -130,10 +130,10 @@ report = net.validate()
 report  # in a notebook, the _repr_html_ renders a styled card
 ```
 
-You should see a card with no ERRORs, 1 WARNING and 16 INFO findings. The WARNING is `fk.unverifiable` — `node.zone_id` can't be checked because the fixture ships no `zone` table; the INFOs are `structural.missing_optional_resource`, one per optional GMNS table the fixture doesn't include. No ERRORs, but that WARNING makes `report.is_clean` `False`.
+You should see a card with no ERRORs, no WARNINGs and 16 INFO findings. The INFOs are `structural.missing_optional_resource`, one per optional GMNS table the fixture doesn't include. INFO findings don't count against cleanliness, so `report.is_clean` is `True`.
 
 ![Validation report card](assets/screenshots/leavenworth-validation-report.png){ .screenshot }
-*Validation report card — 0 ERRORs, 1 WARNING fk.unverifiable, 16 INFO structural.missing_optional_resource across 9 tables*
+*Validation report card — 0 ERRORs, 0 WARNINGs, 16 INFO structural.missing_optional_resource across 9 tables*
 
 In a non-notebook context, drop down to the text representation:
 <!-- doctest: skip -->

@@ -254,7 +254,7 @@ Focus is a view. Clicking never changes the selection.
   palette, Ctrl+K / ⌘K, checks the spec, the keys and the quality rules as a background job; the Jobs badge
   counts it while it runs. The quality rules read **Settings → Validation** (`validation.rules`, keyed by rule
   code, such as `quality.high_speed_residential`).
-- When it finishes, the panel reads `Validated v0: 272 warnings, 16 info` (for the Leavenworth fixture), the
+- When it finishes, the panel reads `Validated v0: 271 warnings, 16 info` (for the Leavenworth fixture), the
   header's validity light turns green / amber / red with the counts on hover, the **Validate** tab badge
   counts the issues plus any open edit warnings, and each located issue is a dot on the map.
 - **Click an issue:** its record is focused, the map flies to it, and when the table shows that table its row is

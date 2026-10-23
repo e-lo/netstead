@@ -119,6 +119,14 @@ This file is for the **corral** package only. `netstead` (which depends on corra
 
 ### Fixed
 
+- **No `fk.unverifiable` when there is nothing to verify.** A foreign key
+  whose target table is missing no longer raises the WARNING when its source
+  column is absent from the source table or entirely null (a composite key:
+  every source column absent or null); one `COUNT` pushed to the backend
+  decides. The bundled Leavenworth network (no `node.zone_id` column) now
+  validates with 0 warnings and `report.is_clean` is `True`. A source column
+  with at least one value and a missing target still warns, as before.
+
 - **Partitioned parquet writes stream.** `ParquetAdapter.write(...,
   partition_by=[...])` collected the whole table through pandas before
   writing, which runs out of memory on a regional network. It now streams
