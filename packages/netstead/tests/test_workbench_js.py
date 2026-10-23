@@ -1329,3 +1329,17 @@ def test_build_modes_allow_several_and_all_stands_alone(node_module):
     assert run('normalizeModes(["walk", "boat", "drive"])') == ["drive", "walk"]
     assert run('normalizeModes("hovercraft")') == ["drive"]
     assert run("modesProblem([])") != "" and run('modesProblem(["drive"])') == ""
+
+
+def test_related_steps_control_shows_only_for_the_related_scope(node_module):
+    names = ["hopsView", "hopsFromValue", "HOPS_TIP"]
+
+    def run(expr):
+        return node_module("hops.js", names, expr)
+
+    assert run('hopsView("related", 2)') == {"hidden": False, "value": "2"}
+    assert run('hopsView("related", 1)') == {"hidden": False, "value": "1"}
+    for scope in ("all", "selection", "highlighted", "filtered"):
+        assert run(f'hopsView("{scope}", 2)')["hidden"] is True
+    assert run('[hopsFromValue("2"), hopsFromValue("1"), hopsFromValue("x")]') == [2, 1, 1]
+    assert "1 step" in run("HOPS_TIP") and "2 steps" in run("HOPS_TIP")

@@ -217,7 +217,9 @@ Focus is a view. Clicking never changes the selection.
   - The keys come from the GMNS spec, not a hard-coded list.
   - The table list shows how many records are related in each table (`N related`; a `+` means the count stopped
     early). Hover a tinted row to see which key relates it, for example `related via lane.link_id → link`.
-  - **Expand a hop** follows keys one more step: from a node to its links, then to their lanes.
+  - With **Show → Related**, the **Related** control chooses how far to follow keys: **1 step** (direct references,
+    such as the links at a node) or **2 steps** (references of references, such as then their lanes). It shows only
+    for that scope.
   - Related records are a read-only view. Nothing is recorded.
 
 ## Workspaces, panels and commands

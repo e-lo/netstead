@@ -21,6 +21,9 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Changed
 
+- **The Workbench table's "Expand a hop" is a "Related: 1 step / 2 steps" control** that shows only when
+  **Show** is Related, with a tooltip explaining how far foreign keys are followed.
+
 - **The Workbench model picker is a header icon.** A robot button in the header opens the provider and model
   picker as a popover (the privacy dot is a badge on it; the tooltip names the provider and model). The picker no
   longer sits in the Find tab.

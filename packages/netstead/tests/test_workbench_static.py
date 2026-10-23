@@ -823,3 +823,9 @@ def test_build_form_has_mode_checkboxes_and_a_folder_chooser():
         "pickFolder" in (JS_DIR / "filebrowser.js").read_text()
         and "data-use" in (JS_DIR / "filebrowser.js").read_text()
     )
+
+
+def test_table_toolbar_has_the_related_steps_select():
+    html = (STATIC_DIR / "index.html").read_text()
+    bar = html.split('id="tbl-bar"', 1)[1].split('id="tbl-chips"', 1)[0]
+    assert 'id="tbl-hops-wrap" hidden' in bar and '<select id="tbl-hops"' in bar and "Expand a hop" not in html

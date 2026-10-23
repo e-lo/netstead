@@ -7,6 +7,7 @@ import { openContextMenu } from "./ctxmenu.js";
 import { $, esc, toast } from "./dom.js";
 import { cellAction, cellEditable, cellOptions, cellSample, cellWarnings, listOptions, shouldApplyOnLeave } from "./editmodel.js";
 import { createGridFilter } from "./gridfilter.js";
+import { HOPS_TIP, hopsFromValue, hopsView } from "./hops.js";
 import { icon } from "./icons.js";
 import { recordIssues } from "./issuelist.js";
 import { clampOffset, coerceId, combinedFilter, pageOffset, rowMarks, rowsRequest, scopeHint } from "./linking.js";
@@ -532,7 +533,8 @@ export function wireTable() {
   $("tbl-prev").onclick = () => { if (TBL.offset > 0) { TBL.offset = Math.max(0, TBL.offset - TBL.limit); refreshRows(); } };
   $("tbl-next").onclick = () => { if (TBL.offset + TBL.limit < TBL.total) { TBL.offset += TBL.limit; refreshRows(); } };
   $("tbl-scope").onchange = e => store.set({ tableScope: e.target.value });
-  $("tbl-hops").onclick = () => store.set({ relHops: store.get().relHops === 1 ? 2 : 1 });
+  $("tbl-hops-wrap").title = HOPS_TIP;
+  $("tbl-hops").onchange = e => store.set({ relHops: hopsFromValue(e.target.value) });
   // The filter popover: Escape closes it, Enter in a text or number box applies, a click outside closes it.
   const cf = $("col-filter");
   cf.onkeydown = e => {
@@ -546,8 +548,9 @@ export function wireTable() {
 
 export function syncScopeControls(s) {
   $("tbl-scope").value = s.tableScope;
-  $("tbl-hops").textContent = s.relHops === 1 ? "Expand a hop" : "One hop";
-  $("tbl-hops").classList.toggle("on", s.relHops > 1);
+  const hops = hopsView(s.tableScope, s.relHops);
+  $("tbl-hops-wrap").hidden = hops.hidden;
+  $("tbl-hops").value = hops.value;
 }
 
 // At startup (Inspect is showing): Inspect's own saved view.

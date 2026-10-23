@@ -77,7 +77,9 @@
             <option value="related">Related</option>
             <option value="filtered">Filtered</option>
           </select>
-          <button class="mini ghost" id="tbl-hops" title="Follow keys one more step">Expand a hop</button></div>
+          <span id="tbl-hops-wrap" hidden><label for="tbl-hops">Related</label>
+            <select id="tbl-hops" aria-label="Related records: how many steps to follow">
+              <option value="1">1 step</option><option value="2">2 steps</option></select></span></div>
         <div id="tbl-chips" aria-label="Active column filters" hidden></div>
         <div id="tbl-grid-wrap"><table id="tbl-grid"></table></div>
         <datalist id="cell-opts"></datalist>

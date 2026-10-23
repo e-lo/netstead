@@ -29,7 +29,7 @@ export const store = createStore({
   focus: null,                // {table, id, from: "map" | "table"}: the one record last clicked (per tab, never recorded)
   related: null,              // last /related answer for focus + highlights (related.js)
   tableScope: "all",          // all | selection | highlighted | related | filtered
-  relHops: 1,                 // related-records depth ("Expand a hop" toggles 1 <-> 2)
+  relHops: 1,                 // related-records depth (the Related scope control: 1 or 2 steps)
   hiddenLayers: new Set(),    // titled overlay layers switched off in Layers → Overlays (per tab, never recorded)
   layerSeq: 0,                // bumped when a layer registers or goes, so Overlays and the map redraw
   workspace: "inspect",       // the active workspace tab (per tab; remembered in localStorage)
