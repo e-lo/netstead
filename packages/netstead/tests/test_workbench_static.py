@@ -733,6 +733,33 @@ def test_the_find_panel_owns_the_selection_markup():
     assert 'id="anchors"' not in details and 'id="details"' in details and 'id="hl-set"' not in details
 
 
+def test_the_fragment_is_copied_not_downloaded_and_has_one_form_and_id_system_at_a_time():
+    html = (STATIC_DIR / "index.html").read_text()
+    pane = html.split('id="dock-find"', 1)[1].split("</section>", 1)[0]
+    assert 'id="sel-export-go"' not in pane and "Download" not in pane
+    box = pane.split('id="fragment-box"', 1)[1].split('id="fragment-caption"', 1)[0]
+    copy = re.search(r'<button id="fragment-copy"[^>]*>', box).group(0)
+    for attr in (
+        'class="iconbtn"',
+        'data-icon="copy"',
+        'data-tip="Copy"',
+        'aria-label="Copy the fragment"',
+        "disabled",
+    ):
+        assert attr in copy
+    assert box.index('id="fragment-copy"') < box.index('id="fragment"')
+    form = pane.split('id="sel-export-form"', 1)[1].split("</select>", 1)[0]
+    assert "Segment" in form and "Link list" in form
+    ids = pane.split('id="sel-export-ids"', 1)[1].split("</select>", 1)[0]
+    for label in ("GMNS (link_id, node_id)", "OpenStreetMap (osm_way_id, osm_node_id)", "Overture GERS (gers ids)"):
+        assert label in ids
+    js = (JS_DIR / "selection.js").read_text()
+    assert "sel-export-go" not in js and "navigator.clipboard.writeText" in js
+    css = (STATIC_DIR / "app.css").read_text()
+    assert re.search(r"#fragment-box \.iconbtn \{[^}]*position:absolute", css)
+    assert re.search(r"#fragment-box pre \{[^}]*padding-right", css)
+
+
 def test_the_selection_panel_escapes_what_the_server_sends():
     js = (JS_DIR / "selection.js").read_text()
     # Selection names, anchor details and candidate labels all reach innerHTML only through esc().

@@ -109,7 +109,8 @@ Open the **Find** tab in the side panel. Type `Ski Hill Drive` in its box and pr
 
 Twenty links light up in the selection color, and the **Find** tab shows the status `resolved`, the phrase you
 typed, a diagnostic line `facility ['Ski Hill Drive']: 20 link(s)`, and the **Fragment**: the GMNS selection
-fragment as JSON, listing the twenty `link_id`s. In the table bar, **Show → Selection** lists just those rows.
+fragment as JSON (as a **Segment**, the street name plus its from and to nodes; switch to **Link list** for the
+twenty `link_id`s, and use the copy button to take it elsewhere). In the table bar, **Show → Selection** lists just those rows.
 The strip at the bottom of the window now reads `app.do(Select(utterance='Ski Hill Drive'))`: the same
 selection as Python, which step 7 comes back to.
 

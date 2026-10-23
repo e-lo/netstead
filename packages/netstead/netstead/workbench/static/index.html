@@ -110,12 +110,19 @@
     <div class="label">Export</div>
     <div id="sel-export" class="row">
       <select id="sel-export-what" aria-label="Export as"><option value="fragment">GMNS fragment</option><option value="projectcard">ProjectCard facility</option></select>
-      <select id="sel-export-form" aria-label="Form"><option value="resolved">Resolved (link ids)</option><option value="query">Query (re-resolvable)</option></select>
-      <button class="mini" id="sel-export-go">Download</button>
+      <select id="sel-export-form" aria-label="Form"><option value="link_list">Link list</option><option value="segment">Segment</option></select>
+      <select id="sel-export-ids" aria-label="IDs">
+        <option value="gmns">GMNS (link_id, node_id)</option>
+        <option value="osm">OpenStreetMap (osm_way_id, osm_node_id)</option>
+        <option value="gers">Overture GERS (gers ids)</option></select>
     </div>
     <div id="sel-export-note" class="diag" role="status"></div>
     <div class="label">Fragment</div>
-    <pre id="fragment">—</pre>
+    <div id="fragment-box">
+      <button id="fragment-copy" class="iconbtn" data-icon="copy" data-tip="Copy" aria-label="Copy the fragment" disabled></button>
+      <pre id="fragment">—</pre>
+    </div>
+    <div id="fragment-caption" class="diag" aria-live="polite"></div>
     <div class="label">Saved selections <button class="mini ghost" id="sel-save">Save selection…</button></div>
     <div id="sel-saved" tabindex="-1"><span class="empty">None saved.</span></div>
     <div class="label">Highlighted links <span id="hl-count" class="pcount">0</span></div>

@@ -60,3 +60,18 @@ export function selectionBadge(sel) {
 
 // Where keyboard focus goes once a Pin's button is gone: that anchor's Unpin ("pin-<role>-<node>" -> "unpin-<role>").
 export const unpinAfterPin = key => (key.startsWith("pin-") ? `unpin-${key.split("-")[1]}` : null);
+
+// The Find tab's export choice, kept to what the server says this selection allows: `options` is the export
+// response's `{forms, id_systems}` ({key: reason, or null when it works}); `want` is `{form, ids}` as chosen.
+// A form or id system that is not allowed falls back to the Link list / GMNS ids, which every selection has.
+export function validChoice(options, want) {
+  const forms = (options && options.forms) || {}, systems = (options && options.id_systems) || {};
+  return { form: forms[want.form] == null ? want.form : "link_list", ids: systems[want.ids] == null ? want.ids : "gmns" };
+}
+
+// The query string of GET /api/selection/export for a choice `{what, form, ids}` (and a saved selection's `name`).
+export function exportParams({ what, form, ids, name }) {
+  const params = new URLSearchParams({ what, form, id_system: ids });
+  if (name) params.set("name", name);
+  return params.toString();
+}
