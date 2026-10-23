@@ -214,12 +214,11 @@ def load_network_filters() -> dict[str, list[str]]:
     """Load the per-``network_type`` allowed-``highway`` lists from YAML.
 
     Returns:
-        Mapping ``{network_type: [allowed highway values]}``. An empty list
-        means "accept any highway value" (used by ``all``).
+        Mapping ``{network_type: [allowed highway values]}``.
 
     Examples:
         >>> f = load_network_filters()
-        >>> "drive" in f and "all" in f
+        >>> "roads" in f and "paths" in f
         True
     """
     return _load_mapping_yaml("osm_network_filters.yaml")
@@ -230,19 +229,18 @@ def allowed_highways(network_type: NetworkTypes) -> frozenset[str]:
 
     Args:
         network_type: One of the keys in ``osm_network_filters.yaml``
-            (``drive``, ``walk``, ``bike``, ``all``).
+            (``roads``, ``paths``; legacy ``drive``/``walk``/``bike``/``all`` map onto them).
 
     Returns:
-        A frozenset of allowed ``highway`` values. Empty for ``all`` (meaning
-        no restriction — see :func:`accepts_highway`).
+        A frozenset of allowed ``highway`` values.
 
     Raises:
         ValueError: If ``network_type`` is not a known key.
 
     Examples:
-        >>> "motorway" in allowed_highways("drive")
+        >>> "motorway" in allowed_highways("roads")
         True
-        >>> "footway" in allowed_highways("drive")
+        >>> "footway" in allowed_highways("roads")
         False
     """
     return allowed_union(load_network_filters(), network_type)
@@ -251,29 +249,23 @@ def allowed_highways(network_type: NetworkTypes) -> frozenset[str]:
 def accepts_highway(network_type: NetworkTypes, highway: Any) -> bool:
     """Report whether a ``highway`` value belongs to ``network_type``.
 
-    An empty allow-list (``all``) accepts any value.
-
     Args:
         network_type: One of the keys in ``osm_network_filters.yaml``.
         highway: The OSM ``highway`` tag value to test.
 
     Returns:
-        ``True`` if the value is in the network's allow-list (or the list is
-        empty), else ``False``.
+        ``True`` if the value is in the network's allow-list, else ``False``.
 
     Raises:
         ValueError: If ``network_type`` is not a known key.
 
     Examples:
-        >>> accepts_highway("drive", "residential")
+        >>> accepts_highway("roads", "residential")
         True
-        >>> accepts_highway("all", "anything")
+        >>> accepts_highway("paths", "footway")
         True
     """
-    allowed = allowed_highways(network_type)
-    if not allowed:
-        return True
-    return highway in allowed
+    return highway in allowed_highways(network_type)
 
 
 def apply_mapping(osm_tags: Mapping[str, Any], extra_tags: list[str] | None = None) -> dict[str, Any]:

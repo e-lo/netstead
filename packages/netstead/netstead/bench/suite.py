@@ -127,7 +127,7 @@ def _bench_osm_create(spec: FixtureSpec, *, repeats: int) -> BenchResult:
     osm_build = importlib.import_module("netstead.osm.build")
 
     def _build() -> tuple[int, int]:
-        net = osm_build.build_network_from_osm(spec.bbox, network_type="drive")
+        net = osm_build.build_network_from_osm(spec.bbox, network_type="roads")
         return int(net.links.count()), int(net.nodes.count())
 
     (links, nodes), tsample = time_call(_build)

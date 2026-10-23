@@ -27,6 +27,14 @@ This file is for the **netstead** package only. The underlying generic engine `c
   `io.allowed_roots`; no other path under the package does. Back is now a chevron at the top-left of the dialog
   header (hidden on the first screen), and the footer only appears when a step has an action (Next, Estimate,
   Build, Open).
+- **Build network types are now `roads` and `paths`.** They replace `drive` / `walk` / `bike` / `all` in the Workbench
+  build form (two checkboxes, at least one), `build.network_type` (now a list, default `["roads"]`), the Build Network
+  action, `netstead build --network-type` (repeat it or comma-separate) and the Python builders. `roads` is the drive
+  classes plus `busway`; `paths` is bridleway, footway, path, pedestrian, steps, track and cycleway. Proposed,
+  construction, corridor and other non-network `highway` values are never built, and there is no "all highways" type
+  any more. Overture builds map the same two groups onto Overture road classes. Old names still replay: `drive` means
+  `roads`; `walk`, `bike` and `all` mean `roads` + `paths` (recorded actions, settings, CLI and API calls; the CLI
+  help marks them deprecated). Unknown names are an error that lists the valid ones.
 - **Workbench View tab: swatches beat color-by, collapsible sections, node-first picking, explained overlays.** Picking a
   Links or Nodes color swatch while that layer is colored by a column now turns the column coloring off in the same
   recorded Style action (the swatch's tooltip says so). Each View section folds (remembered per browser). A map click

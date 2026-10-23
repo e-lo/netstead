@@ -33,7 +33,7 @@ The bundled data was synthesized from OpenStreetMap via [`osmnx`](https://github
 ```python
 osmnx.graph_from_place(
     "Leavenworth, Washington, USA",   # resolves via Nominatim to the city polygon
-    network_type="drive",
+    network_type="roads",
 )
 ```
 

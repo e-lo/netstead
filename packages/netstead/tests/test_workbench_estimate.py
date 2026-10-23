@@ -85,22 +85,22 @@ def test_needs_approval(seconds, expected):
 def test_count_osm_uses_out_count_and_polygon():
     http = _Http(_COUNT)
     area = PlaceArea(name="x", bbox=(-79, 35, -78, 36), polygon=[(35.0, -79.0), (35.0, -78.0), (36.0, -78.0)])
-    n = count_osm(area, network_type="drive", endpoint="https://overpass.test", http=http, user_agent="t")
+    n = count_osm(area, network_type="roads", endpoint="https://overpass.test", http=http, user_agent="t")
     assert n == 1234
     assert http.posts[0].endswith("out count;") and 'poly:"35.0 -79.0 35.0 -78.0 36.0 -78.0"' in http.posts[0]
 
 
 def test_count_osm_bbox():
     http = _Http(_COUNT)
-    count_osm(BboxArea(bbox=(-79, 35, -78, 36)), network_type="all", endpoint="e", http=http, user_agent="t")
-    assert '["highway"](35.0,-79.0,36.0,-78.0);out count;' in http.posts[0]
+    count_osm(BboxArea(bbox=(-79, 35, -78, 36)), network_type="roads", endpoint="e", http=http, user_agent="t")
+    assert '["highway"~"^(busway|' in http.posts[0] and "(35.0,-79.0,36.0,-78.0);out count;" in http.posts[0]
 
 
 def test_count_overture_on_local_snapshot():
     engine = IbisEngine()
     try:
         bbox = (-0.5, -0.5, 0.5, 0.5)
-        n = count_overture(bbox, network_type="drive", overture_release="x", data_root=OVERTURE_DIR, engine=engine)
+        n = count_overture(bbox, network_type="roads", overture_release="x", data_root=OVERTURE_DIR, engine=engine)
     finally:
         engine.close()
     assert n > 0

@@ -348,7 +348,7 @@ def _matching_segments(
 def count_segments(
     bbox: tuple[float, float, float, float],
     *,
-    network_type: NetworkTypes = "drive",
+    network_type: NetworkTypes = "roads",
     overture_release: str = OVERTURE_RELEASE,
     data_root: str | None = None,
     engine: Any = None,
@@ -360,7 +360,7 @@ def count_segments(
 
     Args:
         bbox: ``(west, south, east, north)`` in EPSG:4326.
-        network_type: One of ``drive``/``walk``/``bike``/``all``.
+        network_type: One of ``roads``/``paths``, or a list of them (legacy names map).
         overture_release: Pinned release string (ignored when ``data_root`` set).
         data_root: Override base URI (Azure mirror / local snapshot dir).
         engine: Compute engine (default: corral ibis/duckdb).
@@ -375,7 +375,7 @@ def count_segments(
 def read_segments(
     bbox: tuple[float, float, float, float],
     *,
-    network_type: NetworkTypes = "drive",
+    network_type: NetworkTypes = "roads",
     overture_release: str = OVERTURE_RELEASE,
     data_root: str | None = None,
     engine: Any = None,
@@ -390,8 +390,8 @@ def read_segments(
 
     Args:
         bbox: ``(west, south, east, north)`` in EPSG:4326.
-        network_type: One of ``drive``/``walk``/``bike``/``all``; selects the
-            allowed ``class`` list (``all`` applies no class filter).
+        network_type: One of ``roads``/``paths``, or a list of them (legacy names map); selects the
+            allowed ``class`` list.
         overture_release: Pinned release string (ignored when ``data_root`` set).
         data_root: Override base URI (Azure mirror / local snapshot dir).
         engine: Compute engine (default: corral ibis/duckdb).
@@ -474,7 +474,7 @@ def fetch_network_elements(
     area: str | Sequence[float],
     *,
     buffer_m: float = 0.0,
-    network_type: NetworkTypes = "drive",
+    network_type: NetworkTypes = "roads",
     overture_release: str = OVERTURE_RELEASE,
     data_root: str | None = None,
     engine: Any = None,
@@ -486,7 +486,7 @@ def fetch_network_elements(
         area: Place string, ``(lat, lon)`` point, or ``(west, south, east,
             north)`` bbox.
         buffer_m: Buffer in metres applied when ``area`` is a point.
-        network_type: One of ``drive``/``walk``/``bike``/``all``.
+        network_type: One of ``roads``/``paths``, or a list of them (legacy names map).
         overture_release: Pinned release string (ignored when ``data_root`` set).
         data_root: Override base URI (Azure mirror / local snapshot dir).
         engine: Compute engine (default: corral ibis/duckdb).

@@ -1349,20 +1349,22 @@ def test_place_search_shows_real_errors_not_no_matches(node_module):
     assert "Place search failed: Timeout: slow" in failed and "failed: place search failed" not in failed
 
 
-def test_build_modes_allow_several_and_all_stands_alone(node_module):
-    names = ["toggleMode", "normalizeModes", "modesProblem"]
+def test_build_modes_are_roads_and_paths_and_legacy_names_map(node_module):
+    names = ["toggleMode", "normalizeModes", "modesProblem", "MODES"]
 
     def run(expr):
         return node_module("buildmodes.js", names, expr)
 
-    assert run('toggleMode(["drive"], "bike", true)') == ["drive", "bike"]
-    assert run('toggleMode(["drive", "bike", "walk"], "bike", false)') == ["drive", "walk"]
-    assert run('toggleMode(["drive", "walk"], "all", true)') == ["all"]
-    assert run('toggleMode(["all"], "walk", true)') == ["walk"]
-    assert run('normalizeModes("bike")') == ["bike"]
-    assert run('normalizeModes(["walk", "boat", "drive"])') == ["drive", "walk"]
-    assert run('normalizeModes("hovercraft")') == ["drive"]
-    assert run("modesProblem([])") != "" and run('modesProblem(["drive"])') == ""
+    assert run("MODES.map(m => m.id)") == ["roads", "paths"]
+    assert run('toggleMode(["roads"], "paths", true)') == ["roads", "paths"]
+    assert run('toggleMode(["paths", "roads"], "roads", false)') == ["paths"]
+    assert run('toggleMode([], "paths", true)') == ["paths"]
+    assert run('normalizeModes("drive")') == ["roads"]
+    assert run('normalizeModes("bike")') == ["roads", "paths"]
+    assert run('normalizeModes(["all"])') == ["roads", "paths"]
+    assert run('normalizeModes(["paths", "boat"])') == ["paths"]
+    assert run('normalizeModes("hovercraft")') == ["roads"]
+    assert run("modesProblem([])") != "" and run('modesProblem(["roads"])') == ""
 
 
 def test_related_steps_control_shows_only_for_the_related_scope(node_module):

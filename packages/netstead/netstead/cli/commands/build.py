@@ -19,6 +19,8 @@ from pathlib import Path
 import typer
 from corral.cli.render import render_dict
 
+from netstead.network_types import normalize_types
+
 from .._extras import require_extra
 from .._helpers import resolve_engine
 
@@ -63,6 +65,18 @@ def _parse_area(place: str | None, bbox: str | None, point: str | None, buffer_m
         raise typer.BadParameter("--point values must be numbers") from exc
 
 
+def _parse_network_types(values: list[str]) -> list[str]:
+    """The ``--network-type`` values (repeated and/or comma-separated) as validated network types.
+
+    Legacy names are mapped (``drive`` -> roads; ``walk``/``bike``/``all`` -> roads + paths).
+    """
+    names = [part.strip() for value in values for part in value.split(",") if part.strip()]
+    try:
+        return normalize_types(names)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="--network-type") from exc
+
+
 def register(app: typer.Typer) -> None:
     """Register the ``build`` command on ``app``."""
 
@@ -73,7 +87,14 @@ def register(app: typer.Typer) -> None:
         bbox: str = typer.Option(None, "--bbox", help="Bounding box 'west,south,east,north' (EPSG:4326)."),
         point: str = typer.Option(None, "--point", help="Center 'lat,lon'; use with --buffer."),
         buffer_m: float = typer.Option(0.0, "--buffer", help="Buffer in metres around --point."),
-        network_type: str = typer.Option("drive", "--network-type", help="drive / walk / bike / all."),
+        network_type: list[str] = typer.Option(
+            ["roads"],
+            "--network-type",
+            help=(
+                "roads and/or paths; repeat the option or comma-separate (e.g. roads,paths). "
+                "Deprecated: drive = roads; walk, bike, all = roads,paths."
+            ),
+        ),
         extra_tags: str = typer.Option(
             None, "--extra-tags", help="Comma-separated extra source properties/tags to carry."
         ),
@@ -100,6 +121,7 @@ def register(app: typer.Typer) -> None:
         area = _parse_area(place, bbox, point, buffer_m)
         tags = [t.strip() for t in extra_tags.split(",")] if extra_tags else None
         build_kwargs = {"spec_version": spec_version} if spec_version else {}
+        network_types = _parse_network_types(network_type)
 
         try:
             if source == "overture":
@@ -112,7 +134,7 @@ def register(app: typer.Typer) -> None:
                 net = overture.build_network_from_overture(
                     area,
                     buffer_m=buffer_m,
-                    network_type=network_type,
+                    network_type=network_types,
                     extra_tags=tags,
                     engine=resolve_engine(engine),
                     **build_kwargs,
@@ -123,7 +145,7 @@ def register(app: typer.Typer) -> None:
                 net = osm.build_network_from_osm(
                     area,
                     buffer_m=buffer_m,
-                    network_type=network_type,
+                    network_type=network_types,
                     extra_tags=tags,
                     engine=resolve_engine(engine),
                     **build_kwargs,
@@ -142,7 +164,7 @@ def register(app: typer.Typer) -> None:
             {
                 "dest": str(dest),
                 "source": source,
-                "network_type": network_type,
+                "network_type": ",".join(network_types),
                 "spec_version": net.spec_version,
                 "nodes": int(net.nodes.count()),
                 "links": int(net.links.count()),

@@ -847,8 +847,9 @@ def test_build_form_has_mode_checkboxes_and_a_folder_chooser():
     html = (STATIC_DIR / "index.html").read_text()
     form = html.split('data-step="options"', 1)[1].split('data-step="run"', 1)[0]
     assert 'id="opt-network-type"' not in form
-    for mode in ("drive", "walk", "bike", "all"):
+    for mode in ("roads", "paths"):
         assert f'<input type="checkbox" data-mode="{mode}"' in form
+    assert 'data-mode="all"' not in form and 'data-mode="drive"' not in form
     # The chooser's container, the chosen-path display and a hint all sit in the step, and the path starts unset.
     for marker in ('id="opt-out-fb"', 'id="opt-outdir" class="unset"', 'id="opt-out-hint"'):
         assert marker in form

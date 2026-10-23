@@ -149,7 +149,7 @@ def test_dumps_toml_round_trips_nested_tables_and_quoting():
 def test_approval_threshold_and_build_defaults(tmp_path, isolated_env):
     s = load_settings(project_dir=tmp_path, environ=isolated_env).settings
     assert s.app.approve_above_s == 90.0
-    assert (s.build.network_type, s.build.buffer_m, s.build.extra_tags) == ("drive", 1000.0, [])
+    assert (s.build.network_type, s.build.buffer_m, s.build.extra_tags) == (["roads"], 1000.0, [])
 
 
 def test_negative_approval_threshold_rejected(tmp_path, isolated_env):

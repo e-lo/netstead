@@ -15,7 +15,7 @@ OVERPASS_JSON = OSM_DIR / "tiny_overpass.json"
 @pytest.mark.parametrize("path", [OSM_XML, OVERPASS_JSON], ids=["xml", "json"])
 def test_reads_nodes_and_filters_ways_for_drive(path, caplog):
     with caplog.at_level(logging.WARNING, logger="netstead.osm.local"):
-        nodes, ways = read_osm_file(path, network_type="drive")
+        nodes, ways = read_osm_file(path, network_type="roads")
     assert nodes == {1: (-71.0, 42.0), 2: (-71.0, 42.001), 3: (-71.0, 42.002), 4: (-71.002, 42.002)}
     assert [w["id"] for w in ways] == [100]  # footway filtered, incomplete 102 dropped, building 103 not a highway
     assert ways[0] == {"id": 100, "nodes": [1, 2, 3], "tags": {"highway": "residential", "name": "Main St"}}

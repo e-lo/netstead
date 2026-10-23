@@ -1,18 +1,25 @@
-# Allowed Overture segment `class` values per network_type (maintained data).
+# Allowed Overture segment `class` values per network type (maintained data).
 #
 # The DuckDB read keeps only road-subtype segments whose `class` is in the list
-# for the requested network_type (the predicate is pushed into read_parquet so
-# footways aren't transferred for a `drive` build). `all` is special-cased: an
-# empty list means "no class restriction — accept any class" (see
-# attrs.accepts_class).
+# for the requested network types (a build with several keeps the union; the
+# predicate is pushed into read_parquet so footways aren't transferred for a
+# `roads` build). The old names still replay: drive -> roads; walk, bike, all ->
+# roads + paths (see netstead.network_types).
 #
 # Class vocabulary follows the Overture roads guide:
 # https://docs.overturemaps.org/guides/transportation/roads/
 #
 # Phase 1 filters on class only (matches the OSM source's behavior); travel-mode
 # access rules (access_restrictions[].when.mode) are a Phase 2 refinement.
+#
+# Choices: Overture has no busway class (a bus-only road arrives under its road
+# class with a bus-only access restriction), so `roads` lists the vehicle
+# classes only. Overture has no separate *_link classes (ramps are a subclass of
+# their road) and no proposed/construction class. `unknown` and any other class
+# not listed here are excluded from both types: they cannot be placed on a
+# network with confidence.
 
-drive:
+roads:
   - motorway
   - trunk
   - primary
@@ -23,32 +30,13 @@ drive:
   - living_street
   - service
 
-walk:
+paths:
+  - pedestrian
   - footway
   - sidewalk
   - crosswalk
-  - path
   - steps
-  - pedestrian
-  - living_street
-  - residential
-  - unclassified
-  - tertiary
-  - secondary
-  - primary
-  - service
-
-bike:
-  - cycleway
   - path
   - track
-  - living_street
-  - residential
-  - unclassified
-  - tertiary
-  - secondary
-  - primary
-  - service
-
-# Empty list => accept any class value (no class filter pushed to the read).
-all: []
+  - cycleway
+  - bridleway
