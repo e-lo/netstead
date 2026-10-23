@@ -1,5 +1,5 @@
-// The Validate panel: run validation (a background job), list its findings by filter (repeated structural findings
-// folded into one row each: issuegroups.js), and link finding <-> map marker <-> row, with an explicit Zoom to on
+// The Validate panel: run validation (a background job), list its findings by filter, grouped by type (one collapsible
+// row per code and severity, built from /issues/summary; its members load on expand: issuegroups.js), and link finding <-> map marker <-> row, with an explicit Zoom to on
 // each located finding; plus the live edit warnings the Edit panel shows. The list, markers and report are read-only
 // views of the last RunValidation and of GET /edits; nothing here is recorded. The markers are a core layer in the
 // layer registry ("Issues" in Overlays). Issue messages quote data values: every one goes through esc().
@@ -7,16 +7,18 @@ import { getJSON, netPath } from "./api.js";
 import { $, esc, toast } from "./dom.js";
 import { runCore } from "./editcmds.js";
 import { icon } from "./icons.js";
-import { groupIssues, groupSummary, located } from "./issuegroups.js";
-import { SEVERITIES, SEVERITY_RGB, issueMeta, issuesQuery, markerPoints, rangeLabel, statusLine } from "./issuelist.js";
+import { MEMBER_PAGE, groupBlurb, groupIssues, groupSummary, groupTitle, located, orderGroups, remaining, totalsLine,
+  typeKey, typeOptionLabel } from "./issuegroups.js";
+import { SEVERITIES, SEVERITY_RGB, issueMeta, issuesQuery, markerPoints, statusLine } from "./issuelist.js";
 import { addLayer, fitLinks, flyTo, flyToNode } from "./map.js";
 import { CORE } from "./slots.js";
 import { store } from "./store.js";
 import { jumpTo, tableVisible } from "./table.js";
 import { showPanel } from "./workspaces.js";
 
-const PAGE = 100;
-let offset = 0, seq = 0, metaKey = null;
+let seq = 0, metaKey = null;
+const members = new Map();     // typeKey -> {issues: loaded members, total, box, group, ctx}
+const openTypes = new Set();   // typeKey of the groups the user expanded: they stay open across reloads
 const fail = e => toast(e.message);
 const activeId = () => { const s = store.get().server; return s && s.active; };
 
@@ -27,11 +29,11 @@ export function onIssuesState(s) {
   if (key === metaKey) return;
   metaKey = key;
   loadMarkers().catch(fail);
-  reloadIssues({ restart: true });
+  reloadIssues();
 }
 
-export function reloadIssues({ restart = false } = {}) {
-  if (restart) offset = 0;
+// (Callers pass {restart: true}; with groups there is no page to rewind, so it is ignored.)
+export function reloadIssues() {
   loadList().catch(fail);
 }
 
@@ -116,24 +118,24 @@ async function loadList() {
   if (!id || !issueMeta(s.server)) {
     $("iss-list").innerHTML = '<span class="empty">Run validation to list issues.</span>';
     $("iss-unlocated").innerHTML = ""; $("iss-range").textContent = ""; $("iss-unloc-count").textContent = "0";
-    $("iss-prev").disabled = true; $("iss-next").disabled = true;
+    members.clear();
     return;
   }
   const f = s.issueFilter, record = f.thisRecord && s.focus ? s.focus : null;
-  const [page, unlocated] = await Promise.all([
-    getJSON(netPath(id, `issues?${issuesQuery({ ...f, record }, offset, PAGE)}`)),
+  const [summary, unlocated] = await Promise.all([
+    getJSON(netPath(id, `issues/summary?${issuesQuery({ ...f, record }, 0, 1)}`)),
     getJSON(netPath(id, `issues?${issuesQuery({ located: "no" }, 0, 50)}`)),
   ]);
   if (mine !== seq) return;
-  renderFacets(page.facets, f);
-  $("iss-list").innerHTML = listHTML(page.issues, "iss-list") || '<span class="empty">No issues match.</span>';
-  $("iss-range").textContent = rangeLabel(offset, page.issues.length, page.total);
-  $("iss-prev").disabled = offset <= 0;
-  $("iss-next").disabled = offset + PAGE >= page.total;
+  renderFacets(summary.facets, f);
+  const groups = orderGroups(summary.groups);
+  members.clear();
+  $("iss-list").innerHTML = groups.map(typeHTML).join("") || '<span class="empty">No issues match.</span>';
+  $("iss-range").textContent = totalsLine(summary.total, groups);
   $("iss-unloc-count").textContent = unlocated.total;
   const more = unlocated.total - unlocated.issues.length;
   $("iss-unlocated").innerHTML = listHTML(unlocated.issues, "iss-unlocated") + (more > 0 ? `<div class="empty">and ${more} more</div>` : "");
-  wireRows($("iss-list"), page.issues);
+  wireTypes(groups, { filter: f, record, mine, open: Boolean(record) });
   wireRows($("iss-unlocated"), unlocated.issues);
   markFocusedIssue();
 }
@@ -146,17 +148,67 @@ function fill(select, options, value) {
 function renderFacets(facets, f) {
   fill($("iss-sev"), [["", "All severities"], ...SEVERITIES.map(s => [s, `${s} (${(facets.severity || {})[s] || 0})`])], f.severity[0] || "");
   fill($("iss-table"), [["", "All tables"], ...Object.entries(facets.table || {}).map(([t, n]) => [t, `${t} (${n})`])], f.table);
-  fill($("iss-code"), [["", "All codes"], ...Object.entries(facets.code || {}).map(([c, n]) => [c, `${c} (${n})`])], f.code);
+  fill($("iss-code"), [["", "All types"], ...Object.entries(facets.code || {}).map(([c, n]) => [c, typeOptionLabel(c, n)])], f.code);
 }
 
-function issueHTML(i) {
+// `hint` false inside a type group, whose row shows the rule's fix hint once.
+function issueHTML(i, hint = true) {
   const where = i.key != null ? `${i.table} ${i.key}` : i.table || "";
   const zoom = located(i) ? `<button class="iconbtn iss-zoom" data-tip="Zoom to" aria-label="${esc(zoomLabel(i, where))}">` +
     `${icon("crosshair", { size: 14 })}</button>` : "";
   const button = i.fixable ? `<button class="mini ghost iss-fix">Fix</button>` : "";
   return `<div class="iss sev-${esc(i.severity)}" data-i="${esc(i.i)}" tabindex="0"><span class="sev-dot" aria-hidden="true"></span>` +
     `<div class="iss-body"><div><b>${esc(i.code)}</b> <span class="diag">${esc(where)}${i.column ? ` · ${esc(i.column)}` : ""}</span></div>` +
-    `<div class="iss-msg">${esc(i.message)}</div>${i.fix_hint ? `<div class="diag">${esc(i.fix_hint)}</div>` : ""}</div>${zoom}${button}</div>`;
+    `<div class="iss-msg">${esc(i.message)}</div>${hint && i.fix_hint ? `<div class="diag">${esc(i.fix_hint)}</div>` : ""}</div>${zoom}${button}</div>`;
+}
+
+// One finding type: a collapsed row "▸ code severity count" with the rule's fix hint (or, for structural findings,
+// the resources they name) once, then its members, which load when it opens.
+function typeHTML(g, k) {
+  const id = `iss-type-${k}`, blurb = groupBlurb(g);
+  return `<div class="iss grp type sev-${esc(g.severity)}" data-t="${k}" tabindex="0" role="button" aria-expanded="false" aria-controls="${id}">` +
+    `<span class="sev-dot" aria-hidden="true"></span><div class="iss-body"><div><span class="iss-tog" aria-hidden="true">▸</span> ` +
+    `<b>${esc(g.code)}</b> <span class="diag">${esc(g.severity)}</span> <span class="pcount">${esc(g.count.toLocaleString("en-US"))}</span></div>` +
+    `${blurb ? `<div class="iss-msg">${esc(blurb)}</div>` : ""}</div></div><div class="iss-members" id="${id}" hidden></div>`;
+}
+
+function wireTypes(groups, ctx) {
+  for (const row of $("iss-list").querySelectorAll(".iss.type")) {
+    const g = groups[Number(row.dataset.t)], key = typeKey(g), box = document.getElementById(row.getAttribute("aria-controls"));
+    members.set(key, { issues: [], total: g.count, box, group: g, ctx });
+    const toggle = () => {
+      toggleGroup(row);
+      if (box.hidden) openTypes.delete(key);
+      else { openTypes.add(key); loadMembers(key).catch(fail); }
+    };
+    row.onclick = toggle;
+    onRowKey(row, toggle);
+    row.title = groupTitle(g);
+    if (ctx.open || openTypes.has(key)) toggle();
+  }
+}
+
+// The next page of a group's members: the same filters as the list, narrowed to the group's code and severity.
+async function loadMembers(key) {
+  const m = members.get(key);
+  if (!m) return;
+  const { filter, record, mine } = m.ctx;
+  const q = issuesQuery({ ...filter, severity: [m.group.severity], code: m.group.code, record }, m.issues.length, MEMBER_PAGE);
+  const page = await getJSON(netPath(activeId(), `issues?${q}`));
+  if (mine !== seq || members.get(key) !== m) return;
+  m.issues.push(...page.issues);
+  m.total = page.total;
+  renderMembers(key);
+}
+
+function renderMembers(key) {
+  const m = members.get(key), left = remaining(m.total, m.issues.length);
+  m.box.innerHTML = m.issues.map(i => issueHTML(i, false)).join("") +
+    (left ? `<button class="mini ghost iss-more">Show ${Math.min(left, MEMBER_PAGE)} more (${left.toLocaleString("en-US")} left)</button>` : "");
+  wireRows(m.box, m.issues);
+  const more = m.box.querySelector(".iss-more");
+  if (more) more.onclick = () => loadMembers(key).catch(fail);
+  markFocusedIssue();
 }
 
 const zoomLabel = (i, where) => `Zoom to ${i.code}${where ? ` on ${where}` : ""}`;
@@ -272,6 +324,4 @@ export function wireIssues() {
   $("iss-table").onchange = e => setFilter({ table: e.target.value });
   $("iss-code").onchange = e => setFilter({ code: e.target.value });
   $("iss-this").onchange = e => setFilter({ thisRecord: e.target.checked });
-  $("iss-prev").onclick = () => { offset = Math.max(0, offset - PAGE); reloadIssues(); };
-  $("iss-next").onclick = () => { offset += PAGE; reloadIssues(); };
 }

@@ -21,6 +21,12 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Changed
 
+- **The Workbench Validate list is grouped by finding type.** Instead of 271 near-identical
+  `quality.high_speed_residential` rows burying everything else, each rule code and severity is one collapsible
+  row (count and the rule's fix hint once; errors first, then warnings, then info, largest first) that loads its
+  findings, 50 at a time, when opened. The filter menus are labeled Severity, Table and Type, and Type lists the
+  finding types with counts. New route `GET /api/n/{net}/{component}/issues/summary` returns the groups for the
+  same filters as `/issues`, built from the whole issue set.
 - **The Workbench robot shows its status by color.** The header's language-model icon (and a small dot whose
   shape says the same) is green when the chosen provider and model are ready, yellow when only the offline pattern
   parser is in use, and red when the provider is unavailable (missing key, Ollama not running, model not pulled).

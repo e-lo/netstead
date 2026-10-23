@@ -163,7 +163,7 @@ async function renderPicker() {
 // also carries the privacy note. The text is the button's accessible name too.
 function syncButtonTip(current, provider) {
   const row = provider === "stub" ? null : current || providerRow(provider);
-  const status = llmStatus({ provider, row, model: $("nl-model").value, modelMissing, privacy: privacyNote(row || STUB) });
+  const status = llmStatus({ provider, row, model: $("nl-model").value, modelMissing, privacy: row ? privacyNote(row) : "Nothing leaves this machine." });
   const btn = $("nl-btn");
   btn.dataset.tip = status.text;
   btn.setAttribute("aria-label", status.text);

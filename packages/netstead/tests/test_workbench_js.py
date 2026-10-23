@@ -320,7 +320,6 @@ def test_record_issues_and_the_status_line(node_module):
     )
     assert line == "Validated v2: 272 warnings, 16 info · the network changed since: re-run"
     assert node_module("issuelist.js", ["statusLine"], "statusLine(null)") == "Not validated yet."
-    assert node_module("issuelist.js", ["rangeLabel"], "rangeLabel(100, 50, 288)") == "101\u2013150 of 288"
 
 
 def test_the_issues_badge_counts_what_needs_attention(node_module):
@@ -1528,3 +1527,48 @@ def test_the_robot_status_is_green_yellow_or_red(node_module):
     assert "qwen2.5:7b is not installed; run: ollama pull qwen2.5:7b" in got[3]["text"]
     assert "no Anthropic API key is set" in got[4]["text"]
     assert "nope is not set up" in got[6]["text"]
+
+
+_TYPES = (
+    "[{code: 'quality.high_speed_residential', severity: 'warning', count: 271,"
+    " fix_hint: 'Lower the speed.', tables: ['link']},"
+    " {code: 'x.info', severity: 'info', count: 400, fix_hint: null, tables: ['node']},"
+    " {code: 'a.err', severity: 'error', count: 2, fix_hint: 'Fix it.', tables: ['link']},"
+    " {code: 'b.warn', severity: 'warning', count: 271, fix_hint: null, tables: []},"
+    " {code: 'structural.missing_optional_resource', severity: 'info', count: 3, fix_hint: 'h',"
+    " tables: ['lane', 'zone', 'use']}]"
+)
+
+
+def test_type_groups_order_by_severity_then_count(node_module):
+    got = node_module("issuegroups.js", ["orderGroups"], f"orderGroups({_TYPES}).map(g => g.code)")
+    assert got == [
+        "a.err",  # errors first, however few
+        "b.warn",  # warnings: equal counts break on code
+        "quality.high_speed_residential",
+        "x.info",  # then info, largest first
+        "structural.missing_optional_resource",
+    ]
+    assert node_module("issuegroups.js", ["orderGroups"], "orderGroups(null)") == []
+
+
+def test_type_group_titles_blurbs_and_totals(node_module):
+    names = ["groupTitle", "groupBlurb", "totalsLine", "typeOptionLabel", "remaining", "typeKey"]
+    expr = (
+        f"(() => {{ const g = {_TYPES}; return [groupTitle(g[0]), groupBlurb(g[0]), groupBlurb(g[1]), groupBlurb(g[4]),"
+        " totalsLine(287, g), totalsLine(1, [g[0]]), totalsLine(0, []), typeOptionLabel('a.b', 1234),"
+        " remaining(271, 50), remaining(5, 9), typeKey(g[0])]; })()"
+    )
+    assert node_module("issuegroups.js", names, expr) == [
+        "quality.high_speed_residential · warning · 271",
+        "Lower the speed.",  # the rule's hint, shown once for the group
+        "",
+        "optional resources absent: lane, zone, use",  # structural groups name their resources, as before
+        "287 findings in 5 types",
+        "1 finding in 1 type",
+        "No findings",
+        "a.b (1,234)",
+        221,
+        0,
+        "quality.high_speed_residential\u0000warning",
+    ]

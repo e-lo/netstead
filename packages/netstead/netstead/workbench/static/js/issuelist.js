@@ -49,8 +49,6 @@ export function markerPoints(markers, net) {
 // The issue numbers recorded against one record ({table: {"<key>": [i, ...]}} from /issues/markers).
 export const recordIssues = (records, table, id) => (records && records[table] && records[table][String(id)]) || [];
 
-export const rangeLabel = (offset, shown, total) => (total ? `${offset + 1}–${offset + shown} of ${total}` : "No issues");
-
 // The last validation of the active network (session state `issues[active]`), or null.
 export const issueMeta = state => (state && state.issues && state.issues[state.active]) || null;
 

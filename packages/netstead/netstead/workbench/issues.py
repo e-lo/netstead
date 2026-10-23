@@ -33,6 +33,8 @@ from .related import primary_keys
 __all__ = ["MAX_MARKERS", "SEVERITIES", "IssueSet", "locate_issues", "rule_configs", "run_validation"]
 
 SEVERITIES = ("error", "warning", "info")
+#: Tables named per group in an issue summary.
+SUMMARY_TABLES = 50
 #: Located issues sent to the map; beyond this the markers answer says ``truncated``.
 MAX_MARKERS = 50_000
 #: Tables the map draws: an issue on one of their records anchors on the record itself.
@@ -94,6 +96,28 @@ class IssueSet:
             )
 
         return [i for i in self.issues if keep(i)]
+
+    def summary(self, rows: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+        """``rows`` (a :meth:`query` result) folded into one entry per code and severity.
+
+        Each entry is ``{code, severity, count, fix_hint, tables}``: ``fix_hint`` is the rule's (the first member's),
+        ``tables`` the distinct tables of its members (at most :data:`SUMMARY_TABLES`, in order of appearance, so a
+        group of ``structural`` findings can name the resources). Ordered by severity (error, warning, info), then
+        by count (largest first), then code. Built from the whole result, so the Validate list never depends on a page.
+        """
+        groups: dict[tuple[str, str], dict[str, Any]] = {}
+        for i in rows:
+            g = groups.setdefault(
+                (i["code"], i["severity"]),
+                {"code": i["code"], "severity": i["severity"], "count": 0, "fix_hint": i.get("fix_hint"), "tables": []},
+            )
+            g["count"] += 1
+            if g["fix_hint"] is None:
+                g["fix_hint"] = i.get("fix_hint")
+            if i["table"] and i["table"] not in g["tables"] and len(g["tables"]) < SUMMARY_TABLES:
+                g["tables"].append(i["table"])
+        rank = {s: n for n, s in enumerate(SEVERITIES)}
+        return sorted(groups.values(), key=lambda g: (rank.get(g["severity"], len(rank)), -g["count"], g["code"]))
 
     def by_record(self) -> dict[str, dict[str, list[int]]]:
         """``{table: {str(key): [issue numbers]}}``, for issues tied to a record (row marks, "This record")."""

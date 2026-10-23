@@ -478,6 +478,8 @@
           border:1px solid var(--edge); color:var(--ink); }
   a.btn.off { opacity:.45; pointer-events:none; }
   .iss-filters { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; font-size:12px; }
+  .iss-facet { display:flex; flex-direction:column; gap:2px; min-width:0; color:var(--muted); font-size:11px; }
+  .iss-members .iss-more { margin:6px 0 6px 8px; }
   .iss-filters select { max-width:100%; background:#0c0e12; color:var(--ink); border:1px solid var(--edge); border-radius:6px; padding:3px 6px; }
   #dock-validate .iss, #dock-edit .iss { display:flex; gap:8px; align-items:flex-start; padding:7px 6px;
          border-bottom:1px solid var(--edge); cursor:pointer; font-size:12.5px; }
