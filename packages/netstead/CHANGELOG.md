@@ -21,6 +21,9 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Changed
 
+- **Workbench Validate badge counts what needs attention.** The tab's pill shows the number of errors (red) when there
+  are any, else warnings (amber), else nothing; info findings are never counted. The tooltip still gives the whole
+  breakdown ("Validate — 3 errors, 1 warning, 16 info"), or says "clean" or "not run yet".
 - **Workbench side panel: a View tab, dismissible Edit help, readable badges.** The map and style controls (layers,
   color, width, direction, filter) moved out of the Find tab's collapsed section into their own **View** tab right
   after Find, and the map's layers button is gone. The Edit tab's explanatory paragraph hides behind a "x" (and comes

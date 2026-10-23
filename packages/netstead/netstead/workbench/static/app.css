@@ -419,6 +419,7 @@
   #dock-tabs button.icontab .pcount { position:absolute; top:-2px; right:2px; margin:0; padding:0 4px; min-width:8px;
     font-size:10px; line-height:14px; box-sizing:border-box; border:1.5px solid var(--bg); background:var(--edge); color:var(--ink); }
   #dock-tabs button.icontab .pcount.warn { background:var(--accent); color:#1b1206; }
+  #dock-tabs button.icontab .pcount.error { background:rgb(224,82,77); color:#fff; }
   #dock-tabs [data-tip]:hover::after, #dock-tabs [data-tip]:focus-visible::after { top:calc(100% + 6px); right:auto; left:50%; transform:translateX(-50%); }
   #dock-tabs [data-tip]:last-child:hover::after { left:auto; right:0; transform:none; }
   #thinking { margin:4px 0; }
@@ -532,3 +533,4 @@
   #side .label .iconbtn svg { width:14px; height:14px; }
   .pcount.warn { background:var(--accent); color:#1b1206; }
   .pcount.warn:empty { padding:0; width:9px; height:9px; }
+  .pcount.error { background:rgb(224,82,77); color:#fff; }

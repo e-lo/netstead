@@ -323,17 +323,34 @@ def test_record_issues_and_the_status_line(node_module):
     assert node_module("issuelist.js", ["rangeLabel"], "rangeLabel(100, 50, 288)") == "101\u2013150 of 288"
 
 
-def test_the_issues_badge_counts_issues_and_edit_warnings(node_module):
+def test_the_issues_badge_counts_what_needs_attention(node_module):
+    # errors win (red pill); info is never counted, but the tooltip lists everything
     assert node_module("issuelist.js", ["issuesBadge"], f"issuesBadge({STATE})") == {
-        "text": "10",  # 6 issues + 4 edit warnings
+        "text": "1",
+        "tone": "error",
         "dirty": False,
-        "title": "1 error, 6 warnings, 3 info",
+        "title": "1 error, 6 warnings, 3 info",  # 2 validation warnings + 4 live edit warnings
     }
-    assert node_module(
-        "issuelist.js", ["issuesBadge"], '[issuesBadge({active: "b", edits: {}}), issuesBadge(null)]'
-    ) == [
-        None,
-        None,
+
+
+def test_the_issues_badge_falls_back_to_warnings_then_quiet(node_module):
+    def state(counts):
+        return f'{{active: "a", issues: {{a: {{version: 1, counts: {counts}}}}}, edits: {{a: {{}}}}}}'
+
+    expr = (
+        f"[issuesBadge({state('{error: 0, warning: 271, info: 16}')}),"
+        f" issuesBadge({state('{error: 0, warning: 0, info: 16}')}),"
+        f" issuesBadge({state('{error: 3, warning: 1, info: 16}')}),"
+        f" issuesBadge({state('{error: 0, warning: 0, info: 0}')}),"
+        " issuesBadge({active: 'b', edits: {}}), issuesBadge(null)]"
+    )
+    assert node_module("issuelist.js", ["issuesBadge"], expr) == [
+        {"text": "271", "tone": "warn", "dirty": False, "title": "271 warnings, 16 info"},
+        {"quiet": True, "dirty": False, "title": "16 info"},  # info alone raises no pill
+        {"text": "3", "tone": "error", "dirty": False, "title": "3 errors, 1 warning, 16 info"},
+        {"quiet": True, "dirty": False, "title": "clean"},
+        {"quiet": True, "dirty": False, "title": "not run yet"},
+        {"quiet": True, "dirty": False, "title": "not run yet"},
     ]
 
 
