@@ -25,6 +25,7 @@ packages in one command (`dbcorral` cannot be resolved from PyPI yet, so it has 
 === "uv (recommended)"
 
     ```bash
+    uv init --bare
     uv add \
       "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral" \
       "netstead[all] @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/netstead"
@@ -37,6 +38,8 @@ packages in one command (`dbcorral` cannot be resolved from PyPI yet, so it has 
       "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral" \
       "netstead[all] @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/netstead"
     ```
+
+`uv init --bare` makes a new folder a uv project, which `uv add` needs; skip it when you add netstead to a project you already have.
 
 Once `netstead` 1.0.0b2 is on PyPI these become `uv add 'netstead[all]==1.0.0b2'` /
 `pip install 'netstead[all]==1.0.0b2'` / `pipx install 'netstead[all]==1.0.0b2'`.

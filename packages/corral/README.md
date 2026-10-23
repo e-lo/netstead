@@ -42,9 +42,12 @@ Pick the tool you already use — these are equivalent:
 release under the new name is pending), so the beta installs from GitHub:
 
 ```bash
-# uv (recommended) — `uv pip install` and `pip install` take the same argument
+uv init --bare
 uv add "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral"
 ```
+
+`uv init --bare` makes a new folder a uv project, which `uv add` needs; skip it when you add corral to a project
+you already have. `uv pip install` and `pip install` take the same argument.
 
 Once the PyPI release is out, the usual forms apply:
 

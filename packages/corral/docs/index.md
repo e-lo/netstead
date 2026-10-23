@@ -79,8 +79,11 @@ pkg = Package.from_source("./mydata.csv.zip")                   # zipped CSV bun
 release under the new name is pending), so the beta installs from GitHub with any of the tools below:
 
 ```bash
+uv init --bare
 uv add "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral"
 ```
+
+`uv init --bare` makes a new folder a uv project, which `uv add` needs; skip it when you add netstead to a project you already have.
 
 Once the release is out, pick the tool you already use — these all produce the same install:
 

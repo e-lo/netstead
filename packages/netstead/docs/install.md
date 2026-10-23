@@ -27,10 +27,13 @@ right choice when you don't yet know what you need.
     written once the release is out; until then, put the same extras in the brackets of the GitHub form.
 
 ```bash
+uv init --bare
 uv add \
   "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral" \
   "netstead[all] @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/netstead"
 ```
+
+`uv init --bare` makes a new folder a uv project, which `uv add` needs; skip it when you add netstead to a project you already have.
 
 Then confirm the install with the built-in check:
 
@@ -58,6 +61,7 @@ it on PyPI yet. After the release, `corral` comes along automatically and you ne
 === "uv (recommended)"
 
     ```bash
+    uv init --bare
     uv add \
       "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral" \
       "netstead @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/netstead"
