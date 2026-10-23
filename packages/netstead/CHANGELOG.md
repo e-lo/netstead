@@ -21,6 +21,20 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Changed
 
+- **Workbench Find tab: the selection fragment is a Segment or a Link list, in the ID system you pick, and you
+  copy it.** The Download button is gone: a copy button at the top right of the Fragment box copies it. **Segment**
+  is the facility's name (or ref) plus the `from`/`to` anchors, re-resolvable on another network version; **Link
+  list** is only the resolved ids. Neither mixes in the other's fields, and the utterance is a caption under the
+  box instead of `notes` in it. A new **IDs** choice writes GMNS (`link_id`, `node_id`), OpenStreetMap
+  (`osm_way_id`, `osm_node_id`; ProjectCard `osm_link_id`, `osm_node_id`) or Overture GERS
+  (`overture_segment_id`, `overture_connector_id`) ids. A system the network has no columns for is disabled with
+  the reason, GERS is refused for ProjectCard (it has no key), and Segment is disabled for a selection with no
+  named facility. Ids that several links share (one OSM way is split into many links) are deduplicated, with a
+  caption. `GET /api/selection/export` takes `form=segment|link_list` and `id_system=gmns|osm|gers` (the older
+  `resolved` / `query` still work, in GMNS ids) and returns `captions` and `options` (which forms and id systems
+  this selection can use, each `null` or the reason it cannot). New `netstead.select.idsystems`; `to_fragment` and
+  `to_projectcard` take the `segment` / `link_list` forms and an `ids=` mapping; the GMNS selection schema accepts
+  `osm_way_id` / `overture_segment_id` links and `osm_node_id` / `overture_connector_id` anchors.
 - **Workbench Open / Import: Included examples, and a Back chevron.** The wizard's first screen now ends with
   **Included examples**, the networks bundled with netstead (Leavenworth, WA; RDU I-40) with their link and node
   counts, each opening in one click (`GET /api/examples`). Bundled examples open even when the install lives outside

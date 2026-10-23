@@ -81,10 +81,11 @@ things worth reading:
 - The **status**, `resolved`: the phrase mapped to one unambiguous set of links. Other statuses are
   `ambiguous` (next step) and the empty result when nothing matched.
 - The **diagnostics**: how it got there (`facility ['Ski Hill Drive']: 20 link(s)`).
-- The **fragment**: a JSON document listing the `link_id`s, in the GMNS selection schema. This is the
-  portable form of the selection. **Export** writes it (or a ProjectCard facility) to a file, and in **query**
-  form it keeps the name and conditions instead of the ids, so another tool, or a later version of this
-  network, can resolve it again.
+- The **fragment**: a JSON document in the GMNS selection schema, the portable form of the selection. As a
+  **Link list** it holds only the `link_id`s; as a **Segment** it keeps the street name and the from/to nodes
+  instead, so another tool, or a later version of this network, can resolve it again. Pick the form and the
+  ID system (GMNS, OpenStreetMap or Overture GERS) under **Export**, or a ProjectCard facility instead, and use
+  the copy button on the box.
 
 Why it matters: a selection made by name is reproducible in a way a hand-drawn box is not. The strip at the
 bottom already shows it as `app.do(Select(utterance='Ski Hill Drive'))`; after an edit, a query selection is

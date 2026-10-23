@@ -404,10 +404,21 @@ written to, and a copy inside the source folder is refused.
   the selection you were checking stays as it was.
 - A pin is part of the selection's query, so it survives an edit and a saved selection's reuse. When an edit takes
   the pinned node off the facility, see [What the selection does after an edit](#what-the-selection-does-after-an-edit).
-- **Export** downloads a resolved selection as a GMNS fragment (checked against the selection schema) or a
-  ProjectCard facility object, in resolved form (link ids) or query form (name/ref + conditions, which a tool can
-  resolve again). With a stale pin, the resolved form downloads with a warning and the query form is refused:
-  the query no longer gives those links.
+- **Export** shows a resolved selection in the **Fragment** box, as a GMNS fragment (checked against the
+  selection schema) or a ProjectCard facility object, one form at a time: **Segment** (the facility's name plus the
+  `from`/`to` anchors, which a tool can resolve again on another version of the network) or **Link list** (only
+  the resolved link ids). The box changes as soon as you change an option; the utterance is a caption under it,
+  not part of the fragment. **IDs** picks the id system: GMNS (`link_id`, `node_id`), OpenStreetMap
+  (`osm_way_id`, `osm_node_id`) or Overture GERS (`overture_segment_id`, `overture_connector_id`). A system the
+  network has no columns for is disabled, with the reason as its tooltip (the Leavenworth example has OSM ids,
+  not GERS). Several links can share one OSM way, so the list is deduplicated and a caption says so ("3 links
+  share OSM way 5847010"), and when a way also covers links outside the selection ("OSM way 5846369 also covers
+  11 links outside this selection"). ProjectCard has no key for GERS ids, so that choice is disabled for
+  ProjectCard objects. A selection made by clicking links has no named segment: **Segment** is disabled, with the
+  tooltip "This selection has no named segment; use Link list". The copy button at the top right of the box
+  copies the fragment to the clipboard. A saved selection's **Export** still downloads a file, in the form and ID
+  system chosen here. With a stale pin, Segment is refused (the query no longer gives those links), and Link
+  list exports with a warning.
 - **Save selection…** keeps the selection under a name; **Use** brings it back, resolved on the network as it is
   now. `app.do(SaveSelection(name="ski hill"))`, `app.do(UseSelection(name="ski hill"))`. **Export** on a saved
   selection resolves it the same way without making it current, and warns when its network is not open (it then

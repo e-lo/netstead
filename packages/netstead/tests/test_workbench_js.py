@@ -631,6 +631,34 @@ def test_export_choices_follow_status_and_kind(node_module):
     assert lost["resolved"] is False and lost["reason"] == "Nothing was found to export."
 
 
+def test_export_choice_falls_back_to_what_the_selection_allows(node_module):
+    options = {
+        "forms": {"segment": "This selection has no named segment; use Link list", "link_list": None},
+        "id_systems": {"gmns": None, "osm": None, "gers": "no column"},
+    }
+    expr = (
+        f"[validChoice({json.dumps(options)}, {{form: 'segment', ids: 'gers'}}),"
+        f" validChoice({json.dumps(options)}, {{form: 'link_list', ids: 'osm'}}),"
+        " validChoice({}, {form: 'segment', ids: 'osm'})]"
+    )
+    assert node_module("selectmodel.js", ["validChoice"], expr) == [
+        {"form": "link_list", "ids": "gmns"},
+        {"form": "link_list", "ids": "osm"},
+        {"form": "segment", "ids": "osm"},
+    ]
+
+
+def test_export_params(node_module):
+    expr = (
+        "[exportParams({what: 'fragment', form: 'segment', ids: 'osm'}),"
+        " exportParams({what: 'projectcard', form: 'link_list', ids: 'gmns', name: 'two links'})]"
+    )
+    assert node_module("selectmodel.js", ["exportParams"], expr) == [
+        "what=fragment&form=segment&id_system=osm",
+        "what=projectcard&form=link_list&id_system=gmns&name=two+links",
+    ]
+
+
 def test_selection_badge(node_module):
     expr = (
         f"[selectionBadge({json.dumps(SEL)}), selectionBadge({json.dumps({**SEL, 'status': 'resolved'})}),"

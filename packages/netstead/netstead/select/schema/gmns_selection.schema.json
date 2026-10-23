@@ -13,6 +13,8 @@
       "additionalProperties": true,
       "anyOf": [
         {"required": ["link_id"]},
+        {"required": ["osm_way_id"]},
+        {"required": ["overture_segment_id"]},
         {"required": ["name"]},
         {"required": ["ref"]},
         {"required": ["all"]}
@@ -21,6 +23,10 @@
         "link_id": {"type": "array", "minItems": 1, "items": {"type": ["integer", "string"]},
                     "description": "Ordered GMNS link_id values (resolved form)."},
         "name": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "osm_way_id": {"type": "array", "minItems": 1, "items": {"type": ["integer", "string"]},
+                       "description": "OpenStreetMap way ids (link list in the OSM id system)."},
+        "overture_segment_id": {"type": "array", "minItems": 1, "items": {"type": "string"},
+                                "description": "Overture GERS segment ids (link list in the GERS id system)."},
         "ref": {"type": "array", "minItems": 1, "items": {"type": "string"}},
         "all": {"type": "boolean"},
         "modes": {"type": "array", "items": {"type": "string"}},
@@ -34,9 +40,10 @@
   "$defs": {
     "nodeRef": {
       "type": "object",
-      "required": ["node_id"],
+      "anyOf": [{"required": ["node_id"]}, {"required": ["osm_node_id"]}, {"required": ["overture_connector_id"]}],
       "additionalProperties": true,
-      "properties": {"node_id": {"type": ["integer", "string"]}}
+      "properties": {"node_id": {"type": ["integer", "string"]}, "osm_node_id": {"type": ["integer", "string"]},
+                     "overture_connector_id": {"type": "string"}}
     }
   }
 }

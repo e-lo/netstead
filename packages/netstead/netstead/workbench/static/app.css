@@ -200,6 +200,13 @@
   pre { background:#0c0e12; border:1px solid var(--edge); border-radius:8px; padding:10px; font-size:12px;
         white-space:pre-wrap; word-break:break-word; margin:0; }
   .diag { color:var(--muted); font-size:12.5px; margin:4px 0; }
+  #fragment-box { position:relative; }
+  #fragment-box pre { padding-right:44px; }
+  #fragment-box .iconbtn { position:absolute; top:4px; right:4px; }
+  #fragment-copy:disabled { opacity:.45; cursor:default; }
+  #fragment-copy.copied::after { content:attr(data-tip); position:absolute; top:50%; right:calc(100% + 8px);
+             transform:translateY(-50%); white-space:nowrap; background:#11151a; color:var(--ink);
+             border:1px solid var(--edge); padding:4px 8px; border-radius:6px; font-size:12px; pointer-events:none; z-index:5; }
   .dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; }
   .anc { margin:0 0 6px; } .anc .mini, .cands .mini, .saved .mini { margin-left:4px; }
   .cands { margin:4px 0 0 14px; display:flex; flex-wrap:wrap; gap:4px; align-items:center; } .cands .mini { margin-left:0; }

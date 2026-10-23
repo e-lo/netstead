@@ -9,7 +9,7 @@ import { barRoute, thinkingText } from "./assistmodel.js";
 import { addCommandTo } from "./commands.js";
 import { $, esc, toast } from "./dom.js";
 import { addLayer, fitLinks } from "./map.js";
-import { anchorRows, candidatePoints, exportChoices, selectionBadge, staleNotes, unpinAfterPin } from "./selectmodel.js";
+import { anchorRows, candidatePoints, exportChoices, exportParams, selectionBadge, staleNotes, unpinAfterPin, validChoice } from "./selectmodel.js";
 import { ALL_WORKSPACES, CORE, slots } from "./slots.js";
 import { activeSelection, store } from "./store.js";
 import { addPanel, showPanel } from "./workspaces.js";
@@ -99,11 +99,9 @@ export function renderSelectionPanel(s) {
   redraw($("anchors"), anchorRows(sel).map(anchorHTML).join("") || '<span class="empty">—</span>', unpinAfterPin);
   const diags = sel ? sel.diagnostics : [];
   $("diag").innerHTML = diags.length ? diags.map(d => `<div class="diag">• ${esc(d)}</div>`).join("") : '<span class="empty">—</span>';
-  $("fragment").textContent = sel && sel.fragment ? JSON.stringify(sel.fragment, null, 2) : "—";
   const choice = exportChoices(sel);
-  $("sel-export-go").disabled = !choice.resolved;
-  $("sel-export-form").querySelector('[value="query"]').disabled = !choice.query;
-  if (!choice.query && $("sel-export-form").value === "query") $("sel-export-form").value = "resolved";
+  for (const id of ["sel-export-what", "sel-export-form", "sel-export-ids"]) $(id).disabled = !choice.resolved;
+  refreshFragment(s, choice.resolved);
   const note = exportNote && exportNote.key === selectionKey(s) ? exportNote : { text: choice.reason, warned: stale.length > 0 };
   $("sel-export-note").textContent = note.text;
   $("sel-export-note").classList.toggle("warn-note", note.warned);
@@ -122,13 +120,83 @@ function saveFile(filename, content) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-// Export the current selection (or the saved one called `name`) in the chosen form, and say what the server found.
+// What the export row currently asks for.
+const readChoice = () => ({ what: $("sel-export-what").value, form: $("sel-export-form").value, ids: $("sel-export-ids").value });
+
+// The fragment box: the current selection in the chosen form and id system, re-fetched when the selection or a choice
+// changes. `fragmentKey` is what the box shows now; `fragmentSeq` drops an answer that a newer request overtook.
+let fragmentKey = null, fragmentText = "", fragmentSeq = 0;
+
+function showFragment(text, captionHTML = "") {
+  fragmentText = text;
+  $("fragment").textContent = text || "—";
+  $("fragment-copy").disabled = !text;
+  $("fragment-caption").innerHTML = captionHTML;
+}
+
+// Disable the form and id choices this selection cannot use, each with the reason as its tooltip.
+function applyOptions(options) {
+  const mark = (select, reasons) => {
+    const why = [];
+    for (const o of select.options) {
+      const reason = reasons[o.value];
+      o.disabled = reason != null;
+      o.title = reason || "";
+      if (reason) why.push(`${o.textContent}: ${reason}`);
+    }
+    select.title = why.join("\n");
+  };
+  mark($("sel-export-form"), options.forms || {});
+  mark($("sel-export-ids"), options.id_systems || {});
+}
+
+const fragmentCaption = (sel, j) => [sel && sel.utterance ? `\u201C${sel.utterance}\u201D` : "", ...j.captions]
+  .filter(Boolean).map(t => `<div>${esc(t)}</div>`).join("");
+
+async function refreshFragment(s, resolved, force = false) {
+  const sel = activeSelection(s);
+  const want = readChoice();
+  const key = resolved ? JSON.stringify([selectionKey(s), want]) : null;
+  if (!force && key === fragmentKey) return;
+  fragmentKey = key;
+  const seq = ++fragmentSeq;
+  if (!resolved) { showFragment(""); return; }
+  const fetchFor = choice => getJSON(`/api/selection/export?${exportParams({ what: want.what, ...choice })}`);
+  try {
+    let used = { form: want.form, ids: want.ids }, j = await fetchFor(used).catch(() => null);
+    if (!j) { used = { form: "link_list", ids: "gmns" }; j = await fetchFor(used); }  // the Link list in GMNS ids always works
+    const valid = validChoice(j.options, want);
+    if (valid.form !== used.form || valid.ids !== used.ids) { used = valid; j = await fetchFor(used); }
+    if (seq !== fragmentSeq) return;
+    applyOptions(j.options);
+    $("sel-export-form").value = used.form;
+    $("sel-export-ids").value = used.ids;
+    fragmentKey = JSON.stringify([selectionKey(s), { ...want, ...used }]);
+    showFragment(JSON.stringify(j.content, null, 2), fragmentCaption(sel, j));
+  } catch (e) {
+    if (seq === fragmentSeq) { fragmentKey = null; showFragment("", `<div>${esc(e.message)}</div>`); }
+  }
+}
+
+// Copy the fragment to the clipboard; the button says "Copied" for a moment.
+async function copyFragment() {
+  const btn = $("fragment-copy");
+  try { await navigator.clipboard.writeText(fragmentText); } catch { toast("Could not copy; select the text and copy it by hand."); return; }
+  btn.dataset.tip = "Copied";
+  btn.setAttribute("aria-label", "Copied the fragment");
+  btn.classList.add("copied");
+  setTimeout(() => {
+    btn.dataset.tip = "Copy";
+    btn.setAttribute("aria-label", "Copy the fragment");
+    btn.classList.remove("copied");
+  }, 1500);
+}
+
+// Download the current selection (or the saved one called `name`) as a file in the chosen form, and say what the server found.
 async function download(name) {
-  const params = new URLSearchParams({ what: $("sel-export-what").value, form: $("sel-export-form").value });
-  if (name) params.set("name", name);
   const key = selectionKey(store.get());
   try {
-    const j = await getJSON(`/api/selection/export?${params}`);
+    const j = await getJSON(`/api/selection/export?${exportParams({ ...readChoice(), name })}`);
     saveFile(j.filename, j.content);
     const checked = j.valid === false ? `Schema problems: ${j.problems.join("; ")}.` :
       j.valid ? "Valid against the GMNS selection schema." : `Downloaded ${j.filename}.`;
@@ -207,7 +275,10 @@ export function wireSelectionPanel() {
     if (pin) run({ type: "pin_anchor", role: pin.dataset.pin, node_id: JSON.parse(pin.dataset.node) });
     else if (unpin) run({ type: "pin_anchor", role: unpin.dataset.unpin, node_id: null });
   };
-  $("sel-export-go").onclick = () => download(null);
+  $("fragment-copy").onclick = copyFragment;
+  for (const id of ["sel-export-what", "sel-export-form", "sel-export-ids"]) {
+    $(id).onchange = () => refreshFragment(store.get(), exportChoices(activeSelection(store.get())).resolved);
+  }
   $("sel-save").onclick = () => saveSelection();
   $("sel-saved").onclick = e => {
     const b = e.target.closest("button");
