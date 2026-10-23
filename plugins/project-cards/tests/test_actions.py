@@ -276,13 +276,22 @@ READ_ONLY = {
     "project_cards.check_card",
     "project_cards.session_summary",
 }
+#: The catalog file Actions change files, not a network (``mutates`` false), and are never offered to the assistant.
+FILE_ACTIONS = {
+    "project_cards.rename_card",
+    "project_cards.duplicate_card",
+    "project_cards.delete_card",
+    "project_cards.restore_card",
+    "project_cards.update_card_meta",
+}
 
 
 def test_every_cards_action_that_changes_something_is_drafted_by_the_assistant(session):
     # The catalog Actions and the summary change no network, preview or file: the assistant may just call them.
     types = {t for t in session.actions.types() if t.startswith("project_cards.")}
-    assert types > READ_ONLY
-    assert {t for t in types if session.actions.model(t).mutates} == types - READ_ONLY
+    assert types > READ_ONLY | FILE_ACTIONS
+    assert {t for t in types if session.actions.model(t).mutates} == types - READ_ONLY - FILE_ACTIONS
+    assert {t for t in types if not session.actions.model(t).assistant} == FILE_ACTIONS
 
 
 def test_a_replayed_session_reproduces_the_network(session, make_session):

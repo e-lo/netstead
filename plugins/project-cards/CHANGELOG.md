@@ -23,6 +23,16 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
   on the removed one. The draft's **Edit…** is remove plus re-add through the form. `plugins.project_cards.drafts`
   entries now carry `tags`, `dependencies`, `notes`, `source` (`{card_id, path}` or `null`) and each change's
   `index`. A commit inside the open catalog's folder rescans the catalog (its result's `listed`).
+- **Edit the catalog's files.** Each catalog card has a **File** disclosure: **Rename…**
+  (`project_cards.rename_card(card_id, new_name, overwrite=False)`), **Duplicate** (`duplicate_card`, to
+  `<name>-copy.yml`, `-copy-2`, …), **Edit metadata…** (`update_card_meta(card_id, project=, tags=,
+  dependencies=)`, changing only those keys of the file) and **Delete** (`delete_card`, which moves the file to a
+  `.trash` folder inside the catalog folder; never a hard delete), with **Undo delete** in the status line
+  (`restore_card`). Every write goes through `host.writable`, stays inside the catalog folder (one sub-folder, nothing
+  hidden), validates the card with `projectcard` first and never replaces a different file unless `overwrite`. They
+  change files, not a network (`mutates` false), are kept out of the assistant's tools, are rolled back with a
+  failing parent Action, and are listed in the session summary's new **Catalog files** section
+  (`plugins.project_cards.files`; deletions this session are `plugins.project_cards.trash`).
 - **Inspect a card.** **Inspect** on a catalog card (and on the draft) opens a read-only view: project, tags,
   dependencies, notes and file; each change with its type, facility (ids, or the query and what it resolved to),
   property changes (existing → set or change) and its applicability on the open network. Clicking a change

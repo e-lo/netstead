@@ -22,6 +22,8 @@ __all__ = [
     "CheckCard",
     "ClosePreview",
     "CommitCard",
+    "DeleteCard",
+    "DuplicateCard",
     "EditCard",
     "ImportCard",
     "OpenCatalog",
@@ -29,8 +31,11 @@ __all__ = [
     "PreviewChange",
     "RefreshCatalog",
     "RemoveChange",
+    "RenameCard",
+    "RestoreCard",
     "SessionSummary",
     "UndoChange",
+    "UpdateCardMeta",
 ]
 
 
@@ -230,6 +235,79 @@ class ApplyCard(BaseAction):
     card_id: str = Field(min_length=1, max_length=1000)
     existing_value_conflict: Literal["error", "warn", "skip"] | None = None
     ignore_missing: bool | None = None
+
+
+class _CatalogFileAction(BaseAction):
+    """Fields an Action that changes a catalog card's file shares (not an Action itself: it has no ``type``).
+
+    These change files, not a network (``mutates`` is false), and are kept out of the assistant's tools: a file is
+    renamed, copied, trashed or rewritten only when the user asks. Each is recorded in history and listed in the
+    session summary; the catalog is rescanned afterwards.
+    """
+
+    assistant: ClassVar[bool] = False
+    card_id: str = Field(min_length=1, max_length=1000)
+
+
+#: A new card file name: a file name (``main-v2.yml``) or a path relative to the catalog folder (``sub/main.yml``).
+_NAME = Field(min_length=1, max_length=255)
+
+
+class RenameCard(_CatalogFileAction):
+    """Rename a catalog card's file (``new_name``: a name in the catalog folder, or ``sub/name.yml``).
+
+    A name without a suffix keeps the card's (``.yml``, ``.yaml`` or ``.json``). The new path must stay inside the
+    catalog folder (one level of sub-folders, nothing hidden) and ``io.allowed_roots``; an existing different file
+    there is replaced only with ``overwrite``. The card is validated with ``projectcard`` first.
+    """
+
+    type: Literal["project_cards.rename_card"] = "project_cards.rename_card"
+    new_name: str = _NAME
+    overwrite: bool = False
+
+
+class DuplicateCard(_CatalogFileAction):
+    """Copy a catalog card to a new file: ``new_name``, or ``<name>-copy.yml`` (``-copy-2``, … when taken).
+
+    The same rules as ``project_cards.rename_card``; the copy is byte for byte.
+    """
+
+    type: Literal["project_cards.duplicate_card"] = "project_cards.duplicate_card"
+    new_name: str | None = Field(default=None, min_length=1, max_length=255)
+    overwrite: bool = False
+
+
+class DeleteCard(_CatalogFileAction):
+    """Move a catalog card's file to the ``.trash`` folder inside the catalog folder (never a hard delete).
+
+    ``project_cards.restore_card`` puts it back. A card already in the trash under that name gets ``-2``, ``-3``, …
+    """
+
+    type: Literal["project_cards.delete_card"] = "project_cards.delete_card"
+
+
+class RestoreCard(_CatalogFileAction):
+    """Move a card ``project_cards.delete_card`` trashed back to where it was (``card_id``: its id then).
+
+    The newest deletion of that card this session is restored, else ``.trash/<card_id>``. A different file now at
+    its place is replaced only with ``overwrite``.
+    """
+
+    type: Literal["project_cards.restore_card"] = "project_cards.restore_card"
+    overwrite: bool = False
+
+
+class UpdateCardMeta(_CatalogFileAction):
+    """Change a catalog card's project, tags and dependencies, and save the file (``None``: left as it is).
+
+    Only those keys of the file change (the changes and notes are kept as they are; comments are not), and the card
+    is validated with ``projectcard`` before it is written.
+    """
+
+    type: Literal["project_cards.update_card_meta"] = "project_cards.update_card_meta"
+    project: str | None = Field(default=None, min_length=1, max_length=200)
+    tags: list[str] | None = None
+    dependencies: dict[Literal["prerequisites", "corequisites", "conflicts"], list[str]] | None = None
 
 
 class SessionSummary(BaseAction):

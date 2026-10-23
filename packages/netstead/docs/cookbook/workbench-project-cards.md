@@ -165,6 +165,27 @@ the draft: **Remove** or **Edit…** its changes, or add new ones (see [Undo](#u
 
 From Python: `project_cards.edit_card(card_id, replace_draft=False)` and `project_cards.remove_change(index)`.
 
+### Manage the catalog's files
+
+Each catalog card has a **File** disclosure with its path and four buttons. Each one is a recorded Action, listed in
+the session summary under **Catalog files**; the catalog is rescanned after it. They change files, not the network,
+and the assistant is not offered them.
+
+- **Rename…** gives the file a new name in the catalog folder (or `sub/name.yml`, one sub-folder down). A name
+  without a suffix keeps the card's. An existing file with other content is replaced only when **Replace an existing
+  file** is ticked.
+- **Duplicate** copies the file, byte for byte, to `<name>-copy.yml` (`-copy-2`, … when that is taken).
+- **Edit metadata…** changes the card's project name, tags and dependencies (prerequisites, corequisites,
+  conflicts; comma separated). Only those keys of the file change; its changes and notes stay as they are, though
+  YAML comments are not kept.
+- **Delete** moves the file to a `.trash` folder inside the catalog folder; nothing is deleted for good. The status
+  line offers **Undo delete**, which moves it back (`project_cards.restore_card`). Empty `.trash` yourself when you
+  are sure.
+
+Every new or rewritten file stays inside `io.allowed_roots` and the catalog folder (nothing hidden, at most one
+sub-folder down), and the card is validated with `projectcard` before it is written: a card `projectcard` rejects is
+not renamed, copied or rewritten.
+
 ### Inspect a card
 
 **Inspect**, on a catalog card or under the draft, opens a read-only view of the card:
@@ -280,6 +301,11 @@ copied lines import from `netstead_project_cards.actions`:
 | `project_cards.check_card` (`CheckCard`) | Check whether a catalog card applies to the network now, without changing anything. |
 | `project_cards.preview_card` (`PreviewCard`) | Preview a catalog card's changes on a copy of the network. |
 | `project_cards.apply_card` (`ApplyCard`) | Apply a catalog card to the network, all or nothing; record it as applied. |
+| `project_cards.rename_card` (`RenameCard`) | Rename a catalog card's file. |
+| `project_cards.duplicate_card` (`DuplicateCard`) | Copy a catalog card to `<name>-copy.yml` (or a name you give). |
+| `project_cards.delete_card` (`DeleteCard`) | Move a catalog card's file to the catalog's `.trash` folder. |
+| `project_cards.restore_card` (`RestoreCard`) | Move a deleted card back from `.trash`. |
+| `project_cards.update_card_meta` (`UpdateCardMeta`) | Change a catalog card's project, tags and dependencies. |
 | `project_cards.session_summary` (`SessionSummary`) | The session summary as plain text. |
 
 `session.dispatch` (or its alias `app.do`) runs them. A change targets the shared selection (`use_selection=True`),

@@ -7,7 +7,7 @@
 // child), never parsed as markup.
 import {
   ROADWAY_TYPES, TRANSIT_TYPES, TYPE_TITLES, appliedRows, applyDefaults, catalogOf, catalogRows, commitChoices,
-  commitFields, commitView, draftBadge, editPrompt, draftNet, draftOf, hasNode, importPath, inspectHeader, inspectRows, needsSelection,
+  commitFields, commitView, draftBadge, editPrompt, fileLine, metaFields, metaForm, renameName, draftNet, draftOf, hasNode, importPath, inspectHeader, inspectRows, needsSelection,
   openPreview, previewLine, savedChoices, selectionStatus, stepIndicator, summaryFileName, typeChoices,
 } from "./cardmodel.js";
 import { createController } from "./controller.js";
@@ -171,6 +171,12 @@ function createView(wb, ctl, el) {
   );
 
   const say = text => { status.textContent = text; };
+  // A status line with one button after it (say, "Undo delete"); the next say() replaces both.
+  const sayWith = (text, label, fn) => {
+    const b = h("button", { class: "mini ghost", id: "pc-status-action" }, label);
+    b.onclick = guard(() => busy([b], fn));
+    status.replaceChildren(text, " ", b);
+  };
   const guard = fn => async () => {
     try { await fn(); } catch (e) { say(e.message); }
   };
@@ -594,6 +600,7 @@ function createView(wb, ctl, el) {
     redraw(inspectBox, nodes, force);
   }
 
+  const opened = new Set(); // "details:<card_id>" / "file:<card_id>": the disclosures the user opened
   function cardRow(row) {
     const tags = row.tags.length ? ` · ${row.tags.join(", ")}` : "";
     const badge = h("span", {
@@ -607,12 +614,23 @@ function createView(wb, ctl, el) {
     const apply = act("mini", "Apply…", () => openApplyDialog(row));
     const inspect = act("mini ghost", "Inspect", () => openInspect(row.card_id));
     const edit = act("mini ghost", "Edit", () => openEditDialog(row));
-    const details = h("details", {}, h("summary", { class: "muted", text: "Details" }), ...detailRows(row));
+    // A redraw (any server change) keeps the card's Details and File open if they were.
+    const keep = key => ({ ...(opened.has(key) ? { open: "" } : {}),
+      ontoggle: e => { if (e.target.open) opened.add(key); else opened.delete(key); } });
+    const details = h("details", keep(`details:${row.card_id}`), h("summary", { class: "muted", text: "Details" }),
+      ...detailRows(row));
+    const file = h("details", { class: "pc-file", ...keep(`file:${row.card_id}`) },
+      h("summary", { class: "muted", text: "File" }),
+      h("p", { class: "muted", text: row.path }),
+      act("mini ghost", "Rename…", () => openRenameDialog(row)), " ",
+      act("mini ghost", "Duplicate", async () => say(fileLine(await ctl.duplicateCard(row.card_id)))), " ",
+      act("mini ghost", "Edit metadata…", () => openMetaDialog(row)), " ",
+      act("mini ghost", "Delete", () => deleteCard(row)));
     return h("div", { class: "pc-card", "data-card": row.card_id, style: "margin:6px 0 8px" },
       h("div", {}, badge, " ", h("strong", { text: row.project }),
         h("span", { class: "muted", text: ` · ${row.changes} change(s)${tags}` })),
       h("div", { style: "margin:4px 0 0 1.4em" }, preview, " ", apply, " ", inspect, " ", edit),
-      details,
+      details, file,
     );
   }
 
@@ -632,6 +650,68 @@ function createView(wb, ctl, el) {
         h("ul", {}, ...rejected.map(r => h("li", { class: "muted", text: `${r.card_id}: ${r.error}` })))));
     }
     redraw(catalogList, nodes);
+  }
+
+  // ------------------------------------------------------------------------------------ the catalog's files
+
+  // A dialog with `fields` (labeled controls), a status line and Cancel / `label`: `run()` resolves to the status
+  // text, and a refusal stays in the dialog.
+  function fileDialog(title, fields, label, run) {
+    const note = h("p", { role: "status" });
+    const go = h("button", { class: "mini" }, label);
+    const cancel = h("button", { class: "mini ghost", onclick: () => dialog.close() }, "Cancel");
+    go.onclick = async () => {
+      try {
+        const text = await busy([go, cancel], run);
+        if (text === null) return; // the form itself said what is missing
+        dialog.close();
+        say(text);
+      } catch (e) {
+        note.textContent = e.message;
+      }
+    };
+    dialog.replaceChildren(h("h3", { id: "pc-dialog-title", text: title }), ...fields, note,
+      h("div", { style: "display:flex;gap:8px;justify-content:flex-end" }, cancel, go));
+    if (!dialog.open) dialog.showModal();
+    return note;
+  }
+
+  function openRenameDialog(row) {
+    const name = h("input", { type: "text", id: "pc-rename" });
+    name.value = row.card_id;
+    const overwrite = h("input", { type: "checkbox", id: "pc-rename-overwrite" });
+    const note = fileDialog(`Rename "${row.project}"`, [
+      field("New file name (in the catalog folder)", name), field("Replace an existing file", overwrite)],
+    "Rename", async () => {
+      const { name: newName, error } = renameName(name.value, row.card_id);
+      if (error) { note.textContent = error; return null; }
+      return fileLine(await ctl.renameCard(row.card_id, newName, overwrite.checked));
+    });
+    name.focus();
+  }
+
+  async function openMetaDialog(row) {
+    const start = metaForm(await ctl.cardDetail(row.card_id, baseNet()));
+    const inputs = Object.fromEntries(["project", "tags", "prerequisites", "corequisites", "conflicts"].map(k => {
+      const el = h("input", { type: "text", id: `pc-meta-${k}` });
+      el.value = start[k];
+      return [k, el];
+    }));
+    const labels = { project: "Project name", tags: "Tags (comma separated)",
+      prerequisites: "Prerequisites (projects, comma separated)", corequisites: "Corequisites", conflicts: "Conflicts" };
+    const note = fileDialog(`Edit metadata of "${row.project}"`,
+      Object.entries(inputs).map(([k, el]) => field(labels[k], el)), "Save", async () => {
+        const { fields, error } = metaFields(Object.fromEntries(Object.entries(inputs).map(([k, el]) => [k, el.value])));
+        if (error) { note.textContent = error; return null; }
+        return fileLine(await ctl.updateCardMeta(row.card_id, fields));
+      });
+    inputs.project.focus();
+  }
+
+  // A delete moves the file to the catalog's trash: the status offers it back at once.
+  async function deleteCard(row) {
+    const result = await ctl.deleteCard(row.card_id);
+    sayWith(fileLine(result), "Undo delete", async () => say(fileLine(await ctl.restoreCard(row.card_id))));
   }
 
   // Edit: load the card into the draft. An empty draft (and a card that applies) needs no question; otherwise the

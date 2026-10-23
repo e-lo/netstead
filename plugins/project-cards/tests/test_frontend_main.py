@@ -650,3 +650,101 @@ def test_editing_a_card_under_a_fake_dom(run_js):
         False,
         {"type": "project_cards.edit_card", "card_id": "good.yml", "replace_draft": False, "net_id": "base"},
     ]
+
+
+FILES_HARNESS = (
+    PANEL_SETUP
+    + """
+const actions = [];
+const RESULTS = {
+  "project_cards.rename_card": a => ({ action: "renamed", card_id: a.card_id, to: a.new_name }),
+  "project_cards.duplicate_card": a => ({ action: "duplicated", card_id: a.card_id, to: "good-copy.yml" }),
+  "project_cards.delete_card": a => ({ action: "deleted", card_id: a.card_id, to: ".trash/" }),
+  "project_cards.restore_card": a => ({ action: "restored", card_id: a.card_id, to: a.card_id }),
+  "project_cards.update_card_meta": a => ({ action: "updated", card_id: a.card_id, to: "project, tags" }),
+};
+deps.dispatch = async a => { actions.push(a); if (a.type === "project_cards.rename_card" && a.new_name === "bad.yml")
+  throw new Error("bad.yml already exists in the catalog"); return RESULTS[a.type](a); };
+const read = deps.getJSON;
+deps.getJSON = async p => (p.includes("/card?") ? { project: "Good", tags: ["t"],
+  dependencies: { prerequisites: ["Bridge"], corequisites: [], conflicts: [] } } : read(p));
+panels[0].render(root);
+store.set({ server: { ...store.get().server,
+  plugins: { project_cards: { drafts: {}, preview: null, catalog: CATALOG, applied: [] } } } });
+await settle(); await settle();
+const status = elById(root, "pc-status"), dialog = find(root, "DIALOG");
+const row = () => walk(elById(root, "pc-catalog")).find(e => e.getAttribute("data-card") === "good.yml");
+const file = () => walk(row()).find(e => e.getAttribute("class") === "pc-file");
+const got = {};
+// Rename: a refusal stays in the dialog; then it goes through.
+await button(file(), "Rename…").onclick();
+got.renameStart = [dialog.open, elById(dialog, "pc-rename").value];
+elById(dialog, "pc-rename").value = "good.yml";
+await button(dialog, "Rename").onclick();
+got.sameName = [dialog.open, dialog.textContent.includes("already has that name")];
+elById(dialog, "pc-rename").value = "bad.yml";
+await button(dialog, "Rename").onclick();
+got.refused = [dialog.open, dialog.textContent.includes("bad.yml already exists")];
+elById(dialog, "pc-rename").value = "main-street.yml";
+await button(dialog, "Rename").onclick();
+got.renamed = [dialog.open, status.textContent];
+// Duplicate needs no dialog.
+await button(file(), "Duplicate").onclick();
+got.duplicated = status.textContent;
+// Edit metadata: prefilled from the card, saved with every field.
+await button(file(), "Edit metadata…").onclick();
+got.metaStart = ["project", "tags", "prerequisites"].map(k => elById(dialog, `pc-meta-${k}`).value);
+elById(dialog, "pc-meta-project").value = "";
+await button(dialog, "Save").onclick();
+got.noProject = [dialog.open, dialog.textContent.includes("Give the card a project name")];
+elById(dialog, "pc-meta-project").value = "Good street";
+elById(dialog, "pc-meta-tags").value = "t, bike";
+await button(dialog, "Save").onclick();
+got.meta = [dialog.open, status.textContent];
+// Delete, then Undo delete from the status line.
+await button(file(), "Delete").onclick();
+got.deleted = [status.textContent.startsWith("Moved good.yml to the catalog's .trash/ folder"),
+               Boolean(button(status, "Undo delete"))];
+await button(status, "Undo delete").onclick();
+got.restored = status.textContent;
+// The File disclosure stays open across a redraw.
+const before = file();
+before.open = true; before.ontoggle({ target: before });
+store.set({ server: { ...store.get().server,
+  plugins: { project_cards: { drafts: {}, preview: null, catalog: { ...CATALOG }, applied: [], files: [{}] } } } });
+got.stillOpen = [file() !== before, file().getAttribute("open") !== null];
+got.actions = actions;
+got.errors = calls.filter(c => c[0] === "error");
+console.log(JSON.stringify(got));
+"""
+)
+
+
+def test_the_catalog_files_under_a_fake_dom(run_js):
+    got = run_js(FILES, FILES_HARNESS)
+    assert got["errors"] == []
+    assert got["renameStart"] == [True, "good.yml"]
+    assert got["sameName"] == [True, True]  # caught here: nothing dispatched
+    assert got["refused"] == [True, True]
+    assert got["renamed"] == [False, "Renamed good.yml to main-street.yml"]
+    assert got["duplicated"] == "Duplicated good.yml as good-copy.yml"
+    assert got["metaStart"] == ["Good", "t", "Bridge"]
+    assert got["noProject"] == [True, True]
+    assert got["meta"] == [False, "Saved good.yml's project, tags"]
+    assert got["deleted"] == [True, True]
+    assert got["restored"] == "Restored good.yml"
+    assert got["stillOpen"] == [True, True]  # redrawn, and open again
+    assert got["actions"] == [
+        {"type": "project_cards.rename_card", "card_id": "good.yml", "new_name": "bad.yml", "overwrite": False},
+        {"type": "project_cards.rename_card", "card_id": "good.yml", "new_name": "main-street.yml", "overwrite": False},
+        {"type": "project_cards.duplicate_card", "card_id": "good.yml"},
+        {
+            "type": "project_cards.update_card_meta",
+            "card_id": "good.yml",
+            "project": "Good street",
+            "tags": ["t", "bike"],
+            "dependencies": {"prerequisites": ["Bridge"], "corequisites": [], "conflicts": []},
+        },
+        {"type": "project_cards.delete_card", "card_id": "good.yml"},
+        {"type": "project_cards.restore_card", "card_id": "good.yml"},
+    ]

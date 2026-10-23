@@ -317,6 +317,47 @@ export function editPrompt(draft, row) {
     + `included) and loads ${row ? row.project : "the card"} instead.${warn}` };
 }
 
+// ------------------------------------------------------------------------------------------ editing the catalog
+
+// "a, b,, c" -> ["a", "b", "c"].
+export const splitList = text => String(text || "").split(",").map(t => t.trim()).filter(Boolean);
+
+// The Edit metadata form ({project, tags, prerequisites, corequisites, conflicts}, comma-separated lists) as the
+// update_card_meta Action's fields, or {error}: a card needs a project name. Every field is sent, so a cleared one
+// is cleared in the file.
+export function metaFields(form = {}) {
+  const project = String(form.project || "").trim();
+  if (!project) return { error: "Give the card a project name" };
+  const dependencies = {};
+  for (const key of ["prerequisites", "corequisites", "conflicts"]) dependencies[key] = splitList(form[key]);
+  return { fields: { project, tags: splitList(form.tags), dependencies } };
+}
+
+// The Edit metadata form's start, from the /card route's answer.
+export const metaForm = detail => ({
+  project: detail.project || "",
+  tags: (detail.tags || []).join(", "),
+  ...Object.fromEntries(["prerequisites", "corequisites", "conflicts"]
+    .map(k => [k, ((detail.dependencies || {})[k] || []).join(", ")])),
+});
+
+// The rename form's new name, or {error}.
+export function renameName(name, cardId) {
+  const trimmed = String(name || "").trim();
+  if (!trimmed) return { error: "Give the card a new file name" };
+  if (trimmed === cardId) return { error: `${cardId} already has that name` };
+  return { name: trimmed };
+}
+
+// What the panel says after a catalog file Action (its result {action, card_id, to}).
+export function fileLine(result) {
+  if (result.action === "renamed") return `Renamed ${result.card_id} to ${result.to}`;
+  if (result.action === "duplicated") return `Duplicated ${result.card_id} as ${result.to}`;
+  if (result.action === "deleted") return `Moved ${result.card_id} to the catalog's ${result.to} folder`;
+  if (result.action === "restored") return `Restored ${result.card_id}`;
+  return `Saved ${result.card_id}'s ${result.to}`;
+}
+
 // ------------------------------------------------------------------------------------------------- inspecting
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;

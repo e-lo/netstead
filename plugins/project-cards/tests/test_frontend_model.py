@@ -856,3 +856,93 @@ console.log(JSON.stringify({ outdated, missing, calls: calls.map(c => (c[0] === 
         ["get", "/form?type=roadway_deletion&use_selection=true"],  # no links to select: the form says so
         ["get", "/card?draft=true&net_id=base"],
     ]
+
+
+# ------------------------------------------------------------------------------------------ editing the catalog
+
+
+def test_the_catalog_file_forms(run_js):
+    got = run_js(
+        MODEL,
+        """
+import { fileLine, metaFields, metaForm, renameName, splitList } from "./cardmodel.js";
+const detail = { project: "Main", tags: ["a", "b"], dependencies: { prerequisites: ["Bridge"], conflicts: [] } };
+console.log(JSON.stringify({
+  split: splitList(" a, ,b ,, c "), empty: splitList(null),
+  form: metaForm(detail), bare: metaForm({}),
+  fields: metaFields({ project: " Main St ", tags: "x, y", prerequisites: "Bridge", corequisites: "", conflicts: "W" }),
+  noProject: metaFields({ project: "  " }),
+  rename: [renameName(" b.yml ", "a.yml"), renameName("", "a.yml"), renameName("a.yml", "a.yml")],
+  lines: [
+    { action: "renamed", card_id: "a.yml", to: "b.yml" }, { action: "duplicated", card_id: "a.yml", to: "a-copy.yml" },
+    { action: "deleted", card_id: "a.yml", to: ".trash/" }, { action: "restored", card_id: "a.yml", to: "a.yml" },
+    { action: "updated", card_id: "a.yml", to: "project, tags" },
+  ].map(fileLine),
+}));
+""",
+    )
+    assert got["split"] == ["a", "b", "c"] and got["empty"] == []
+    assert got["form"] == {
+        "project": "Main",
+        "tags": "a, b",
+        "prerequisites": "Bridge",
+        "corequisites": "",
+        "conflicts": "",
+    }
+    assert got["bare"]["project"] == "" and got["bare"]["tags"] == ""
+    assert got["fields"] == {
+        "fields": {
+            "project": "Main St",
+            "tags": ["x", "y"],
+            "dependencies": {"prerequisites": ["Bridge"], "corequisites": [], "conflicts": ["W"]},
+        }
+    }
+    assert got["noProject"] == {"error": "Give the card a project name"}
+    assert got["rename"] == [
+        {"name": "b.yml"},
+        {"error": "Give the card a new file name"},
+        {"error": "a.yml already has that name"},
+    ]
+    assert got["lines"] == [
+        "Renamed a.yml to b.yml",
+        "Duplicated a.yml as a-copy.yml",
+        "Moved a.yml to the catalog's .trash/ folder",
+        "Restored a.yml",
+        "Saved a.yml's project, tags",
+    ]
+
+
+def test_the_controller_dispatches_the_catalog_file_actions(run_js):
+    got = run_js(
+        BOTH,
+        STUB_WB
+        + """
+await ctl.renameCard("a.yml", "b.yml");
+await ctl.renameCard("a.yml", "b.yml", true);
+await ctl.duplicateCard("a.yml");
+await ctl.duplicateCard("a.yml", "c.yml");
+await ctl.deleteCard("a.yml");
+await ctl.restoreCard("a.yml");
+await ctl.restoreCard("a.yml", true);
+await ctl.updateCardMeta("a.yml", { project: "P", tags: [], dependencies: {} });
+await ctl.cardDetail("a.yml", "base");
+console.log(JSON.stringify(calls.map(c => (c[0] === "dispatch" ? c[1] : c))));
+""",
+    )
+    assert got == [
+        {"type": "project_cards.rename_card", "card_id": "a.yml", "new_name": "b.yml", "overwrite": False},
+        {"type": "project_cards.rename_card", "card_id": "a.yml", "new_name": "b.yml", "overwrite": True},
+        {"type": "project_cards.duplicate_card", "card_id": "a.yml"},
+        {"type": "project_cards.duplicate_card", "card_id": "a.yml", "new_name": "c.yml"},
+        {"type": "project_cards.delete_card", "card_id": "a.yml"},
+        {"type": "project_cards.restore_card", "card_id": "a.yml"},
+        {"type": "project_cards.restore_card", "card_id": "a.yml", "overwrite": True},
+        {
+            "type": "project_cards.update_card_meta",
+            "card_id": "a.yml",
+            "project": "P",
+            "tags": [],
+            "dependencies": {},
+        },
+        ["get", "/card?card_id=a.yml&net_id=base"],
+    ]

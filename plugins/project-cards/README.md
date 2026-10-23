@@ -34,6 +34,11 @@ uncommitted changes is replaced only when you confirm). **Remove** takes out any
 are re-applied, so the network ends as if it had never been made), **Edit…** removes a change and reopens its form,
 and **Commit…** offers **Save over <file>** or **Save as new file**.
 
+Each catalog card's **File** disclosure has **Rename…**, **Duplicate** (`<name>-copy.yml`), **Edit metadata…**
+(project, tags, dependencies) and **Delete** (moves the file to a `.trash` folder inside the catalog folder, with
+**Undo delete** in the status line). Every write stays inside `io.allowed_roots` and the catalog folder, validates
+the card with `projectcard` first and never replaces a different file unless asked; the session summary lists them.
+
 **Inspect** (on a catalog card, and on the draft) opens a read-only view: the project, tags, dependencies, notes and
 file, then each change with its type, facility (ids, or the query and what it resolved to), property changes
 (existing → set or change) and whether it applies to the open network. Clicking a change highlights its links on
@@ -69,10 +74,13 @@ the plugin's history for the session.
   `project_cards.import`, `project_cards.edit_card`,
   `project_cards.preview`, `project_cards.close_preview`, `project_cards.open_catalog`,
   `project_cards.refresh_catalog`, `project_cards.check_card`, `project_cards.preview_card`,
-  `project_cards.apply_card`, `project_cards.session_summary`.
+  `project_cards.apply_card`, `project_cards.rename_card`, `project_cards.duplicate_card`,
+  `project_cards.delete_card`, `project_cards.restore_card`, `project_cards.update_card_meta`,
+  `project_cards.session_summary`.
 - Usable from Python (`app.do(...)`), over HTTP (`/api/actions`), from the command palette, and by the assistant: opt
   in with `assistant.plugins`. A local model is offered every Action except commit and import (which need a path)
-  unless `assistant.compact_tools = "off"`.
+  unless `assistant.compact_tools = "off"`. The catalog file Actions (rename, duplicate, delete, restore, update
+  metadata) are never offered to the assistant.
 
 **Routes** (read-only, for the panel): `GET /api/plugins/project_cards/form`, `/commit-check`, `/catalog` (the open
 catalog, checking unchecked cards a few at a time), `/card` (the Inspect view of a catalog card, `card_id=`, or of

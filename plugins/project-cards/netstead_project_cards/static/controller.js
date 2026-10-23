@@ -300,6 +300,20 @@ export function createController(wb) {
     return result;
   }
 
+  // The catalog's files: each is one Action (recorded; the server rescans the catalog after it).
+  const fileAction = (type, cardId, fields = {}) => wb.api.dispatch({ type: `project_cards.${type}`, card_id: cardId,
+    ...fields });
+  const renameCard = (cardId, newName, overwrite = false) =>
+    fileAction("rename_card", cardId, { new_name: newName, overwrite });
+  const duplicateCard = (cardId, newName = null) =>
+    fileAction("duplicate_card", cardId, newName ? { new_name: newName } : {});
+  const deleteCard = cardId => fileAction("delete_card", cardId);
+  const restoreCard = (cardId, overwrite = false) => fileAction("restore_card", cardId, overwrite ? { overwrite } : {});
+  // `fields`: metaFields' {project, tags, dependencies}.
+  const updateCardMeta = (cardId, fields) => fileAction("update_card_meta", cardId, fields);
+  // A catalog card's details (GET /card), for the Edit metadata form; not kept.
+  const cardDetail = (cardId, netId = null) => wb.api.get(`/card?${query({ card_id: cardId, net_id: netId })}`);
+
   // The Inspect view (GET /card, read only) of a catalog card, or of the draft (`cardId` null), kept in
   // `state.inspect` until closed or inspected again. Reads only; nothing on the server changes.
   async function inspect(cardId = null, netId = null) {
@@ -318,11 +332,11 @@ export function createController(wb) {
 
   return {
     state, start, changeFrom, check, serverChanged, selectionChanged, loadCatalog, catalog, catalogChanged, summary,
-    anotherChange, endCreate, inspect, closeInspect,
+    anotherChange, endCreate, inspect, closeInspect, cardDetail,
     ...Object.fromEntries(Object.entries({
       preview, closePreview, add, cancel, undo, commit, importCard, reload, openCatalog, refreshCatalog, previewCard,
       applyCard, beginCreate, chooseCreateType, useFacility, backCreate, selectByText, removeChange, editCard,
-      editChange,
+      editChange, renameCard, duplicateCard, deleteCard, restoreCard, updateCardMeta,
     }).map(([name, step]) => [name, oneAtATime(step)])),
   };
 }

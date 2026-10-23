@@ -196,6 +196,8 @@ class CardsState:
         self.applied: list[AppliedCard] = []
         self._catalog: Catalog | None = None
         self._preview: Preview | None = None
+        self.files: list[dict[str, Any]] = []  # catalog files changed this session: ``{action, card_id, to, at}``
+        self.trash: list[dict[str, str]] = []  # cards deleted this session, newest last: ``{card_id, path, trash}``
         self._undoing: set[str] = set()  # networks whose draft's last change is being undone right now
         self._generation = 0  # undos so far (:meth:`pop`): a pending-edits read is trusted only for undos before it
 
@@ -443,6 +445,49 @@ class CardsState:
 
         return count, undo
 
+    def record_file(self, record: dict[str, Any]) -> Callable[[], None]:
+        """Note a catalog file change (``{action, card_id, to}``; ``at`` is added); return the undo that forgets it."""
+        entry = {**record, "at": timestamp()}
+        with self._lock:
+            self.files.append(entry)
+
+        def undo() -> None:
+            with self._lock:
+                self.files = [f for f in self.files if f is not entry]
+
+        return undo
+
+    def trashed(self, record: dict[str, str]) -> Callable[[], None]:
+        """Note a card moved to the trash (``{card_id, path, trash}``); return the undo that forgets it."""
+        entry = dict(record)
+        with self._lock:
+            self.trash.append(entry)
+
+        def undo() -> None:
+            with self._lock:
+                self.trash = [t for t in self.trash if t is not entry]
+
+        return undo
+
+    def last_trashed(self, card_id: str) -> dict[str, str] | None:
+        """The newest deletion of ``card_id`` this session (``None``: none)."""
+        with self._lock:
+            return next((dict(t) for t in reversed(self.trash) if t["card_id"] == card_id), None)
+
+    def restored(self, card_id: str) -> Callable[[], None]:
+        """Forget the newest deletion of ``card_id`` (it was restored); return the undo that remembers it again."""
+        with self._lock:
+            entry = next((t for t in reversed(self.trash) if t["card_id"] == card_id), None)
+            if entry is not None:
+                self.trash = [t for t in self.trash if t is not entry]
+
+        def undo() -> None:
+            with self._lock:
+                if entry is not None and not any(t is entry for t in self.trash):
+                    self.trash.append(entry)
+
+        return undo
+
     def swap_catalog(self, catalog: Catalog) -> Callable[[], None]:
         """Make ``catalog`` the open one; return the undo (for ``host.on_rollback``) that puts the older one back.
 
@@ -551,6 +596,8 @@ class CardsState:
                 "committed": [dict(c) for c in self.committed],
                 "applied": [a.to_dict() for a in self.applied],
                 "catalog": self._catalog.to_dict() if self._catalog is not None else None,
+                "files": [dict(f) for f in self.files],
+                "trash": [dict(t) for t in self.trash],
                 "preview": reported,
                 "change_types": list(CHANGE_TYPES),
                 "supported": sorted(ROADWAY_TYPES),
