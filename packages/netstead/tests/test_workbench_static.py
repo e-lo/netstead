@@ -837,3 +837,10 @@ def test_wizard_has_extras_notice_slots_and_loads_them_read_only():
     assert 'id="ap-place-note"' in html
     wizard = (JS_DIR / "wizard.js").read_text()
     assert 'getJSON("/api/extras")' in wizard and "noticeHTML" in wizard and "clipboard.writeText" in wizard
+
+
+def test_related_steps_control_has_an_info_popover():
+    html = (STATIC_DIR / "index.html").read_text()
+    wrap = html.split('id="tbl-hops-wrap"', 1)[1].split('id="tbl-chips"', 1)[0]
+    assert 'id="tbl-hops-info"' in wrap and 'data-icon="info"' in wrap and 'data-tip="What is Related?"' in wrap
+    assert 'id="tbl-hops-pop"' in wrap and 'aria-haspopup="dialog"' in wrap

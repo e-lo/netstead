@@ -79,7 +79,9 @@
           </select>
           <span id="tbl-hops-wrap" hidden><label for="tbl-hops">Related</label>
             <select id="tbl-hops" aria-label="Related records: how many steps to follow">
-              <option value="1">1 step</option><option value="2">2 steps</option></select></span></div>
+              <option value="1">1 step</option><option value="2">2 steps</option></select>
+            <button id="tbl-hops-info" class="iconbtn" data-icon="info" data-tip="What is Related?" aria-label="What is Related?" aria-haspopup="dialog" aria-controls="tbl-hops-pop" aria-expanded="false"></button>
+            <div id="tbl-hops-pop" role="dialog" aria-label="What is Related?" hidden></div></span></div>
         <div id="tbl-chips" aria-label="Active column filters" hidden></div>
         <div id="tbl-grid-wrap"><table id="tbl-grid"></table></div>
         <datalist id="cell-opts"></datalist>

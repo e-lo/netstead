@@ -21,6 +21,8 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Changed
 
+- **"What is Related?"** An info button beside the table Related steps control opens a short explanation with an
+  example, using the real counts for the focused or highlighted records when there are any.
 - **The Workbench table's "Expand a hop" is a "Related: 1 step / 2 steps" control** that shows only when
   **Show** is Related, with a tooltip explaining how far foreign keys are followed.
 
