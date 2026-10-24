@@ -75,7 +75,8 @@ Open <http://127.0.0.1:8850> in your browser.
 
 (You can also start `uv run netstead app` with nothing open and pick **Leavenworth, WA** from **Included examples**
 in the Open / Import wizard (**Open → Browse / import…**); the path above is only needed to pass the fixture on the
-command line.)
+command line. **Included examples** also lists RDU I-40, NC and **Market Street, San Francisco**, a small Overture-derived
+network with GERS ids (`overture_segment_id`, `overture_connector_id`) for trying the Find tab's Overture GERS id system.)
 
 You should see the **Netstead Workbench** header with the network picker showing `leavenworth`, the count
 **339 links · 121 nodes**, the **Map / Split / Table** view buttons, and the map below. If the map opens zoomed

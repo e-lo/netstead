@@ -6,6 +6,14 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ## [Unreleased]
 
+### Added
+
+- **Market Street, San Francisco example network (Overture).** `netstead.fixtures.market_street` ships a
+  129-node, 186-link roads network around Lotta's Fountain, built with `netstead build --source overture`
+  (release 2026-09-23.1) with Overture GERS ids on every link and node, as csv, parquet, zip and
+  `datapackage.json`. It is listed under **Included examples** in the Workbench and exercises the Find tab's
+  Overture GERS id system on real data. Data (c) OpenStreetMap contributors, ODbL; data from TomTom.
+
 ### Security
 
 - **`netstead app` refuses to expose your home folder.** A non-loopback host

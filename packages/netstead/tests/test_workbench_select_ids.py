@@ -109,6 +109,23 @@ def test_projectcard_options_rule_out_gers(setup):
     assert _get(client, "projectcard", "segment", "gmns").json()["options"]["forms"]["segment"] is None
 
 
+def test_gers_export_on_real_overture_data_market_street(tmp_path):
+    from netstead.fixtures import market_street
+
+    src = str(market_street.parquet_dir())
+    env = {"NETSTEAD_CONFIG_DIR": str(tmp_path / "u"), "NETSTEAD_IO__ALLOWED_ROOTS": json.dumps([src, str(tmp_path)])}
+    s = Session(project_dir=tmp_path, environ=env, parser=StubParser(), plugins=[])
+    s.dispatch({"type": "open_network", "source": src})
+    links = s.registry.get(s.state()["networks"][0]["id"]).links_df()
+    market = links.loc[links["name"] == "Market Street"]
+    s.dispatch({"type": "select", "link_ids": [int(i) for i in market["link_id"]]})
+    got = _get(TestClient(build_app(s)), "fragment", "link_list", "gers").json()
+    segment_ids = got["content"]["links"]["overture_segment_id"]
+    assert got["valid"] is True and segment_ids
+    assert set(segment_ids) == set(market["overture_segment_id"])
+    assert len(set(segment_ids)) == len(segment_ids)
+
+
 def test_the_older_forms_cannot_be_written_in_other_ids(setup):
     s, client = setup
     _pine(s)
