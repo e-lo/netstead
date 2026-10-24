@@ -1677,3 +1677,66 @@ def test_a_group_with_no_finding_on_the_map_says_so(node_module):
         " groupBlurb({code: 'quality.z', fix_hint: 'Hint.', count: 1})]",
     )
     assert blurbs == ["Fix it. (not on the map)", "Fix it.", "(not on the map)", "Hint."]
+
+
+def test_find_form_sentences_match_what_the_offline_parser_reads(node_module):
+    from netstead.select.parse import StubParser
+
+    f = {
+        "street": " Pine  Street ",
+        "from": "Orchard Street",
+        "to": "Central Avenue",
+        "type": "Residential",
+        "ids": "59 60,61",
+    }
+    got = node_module(
+        "findmodel.js",
+        ["patternSentence"],
+        f"['street', 'between', 'type', 'ids'].map(p => patternSentence(p, {json.dumps(f)}))",
+    )
+    assert got == [
+        "Pine Street",
+        "Pine Street between Orchard Street and Central Avenue",
+        "All Residential links",
+        "Links 59, 60, 61",
+    ]
+    street, between, kind, ids = (StubParser().parse(s) for s in got)
+    assert street.facility.name == "Pine Street" and street.from_anchor is None
+    assert (between.from_anchor, between.to_anchor) == ("Orchard Street", "Central Avenue")
+    assert kind.select_all and kind.conditions == {"facility_type": ["residential"]}
+    assert ids.link_ids == [59, 60, 61]
+
+
+def test_find_form_required_blanks_and_messages(node_module):
+    expr = """[
+      requiredMissing("street", { street: "" }),
+      requiredMissing("between", { street: "Pine Street", from: " ", to: "Central" }),
+      requiredMissing("ids", { ids: "5, x" }),
+      requiredMissing("type", { type: "primary" }),
+      patternSentence("between", { street: "Pine Street", from: "A" }),
+      missingMessage("between", { street: "Pine Street" }),
+      missingMessage("ids", { ids: "5, x" }),
+      missingMessage("street", { street: "Pine Street" })
+    ]"""
+    got = node_module("findmodel.js", ["requiredMissing", "patternSentence", "missingMessage"], expr)
+    assert got == [
+        ["street"],
+        ["from"],
+        ["ids"],
+        [],
+        "",
+        "Fill in: From cross street, To cross street.",
+        "Ids: type link ids as whole numbers, like 59, 60.",
+        "",
+    ]
+
+
+def test_find_form_cross_choices_and_mode(node_module):
+    expr = """[
+      crossChoices(["A", "B", "C"], ["C", "B"], "b"),
+      crossChoices(["A", "B"], null, ""),
+      crossChoices(["A", "B"], [], "A"),
+      useForm("stub"), useForm("ollama"), parseIds("1, 2"), parseIds("1 a"), parseIds("")
+    ]"""
+    got = node_module("findmodel.js", ["crossChoices", "useForm", "parseIds"], expr)
+    assert got == [["C"], ["A", "B"], ["B"], True, False, [1, 2], None, None]

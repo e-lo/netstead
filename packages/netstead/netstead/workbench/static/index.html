@@ -95,6 +95,23 @@
     <div id="dock-tabs" role="tablist" aria-label="Panels" hidden></div>
     <section class="dock-pane" id="dock-find" data-panel="find" role="tabpanel" aria-labelledby="dtab-find">
     <div id="find-bar">
+      <div id="find-form" role="group" aria-label="Build a selection" hidden>
+        <label class="ff-row" for="find-pattern"><span>Find</span>
+          <select id="find-pattern"></select></label>
+        <label class="ff-row" data-blank="street"><span>Street</span>
+          <input id="find-street" list="find-streets" autocomplete="off" spellcheck="false" placeholder="e.g. Pine Street" /></label>
+        <label class="ff-row" data-blank="from"><span>From cross street</span>
+          <input id="find-from" list="find-cross" autocomplete="off" spellcheck="false" placeholder="e.g. Orchard Street" /></label>
+        <label class="ff-row" data-blank="to"><span>To cross street</span>
+          <input id="find-to" list="find-cross" autocomplete="off" spellcheck="false" placeholder="e.g. Central Avenue" /></label>
+        <label class="ff-row" data-blank="type"><span>Facility type</span>
+          <input id="find-type" list="find-types" autocomplete="off" spellcheck="false" placeholder="e.g. residential" /></label>
+        <label class="ff-row" data-blank="ids"><span>Ids</span>
+          <input id="find-ids" autocomplete="off" spellcheck="false" placeholder="e.g. 59, 60" /></label>
+        <datalist id="find-streets"></datalist><datalist id="find-cross"></datalist><datalist id="find-types"></datalist>
+        <div id="find-sentence" class="diag" aria-live="polite"></div>
+        <div id="find-missing" class="diag warn-note" role="status"></div>
+      </div>
       <input id="utterance" placeholder='e.g. "I-40 EB between South Miami Boulevard and Airport Boulevard"' aria-label="Selection utterance" />
       <div class="row wrap" id="find-go"><button id="go">Select</button>
         <button id="ask" class="ghost" title="Ask the assistant (Ctrl+Enter, ⌘Enter on a Mac)" aria-keyshortcuts="Control+Enter Meta+Enter">Ask</button></div>

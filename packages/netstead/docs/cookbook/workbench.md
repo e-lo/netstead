@@ -241,7 +241,7 @@ Focus is a view. Clicking never changes the selection.
   rotate and the row the browser's own menu.
 - **Workspaces and the dock.** When a plugin adds a workspace, tabs for each appear in the header; each keeps the
   map / split / table view you left it in. The right drawer is a dock, with a tab per panel at its top, in order:
-  The tabs are icons (hover for the name; counts stay as a badge on the icon): **Find** (magnifier; the selection box, anchors, diagnostics, export, saved selections and highlighted links), **View** (sliders; the layers, color and width, direction and
+  The tabs are icons (hover for the name; counts stay as a badge on the icon): **Find** (magnifier; the selection form or box, anchors, diagnostics, export, saved selections and highlighted links), **View** (sliders; the layers, color and width, direction and
   filter controls), **Inspect** (info; the focused record; comes forward
   automatically when you click a map feature or a table row), **Edit** (pencil; the edit list, undo/redo, edit warnings and
   "Save selection as card…"), **Cards** (stacked cards; the project-cards plugin's panel, when it's installed) and **Validate**
@@ -392,6 +392,27 @@ written to, and a copy inside the source folder is refused.
 - **Replay.** A replayed `SaveNetwork` writes the copy again (and fails if it is still there), and its
   `accept_warnings=True` accepts whatever warnings the network has when the replay runs. See
   [Every action is replayable](#every-action-is-replayable).
+
+## Find: the offline form and the language-model box
+
+With **Offline (pattern)** chosen, the **Find** tab is a form, so you never have to guess the phrasing:
+
+| Pattern | Blanks | Sentence sent to Select |
+| --- | --- | --- |
+| Street | Street | `Pine Street` |
+| Street between two cross streets | Street, From cross street, To cross street | `Pine Street between Orchard Street and Central Avenue` |
+| All links of a type | Facility type | `All residential links` |
+| Link ids | Ids | `Links 59, 60` |
+
+Street and cross-street fields suggest the open network's street names; after you pick a Street, the cross
+streets are narrowed to the streets that meet it. The assembled sentence shows under the form, and **Select**
+sends exactly that sentence (so the history and the replay script read as they always have). A blank that is
+still empty blocks Select and is named under the form. **Ask** keeps its own behavior; offline it understands only
+a few fixed requests (see [Ask the assistant](#ask-the-assistant)), which its tooltip says.
+
+Choose a language model in the header and the free-text box comes back, prefilled with the last sentence; choosing
+Offline again restores the form. The offline parser also reads `<street> from <A> to <B>`, with the same
+cross-street names the resolver uses for `between`.
 
 ## Verify a selection
 

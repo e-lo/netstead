@@ -61,6 +61,19 @@ def test_stub_from_to_grammar():
     assert intent.from_anchor == "Davis Drive" and intent.to_anchor == "Aviation Parkway"
 
 
+def test_stub_all_links_of_a_facility_type():
+    intent = StubParser().parse("All Residential links")
+    assert intent.select_all and intent.facility is None
+    assert intent.conditions == {"facility_type": ["residential"]}
+    assert StubParser().parse("all links").conditions == {}
+
+
+def test_stub_link_ids():
+    assert StubParser().parse("links 59, 60").link_ids == [59, 60]
+    assert StubParser().parse("link ids 7 8 9").link_ids == [7, 8, 9]
+    assert StubParser().parse("Links Street").facility.name == "Links Street"
+
+
 def test_stub_bare_facility_is_whole_selection():
     intent = StubParser().parse("Electra Ave")
     assert intent.facility.name == "Electra Ave"

@@ -313,6 +313,33 @@ def test_the_header_is_one_row_and_the_find_panel_holds_the_utterance_box_not_th
     assert '$("utterance")' not in header_js and '$("go")' not in header_js
 
 
+def test_find_bar_has_the_offline_form_beside_the_free_text_box():
+    html = (STATIC_DIR / "index.html").read_text()
+    bar = html[html.index('id="find-bar"') : html.index('id="status-wrap"')]
+    for element_id in (
+        "find-form",
+        "find-pattern",
+        "find-street",
+        "find-from",
+        "find-to",
+        "find-type",
+        "find-ids",
+        "find-streets",
+        "find-cross",
+        "find-sentence",
+        "find-missing",
+        "utterance",
+    ):
+        assert f'id="{element_id}"' in bar
+    assert 'list="find-streets"' in bar and 'list="find-cross"' in bar
+    assert bar.index('id="find-form"') < bar.index('id="utterance"')
+    selection = (JS_DIR / "selection.js").read_text()
+    assert "findText()" in selection and 'type: "select", utterance' in selection
+    assert "setFindProvider(provider)" in (JS_DIR / "llm.js").read_text()
+    form = (JS_DIR / "findform.js").read_text()
+    assert "streets/crossing" in form and "table/link/distinct" in form
+
+
 def test_basemap_swaps_in_place_on_a_viz_setting():
     assert "export function setBasemap(" in (JS_DIR / "map.js").read_text()
     main = (JS_DIR / "main.js").read_text()

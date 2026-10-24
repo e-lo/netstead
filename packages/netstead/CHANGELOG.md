@@ -21,6 +21,14 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Changed
 
+- **Workbench Find tab: with the offline parser, Select is a fill-in-the-blanks form.** No more guessing the
+  grammar. Pick a pattern (Street; Street between two cross streets; All links of a type; Link ids) and fill its
+  blanks. Street and cross-street fields suggest the open network's street names, and once a Street is chosen the
+  cross streets narrow to the streets that meet it (new read-only route `GET /api/n/{net}/{component}/streets/crossing?name=`).
+  The assembled sentence shows under the form and is sent unchanged to the same Select action, so history and
+  replay are the same. Missing blanks block Select and are named. With a language model chosen the free-text box is
+  back, prefilled with the last sentence. The offline parser now also reads `all <type> links` (and `all links`)
+  and `links 59, 60`.
 - **Workbench Find tab: the selection fragment is a Segment or a Link list, in the ID system you pick, and you
   copy it.** The Download button is gone: a copy button at the top right of the Fragment box copies it. **Segment**
   is the facility's name (or ref) plus the `from`/`to` anchors, re-resolvable on another network version; **Link

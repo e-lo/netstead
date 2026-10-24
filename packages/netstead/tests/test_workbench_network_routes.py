@@ -123,6 +123,18 @@ def test_distinct_values_route_limit_and_errors(leavenworth_client):
     assert leavenworth_client.get(f"{LV}/table/link/distinct", params={"col": "x", "limit": 0}).status_code == 422
 
 
+def test_streets_crossing_lists_only_streets_that_meet_it(leavenworth_client):
+    got = leavenworth_client.get(f"{LV}/streets/crossing", params={"name": "pine street"}).json()
+    assert got["street"] == "pine street"
+    assert {"Orchard Street", "Central Avenue"} <= set(got["streets"])
+    assert "Pine Street" not in got["streets"] and got["streets"] == sorted(got["streets"])
+    every = leavenworth_client.get(f"{LV}/table/link/distinct", params={"col": "name"}).json()["values"]
+    assert len(got["streets"]) < len(every)
+    unknown = leavenworth_client.get(f"{LV}/streets/crossing", params={"name": "No Such Road"}).json()
+    assert unknown["streets"] == []
+    assert leavenworth_client.get(f"{LV}/streets/crossing").status_code == 422
+
+
 def test_distinct_values_route_on_a_lazy_table(leavenworth_client):
     j = leavenworth_client.get(f"{LV}/table/lane/distinct", params={"col": "allowed_uses"}).json()
     assert j["values"] and j["list_like"] is True

@@ -105,7 +105,10 @@ thing the Workbench records.
 
 ### 3. Select a street by name
 
-Open the **Find** tab in the side panel. Type `Ski Hill Drive` in its box and press **Select** (or Enter).
+Open the **Find** tab in the side panel. With the offline pattern parser it shows a small form: leave **Find** on
+**Street**, start typing `Ski Hill Drive` in **Street** (the open network's street names are suggested), and press
+**Select** (or Enter). The sentence it sends, `Ski Hill Drive`, shows under the form. (With a language model chosen
+in the header, the Find tab has a free-text box instead.)
 
 Twenty links light up in the selection color, and the **Find** tab shows the status `resolved`, the phrase you
 typed, a diagnostic line `facility ['Ski Hill Drive']: 20 link(s)`, and the **Fragment**: the GMNS selection
@@ -119,7 +122,10 @@ selection as Python, which step 7 comes back to.
 
 ### 4. Resolve an ambiguous selection
 
-Replace the phrase with `Cherry Street between Prospect Street and West Center Street` and press **Select**.
+Set **Find** to **Street between two cross streets**, then choose **Street** `Cherry Street`, **From cross street**
+`Prospect Street` and **To cross street** `West Center Street` (once the street is chosen, the cross streets offered
+are the ones that meet it), and press **Select**. The sentence under the form reads
+`Cherry Street between Prospect Street and West Center Street`.
 
 This time the status is **ambiguous** and the Find tab's badge shows `?`. Under **Anchors**, the `from`
 anchor resolved cleanly (`Prospect Street → node 53 · intersection`), but the `to` anchor has more than one

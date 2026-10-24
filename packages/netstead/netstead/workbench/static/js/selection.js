@@ -1,10 +1,12 @@
-// The Find dock panel (every workspace): the utterance box (Enter or Select resolves it; Ask, Ctrl+Enter or ⌘Enter
-// sends it to the assistant) with the model picker (llm.js), then the selection: status, a stale-pin warning, anchors
+// The Find dock panel (every workspace): the utterance box, or its guided form while the offline parser is chosen
+// (findform.js). Enter or Select resolves it; Ask, Ctrl+Enter or ⌘Enter sends it to the assistant
+// (with the model picker in llm.js), then the selection: status, a stale-pin warning, anchors
 // with their candidates (Pin / Unpin), diagnostics, export, and saved selections; the "Anchor candidates" map layer;
 // and the selection commands. The highlights and the View controls share the pane (side.js, panels.js).
 // Every server string is escaped. Pinning, saving, using and deleting are Actions, so each is recorded.
 import { dispatch, getJSON } from "./api.js";
 import { ask } from "./assistant.js";
+import { findText, wireFindForm } from "./findform.js";
 import { barRoute, thinkingText } from "./assistmodel.js";
 import { addCommandTo } from "./commands.js";
 import { $, esc, toast } from "./dom.js";
@@ -247,7 +249,7 @@ async function withThinking(button, work) {
 
 function wireUtterance() {
   const select = () => {
-    const utterance = $("utterance").value.trim();
+    const utterance = findText();
     if (!utterance) return Promise.resolve();
     return withThinking($("go"), async () => {
       try {
@@ -257,6 +259,7 @@ function wireUtterance() {
     });
   };
   const askBar = () => withThinking($("ask"), () => ask($("utterance").value, { fromBar: true }));
+  wireFindForm(route => (route === "ask" ? askBar() : select()));
   $("go").onclick = select;
   $("ask").onclick = askBar;
   $("utterance").onkeydown = e => {

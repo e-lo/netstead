@@ -4,6 +4,7 @@
 // The panel is a section of the Settings dialog (settings.js); "Models…" opens Settings there.
 import { dispatch, getJSON, sendJSON } from "./api.js";
 import { $, esc, toast } from "./dom.js";
+import { setFindProvider } from "./findform.js";
 import { openJobsPanel } from "./jobs.js";
 import { llmStatus } from "./llmstatus.js";
 import { openSettings } from "./settings.js";
@@ -147,6 +148,7 @@ async function renderPicker() {
     html.push(`<option value="${esc(provider)}" selected disabled>${esc(row ? row.label : provider)} (not set up)</option>`);
   }
   $("nl-provider").innerHTML = html.join("");
+  setFindProvider(provider);
   $("nl-wrap").title = current ? privacyNote(current) : `${provider} is not set up: open Models… to add a key or start it.`;
   $("nl-default").disabled = !canMakeDefault();
   const shadow = shadowingLayers();

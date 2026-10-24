@@ -390,6 +390,11 @@
   /* The Find panel's bar: the utterance box, Select / Ask, then the model picker, stacked to fit the dock. */
   #find-bar { display:flex; flex-direction:column; gap:8px; margin-bottom:8px; }
   #find-bar #utterance { width:100%; box-sizing:border-box; font-size:13px; padding:8px 10px; }
+  #find-form { display:flex; flex-direction:column; gap:6px; }
+  #find-form[hidden], #find-form .ff-row[hidden], #utterance[hidden] { display:none; }
+  #find-form .ff-row { display:flex; flex-direction:column; gap:2px; font-size:11px; color:var(--muted); }
+  #find-form .ff-row input, #find-form .ff-row select { width:100%; box-sizing:border-box; font-size:13px; padding:6px 8px; }
+  #find-sentence { color:var(--ink); overflow-wrap:anywhere; } #find-missing:empty, #find-sentence:empty { display:none; }
   #find-go { margin:0; } #find-go button { padding:7px 14px; }
   /* View: the map's layer, color, width, direction and filter controls, folded under the selection. */
   #dock-view h4 { margin:14px 0 6px; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
