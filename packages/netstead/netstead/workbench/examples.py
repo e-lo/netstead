@@ -13,7 +13,7 @@ from typing import Any
 
 import duckdb
 
-from netstead.fixtures import leavenworth, rdu_i40
+from netstead.fixtures import leavenworth, market_street, rdu_i40
 
 __all__ = ["examples", "is_bundled_example"]
 
@@ -48,6 +48,14 @@ def examples() -> tuple[dict[str, Any], ...]:
             "links": _parquet_count(rdu, "link"),
             "nodes": _parquet_count(rdu, "node"),
             "source": str(rdu),
+        },
+        {
+            "id": "market_street",
+            "name": "Market Street, San Francisco",
+            "description": str(market_street._FIXTURE_INFO["description"]),
+            "links": int(market_street._FIXTURE_INFO["tables"]["link"]),
+            "nodes": int(market_street._FIXTURE_INFO["tables"]["node"]),
+            "source": str(market_street.parquet_dir()),
         },
     )
 

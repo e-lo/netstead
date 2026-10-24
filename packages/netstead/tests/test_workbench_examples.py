@@ -20,18 +20,24 @@ def session(tmp_path):
 def test_examples_route_lists_the_bundled_networks(session):
     body = TestClient(build_app(session)).get("/api/examples").json()
     by_id = {e["id"]: e for e in body}
-    assert set(by_id) == {"leavenworth", "rdu_i40"}
+    assert set(by_id) == {"leavenworth", "rdu_i40", "market_street"}
     leaven = by_id["leavenworth"]
     assert (leaven["links"], leaven["nodes"]) == (339, 121) and leaven["name"] and leaven["description"]
     assert leaven["source"] == str(leavenworth.parquet_dir())
     assert by_id["rdu_i40"]["links"] == 178 and by_id["rdu_i40"]["nodes"] == 143
 
 
+def test_market_street_is_listed_with_its_overture_counts(session):
+    by_id = {e["id"]: e for e in TestClient(build_app(session)).get("/api/examples").json()}
+    market = by_id["market_street"]
+    assert (market["links"], market["nodes"]) == (186, 129) and "Lotta's Fountain" in market["description"]
+
+
 def test_examples_are_computed_once():
     assert examples() is examples()
 
 
-@pytest.mark.parametrize("example_id", ["leavenworth", "rdu_i40"])
+@pytest.mark.parametrize("example_id", ["leavenworth", "rdu_i40", "market_street"])
 def test_each_example_opens_through_open_network_outside_the_allowed_roots(session, example_id):
     example = next(e for e in examples() if e["id"] == example_id)
     session.dispatch({"type": "open_network", "source": example["source"], "label": example["name"]})
