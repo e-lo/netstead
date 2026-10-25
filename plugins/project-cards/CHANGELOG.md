@@ -7,6 +7,18 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
 
 ### Added
 
+- **Card facilities as a Segment or a Link list, in a chosen id system.** A property change's facility is built in
+  exactly one of the two strict forms the Find tab exports: **Segment** (`name` / `ref` with `from` / `to`;
+  re-resolvable, with the resolved ids kept in a `netstead.resolved[i]` note) or **Link list** (ids only), in GMNS
+  (`model_link_id`, `model_node_id`) or OpenStreetMap ids (`osm_link_id`, `osm_node_id`, as text). The change form and
+  New card mode have the Segment / Link list choice and an ID system select (Segment disabled for an unnamed
+  selection, GERS refused with ProjectCard's reason); `project_cards.add_change` and `project_cards.preview` take
+  `facility_form` and `id_system`. Defaults: Link list + GMNS for clicked or box-selected links, Segment + GMNS for a
+  named selection. Import and the catalog's fit check resolve OSM ids on the open network (`osm_link_id` against
+  `link.osm_way_id`, several links per way; `osm_node_id` against `node.osm_node_id`). The draft and Inspect views show
+  the form and id system per change (`Segment: Pine Street, node 33 → 19 (GMNS)`, `Link list: 1 link (GMNS)`), which
+  also changes the text of a change's `describe` (lineage, Edits panel, summary). Reads the strict forms from
+  `host.selection["projectcard"]["segment"|"link_list"]` (core, Host API 1.8, additive).
 - **New card mode.** A **New card** button in the Cards panel's Draft section starts a guided mode with a step
   indicator (Type → Select → Details → Add), Back and Cancel: pick a change type (roadway property change, deletion,
   addition; the transit types are shown disabled, "not yet supported"), select the facility with the shared
@@ -64,6 +76,9 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
 
 ### Changed
 
+- A selection made by a request and applied as a Link list is written by id with `ignore_missing: false`, like a
+  pick; as a Segment it keeps the query's flag. A facility no longer mixes both forms' anchors with the request's
+  text.
 - **The catalog as a table.** The plugin registers the table view's read-only `cards_catalog` (Host API 1.8,
   `host.register_table`; the plugin now needs 1.8): `card_id`, `project`, `tags` (comma list), `change_count`,
   `change_types`, `fits` (null until checked), `reason`, `links_targeted`, `modified` (the file's mtime, ISO).

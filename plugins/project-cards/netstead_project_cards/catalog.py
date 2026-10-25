@@ -18,6 +18,7 @@ from typing import Any
 
 from .card import DraftCard
 from .errors import CardError
+from .facility import OSM_NOUN, resolve_selection
 from .lower import KEYS, describe, existing_mismatches, few, rows_by_key
 from .types import (
     TRANSIT_TYPES,
@@ -233,7 +234,13 @@ def _check(change: NetworkChange, links: Any, nodes: Any) -> dict[str, Any]:
         if sel is None or sel.unresolved:
             return _refuse(out, UNRESOLVED_QUERY)
         frame = links if sel.table == "link" else nodes
+        try:
+            sel, absent = resolve_selection(sel, frame)  # OpenStreetMap ids -> the records carrying them here
+        except CardError as exc:
+            return _refuse(out, str(exc))
         _resolve(out, frame, sel.table, sel.target_ids(), ignore_missing=sel.ignore_missing)
+        if absent:
+            _lack(out, OSM_NOUN[sel.table], absent, ignore_missing=sel.ignore_missing)
         return _existing(out, change, sel.table, frame, list(dict.fromkeys(sel.target_ids())))
     if isinstance(change, RoadwayDeletion):
         _resolve(out, links, "link", list(change.links), ignore_missing=change.ignore_missing)
@@ -290,10 +297,15 @@ def _resolve(
     found = rows_by_key(frame, KEYS[table], wanted, []) if wanted else {}
     missing = [i for i in wanted if str(i) not in found]
     out["resolved"] += len(wanted) - len(missing)
+    return _lack(out, table, missing, ignore_missing=ignore_missing)
+
+
+def _lack(out: dict[str, Any], what: str, missing: list[Any], *, ignore_missing: bool) -> dict[str, Any]:
+    """List the ``missing`` ids of ``what`` ("link", "OSM way"); without ``ignore_missing`` they make it not ok."""
     out["missing"] = [*out["missing"], *missing]
     if missing and not ignore_missing:
         out["_ok"] = False
-        out.setdefault("lacks", []).append(f"{table} {few(missing)}")  # what refuses it, for the fit's reasons
+        out.setdefault("lacks", []).append(f"{what} {few(missing)}")  # what refuses it, for the fit's reasons
     return out
 
 

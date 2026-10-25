@@ -35,18 +35,22 @@ def test_set_is_one_mutation_planned_by_core(session, host):
     assert applied.steps == 1 and applied.rows == {"link": 2}
     last = session.edits[NET].last()
     assert last.source == "project_cards" and len(last.results) == 1
-    assert session.network(NET).lineage[-1] == "project_cards: roadway_property_change link 1, 2: free_speed → 30"
+    assert (
+        session.network(NET).lineage[-1]
+        == "project_cards: roadway_property_change Link list: 2 links (GMNS): free_speed → 30"
+    )
 
 
 def test_describe_names_the_change():
     assert describe(change([1], free_speed={"existing": 40, "set": 30})) == (
-        "roadway_property_change link 1: free_speed 40 → 30"
+        "roadway_property_change Link list: 1 link (GMNS): free_speed 40 → 30"
     )
     assert describe(change([1, 2, 3, 4, 5, 6], lanes={"change": 1})) == (
-        "roadway_property_change link 1, 2, 3, 4, 5 (+1 more): lanes +1"
+        "roadway_property_change Link list: 6 links (GMNS): lanes +1"
     )
     assert (
-        describe(change([1], lanes={"existing": 1, "change": 1})) == "roadway_property_change link 1: lanes +1 (was 1)"
+        describe(change([1], lanes={"existing": 1, "change": 1}))
+        == "roadway_property_change Link list: 1 link (GMNS): lanes +1 (was 1)"
     )
 
 

@@ -52,9 +52,13 @@ def test_a_pick_is_applied_recorded_and_drafted(session):
         "query": None,
         "resolved": None,
         "ignore_missing": False,
+        "id_system": "gmns",
     }  # a pick is written by id, ignore_missing false
     assert session.edits[NET].last().source == "project_cards"
-    assert session.network(NET).lineage[-1] == "project_cards: roadway_property_change link 1: free_speed 40 → 30"
+    assert (
+        session.network(NET).lineage[-1]
+        == "project_cards: roadway_property_change Link list: 1 link (GMNS): free_speed 40 → 30"
+    )
     assert session.history[-1].imports == "from netstead_project_cards.actions import AddChange"
     assert draft(session) == {
         "project": "",
@@ -67,7 +71,7 @@ def test_a_pick_is_applied_recorded_and_drafted(session):
             {
                 "index": 0,
                 "type": "roadway_property_change",
-                "describe": "roadway_property_change link 1: free_speed 40 → 30",
+                "describe": "roadway_property_change Link list: 1 link (GMNS): free_speed 40 → 30",
                 "steps": 1,
             }
         ],

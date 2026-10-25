@@ -67,14 +67,50 @@ export function addition(link, node, options = {}) {
 
 // The Action for a change (`kind`: "add_change" or "preview"). `netId` is the network the form was read for (so
 // the change lands where the form looked); a change that needs a selection takes the shared one, or `saved`.
-export function changeAction(kind, change, { saved = null, netId = null } = {}) {
+export function changeAction(kind, change, { saved = null, netId = null, facility = null } = {}) {
   const action = { type: `project_cards.${kind}`, change };
   if (netId) action.net_id = netId;
   if (needsSelection(change.type)) {
     if (saved) action.saved_selection = saved;
     else action.use_selection = true;
+    // How a property change's facility is written (a deletion takes GMNS link ids).
+    if (facility && change.type === "roadway_property_change") {
+      action.facility_form = facility.form;
+      action.id_system = facility.id_system;
+    }
   }
   return action;
+}
+
+// ----------------------------------------------------------------------------------------- the facility choice
+
+// The two forms a change's facility is written in, and the id systems (the order the controls list them in).
+export const FACILITY_FORMS = [
+  { key: "segment", label: "Segment", hint: "name or ref with from and to nodes; found again on another network" },
+  { key: "link_list", label: "Link list", hint: "ids only" },
+];
+export const ID_SYSTEMS = [
+  { key: "gmns", label: "GMNS" },
+  { key: "osm", label: "OpenStreetMap" },
+  { key: "gers", label: "Overture GERS" },
+];
+const SYSTEM_NAMES = Object.fromEntries(ID_SYSTEMS.map(s => [s.key, s.label]));
+
+// The choice the form was read with ({form, id_system}), or null when the form has none (a deletion, an older server).
+export function facilityChoice(targets) {
+  const f = targets && targets.facility;
+  return f ? { form: f.form, id_system: f.id_system } : null;
+}
+
+// Why a form ("forms") or an id system ("id_systems") can't be chosen, or "" when it can.
+export const facilityReason = (targets, kind, key) => ((targets.facility || {})[kind] || {})[key] || "";
+
+// The choice after the user picks `part` ({form} or {id_system}). Throws the reason when that choice is unavailable.
+export function chooseFacility(targets, current, part) {
+  const next = { ...current, ...part };
+  const why = facilityReason(targets, "forms", next.form) || facilityReason(targets, "id_systems", next.id_system);
+  if (why) throw new Error(why);
+  return next;
 }
 
 const cards = state => (state && state.plugins && state.plugins.project_cards) || {};
@@ -400,13 +436,31 @@ export function inspectHeader(detail) {
   ].filter(([, text]) => text);
 }
 
-// A query selection as one line: its fields (without ignore_missing), and what it resolved to when made.
+// A segment (or other query) as one line: its name or ref and anchors, the id system, and what it resolved to when
+// made. Mirrors the server's facility_text.
 function queryText(facility) {
-  const links = { ...((facility.query || {}).links || {}) };
+  const query = facility.query || {};
+  const links = { ...(query.links || {}) };
   delete links.ignore_missing;
+  const system = `(${SYSTEM_NAMES[facility.id_system || "gmns"]})`;
   const resolved = facility.resolved ? `resolved to ${plural(facility.resolved.length, "link")}`
     : "no provenance: cannot be applied yet";
-  return `links matching ${JSON.stringify(links)} (${resolved})`;
+  const names = [...(links.name || []), ...(links.ref || [])];
+  if (!names.length) return `Links matching ${JSON.stringify(links)} ${system}, ${resolved}`;
+  const end = role => Object.values(query[role] || {})[0];
+  const anchors = end("from") === undefined && end("to") === undefined ? ""
+    : `, node ${end("from") ?? "?"} → ${end("to") ?? "?"}`;
+  return `Segment: ${names.join(" and ")}${anchors} ${system}, ${resolved}`;
+}
+
+// A link list (or node list) as one line: the count, the id system, and for OpenStreetMap ids the links they cover.
+function listText(facility) {
+  const node = facility.table === "node";
+  const osm = facility.id_system === "osm";
+  const noun = osm ? (node ? "OSM node" : "OSM way") : (node ? "node" : "link");
+  const covers = osm && facility.resolved ? `, covering ${plural(facility.resolved.length, node ? "node" : "link")}` : "";
+  return `${node ? "Node" : "Link"} list: ${plural((facility.ids || []).length, noun)} `
+    + `(${SYSTEM_NAMES[facility.id_system || "gmns"]})${covers}`;
 }
 
 // What a change aims at, as one line.
@@ -414,7 +468,7 @@ export function facilityText(change) {
   if (change.type === "roadway_property_change") {
     const f = change.facility;
     if (!f) return "no facility";
-    return f.query ? queryText(f) : `${f.table === "node" ? "nodes" : "links"} ${fewIds(f.ids)}`;
+    return f.query ? queryText(f) : listText(f);
   }
   const parts = [];
   if ((change.links || []).length) {

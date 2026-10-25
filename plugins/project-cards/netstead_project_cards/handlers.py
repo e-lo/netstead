@@ -98,7 +98,15 @@ class Handlers:
         with as_action_errors():
             net = target_network(host, self.state, action.net_id)
             nets = selection_networks(host, self.state, net)
-            change, warnings = complete_change(host, nets, action.change, action.use_selection, action.saved_selection)
+            change, warnings = complete_change(
+                host,
+                nets,
+                action.change,
+                action.use_selection,
+                action.saved_selection,
+                action.facility_form,
+                action.id_system,
+            )
             check_card_shape(change, self.mapping)
             applied = apply_change(host, net, change)
         if not applied.marks:  # a draft entry with no marks could not be reconciled after a parent's rollback
@@ -375,7 +383,15 @@ class Handlers:
         with as_action_errors():
             base = target_network(host, self.state, action.net_id)
             nets = selection_networks(host, self.state, base)
-            change, warnings = complete_change(host, nets, action.change, action.use_selection, action.saved_selection)
+            change, warnings = complete_change(
+                host,
+                nets,
+                action.change,
+                action.use_selection,
+                action.saved_selection,
+                action.facility_form,
+                action.id_system,
+            )
             check_card_shape(change, self.mapping)
             text = describe(change)
             base_handle = host.network(base)

@@ -118,15 +118,21 @@ class PropertyChange(_Model):
 
 
 class Selection(_Model):
-    """Which records a property change applies to.
+    """Which records a property change applies to: one of two strict forms, in one id system.
 
-    ``ids`` picks records by GMNS key (a click-pick), written with ``ignore_missing`` (``False`` for a pick: a fix
-    aimed at a specific link should fail loudly when that link is gone). ``query`` keeps a re-resolvable ProjectCard
-    facility in card form (``host.selection["projectcard"]["query"]``, which carries its own ``ignore_missing``:
-    the selection's ``ignore_missing`` follows it, true when absent), and ``resolved`` the link ids it resolved to
-    when the change was made (provenance). A query applies to its ``resolved`` ids. A query without them (a card
-    written by another tool) is :attr:`unresolved`: it reads and writes, but applying it is refused with
-    :data:`UNRESOLVED_QUERY` until re-resolving a query on the open network is supported.
+    **Link list** (``ids``): the records by id only. In GMNS ids (``id_system="gmns"``, the default) ``ids`` are the
+    ``link_id`` / ``node_id`` values themselves, written with ``ignore_missing`` (``False`` for a pick: a fix aimed at
+    a specific link should fail loudly when that link is gone). In OpenStreetMap ids (``id_system="osm"``) ``ids``
+    are ``osm_way_id`` / ``osm_node_id`` values (text, as ProjectCard has them) and ``resolved`` the GMNS ids they
+    cover on the network (several links can share a way): it is filled when the change is made, or by
+    :func:`~netstead_project_cards.facility.resolve_selection` on the open network when a card is read from a file.
+
+    **Segment** (``query``): the facility by ``name`` / ``ref`` with the ``from`` / ``to`` anchors, in card form
+    (``host.selection["projectcard"]["segment"][id_system]``, which carries its own ``ignore_missing``: the
+    selection's ``ignore_missing`` follows it, true when absent). ``resolved`` is the link ids it resolved to when the
+    change was made (provenance). A segment applies to its ``resolved`` ids. One without them (a card written by
+    another tool) is :attr:`unresolved`: it reads and writes, but applying it is refused with :data:`UNRESOLVED_QUERY`
+    until re-resolving a query on the open network is supported.
     """
 
     table: Literal["link", "node"] = "link"
@@ -134,6 +140,7 @@ class Selection(_Model):
     query: dict[str, Any] | None = None
     resolved: list[Id] | None = None
     ignore_missing: bool = False
+    id_system: Literal["gmns", "osm"] = "gmns"
 
     @model_validator(mode="before")
     @classmethod
@@ -154,23 +161,37 @@ class Selection(_Model):
             raise ValueError("give exactly one of ids or query")
         if self.ids is not None and not self.ids:
             raise ValueError("ids must not be empty")
-        if self.ids is not None and self.resolved is not None:
-            raise ValueError("resolved records what a query matched: give it with query, not ids")
-        if self.query is not None:
-            if self.table != "link" or not isinstance(self.query.get("links"), dict):
-                raise ValueError("a query selects links: its 'links' must be a mapping")
-            if self.resolved is not None and not self.resolved:
-                raise ValueError("resolved records the link ids a query matched: give some, or leave it out")
+        if self.ids is not None and self.resolved is not None and self.id_system == "gmns":
+            raise ValueError("resolved records what a query or OpenStreetMap ids matched: give it with those")
+        if self.query is not None and (self.table != "link" or not isinstance(self.query.get("links"), dict)):
+            raise ValueError("a query selects links: its 'links' must be a mapping")
+        if self.resolved is not None and not self.resolved:
+            raise ValueError("resolved records the ids a selection matched: give some, or leave it out")
         return self
+
+    @property
+    def form(self) -> Literal["link_list", "segment", "query"]:
+        """``link_list`` (ids), ``segment`` (a query naming its facility), or ``query`` (another kind of query)."""
+        if self.ids is not None:
+            return "link_list"
+        links = (self.query or {}).get("links") or {}
+        return "segment" if links.get("name") or links.get("ref") else "query"
 
     @property
     def unresolved(self) -> bool:
         """Whether this is a query with no provenance (no ``resolved`` ids), which cannot be applied yet."""
         return self.query is not None and self.resolved is None
 
+    @property
+    def needs_network(self) -> bool:
+        """Whether this is a list of OpenStreetMap ids not yet resolved to GMNS ids (the open network does that)."""
+        return self.ids is not None and self.id_system == "osm" and self.resolved is None
+
     def target_ids(self) -> list[Id]:
-        """The ids this selection applies to now (none for an :attr:`unresolved` query)."""
-        return list(self.ids if self.ids is not None else self.resolved or [])
+        """The GMNS ids this selection applies to now (none for an :attr:`unresolved` one or an unresolved OSM list)."""
+        if self.ids is not None and self.id_system == "gmns":
+            return list(self.ids)
+        return list(self.resolved or [])
 
 
 class RoadwayPropertyChange(_Model):

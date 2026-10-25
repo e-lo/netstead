@@ -8,6 +8,7 @@
 // child), never parsed as markup.
 import {
   ROADWAY_TYPES, TRANSIT_TYPES, TYPE_TITLES, applyDefaults, applyEnabled, catalogOf, checkedAgainst, catalogRows, commitChoices,
+  FACILITY_FORMS, ID_SYSTEMS, facilityReason,
   commitFields, commitView, draftBadge, editPrompt, fileLine, metaFields, metaForm, renameName, draftNet, draftOf, hasNode, importPath, inspectHeader, inspectRows, needsSelection,
   openPreview, previewLine, savedChoices, selectionStatus, sessionRows, stepIndicator, summaryFileName, typeChoices,
 } from "./cardmodel.js";
@@ -326,6 +327,39 @@ function createView(wb, ctl, el) {
     if (createBox.contains(typing)) typing.focus();
   }
 
+  // What the change aims at: the selection in words and its warnings, and (for a property change) the choice of how
+  // the facility is written: Segment or Link list, in GMNS or OpenStreetMap ids. A choice reads the form again (the
+  // targets and their current values depend on it) and keeps what was typed (`carry()`).
+  function targetNodes(c, carry) {
+    const targets = c.form.targets;
+    const words = h("p", { class: "muted", id: "pc-facility-label", role: "status", text: targets.label });
+    const notes = h("div", { id: "pc-facility-notes" },
+      ...(targets.warnings || []).map(w => h("p", { class: "muted", text: w })));
+    if (!c.facility) return [words, notes];
+    const choose = part => guard(async () => { await ctl.setFacility(part, carry()); draw(); })();
+    const radio = f => {
+      const why = facilityReason(targets, "forms", f.key);
+      const input = h("input", { type: "radio", name: "pc-facility-form", id: `pc-form-${f.key}`, value: f.key,
+        checked: c.facility.form === f.key, disabled: Boolean(why), title: why || f.hint });
+      input.onchange = () => choose({ form: f.key });
+      return h("label", { title: why || f.hint, style: why ? "opacity:.6" : "" }, input, ` ${f.label} `);
+    };
+    const system = h("select", { id: "pc-id-system", "aria-label": "ID system" });
+    for (const s of ID_SYSTEMS) {
+      const why = facilityReason(targets, "id_systems", s.key);
+      system.append(h("option", { value: s.key, text: why ? `${s.label} (unavailable)` : s.label,
+        disabled: Boolean(why), title: why }));
+    }
+    system.value = c.facility.id_system;
+    system.onchange = () => choose({ id_system: system.value });
+    const reasons = [...FACILITY_FORMS.map(f => [f.label, facilityReason(targets, "forms", f.key)]),
+      ...ID_SYSTEMS.map(s => [s.label, facilityReason(targets, "id_systems", s.key)])].filter(([, why]) => why);
+    const group = h("div", { role: "group", "aria-label": "Facility form", id: "pc-facility",
+      style: "display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:4px 0" },
+    ...FACILITY_FORMS.map(radio), h("label", {}, "ID system ", system));
+    return [words, group, ...reasons.map(([what, why]) => h("p", { class: "muted", text: `${what}: ${why}` })), notes];
+  }
+
   // The form is redrawn only for a new compose: redrawing on every state change would wipe what the user typed.
   let drawn = null;
   // Set while a compose form is drawn: shows that the selection it was read from changed.
@@ -337,11 +371,9 @@ function createView(wb, ctl, el) {
     composeBox.replaceChildren();
     if (!c) return;
     composeBox.append(h("div", { class: "label", text: `New change: ${TYPE_TITLES[c.type]}` }));
-    if (c.form.targets) {
-      composeBox.append(h("p", { class: "muted", text: c.form.targets.label }));
-      for (const w of c.form.targets.warnings || []) composeBox.append(h("p", { class: "muted", text: w }));
-    }
+    if (c.form.targets) composeBox.append(...targetNodes(c, () => carried()));
     const forms = {};
+    const carried = () => Object.fromEntries(["columns", "options"].filter(k => forms[k]).map(k => [k, forms[k].value()]));
     for (const key of ["columns", "link", "node", "options"]) {
       if (!c.form[key]) continue;
       if (key === "node") {
@@ -350,7 +382,7 @@ function createView(wb, ctl, el) {
       }
       const slot = h("div");
       composeBox.append(slot);
-      const start = key === "link" && c.form.next_ids ? { link_id: c.form.next_ids.link_id } : {};
+      const start = key === "link" && c.form.next_ids ? { link_id: c.form.next_ids.link_id } : (c.carry || {})[key] || {};
       forms[key] = wb.schemaForm(slot, c.form[key], start);
     }
     const values = () => Object.fromEntries(Object.entries(forms).map(([k, f]) => [k, f.value()]));

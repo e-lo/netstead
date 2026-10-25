@@ -26,6 +26,7 @@ from typing import Any
 from netstead.workbench.plugins import EditPlan, EditRefused, Host
 
 from .errors import CardError, CardNotSupported, not_supported
+from .facility import OSM_NOUN, facility_text, resolve_selection
 from .mapping import load_mapping
 from .types import (
     TRANSIT_TYPES,
@@ -158,12 +159,7 @@ def describe(change: Any) -> str:
     """A short description of ``change``, for the lineage, the Edits panel and the draft card's list."""
     if isinstance(change, RoadwayPropertyChange):
         sel = change.facility
-        if sel is None:
-            target = "the selection"
-        elif sel.unresolved:
-            target = "links matching a query (unresolved)"
-        else:
-            target = f"{sel.table} {few(sel.target_ids())}"
+        target = "the selection" if sel is None else facility_text(sel)
         parts = [f"{name} {_what(pc)}" for name, pc in change.property_changes.items()]
         return f"roadway_property_change {target}: {', '.join(parts)}"
     if isinstance(change, RoadwayDeletion):
@@ -299,6 +295,9 @@ def _property_change(host: Host, net_id: str, change: RoadwayPropertyChange, not
     pk = KEYS[sel.table]
     version = host.network(net_id).version  # before the frame: it decides the conflicts and the deltas
     frame = _frame(host, net_id, sel.table)
+    sel, absent = resolve_selection(sel, frame)  # OpenStreetMap ids -> the records carrying them on this network
+    if absent and not sel.ignore_missing:
+        raise CardError(f"{OSM_NOUN[sel.table]} {few(absent)} not found")
     unknown = [p for p in change.property_changes if p not in frame.columns]
     if unknown:
         raise CardError(f"{sel.table} has no column(s) {', '.join(unknown)}")
@@ -308,6 +307,8 @@ def _property_change(host: Host, net_id: str, change: RoadwayPropertyChange, not
     if missing and not sel.ignore_missing:
         raise CardError(f"{sel.table} {few(missing)} not found")
     out = Applied(change)
+    if absent:
+        out.skipped.append(f"{OSM_NOUN[sel.table]} {few(absent)} not found; skipped (ignore_missing)")
     if missing:
         out.skipped.append(f"{sel.table} {few(missing)} not found; skipped (ignore_missing)")
     ids = [i for i in wanted if str(i) in current]

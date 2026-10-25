@@ -165,6 +165,14 @@ console.log(JSON.stringify({
   header: inspectHeader(DETAIL), rows: inspectRows(DETAIL), draft: inspectRows(DRAFT),
   query: facilityText(query), bare: facilityText(bare), none: facilityText({ type: "roadway_property_change" }),
   nodes: facilityText({ type: "roadway_property_change", facility: { table: "node", ids: [4] } }),
+  anchored: facilityText({ type: "roadway_property_change", facility: { table: "link", id_system: "osm",
+    resolved: [60], query: { links: { name: ["Pine Street"], ignore_missing: true },
+      from: { osm_node_id: "33" }, to: { osm_node_id: "19" } } } }),
+  osm_list: facilityText({ type: "roadway_property_change", facility: { table: "link", id_system: "osm",
+    ids: ["1", "2"], resolved: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] } }),
+  osm_nodes: facilityText({ type: "roadway_property_change",
+    facility: { table: "node", id_system: "osm", ids: ["7"] } }),
+  other: facilityText({ ...query, facility: { ...query.facility, query: { links: { all: true } } } }),
   clean: facilityText({ type: "roadway_deletion", links: [1], nodes: [9], clean_nodes: true }),
   empty: facilityText({ type: "roadway_deletion", links: [], nodes: [] }),
   props: propertyLines({ property_changes: { lanes: { existing: 2, change: -1, existing_value_conflict: "warn" },
@@ -192,7 +200,7 @@ def test_the_inspect_rows_for_the_routes_answers(client, session, catalog, run_j
     assert prop == {
         "index": 0,
         "title": "1. Property change",
-        "facility": "links 1, 2",
+        "facility": "Link list: 2 links (GMNS)",
         "properties": ["lanes: 1 → 3"],
         "note": "wider",
         "check": {"state": "ok", "text": "Applies: 2 records found"},
@@ -204,9 +212,13 @@ def test_the_inspect_rows_for_the_routes_answers(client, session, catalog, run_j
     assert addition["check"]["state"] == "ok"
     (row,) = got["draft"]
     assert row["check"] == {"state": "ok", "text": "In the draft: applied to leavenworth"}
-    assert got["query"] == 'links matching {"name":["Main"]} (resolved to 2 links)'
-    assert got["bare"] == 'links matching {"name":["Main"]} (no provenance: cannot be applied yet)'
-    assert got["none"] == "no facility" and got["nodes"] == "nodes 4"
+    assert got["query"] == "Segment: Main (GMNS), resolved to 2 links"
+    assert got["bare"] == "Segment: Main (GMNS), no provenance: cannot be applied yet"
+    assert got["none"] == "no facility" and got["nodes"] == "Node list: 1 node (GMNS)"
+    assert got["anchored"] == "Segment: Pine Street, node 33 \u2192 19 (OpenStreetMap), resolved to 1 link"
+    assert got["osm_list"] == "Link list: 2 OSM ways (OpenStreetMap), covering 12 links"
+    assert got["osm_nodes"] == "Node list: 1 OSM node (OpenStreetMap)"
+    assert got["other"] == 'Links matching {"all":true} (GMNS), resolved to 2 links'
     assert got["clean"] == "deletes links 1; nodes 9 (and end nodes no other link uses)"
     assert got["empty"] == "deletes nothing"
     assert got["props"] == ["lanes: 2 → change by -1 (if it differs: warn)", "speed: change by +5", "name: set Main St"]

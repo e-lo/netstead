@@ -98,7 +98,7 @@ def test_the_draft_is_reconciled_before_undo_without_a_state_read(nested, no_sta
     with pytest.raises(ActionError, match="the parent failed"):
         nested.dispatch(ThenFail(inner=add(2, 3)))
     result = nested.dispatch(UndoChange())
-    assert result["count"] == 0 and result["undone"].endswith("link 1: lanes → 2") and cell(nested, 1) == [1]
+    assert result["count"] == 0 and result["undone"].endswith("1 link (GMNS): lanes → 2") and cell(nested, 1) == [1]
 
 
 def test_a_core_edit_after_the_rollback_does_not_bring_the_phantom_back(nested, tmp_path, no_state_reads):
@@ -150,7 +150,7 @@ def test_an_undo_rolled_back_under_a_change_added_and_undone_in_the_same_parent_
     with pytest.raises(ActionError, match="the parent failed"):
         nested.dispatch(AllThenFail(inners=[undo, add(3, 4), undo]))
     assert cell(nested, 2) == [3] and cell(nested, 3) == before
-    assert nested.dispatch(UndoChange())["undone"].endswith("link 2: lanes → 3") and cell(nested, 2) == [1]
+    assert nested.dispatch(UndoChange())["undone"].endswith("1 link (GMNS): lanes → 3") and cell(nested, 2) == [1]
 
 
 def _cards_state(session):

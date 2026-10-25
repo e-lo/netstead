@@ -12,7 +12,6 @@ Action. They run outside the session lock: each Host call takes it, and the draf
 
 from __future__ import annotations
 
-import json
 from collections.abc import Collection
 from typing import Any
 
@@ -22,7 +21,16 @@ from netstead.workbench.plugins import ActionError, Host
 
 from .card import DraftCard
 from .errors import CardError, not_supported
-from .flow import SELECTABLE, check_entries, selection_facility, selection_networks, summary_text, target_network
+from .facility import facility_text
+from .flow import (
+    SELECTABLE,
+    check_entries,
+    selection_facility,
+    selection_networks,
+    selection_options,
+    summary_text,
+    target_network,
+)
 from .inspection import inspect_card
 from .lower import KEYS, rows_by_key
 from .mapping import FieldMap
@@ -133,16 +141,35 @@ def next_id(frame: Any, pk: str) -> int | None:
 
 
 def _label(selection: Selection) -> str:
+    """The selection in words with the number of links it applies to (``Segment: Benton Street (GMNS), 4 links``)."""
+    text = facility_text(selection)
     n = len(selection.target_ids())
     links = "link" if n == 1 else "links"
-    if selection.ids is not None:
-        return f"{n} picked {links}"
-    query = {k: v for k, v in (selection.query or {}).get("links", {}).items() if k != "ignore_missing"}
-    return f"{n} {links} matching {json.dumps(query, sort_keys=True)}"
+    if selection.ids is not None and selection.id_system == "gmns":
+        return text  # it already counts the ids
+    return f"{text}, {'covering ' if selection.ids is not None else ''}{n} {links}"
+
+
+def _facility(host: Host, nets: frozenset[str], use_selection: bool, saved: str | None, chosen: Selection) -> dict:
+    """The facility choice a form offers: the form and id system in effect, and what is available (a reason or None)."""
+    options = selection_options(host, nets, use_selection=use_selection, saved=saved)
+    return {
+        "form": "link_list" if chosen.form == "link_list" else "segment",
+        "id_system": chosen.id_system,
+        "forms": options["forms"],
+        "id_systems": options["id_systems"],
+    }
 
 
 def _form(
-    host: Host, state: CardsState, net: str, change_type: str, use_selection: bool, saved: str | None
+    host: Host,
+    state: CardsState,
+    net: str,
+    change_type: str,
+    use_selection: bool,
+    saved: str | None,
+    facility_form: str | None = None,
+    id_system: str = "gmns",
 ) -> dict[str, Any]:
     handle = host.network(net)
     head = {"type": change_type, "supported": True, "net_id": net}
@@ -158,17 +185,20 @@ def _form(
     if not use_selection and saved is None:
         raise CardError(f"{change_type} acts on a selection: pass use_selection=true or saved=<name>")
     nets = selection_networks(host, state, net)
-    selection, warnings = selection_facility(host, nets, use_selection=use_selection, saved=saved)
+    selection, warnings = selection_facility(
+        host, nets, use_selection=use_selection, saved=saved, form=facility_form, id_system=id_system
+    )
     ids = selection.target_ids()
     targets = {
         "table": selection.table,
         "count": len(ids),
-        "picked": selection.ids is not None,
+        "picked": selection_options(host, nets, use_selection=use_selection, saved=saved)["picked"],
         "label": _label(selection),
         "warnings": warnings,
     }
     if change_type == "roadway_deletion":
         return {**head, "targets": targets, "options": DELETION_OPTIONS}
+    targets["facility"] = _facility(host, nets, use_selection, saved, selection)
     frame = handle.links_df()
     lists = list_columns(frame)
     existing, mixed = current_values(frame, KEYS["link"], ids, skip=lists)
@@ -187,7 +217,12 @@ def build_router(host: Host, state: CardsState, mapping: FieldMap) -> APIRouter:
 
     @api.get("/form")
     def form(
-        type: str, net_id: str | None = None, use_selection: bool = False, saved: str | None = None
+        type: str,
+        net_id: str | None = None,
+        use_selection: bool = False,
+        saved: str | None = None,
+        facility_form: str | None = None,
+        id_system: str = "gmns",
     ) -> dict[str, Any]:
         if type in TRANSIT_TYPES:
             return {"type": type, "supported": False, "message": str(not_supported(type))}
@@ -195,7 +230,7 @@ def build_router(host: Host, state: CardsState, mapping: FieldMap) -> APIRouter:
             raise HTTPException(404, f"no change type {type!r}")
         try:
             net = target_network(host, state, net_id)
-            return _form(host, state, net, type, use_selection, saved)
+            return _form(host, state, net, type, use_selection, saved, facility_form, id_system)
         except (CardError, ActionError) as exc:
             raise HTTPException(400, str(exc)) from exc
 
