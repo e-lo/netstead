@@ -6,7 +6,7 @@
 // change is never added (or a card committed) twice.
 import {
   addition, catalogOf, changeAction, chooseType, createAfter, deletion, draftOf, needsSelection, openPreview,
-  propertyChange, selectionKey, startCreate,
+  propertyChange, selectionKey, startCreate, chooseFacility, facilityChoice,
 } from "./cardmodel.js";
 
 const query = params => Object.entries(params)
@@ -27,8 +27,12 @@ export function createController(wb) {
   // Open the form for a change type: the plugin's /form route says what the selection holds now. An unsupported type
   // only says so: a form already open stays open (and working). A form read from the shared selection remembers
   // which selection (read before the form, so a change while it loads still outdates it): see selectionChanged.
-  async function start(type, { saved = null } = {}) {
+  async function start(type, { saved = null, facility = null } = {}) {
     const params = { type, saved };
+    if (facility) {
+      params.facility_form = facility.form;
+      params.id_system = facility.id_system;
+    }
     const onSelection = needsSelection(type) && !saved;
     if (onSelection) params.use_selection = "true";
     const key = onSelection ? selectionKey(wb.store.get().selection) : null;
@@ -37,7 +41,19 @@ export function createController(wb) {
       wb.toast(form.message);
       return null;
     }
-    state.compose = { type, form, saved, selection: key, outdated: false };
+    state.compose = { type, form, saved, selection: key, outdated: false, facility: facilityChoice(form.targets) };
+    return form;
+  }
+
+  // The user picked a form or an id system ({form} or {id_system}) for the open form's facility: the form is read again
+  // for it (the targets, their current values and the warnings change with the ids). `carry` ({columns, options}, what
+  // was typed) is kept in the new form. Throws the reason when that choice is unavailable, leaving the form as it was.
+  async function setFacility(part, carry = null) {
+    const c = openForm();
+    if (!c.facility) throw new Error("this change has no facility to choose");
+    const next = chooseFacility(c.form.targets, c.facility, part);
+    const form = await start(c.type, { saved: c.saved, facility: next });
+    if (form && carry) state.compose.carry = carry;
     return form;
   }
 
@@ -58,8 +74,8 @@ export function createController(wb) {
 
   // The open form read again, for the selection as it is now.
   const reload = () => {
-    const { type, saved } = openForm();
-    return start(type, { saved });
+    const { type, saved, facility } = openForm();
+    return start(type, { saved, facility });
   };
 
   // The change the open form describes. `values` is {columns, options, link, node}: each form's value().
@@ -71,9 +87,9 @@ export function createController(wb) {
   }
 
   const dispatchChange = (kind, values) => {
-    const { saved, form, outdated } = openForm();
+    const { saved, form, outdated, facility } = openForm();
     if (outdated) throw new Error("The selection changed since this form opened: reload the form");
-    return wb.api.dispatch(changeAction(kind, changeFrom(values), { saved, netId: form.net_id }));
+    return wb.api.dispatch(changeAction(kind, changeFrom(values), { saved, netId: form.net_id, facility }));
   };
 
   // A preview goes to a copy of the network; a second one replaces the first (the server closes the older copy).
@@ -233,6 +249,11 @@ export function createController(wb) {
       await wb.api.dispatch(onNet({ type: "select", link_ids: links }, netId));
       await selectionArrives(links);
     }
+    // A list is written the way it was; a segment cannot be re-found from ids alone, so it comes back as a link list.
+    const f = change.facility || {};
+    if (f.id_system && f.id_system !== "gmns") {
+      try { return await start(change.type, { facility: { form: "link_list", id_system: f.id_system } }); } catch { /* this network lacks that id system now: the default */ }
+    }
     return start(change.type);
   }
 
@@ -339,7 +360,7 @@ export function createController(wb) {
   }
 
   return {
-    state, start, changeFrom, check, serverChanged, selectionChanged, loadCatalog, catalog, catalogChanged, summary,
+    state, start, setFacility, changeFrom, check, serverChanged, selectionChanged, loadCatalog, catalog, catalogChanged, summary,
     anotherChange, endCreate, inspect, closeInspect, cardDetail,
     ...Object.fromEntries(Object.entries({
       preview, closePreview, add, cancel, undo, commit, importCard, reload, openCatalog, refreshCatalog, previewCard,

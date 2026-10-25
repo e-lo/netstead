@@ -995,3 +995,51 @@ console.log(JSON.stringify(calls.map(c => (c[0] === "dispatch" ? c[1] : c))));
         },
         ["get", "/card?card_id=a.yml&net_id=base"],
     ]
+
+
+MODEL_HARNESS = """
+import {
+  changeAction, chooseFacility, facilityChoice, facilityReason, facilityText,
+} from "./cardmodel.js";
+const targets = {
+  facility: {
+    form: "segment", id_system: "gmns",
+    forms: { segment: null, link_list: null },
+    id_systems: { gmns: null, osm: null, gers: "ProjectCard has no key for GERS ids" },
+  },
+};
+const unnamed = { facility: { ...targets.facility, form: "link_list",
+  forms: { segment: "This selection has no named segment; use Link list", link_list: null } } };
+const prop = { type: "roadway_property_change", property_changes: {} };
+const attempt = fn => { try { return fn(); } catch (e) { return e.message; } };
+console.log(JSON.stringify({
+  choice: facilityChoice(targets), none: facilityChoice({}), nothing: facilityChoice(null),
+  reason: [facilityReason(targets, "id_systems", "gers"), facilityReason(targets, "id_systems", "osm"),
+           facilityReason({}, "forms", "segment")],
+  chosen: chooseFacility(targets, { form: "segment", id_system: "gmns" }, { id_system: "osm" }),
+  gers: attempt(() => chooseFacility(targets, { form: "segment", id_system: "gmns" }, { id_system: "gers" })),
+  segmentRefused: attempt(() => chooseFacility(unnamed, { form: "link_list", id_system: "gmns" }, { form: "segment" })),
+  property: changeAction("add_change", prop, { facility: { form: "link_list", id_system: "osm" } }),
+  saved: changeAction("preview", prop, { saved: "ski", facility: { form: "segment", id_system: "gmns" } }),
+  deletion: changeAction("add_change", { type: "roadway_deletion" },
+    { facility: { form: "link_list", id_system: "osm" } }),
+  plain: changeAction("add_change", prop),
+  texts: [
+    facilityText({ ...prop, facility: { table: "link", ids: [1, 2] } }),
+    facilityText({ ...prop, facility: { table: "link", ids: ["5"], id_system: "osm" } }),
+  ],
+}));
+"""
+
+
+def test_the_facility_choice_rules_and_the_action_fields(run_js):
+    got = run_js(MODEL, MODEL_HARNESS)
+    assert got["choice"] == {"form": "segment", "id_system": "gmns"} and got["none"] is None and got["nothing"] is None
+    assert got["reason"] == ["ProjectCard has no key for GERS ids", "", ""]
+    assert got["chosen"] == {"form": "segment", "id_system": "osm"}
+    assert got["gers"] == "ProjectCard has no key for GERS ids"
+    assert got["segmentRefused"] == "This selection has no named segment; use Link list"
+    assert got["property"]["facility_form"] == "link_list" and got["property"]["id_system"] == "osm"
+    assert got["saved"]["saved_selection"] == "ski" and got["saved"]["facility_form"] == "segment"
+    assert "facility_form" not in got["deletion"] and "id_system" not in got["plain"]  # a deletion takes GMNS ids
+    assert got["texts"] == ["Link list: 2 links (GMNS)", "Link list: 1 OSM way (OpenStreetMap)"]

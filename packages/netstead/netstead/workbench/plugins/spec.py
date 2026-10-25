@@ -29,6 +29,10 @@ __all__ = ["HOST_API", "ActionSpec", "WorkbenchPlugin", "api_compatible", "probl
 #: 1.7: Host.readable and Host.list_dir (reading inside io.allowed_roots); Host.history (a read-only view).
 #: 1.8: Host.register_table / Host.unregister_table (a read-only plugin table in the table view, rebuilt when the
 #:      plugin publishes); the browser's wb.showTable(name) and the core.table_row / core.table_changed events.
+#: 1.8 (additive, no bump): host.selection["projectcard"] (and saved_selection's) gains "segment" and "link_list"
+#:      (each {id system: facility}: the Find tab's strict forms in GMNS or OSM ids), "segment_problem", "id_systems"
+#:      and "id_captions". Keys are only added ("picked", "resolved", "query" are unchanged), so a plugin written for
+#:      1.8 keeps working; no method was added.
 HOST_API = "1.8"
 
 #: A plugin id: the namespace for its Action types, routes, state, settings and static files (``fullmatch``).

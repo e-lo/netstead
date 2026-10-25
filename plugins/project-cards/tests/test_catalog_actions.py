@@ -222,7 +222,7 @@ def test_apply_card_refuses_a_card_with_a_missing_id_unless_told_to_skip_it(sess
     session.dispatch(OpenCatalog(path=str(folder)))
     with pytest.raises(
         ActionError,
-        match=r"bad\.yml does not apply to leavenworth: .*link 999999.*: missing 999999; apply with ignore_missing",
+        match=r"bad\.yml does not apply to leavenworth: .*: missing 999999; apply with ignore_missing",
     ):
         session.dispatch(ApplyCard(card_id="bad.yml"))
     assert session.network(NET).version == 0 and cards_state(session)["applied"] == []
@@ -305,8 +305,8 @@ def test_preview_card_shows_every_change_on_a_copy_and_publishes_the_targets(ses
     preview = result["preview"]
     assert result["base"] == NET and result["card_id"] == "good.yml" and result["warnings"] == []
     assert [c["describe"] for c in result["changes"]] == [
-        "roadway_property_change link 1: lanes → 3",
-        "roadway_property_change link 2, 3: lanes → 4",
+        "roadway_property_change Link list: 1 link (GMNS): lanes → 3",
+        "roadway_property_change Link list: 2 links (GMNS): lanes → 4",
     ]
     assert session.active == preview and cell(session, 1, "lanes", preview) == [3] and cell(session, 1, "lanes") == [1]
     assert cards_state(session)["preview"] == {
@@ -366,7 +366,7 @@ def test_session_summary_names_the_network_the_cards_and_the_actions(session, fo
     assert "Spec version: " in text
     assert "- Good (good.yml, catalog): 2 changes, edit ids 1, 2; " in text
     assert "- Widening (widening, committed): 1 change, edit ids 3; " in text
-    assert "## Draft card\n\n(unnamed):\n- roadway_property_change link 6: lanes → 2\n" in text
+    assert "## Draft card\n\n(unnamed):\n- roadway_property_change Link list: 1 link (GMNS): lanes → 2\n" in text
     actions = text.split("## Actions\n\n")[1].split("\n\n")[0].splitlines()
     assert [line.split(" ")[3] for line in actions] == [
         "project_cards.open_catalog",

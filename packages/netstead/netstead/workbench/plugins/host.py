@@ -99,13 +99,22 @@ class Host:
         """A copy of the shared selection payload (the dict ``/api/state`` carries), plus its ``projectcard``.
 
         ``projectcard`` holds the ProjectCard facility forms of a resolved selection (``picked``, ``resolved``,
-        ``query``), or ``None``: core owns the facility form, so a plugin never builds its own.
+        ``query``), or ``None``: core owns the facility form, so a plugin never builds its own. Since 1.9 it also
+        has the strict forms: ``segment`` and ``link_list`` (each ``{id system: facility}``, ``gmns`` and ``osm``),
+        ``segment_problem``, ``id_systems`` (``{system: None or why not}``) and ``id_captions``.
         """
         # Not via ``state()``: that calls every plugin's ``state(host)``, which may read this property.
         sel = self._session.selection_copy()
         if sel is not None:
-            sel["projectcard"] = payload_facility_forms(sel)
+            sel["projectcard"] = payload_facility_forms(sel, self._selection_network(sel))
         return sel
+
+    def _selection_network(self, payload: dict[str, Any]) -> NetworkHandle | None:
+        """The network a selection payload is on (``None`` once it is closed), to look its ids up in."""
+        try:
+            return self._session.network(payload.get("net_id"))
+        except (ActionError, KeyError):
+            return None
 
     def saved_selections(self) -> list[dict[str, Any]]:
         """Each saved selection: ``name``, ``net_id``, ``status``, ``links``, ``utterance``, ``by``, ``stale``."""
@@ -120,7 +129,7 @@ class Host:
         """
         sel = self._session.saved_selection(name)
         if sel is not None:
-            sel["projectcard"] = payload_facility_forms(sel)
+            sel["projectcard"] = payload_facility_forms(sel, self._selection_network(sel))
             sel["warnings"] = selection_warnings(sel)
         return sel
 

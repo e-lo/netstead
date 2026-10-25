@@ -41,7 +41,7 @@ def test_a_preview_is_a_derived_network_made_active(session):
     assert preview_state(session) == {
         "net_id": preview,
         "base": NET,
-        "describe": "roadway_property_change link 1: lanes → 3",
+        "describe": "roadway_property_change Link list: 1 link (GMNS): lanes → 3",
         "stale": False,
     }
 

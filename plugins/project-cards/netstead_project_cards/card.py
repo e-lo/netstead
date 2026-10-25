@@ -30,6 +30,7 @@ from projectcard.projectcard import CHANGE_TYPES as _PROJECTCARD_TYPES
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from .errors import CardError, CardNotSupported, not_supported
+from .facility import OSM_KEY, query_id_system
 from .mapping import FieldMap, load_mapping
 from .types import (
     CHANGE_TYPES,
@@ -180,16 +181,22 @@ def read_card_file(path: str | Path, mapping: FieldMap | None = None) -> DraftCa
 def _provenance(changes: list[Any], m: FieldMap) -> list[str]:
     lines = []
     for i, c in enumerate(changes):
-        if isinstance(c, RoadwayPropertyChange) and c.facility is not None and c.facility.resolved is not None:
+        # Only a Segment records what it resolved to: a link list in OpenStreetMap ids is resolved again on import.
+        if (
+            isinstance(c, RoadwayPropertyChange)
+            and c.facility is not None
+            and c.facility.query is not None
+            and c.facility.resolved is not None
+        ):
             lines.append(f"netstead.resolved[{i}]: {m.selector('link')[1]}={json.dumps(c.facility.resolved)}")
         if c.note:
             lines.append(f"netstead.note[{i}]: {' '.join(c.note.split())}")
     return lines
 
 
-def _ids(ids: list[Any], table: str, m: FieldMap, *, ignore_missing: bool) -> dict[str, Any]:
-    _, key = m.selector(table)
-    return {key: list(ids), "ignore_missing": ignore_missing}
+def _ids(ids: list[Any], table: str, m: FieldMap, *, ignore_missing: bool, id_system: str = "gmns") -> dict[str, Any]:
+    key = OSM_KEY[table] if id_system == "osm" else m.selector(table)[1]
+    return {key: [str(i) for i in ids] if id_system == "osm" else list(ids), "ignore_missing": ignore_missing}
 
 
 def _facility(sel: Selection, m: FieldMap) -> dict[str, Any]:
@@ -197,7 +204,7 @@ def _facility(sel: Selection, m: FieldMap) -> dict[str, Any]:
         query = copy.deepcopy(sel.query)
         query.setdefault("links", {}).setdefault("ignore_missing", True)  # required by the schema
         return query
-    selector = _ids(list(sel.ids or []), sel.table, m, ignore_missing=sel.ignore_missing)
+    selector = _ids(list(sel.ids or []), sel.table, m, ignore_missing=sel.ignore_missing, id_system=sel.id_system)
     return {"links" if sel.table == "link" else "nodes": selector}
 
 
@@ -327,6 +334,15 @@ def _selector_ids(selector: Any, table: str, m: FieldMap, where: str) -> list[An
     return _as_list(selector[key])
 
 
+def _listed(selector: Mapping[str, Any], table: str, m: FieldMap) -> tuple[list[Any], str] | None:
+    """``(ids, id system)`` of a selector that only lists ids (GMNS or OpenStreetMap), else ``None``."""
+    for system, key in (("gmns", m.selector(table)[1]), ("osm", OSM_KEY[table])):
+        if key in selector and set(selector) <= {key, "ignore_missing"}:
+            ids = _as_list(selector[key])
+            return ([str(i) for i in ids] if system == "osm" else ids), system
+    return None
+
+
 def _selection(facility: Mapping[str, Any], m: FieldMap, resolved: list[Any] | None) -> Selection:
     for table in ("link", "node"):  # an older edit log: {model_link_id: [...]} at the top level
         _, key = m.selector(table)
@@ -334,20 +350,23 @@ def _selection(facility: Mapping[str, Any], m: FieldMap, resolved: list[Any] | N
             return Selection(table=table, ids=_as_list(facility[key]))
     if facility.get("nodes") is not None:
         nodes = _mapping(facility["nodes"], "facility nodes")
+        listed = _listed(nodes, "node", m)
+        if listed is None:
+            raise CardNotSupported(
+                f"only {m.selector('node')[1]} or {OSM_KEY['node']} selections of nodes can be read in this version"
+            )
         return Selection(
-            table="node",
-            ids=_selector_ids(nodes, "node", m, "facility nodes"),
-            ignore_missing=bool(nodes.get("ignore_missing")),
+            table="node", ids=listed[0], id_system=listed[1], ignore_missing=bool(nodes.get("ignore_missing"))
         )
     links = facility.get("links")
     if links is None:
         raise CardError("a property change needs a facility with links or nodes")
     links = _mapping(links, "facility links")
-    _, key = m.selector("link")
-    by_id = key in links and set(links) <= {key, "ignore_missing"} and "from" not in facility and "to" not in facility
-    if by_id:
-        return Selection(ids=_as_list(links[key]), ignore_missing=bool(links.get("ignore_missing")))
-    return Selection(query=dict(facility), resolved=resolved)  # resolved None: unresolved, refused when applied
+    listed = _listed(links, "link", m) if "from" not in facility and "to" not in facility else None
+    if listed is not None:  # a Link list
+        return Selection(ids=listed[0], id_system=listed[1], ignore_missing=bool(links.get("ignore_missing")))
+    # A Segment (or another query); resolved None: unresolved, refused when applied
+    return Selection(query=dict(facility), resolved=resolved, id_system=query_id_system(facility))  # type: ignore[arg-type]
 
 
 def _from_record(record: Mapping[str, Any], table: str, m: FieldMap) -> dict[str, Any]:

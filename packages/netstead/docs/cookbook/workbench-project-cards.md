@@ -256,11 +256,40 @@ The card uses network_wrangler's names. GMNS names map to them through a data fi
 
 | You did | The card says |
 |---|---|
-| Picked links (click or box) | `facility: {links: {model_link_id: [...], ignore_missing: false}}` |
-| Selected by a request ("Benton Street") | The query, `facility: {links: {name: [Benton Street], ignore_missing: true}}`, plus a `netstead.resolved[<i>]` line in the card's `notes` |
+| Picked links (click or box), as a **Link list** in GMNS ids | `facility: {links: {model_link_id: [...], ignore_missing: false}}` |
+| Selected by a request ("Pine Street between Orchard Street and Central Avenue"), as a **Segment** | `facility: {links: {name: [Pine Street], ignore_missing: true}, from: {model_node_id: 33}, to: {model_node_id: 19}}`, plus a `netstead.resolved[<i>]` line in the card's `notes` |
+| Either, in OpenStreetMap ids | `facility: {links: {osm_link_id: ['5846369'], ignore_missing: false}}` (Link list), or the Segment with `from: {osm_node_id: '46999094'}` and `to: {osm_node_id: '46993874'}` |
 | Deleted links | `roadway_deletion` by id: `ignore_missing: false` for picked links, the query's own flag for links a request selected; **Also delete end nodes** is `clean_nodes: true` |
 | Added a link | `roadway_addition` in network_wrangler's names, with `walk_access`, `bike_access` and `drive_access` derived from `allowed_uses` |
 | Wrote a note | a `netstead.note[<i>]` line in the card's `notes` |
+
+### Segment or Link list, and the id system
+
+A change's facility is written in exactly one of two forms, never a mix, chosen in the change form (and by the
+`facility_form` and `id_system` fields of `project_cards.add_change` and `project_cards.preview`). The two choices are
+the Find tab's, with the same ID system choice:
+
+- **Segment**: the facility by `name` or `ref` with the `from` and `to` nodes. A re-import can find it again on
+  another version of the network. It is the default for a selection made by a request that names a facility, and it
+  is disabled, with the reason as its tooltip, for a click or box selection, which has no name ("This selection has
+  no named segment; use Link list").
+- **Link list**: only ids. It is the default for clicked or box-selected links.
+
+The **ID system** is **GMNS** (`model_link_id`, `model_node_id`, the default) or **OpenStreetMap** (`osm_link_id`,
+`osm_node_id`, written as text as ProjectCard has them). OpenStreetMap needs the network's `osm_way_id` and
+`osm_node_id` columns, and a selected link with no OSM id refuses it. One OSM way can be split into several links, so a
+Link list in OSM ids applies to **every** link of those ways, not only the selected ones: the form says so ("OSM way
+5846369 also covers 11 links outside this selection") and the change applies to all of them. **Overture GERS** is
+disabled with the reason "ProjectCard has no key for GERS ids"; asking for it from Python is refused the same way. A
+deletion takes GMNS link ids only.
+
+The draft and the Inspect view say which was used, per change: `Segment: Pine Street, node 33 → 19 (GMNS)`,
+`Link list: 1 OSM way (OpenStreetMap)`.
+
+On import and in the catalog's fit check an OSM Link list is resolved on the open network, `osm_link_id` against the
+link table's `osm_way_id` (all links that carry it) and `osm_node_id` against the node table's: an id the network
+lacks is listed as missing (`OSM way 999`) and refuses the card unless `ignore_missing` is `true`. A Segment is
+applied to the links its provenance line recorded.
 
 ### Provenance notes
 
@@ -274,8 +303,9 @@ notes: |-
   netstead.resolved[1]: model_link_id=[1, 5, 6, 8]
 ```
 
-- `netstead.resolved[<i>]: model_link_id=[...]` records the links that change `i`'s query matched when you made the
-  change. Import applies the query to these ids.
+- `netstead.resolved[<i>]: model_link_id=[...]` records the links that Segment `i` matched when you made the
+  change (in GMNS ids, even when the Segment names its nodes in OpenStreetMap ids). Import applies the Segment to these
+  ids. A Link list needs no such line.
 - `netstead.note[<i>]: …` is change `i`'s **Why**, on one line.
 
 The rest of the notes are yours: the commit's `notes` field, from Python or the assistant. Import reads the provenance lines back and keeps the

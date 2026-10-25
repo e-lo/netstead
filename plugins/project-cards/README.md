@@ -17,6 +17,10 @@ network's draft card (badged with its count of uncommitted changes), and **Undo 
 **Commit…** shows the live edit warnings (confirmed with **Commit anyway**) and the card's YAML, then writes the card
 atomically inside `io.allowed_roots`. **Import** applies a card, or the offline report's edit log, all or nothing.
 
+A property change's facility is written as a **Segment** (name or ref with the from and to nodes) or a **Link list**
+(ids only), in **GMNS** or **OpenStreetMap** ids, chosen in the form beside the count (the Find tab's two choices;
+GERS is refused: ProjectCard has no key for it). Clicked links default to a Link list, a named selection to a Segment.
+
 **New card** (in the panel's **Draft** section) walks through the same steps as a guided mode, with a step indicator
 (**Type → Select → Details → Add**) and **Back** / **Cancel**: pick a change type (the transit types are shown, not
 yet supported), select the facility with the shared selection (links clicked or box-selected in Highlight mode and set as the selection, a

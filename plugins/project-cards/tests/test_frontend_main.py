@@ -11,6 +11,7 @@ from pathlib import Path
 import netstead_project_cards
 from fastapi.testclient import TestClient
 from netstead.workbench import build_app
+from netstead.workbench.actions import Select
 from netstead.workbench.server import STATIC_DIR
 
 STATIC = Path(netstead_project_cards.__file__).parent / "static"
@@ -847,3 +848,108 @@ def test_show_as_table_and_a_table_row_selects_its_card(run_js):
     assert got["picked"] == ["true", None, "Selected Bad (bad.yml) from the table", focused]
     assert got["ignored"] == "true"  # another plugin's table: nothing moves
     assert got["gone"] == "gone.yml is not in the open catalog"
+
+
+FACILITY_FORM = "/api/plugins/project_cards/form"
+PINE = "Pine Street between Orchard Street and Central Avenue"
+
+COMPOSE = """
+const two = { selectionCount: 2, state: server, network: { id: "base" } };
+const actions = [];
+const sent = deps.dispatch;
+deps.dispatch = async a => { actions.push(a); return sent(a); };
+const status = () => elById(root, "pc-status").textContent;
+const reads = [], read = deps.getJSON;
+deps.getJSON = p => { reads.push(p); return read(p); };
+const forms = [];
+deps.schemaForm = (el, schema, start = {}) => {
+  const form = { current: start, value: () => form.current, errors: () => [], focus() {},
+    set(v) { form.current = v; } };
+  forms.push([schema, start, form]);
+  return form;
+};
+await byId["project_cards.new_roadway_property_change"].run(two);
+const label = () => elById(root, "pc-facility-label").textContent;
+const radio = key => elById(root, `pc-form-${key}`);
+const system = () => elById(root, "pc-id-system");
+const compose = () => elById(root, "pc-compose");
+const got = { start: [label(), radio("segment").checked, radio("link_list").checked, system().value] };
+got.options = system().children.map(o => [o.getAttribute("value"), o.disabled, o.textContent]);
+got.reasons = compose().textContent.includes("Overture GERS: ProjectCard has no key for GERS ids");
+
+forms.at(-2)[2].set({ lanes: 3 });  // the columns form: typed before the choice, kept
+system().value = "osm"; await system().onchange();
+got.osm = [label(), system().value, forms.slice(-2).map(f => f[1])];
+radio("link_list").checked = true; await radio("link_list").onchange();
+got.osmList = [label(), radio("link_list").checked, elById(root, "pc-facility-notes").textContent];
+
+system().value = "gers"; await system().onchange();  // refused: the form stays
+got.gers = [label(), status()];
+
+await button(compose(), "Add to card").onclick();
+got.action = actions.at(-1);
+got.reads = reads.filter(p => p.includes("facility_form"));
+got.errors = calls.filter(c => c[0] === "error");
+console.log(JSON.stringify(got));
+"""
+
+
+def facility_harness(forms: dict[str, dict]) -> str:
+    """The cards form as the route gives it for each choice (``"<form>:<id system>"``, ``""`` the default)."""
+    setup = PANEL_SETUP.replace(
+        'targets: { label: "2" },\n                                         columns: {}, options: {} };',
+        "...formFor(p) };",
+    )
+    assert "formFor(p)" in setup
+    lookup = (
+        "const FORMS = " + json.dumps(forms) + ";\n"
+        "const formFor = p => { const q = new URL(p, 'http://x').searchParams;\n"
+        "  return FORMS[q.has('facility_form') ? `${q.get('facility_form')}:${q.get('id_system')}` : '']; };\n"
+    )
+    return lookup + setup + COMPOSE
+
+
+def read_forms(session, choices: list[tuple[str, str]]) -> dict[str, dict]:
+    client = TestClient(build_app(session))
+    base = {"type": "roadway_property_change", "use_selection": "true"}
+    out = {"": client.get(FACILITY_FORM, params=base).json()}
+    for form, system in choices:
+        params = {**base, "facility_form": form, "id_system": system}
+        response = client.get(FACILITY_FORM, params=params)
+        out[f"{form}:{system}"] = response.json() if response.status_code == 200 else {"detail": response.text}
+    return out
+
+
+def test_the_compose_form_offers_and_applies_the_facility_choice(run_js, session):
+    session.dispatch(Select(utterance=PINE))
+    forms = read_forms(session, [("segment", "osm"), ("segment", "gmns"), ("link_list", "osm")])
+    got = run_js(FILES, facility_harness(forms))
+    assert got["errors"] == []
+    assert got["start"] == ["Segment: Pine Street, node 33 → 19 (GMNS), 1 link", True, False, "gmns"]
+    assert got["options"] == [
+        ["gmns", False, "GMNS"],
+        ["osm", False, "OpenStreetMap"],
+        ["gers", True, "Overture GERS (unavailable)"],
+    ]
+    assert got["reasons"] is True  # the tooltip's reason is also shown as text
+    label, system, carried = got["osm"]
+    assert label == "Segment: Pine Street, node 46999094 → 46993874 (OpenStreetMap), 1 link" and system == "osm"
+    assert carried == [{"lanes": 3}, {}]  # the new columns form starts with what was typed in the old one
+    assert got["osmList"][0] == "Link list: 1 OSM way (OpenStreetMap), covering 12 links"
+    assert got["osmList"][2] == "OSM way 5846369 also covers 11 links outside this selection"
+    assert got["gers"][0] == got["osmList"][0] and "no key for GERS ids" in got["gers"][1]
+    assert got["action"]["facility_form"] == "link_list" and got["action"]["id_system"] == "osm"
+    assert got["action"]["use_selection"] is True
+    assert len(got["reads"]) == 2  # one form read per accepted choice; the refused one read nothing
+
+
+def test_a_pick_cannot_choose_segment(run_js, session):
+    session.dispatch(Select(link_ids=[60]))
+    forms = read_forms(session, [("link_list", "osm")])
+    page = facility_harness(forms).replace(
+        'system().value = "gers"',
+        'await radio("segment").onchange(); got.pick = [label(), status()];\nsystem().value = "gers"',
+    )
+    got = run_js(FILES, page)
+    assert got["start"][:3] == ["Link list: 1 link (GMNS)", False, True]
+    assert "no named segment" in got["pick"][1] and got["pick"][0].startswith("Link list")

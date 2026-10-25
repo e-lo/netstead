@@ -48,11 +48,15 @@ class _ChangeAction(BaseAction):
     change: NetworkChange
     use_selection: bool = False
     saved_selection: str | None = Field(default=None, min_length=1, max_length=100)
+    facility_form: Literal["segment", "link_list"] | None = None
+    id_system: Literal["gmns", "osm", "gers"] = "gmns"
 
     @model_validator(mode="after")
     def _one_source(self) -> _ChangeAction:
         if self.use_selection and self.saved_selection is not None:
             raise ValueError("use the shared selection or a saved selection, not both")
+        if not (self.use_selection or self.saved_selection) and (self.facility_form or self.id_system != "gmns"):
+            raise ValueError("facility_form and id_system say how a selection is written: use a selection")
         return self
 
 
@@ -63,7 +67,10 @@ class AddChange(_ChangeAction):
     (the transit types answer "not yet supported"). With ``use_selection`` a property change or a deletion targets
     the shared selection: a click-pick by its link ids (``ignore_missing`` false), a query by its query (keeping the
     query's ``ignore_missing``, true when it has none) with the ids it resolved to. With ``saved_selection`` it targets
-    that saved selection instead. ``net_id`` defaults to the active network (an open preview stands for the network
+    that saved selection instead. The facility is written as ``facility_form`` ``segment`` (name or ref with the from
+    and to nodes, re-resolvable; the default for a named selection) or ``link_list`` (ids only; the default for a
+    click or box), in ``id_system`` ``gmns`` (``model_link_id``) or ``osm`` (``osm_link_id``); ProjectCard has no key
+    for ``gers``, which is refused. ``net_id`` defaults to the active network (an open preview stands for the network
     it previews, while that network is open, and a selection made on the preview targets it). The change is checked
     with ``projectcard`` before it is applied.
     """

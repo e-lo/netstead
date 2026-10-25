@@ -51,8 +51,10 @@ def facility_forms(result: Any) -> dict[str, Any]:
     return json.loads(json.dumps(forms, default=json_scalar))  # numpy ids -> plain JSON
 
 
-def payload_facility_forms(payload: dict[str, Any]) -> dict[str, Any] | None:
+def payload_facility_forms(payload: dict[str, Any], handle: NetworkHandle | None = None) -> dict[str, Any] | None:
     """:func:`facility_forms` rebuilt from a selection payload (``None`` unless it is resolved).
+
+    ``handle`` (the selection's network) adds the strict forms in OpenStreetMap ids; see :func:`strict_facility_forms`.
 
     The payload keeps what the forms need (its link ids, a query's ``intent``, the anchors' nodes, placed on
     the map or not), so the shared state does not carry the id list three more times; ``host.selection`` adds
@@ -62,7 +64,7 @@ def payload_facility_forms(payload: dict[str, Any]) -> dict[str, Any] | None:
     if payload.get("status") != "resolved":
         return None
     try:
-        return _payload_facility_forms(payload)
+        return {**_payload_facility_forms(payload), **strict_facility_forms(payload, handle)}
     except Exception:  # boundary: an odd payload (an old intent, a malformed anchor) only loses the forms
         logger.exception("rebuilding the selection's facility forms failed")
         return None
@@ -87,6 +89,36 @@ def _result_from_payload(payload: dict[str, Any]) -> SelectionResult:
         from_match=matches.get("from"),
         to_match=matches.get("to"),
     )
+
+
+def strict_facility_forms(payload: dict[str, Any], handle: NetworkHandle | None = None) -> dict[str, Any]:
+    """The Find tab's two strict forms as ProjectCard facilities, for plugins (in ``host.selection["projectcard"]``).
+
+    ``segment`` and ``link_list`` each map an id system (``gmns``, ``osm``) to the facility written in it; a system
+    the selection cannot be written in (see ``id_systems``) is left out, and so is ``segment`` when the selection has
+    no named segment (``segment_problem`` says why). ``id_systems`` maps every system (``gmns``, ``osm``, ``gers``) to
+    ``None`` when it works or the reason it does not (ProjectCard has no key for GERS ids). ``id_captions`` lists,
+    per id system, the notes on ids that several links share (an OSM way covering links outside the selection).
+    Without ``handle`` only GMNS ids can be written.
+    """
+    options = export_options(payload, handle, what="projectcard")
+    systems = dict(options["id_systems"])
+    out: dict[str, Any] = {
+        "segment": {},
+        "link_list": {},
+        "segment_problem": options["forms"]["segment"],
+        "id_systems": systems,
+        "id_captions": {},
+    }
+    for key, reason in systems.items():
+        if reason is not None:
+            continue
+        for form in STRICT_FORMS:
+            if options["forms"][form] is None:
+                out[form][key] = export_selection(payload, what="projectcard", form=form, id_system=key, handle=handle)
+        if key != "gmns":
+            out["id_captions"][key] = id_captions(payload, handle, key, "link_list")
+    return out
 
 
 def _payload_facility_forms(payload: dict[str, Any]) -> dict[str, Any]:
