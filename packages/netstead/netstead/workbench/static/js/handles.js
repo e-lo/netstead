@@ -1,5 +1,5 @@
 // The two drag handles: #split-handle (the map's share of the stage in Split view) and #side-handle (the side
-// column's width). Sizes are per-browser conveniences kept in localStorage, never recorded actions. The math and
+// drawer's width). Sizes are per-browser conveniences kept in localStorage, never recorded actions. The math and
 // the storage encoding live in resize.js; this module owns the pointer, keyboard and double-click events.
 import { $ } from "./dom.js";
 import { resizeSoon } from "./map.js";
@@ -26,14 +26,13 @@ function setSize(kind, value) { sizes = { ...sizes, [kind]: clampSize(kind, valu
 // MapLibre re-measures on its own ResizeObserver during the drag; this is the final, settled size.
 function commit() { writeSizes(); resizeSoon(); }
 
-// The size under the pointer: the map's share of the stage's height; the side column from the pointer to the
-// app's right edge.
+// The size under the pointer: the map's share of the stage's height; the drawer from the rail's edge to the pointer.
 const MEASURE = {
   split: e => { const r = $("stage").getBoundingClientRect(); return r.height ? ((e.clientY - r.top) / r.height) * 100 : sizes.split; },
-  side: e => $("app").getBoundingClientRect().right - e.clientX,
+  side: e => e.clientX - $("side").getBoundingClientRect().left,
 };
-// Arrow keys nudge by one step: down grows the map, left grows the side column (the way the handle would move).
-const KEYS = { split: { ArrowUp: -1, ArrowDown: 1 }, side: { ArrowLeft: 1, ArrowRight: -1 } };
+// Arrow keys nudge by one step: down grows the map, right grows the drawer (the way the handle would move).
+const KEYS = { split: { ArrowUp: -1, ArrowDown: 1 }, side: { ArrowLeft: -1, ArrowRight: 1 } };
 
 function wireHandle(id, kind) {
   const el = $(id);

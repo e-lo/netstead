@@ -34,6 +34,7 @@ export const store = createStore({
   layerSeq: 0,                // bumped when a layer registers or goes, so Overlays and the map redraw
   workspace: "inspect",       // the active workspace tab (per tab; remembered in localStorage)
   dockPanel: {},              // workspace id -> the dock panel showing in it
+  drawerOpen: true,           // the left drawer shows the selected rail entry's pane (clicking the open entry closes it)
   commandSeq: 0,              // bumped when a command registers or goes, so menus re-check what applies
   pluginStatus: [],           // GET /api/plugins: each plugin's startup outcome
   hostApi: null,              // GET /api/plugins host_api: the plugin API this netstead provides

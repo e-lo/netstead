@@ -1065,7 +1065,7 @@ class El {
 }
 const find = (id, el) => (el.id === id ? el : el.children.map(c => find(id, c)).find(Boolean) || null);
 const body = new El("body");
-for (const id of ["ws-tabs", "dock-tabs", "stage", "side", "viewmode"]) body.appendChild(new El(id));
+for (const id of ["ws-tabs", "dock-tabs", "stage", "side", "viewmode", "app"]) body.appendChild(new El(id));
 const inspect = new El("dock-inspect", "section");
 inspect.className = "dock-pane"; inspect.dataset.panel = "inspect";
 body.children[3].appendChild(inspect);
@@ -1126,7 +1126,7 @@ def test_a_failed_activation_leaves_no_trace_in_the_dock_and_returns_to_inspect(
     assert proc.returncode == 0, proc.stderr
     got = json.loads(proc.stdout)
     assert got["during"] == ["broken.ws", True, False, "tabpanel"]
-    assert got["after"] == ["inspect", False, True, True, None, False, None, ["inspect"], ["inspect"], 0, 2]
+    assert got["after"] == ["inspect", False, True, False, None, False, "tabpanel", ["inspect"], ["inspect"], 0, 2]
     assert got["errors"] == []
 
 

@@ -36,3 +36,32 @@ def test_tooltips_show_after_a_delay_on_hover_and_focus_and_hide_on_leave_blur_e
 def test_no_css_tooltips_remain():
     assert not re.search(r"\[data-tip\][^{]*::(after|before)", CSS)
     assert "content:attr(data-tip)" not in CSS
+
+
+# ---- the left rail and its drawer ----
+
+
+def test_the_rail_is_a_vertical_tablist_left_of_the_drawer_and_the_stage():
+    rail = re.search(r'<div id="dock-tabs"[^>]*>', HTML).group(0)
+    assert 'role="tablist"' in rail and 'aria-orientation="vertical"' in rail and 'aria-label="Panels"' in rail
+    assert HTML.index('id="dock-tabs"') < HTML.index('<aside id="side">') < HTML.index('id="side-handle"') < HTML.index('id="stage"')
+    side = HTML[HTML.index('<aside id="side">') : HTML.index("</aside>")]
+    assert 'id="dock-tabs"' not in side
+
+
+def test_the_rail_entries_are_icon_buttons_with_tips_and_the_drawer_toggles_on_click_and_moves_on_arrows():
+    ws = js("workspaces.js")
+    assert 'data-tip="${esc(label)}"' in ws and "aria-label=" in ws and 'role="tab"' in ws
+    assert 'axis: "vertical"' in ws and "toggleRail(" in ws and "dataset.drawer" in ws
+    assert "isPluginPanel" in ws and "rail-sep" in ws  # plugin panels sit below a divider
+    assert "drawerOpen" in js("store.js")
+
+
+def test_the_changes_entry_is_the_edit_panel_with_a_history_icon():
+    assert 'id: "edit", title: "Changes", icon: "history"' in js("edits.js")
+    assert "history:" in js("icons.js")
+
+
+def test_the_drawer_reuses_the_side_handle_and_its_stored_width():
+    assert '#app[data-drawer="closed"]' in CSS
+    assert 'side: e => e.clientX - $("side").getBoundingClientRect().left' in js("handles.js")

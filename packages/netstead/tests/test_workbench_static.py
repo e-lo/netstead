@@ -458,7 +458,7 @@ def test_the_dock_tabs_are_find_inspect_edit_cards_validate_assistant():
     registrations = {
         "selection.js": 'title: "Find", icon: "search", workspace: ALL_WORKSPACES, order: 0',
         "workspaces.js": 'title: "Inspect", icon: "info", workspace: ALL_WORKSPACES, order: 10',
-        "edits.js": 'title: "Edit", icon: "pencil", workspace: ALL_WORKSPACES, order: 20',
+        "edits.js": 'title: "Changes", icon: "history", workspace: ALL_WORKSPACES, order: 20',
         "assistant.js": 'title: "Assistant", icon: "message", workspace: ALL_WORKSPACES, order: 40',
     }
     for name, text in registrations.items():
@@ -520,7 +520,7 @@ def test_the_split_and_side_handles_are_separators_wired_from_main():
         tag = html[html.index(f'id="{element_id}"') : html.index('data-icon="grip"', html.index(f'id="{element_id}"'))]
         assert 'role="separator"' in tag and f'aria-orientation="{orientation}"' in tag and 'tabindex="0"' in tag
     assert html.index('id="mapwrap"') < html.index('id="split-handle"') < html.index('id="tablepane"')
-    assert html.index('</div>\n  <div id="side-handle"') < html.index('<aside id="side">')
+    assert html.index("</aside>\n  <div id=\"side-handle\"") < html.index('<div id="stage"')  # rail | drawer | handle | stage
     handles = (JS_DIR / "handles.js").read_text()
     assert 'from "./resize.js"' in handles and "setPointerCapture(" in handles and "resizeSoon()" in handles
     assert "localStorage.setItem(STORAGE_KEY, serializeSizes(sizes))" in handles
@@ -530,7 +530,7 @@ def test_the_split_and_side_handles_are_separators_wired_from_main():
 def test_the_drawer_is_the_dock_and_keeps_the_details_content():
     html = (STATIC_DIR / "index.html").read_text()
     side = html[html.index('<aside id="side">') : html.index("</aside>")]
-    assert 'id="dock-tabs" role="tablist"' in side and side.index('id="dock-tabs"') < side.index('id="dock-find"')
+    assert 'id="dock-tabs"' not in side  # the tab strip is the rail, outside the drawer
     pane = side[side.index('id="dock-find"') : side.index('id="dock-inspect"')]
     assert 'data-panel="find"' in pane and 'role="tabpanel"' in pane
     for element_id in ("status-wrap", "hl-count", "hl-set", "hl-clear", "anchors", "fragment", "diag"):
@@ -554,7 +554,7 @@ def test_the_workspace_strip_is_in_the_first_header_row_and_starts_hidden():
     html = (STATIC_DIR / "index.html").read_text()
     row = html[html.index("<header>") : html.index("</header>")]
     assert '<nav id="ws-tabs" role="tablist" aria-label="Workspaces" hidden>' in row
-    assert '<div id="dock-tabs" role="tablist" aria-label="Panels" hidden>' in html
+    assert '<div id="dock-tabs" class="rail" role="tablist" aria-orientation="vertical" aria-label="Panels"></div>' in html
 
 
 def test_core_registers_inspect_and_details_through_the_slots():
@@ -883,7 +883,7 @@ def test_core_dock_panels_register_icons_and_tabs_render_them_with_tips():
     expected = {
         "selection.js": 'icon: "search"',
         "workspaces.js": 'icon: "info"',
-        "edits.js": 'icon: "pencil"',
+        "edits.js": 'icon: "history"',
         "assistant.js": 'icon: "message"',
     }
     for name, needle in expected.items():
@@ -892,7 +892,7 @@ def test_core_dock_panels_register_icons_and_tabs_render_them_with_tips():
     ws = (JS_DIR / "workspaces.js").read_text()
     assert 'data-tip="${esc(label)}"' in ws and "aria-label=" in ws and "Object.hasOwn(ICONS" in ws
     icons = (JS_DIR / "icons.js").read_text()
-    for name in ("search", "info", "pencil", "cards", "shield-check", "message"):
+    for name in ("search", "info", "history", "cards", "shield-check", "message"):
         assert f"{name}:" in icons or f'"{name}":' in icons, name
     plugin = (STATIC_DIR.parents[4] / "plugins/project-cards/netstead_project_cards/static/main.js").read_text()
     assert 'icon: "cards"' in plugin

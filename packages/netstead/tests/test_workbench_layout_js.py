@@ -52,3 +52,39 @@ def test_tip_larger_than_the_viewport_stays_on_the_preferred_side_clamped(node_m
         view="{width: 100, height: 30}",
     )
     assert got["left"] == 4 and got["top"] == 4
+
+
+# ---- tabs.js: the rail's toggle and keyboard model ----
+
+
+def test_clicking_a_rail_entry_opens_it_and_clicking_the_open_one_closes_the_drawer(node_module):
+    names = ["toggleRail", "openRail"]
+    expr = """[
+      toggleRail({open: true, current: "find"}, "find"),
+      toggleRail({open: false, current: "find"}, "find"),
+      toggleRail({open: true, current: "find"}, "validate"),
+      toggleRail({open: false, current: "find"}, "validate"),
+      openRail("edit")
+    ]"""
+    assert node_module("tabs.js", names, expr) == [
+        {"open": False, "current": "find"},
+        {"open": True, "current": "find"},
+        {"open": True, "current": "validate"},
+        {"open": True, "current": "validate"},
+        {"open": True, "current": "edit"},
+    ]
+
+
+def test_rail_arrows_are_vertical_and_wrap_and_home_end_jump(node_module):
+    expr = """["ArrowDown", "ArrowUp", "ArrowRight", "Home", "End"].map(k => nextIndex(4, k, 5, "vertical"))
+      .concat(["ArrowDown", "ArrowUp"].map(k => nextIndex(0, k, 5, "vertical")))"""
+    assert node_module("tabs.js", ["nextIndex"], expr) == [0, 3, None, 0, 4, 1, 4]
+
+
+def test_plugin_panels_sit_below_a_divider_only_when_both_groups_exist(node_module):
+    expr = """[
+      railGroups([{id: "find"}, {id: "p.x", plugin: true}, {id: "edit"}], e => e.plugin).map(e => e.id || "|"),
+      railGroups([{id: "find"}], e => e.plugin).map(e => e.id || "|"),
+      railGroups([{id: "p.x", plugin: true}], e => e.plugin).map(e => e.id || "|")
+    ]"""
+    assert node_module("tabs.js", ["railGroups"], expr) == [["find", "edit", "|", "p.x"], ["find"], ["p.x"]]
