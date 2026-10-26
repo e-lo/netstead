@@ -520,7 +520,9 @@ def test_the_split_and_side_handles_are_separators_wired_from_main():
         tag = html[html.index(f'id="{element_id}"') : html.index('data-icon="grip"', html.index(f'id="{element_id}"'))]
         assert 'role="separator"' in tag and f'aria-orientation="{orientation}"' in tag and 'tabindex="0"' in tag
     assert html.index('id="mapwrap"') < html.index('id="split-handle"') < html.index('id="tablepane"')
-    assert html.index("</aside>\n  <div id=\"side-handle\"") < html.index('<div id="stage"')  # rail | drawer | handle | stage
+    assert html.index('</aside>\n  <div id="side-handle"') < html.index(
+        '<div id="stage"'
+    )  # rail | drawer | handle | stage
     handles = (JS_DIR / "handles.js").read_text()
     assert 'from "./resize.js"' in handles and "setPointerCapture(" in handles and "resizeSoon()" in handles
     assert "localStorage.setItem(STORAGE_KEY, serializeSizes(sizes))" in handles
@@ -553,7 +555,9 @@ def test_the_workspace_strip_is_in_the_first_header_row_and_starts_hidden():
     html = (STATIC_DIR / "index.html").read_text()
     row = html[html.index("<header>") : html.index("</header>")]
     assert '<nav id="ws-tabs" role="tablist" aria-label="Workspaces" hidden>' in row
-    assert '<div id="dock-tabs" class="rail" role="tablist" aria-orientation="vertical" aria-label="Panels"></div>' in html
+    assert (
+        '<div id="dock-tabs" class="rail" role="tablist" aria-orientation="vertical" aria-label="Panels"></div>' in html
+    )
 
 
 def test_core_registers_the_inspect_workspace_through_the_slots_but_no_inspect_panel():
@@ -954,10 +958,30 @@ def test_the_links_row_keeps_width_direction_and_filter_in_its_options():
     html = (STATIC_DIR / "index.html").read_text()
     card = html[html.index('id="layers-card"') : html.index('id="split-handle"')]
     opts = card[card.index('id="lc-links-opts"') : card.index('data-row="nodes"')]
-    for element_id in ("widthby", "tg-direction", "tg-offset", "flt-col", "flt-op", "flt-val", "flt-apply", "flt-clear", "flt-count", "flt-note"):
+    for element_id in (
+        "widthby",
+        "tg-direction",
+        "tg-offset",
+        "flt-col",
+        "flt-op",
+        "flt-val",
+        "flt-apply",
+        "flt-clear",
+        "flt-count",
+        "flt-note",
+    ):
         assert f'id="{element_id}"' in opts, element_id
     assert "Show only links where…" in opts and "the data is not changed" in opts
-    for element_id in ("col-links", "col-nodes", "col-selection", "colorby", "node-colorby", "plugin-layers", "tg-labels", "ramp"):
+    for element_id in (
+        "col-links",
+        "col-nodes",
+        "col-selection",
+        "colorby",
+        "node-colorby",
+        "plugin-layers",
+        "tg-labels",
+        "ramp",
+    ):
         assert f'id="{element_id}"' in card
     assert "wb.layers.open" in (JS_DIR / "viewmodel.js").read_text()
 

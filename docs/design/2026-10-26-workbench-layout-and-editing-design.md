@@ -144,7 +144,7 @@ The Cards pane keeps only browsing the catalog (fit pill, inspect, edit, file ac
 
 ## Phases
 
-1. **Layout:** left rail, right detail panel, Layers & legend card, tooltip layer. No behavior change.
+1. **Layout (done 2026-10-26):** left rail, right detail panel, Layers & legend card, tooltip layer. No behavior change.
 2. **Editing states:** Staged wording and outlines, Details as the editor, Cmd/Ctrl+Enter, undo/redo icons,
    Changes pane with selection.
 3. **Cards from changes:** the dialog in 2e, reusing the plugin's draft and commit code underneath; local,

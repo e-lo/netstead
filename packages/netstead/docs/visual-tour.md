@@ -52,12 +52,12 @@ bounding box: the first thing to try whenever the map looks empty.
 ### 2. The linked table
 
 ![Split view: a link picked on the map, its row focused in the table](assets/screenshots/workbench-02-split.png){ .screenshot }
-*Split view. One record, three views: the link on the map, its row in the table, its attributes in Inspect. (screenshot predates the panel restructure)*
+*Split view. One record, three views: the link on the map, its row in the table, its attributes in Details. (screenshot predates the panel restructure)*
 
 **Split** puts the `link` table next to the map. The rail on the left of the table lists every table in the
 network with its row count: `link`, `node`, `geometry`, `lane`, `link_tod` and the rest. Click a link on the
 map and three things agree on which record you mean: the map outlines it, the table scrolls to and outlines
-its row, and the **Inspect** tab comes forward and lists its attributes. Click a row and the map flies to it.
+its row, and the **Details** panel opens on the right and lists its attributes. Click a row and the map flies to it.
 
 What the linked table gives you is the half of a network that a map can't show. A speed, a lane count, a
 time-of-day override or a foreign key are table facts; the map can color by one of them at a time (**Find →
@@ -139,7 +139,7 @@ network is plausible, and they are configurable (**Settings → Validation**, ke
 with 40 mph residential streets can raise the threshold instead of silencing the rule.
 
 Each located issue is a dot on the map, colored by severity; click one in the list (or its crosshair "zoom
-to" icon) and the map flies to its link, Inspect shows the record, and the table scrolls to the row. Findings
+to" icon) and the map flies to its link, Details shows the record, and the table scrolls to the row. Findings
 about a whole table, like the missing-resource notes, have no place on the map; findings that share a code and
 differ only by resource are grouped into one row under a collapsed **Unlocated findings** block. The filters
 (severity, table, code) carry counts, so `quality.high_speed_residential (271)` is one click away from being
@@ -147,8 +147,8 @@ the only thing in the list.
 
 ### 6. What an edit does to the network
 
-![Fixing a free_speed value from an issue; the Edit tab shows the pending edit](assets/screenshots/workbench-06-fix.png){ .screenshot }
-*Fix on an issue: the editor opens on the issue's column; Apply sends one edit; the Edit tab records it at v1. (screenshot predates the panel restructure)*
+![Fixing a free_speed value from an issue; the Changes tab shows the pending edit](assets/screenshots/workbench-06-fix.png){ .screenshot }
+*Fix on an issue: the editor opens on the issue's column; Apply sends one edit; the Changes tab records it at v1. (screenshot predates the panel restructure)*
 
 Press **Fix** on a `quality.high_speed_residential` issue. The editor opens on that record and that column
 (`link 1 · free_speed`), prefilled with `40`, and with the issue as the edit's note, which you can replace
@@ -199,7 +199,7 @@ The **Save** icon in the header opens a dialog that writes the network as it is 
 a **new** folder or file: name it, choose Parquet, CSV, DuckDB or Zip, and pick a folder inside your home
 directory with **Choose folder…** and **Use this folder**, then **Save**. The save is a job; when it finishes
 a toast says where the copy went and which tables differ from the source, the edit is marked `saved` in the
-Edit tab, and the unsaved badge clears.
+Changes tab, and the unsaved badge clears.
 
 What stays the same is the network you opened. The Workbench never writes to its source, local or remote, and
 never overwrites an existing copy, so an afternoon of edits can't damage the file you started from. Open

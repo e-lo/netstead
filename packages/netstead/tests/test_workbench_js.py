@@ -1150,14 +1150,26 @@ def test_parse_sizes_reads_valid_fields(node_module):
 
 def test_parse_sizes_defaults_each_bad_field_on_its_own(node_module):
     assert parse_sizes(node_module, """'{"split":"x","side":500}'""") == {"split": 55, "side": 500, "details": 320}
-    assert parse_sizes(node_module, """'{"split":40}'""") == {"split": 40, "side": 330, "details": 320}  # an older store
+    assert parse_sizes(node_module, """'{"split":40}'""") == {
+        "split": 40,
+        "side": 330,
+        "details": 320,
+    }  # an older store
     # an out-of-range number is clamped, not dropped
-    assert parse_sizes(node_module, """'{"split":99,"side":1,"details":9999}'""") == {"split": 80, "side": 240, "details": 640}
+    assert parse_sizes(node_module, """'{"split":99,"side":1,"details":9999}'""") == {
+        "split": 80,
+        "side": 240,
+        "details": 640,
+    }
 
 
 def test_serialize_sizes_round_trips(node_module):
     expr = "parseSizes(serializeSizes({split: 40, side: 500, details: 400}))"
-    assert node_module("resize.js", ["parseSizes", "serializeSizes"], expr) == {"split": 40, "side": 500, "details": 400}
+    assert node_module("resize.js", ["parseSizes", "serializeSizes"], expr) == {
+        "split": 40,
+        "side": 500,
+        "details": 400,
+    }
     raw = node_module("resize.js", ["serializeSizes"], "serializeSizes({split: 40, side: 500, details: 400, extra: 1})")
     assert json.loads(raw) == {"split": 40, "side": 500, "details": 400}
 

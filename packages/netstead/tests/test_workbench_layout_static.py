@@ -1,4 +1,4 @@
-"""Static checks for the Workbench layout: the tooltip layer, the left rail and drawer, the details panel, the Layers card."""
+"""Static checks for the Workbench layout: tooltip layer, left rail and drawer, Details panel, Layers card."""
 
 import re
 
@@ -44,7 +44,12 @@ def test_no_css_tooltips_remain():
 def test_the_rail_is_a_vertical_tablist_left_of_the_drawer_and_the_stage():
     rail = re.search(r'<div id="dock-tabs"[^>]*>', HTML).group(0)
     assert 'role="tablist"' in rail and 'aria-orientation="vertical"' in rail and 'aria-label="Panels"' in rail
-    assert HTML.index('id="dock-tabs"') < HTML.index('<aside id="side">') < HTML.index('id="side-handle"') < HTML.index('id="stage"')
+    assert (
+        HTML.index('id="dock-tabs"')
+        < HTML.index('<aside id="side">')
+        < HTML.index('id="side-handle"')
+        < HTML.index('id="stage"')
+    )
     side = HTML[HTML.index('<aside id="side">') : HTML.index("</aside>")]
     assert 'id="dock-tabs"' not in side
 
@@ -71,7 +76,9 @@ def test_the_drawer_reuses_the_side_handle_and_its_stored_width():
 
 
 def test_details_is_a_right_hand_panel_with_a_close_button_its_own_handle_and_no_rail_entry():
-    panel = HTML[HTML.index('<aside id="details-panel"') : HTML.index("</aside>", HTML.index('<aside id="details-panel"'))]
+    panel = HTML[
+        HTML.index('<aside id="details-panel"') : HTML.index("</aside>", HTML.index('<aside id="details-panel"'))
+    ]
     assert "hidden" in panel.split(">", 1)[0]  # closed until something is focused
     assert 'id="details"' in panel and 'id="details-close"' in panel and 'aria-label="Close details"' in panel
     assert HTML.index('id="stage"') < HTML.index('id="details-handle"') < HTML.index('id="details-panel"')
@@ -83,7 +90,7 @@ def test_details_is_a_right_hand_panel_with_a_close_button_its_own_handle_and_no
 def test_a_focus_opens_details_and_the_close_button_and_escape_clear_it():
     src = js("detailspanel.js")
     assert 'store.subscribe(["focus"], sync)' in src and "hidden = !open" in src
-    assert 'closeDetails() { store.set({ focus: null }); }' in src
+    assert "closeDetails() { store.set({ focus: null }); }" in src
     assert '$("details-close").onclick = closeDetails' in src
     assert 'e.key !== "Escape"' in src and 'document.addEventListener("keydown", onKey)' in src
     assert "wireDetailsPanel()" in js("main.js")
@@ -113,7 +120,7 @@ def test_the_layers_card_floats_in_the_map_overlay_and_holds_every_moved_control
     for element_id in MOVED_IDS:
         assert f'id="{element_id}"' in card, element_id
         assert HTML.count(f'id="{element_id}"') == 1, element_id  # moved, not copied
-    assert 'id="layers-toggle"' in card and 'aria-expanded=' in card and 'id="layers-hide"' in card
+    assert 'id="layers-toggle"' in card and "aria-expanded=" in card and 'id="layers-hide"' in card
 
 
 def test_the_view_panel_and_the_separate_legend_are_gone():
