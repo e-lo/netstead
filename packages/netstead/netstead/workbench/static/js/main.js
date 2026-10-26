@@ -19,7 +19,7 @@ import { onHistoryEntry, onLLMEvent, onLLMJob, refreshLLM, renderLLMPanel, wireL
 import { layerRegistry } from "./layers.js";
 import { fitBbox, fitLinks, fitNetwork, flyToNode, initMap, render, setBasemap } from "./map.js";
 import { decodeNetwork } from "./netbuf.js";
-import { populateColorby, registerViewPanel, populateNodeColorby, renderFilter, renderLegend, renderPluginLayers, syncControls, wireFilter, wirePanels } from "./panels.js";
+import { populateColorby, populateNodeColorby, renderFilter, renderLegend, renderPluginLayers, syncControls, wireFilter, wirePanels } from "./panels.js";
 import { commandReporters } from "./pluginload.js";
 import { loadPlugins, reportPluginError } from "./plugins.js";
 import { renderPluginsPanel, wirePluginsPanel } from "./pluginspanel.js";
@@ -30,6 +30,7 @@ import { wireSaveDialog } from "./savedialog.js";
 import { onSettingsHistory, registerSection, wireSettings } from "./settings.js";
 import { activeSelection, store } from "./store.js";
 import { onFocusChanged, onNetworkChanged, onNetworkEdited, refreshRows, restoreViewMode, syncScopeControls, tableVisible, wireTable } from "./table.js";
+import { wireDetailsPanel } from "./detailspanel.js";
 import { wireTooltip } from "./tooltip.js";
 import { onWizardJob, wireWizard } from "./wizard.js";
 import { registerCoreSlots, showPanel, wireWorkspaces } from "./workspaces.js";
@@ -149,15 +150,14 @@ function onNodeClick(nodeId) {
 // A box-select fills the highlights; with the table visible, it also becomes the table's filter.
 function onBoxSelect() { if (tableVisible()) store.set({ tableScope: "highlighted" }); }
 
-// The focused record: details, its map feature (fly only when the click came from the table), its row.
-// `focus.from` says where the click came from: "map" (the feature is in view: no fly) or "table" bring Inspect
-// forward; "panel" (a finding or warning picked in Validate or Edit, which stay) only flies there.
+// The focused record: details (the right-hand panel opens with any focus: detailspanel.js), its map feature (fly only
+// when the click came from the table), its row. `focus.from` says where the click came from: "map" (the feature is in
+// view: no fly), "table", or "panel" (a finding or warning picked in Validate or Changes) which only flies there.
 function onFocus(s) {
   const f = s.focus;
   store.set({ marker: null });
   if (f) {
     showDetails(f.table, f.id);
-    if (f.from === "map" || f.from === "table") showPanel("inspect");
     if (f.table === "link" && f.from !== "map") fitLinks([f.id]);
     if (f.table === "node") flyToNode(f.id, { fly: f.from !== "map" });
   } else {
@@ -268,7 +268,6 @@ async function boot() {
   mountIcons();
   registerCoreSlots();
   registerSelectionPanel();
-  registerViewPanel();
   registerEditPanels();
   registerAssistantPanel();
   wireWorkspaces({ onError: reportPluginError });
@@ -277,7 +276,7 @@ async function boot() {
   registerEditCommands();
   wirePalette({ onError: whenError, onRunError: runError });
   wireActionForm();
-  wireStore(); wirePanels(); wireFilter(); wireSide(); wireTable(); wireHandles(); wireTooltip(); wireHeader(); wireHistory(); wireMapButtons(); wireJobs(); wireWizard(); wireLLM(); wireSettings(); wireIssues(); wireEdits(); wireSaveDialog(); wireSelectionPanel(); wireAssistant();
+  wireStore(); wirePanels(); wireFilter(); wireSide(); wireTable(); wireHandles(); wireTooltip(); wireDetailsPanel(); wireHeader(); wireHistory(); wireMapButtons(); wireJobs(); wireWizard(); wireLLM(); wireSettings(); wireIssues(); wireEdits(); wireSaveDialog(); wireSelectionPanel(); wireAssistant();
   registerIssueLayer(); // after wireStore: the layerSeq subscription that renders Overlays is in place
   registerSection("llm", "Language models", "llm-panel", () => renderLLMPanel());
   registerAssistantSettings();

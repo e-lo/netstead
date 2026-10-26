@@ -401,18 +401,18 @@ def test_map_draws_every_layer_from_the_registry_in_the_old_order():
     assert order == sorted(order)  # registered in drawing order (CORE_ORDER enforces it anyway)
 
 
-def test_the_view_section_lists_overlays_from_the_registry():
+def test_the_layers_card_lists_overlays_from_the_registry():
     html = (STATIC_DIR / "index.html").read_text()
-    view = html[html.index('id="dock-view"') : html.index('id="dock-inspect"')]
-    assert 'id="plugin-layers"' in view
+    card = html[html.index('id="layers-card"') : html.index('id="split-handle"')]
+    assert 'id="plugin-layers"' in card
     assert "export function renderPluginLayers(" in (JS_DIR / "panels.js").read_text()
 
 
-def test_the_view_controls_live_in_the_find_panel_not_in_map_popovers():
+def test_the_layer_controls_live_in_the_layers_card_not_in_the_dock():
     html = (STATIC_DIR / "index.html").read_text()
     for gone in ("layers-panel", "settings-panel", "btn-layers", "btn-settings"):
         assert f'id="{gone}"' not in html
-    view = html[html.index('id="dock-view"') : html.index('id="dock-inspect"')]
+    view = html[html.index('id="layers-card"') : html.index('id="split-handle"')]
     for element_id in (
         "tg-links",
         "tg-nodes",
@@ -436,11 +436,10 @@ def test_the_view_controls_live_in_the_find_panel_not_in_map_popovers():
         "plugin-layers",
     ):
         assert f'id="{element_id}"' in view, element_id
-    find = html[html.index('id="dock-find"') : html.index('id="dock-view"')]
-    assert 'id="view-section"' not in html and 'id="tg-links"' not in find  # View has its own tab now
+    find = html[html.index('id="dock-find"') : html.index('id="dock-edit"')]
+    assert 'id="view-section"' not in html and 'id="tg-links"' not in find  # the card is on the map, not in the dock
     assert 'id="hl-set"' in find and 'id="anchors"' in find
-    for heading in ("Layers", "Color", "Width", "Direction", "Show only links where…"):
-        assert f"<summary>{heading}</summary>" in view
+    assert "dock-view" not in html and 'data-panel="view"' not in html  # the View panel is gone
     panels = (JS_DIR / "panels.js").read_text()
     assert "node_color_by: e.target.value" in panels and "populateNodeColorby(" in panels
     assert "settings-panel" not in panels and "btn-layers" not in panels
@@ -451,13 +450,13 @@ def test_the_view_controls_live_in_the_find_panel_not_in_map_popovers():
 def test_the_dock_tabs_are_find_inspect_edit_cards_validate_assistant():
     html = (STATIC_DIR / "index.html").read_text()
     side = html[html.index('<aside id="side">') : html.index("</aside>")]
-    order = [side.index(f'id="dock-{p}"') for p in ("find", "inspect", "edit", "validate", "assistant")]
+    order = [side.index(f'id="dock-{p}"') for p in ("find", "edit", "validate", "assistant")]
+    assert "dock-inspect" not in html  # Details is the right-hand panel, not a dock pane
     assert order == sorted(order)
     for gone in ("dock-details", "dock-selection", "dock-issues", "dock-edits"):
         assert gone not in html
     registrations = {
         "selection.js": 'title: "Find", icon: "search", workspace: ALL_WORKSPACES, order: 0',
-        "workspaces.js": 'title: "Inspect", icon: "info", workspace: ALL_WORKSPACES, order: 10',
         "edits.js": 'title: "Changes", icon: "history", workspace: ALL_WORKSPACES, order: 20',
         "assistant.js": 'title: "Assistant", icon: "message", workspace: ALL_WORKSPACES, order: 40',
     }
@@ -502,9 +501,10 @@ def test_map_popovers_sit_over_the_map_not_inside_it():
     wrap = html[html.index('<div id="mapwrap">') : html.index('id="split-handle"')]
     map_el = wrap[wrap.index('<div id="map">') : wrap.index('<div id="map-overlay">')]
     overlay = wrap[wrap.index('<div id="map-overlay">') :]
-    for element_id in ("map-btns", "legend"):
+    for element_id in ("map-btns", "layers-card"):
         assert f'id="{element_id}"' in overlay and f'id="{element_id}"' not in map_el
-    buttons = overlay[overlay.index('<div id="map-btns">') : overlay.index('<div id="legend">')]
+    buttons = overlay[overlay.index('<div id="map-btns">') : overlay.index('<div id="layers-card"')]
+    assert 'id="legend"' not in html  # the card is the legend
     assert 'id="btn-view"' not in html and "wireViewButton" not in (JS_DIR / "main.js").read_text()
     assert 'id="btn-fitnet"' in buttons
     assert 'id="boxsel"' in map_el  # the box-select rectangle is measured against the map
@@ -531,18 +531,17 @@ def test_the_drawer_is_the_dock_and_keeps_the_details_content():
     html = (STATIC_DIR / "index.html").read_text()
     side = html[html.index('<aside id="side">') : html.index("</aside>")]
     assert 'id="dock-tabs"' not in side  # the tab strip is the rail, outside the drawer
-    pane = side[side.index('id="dock-find"') : side.index('id="dock-inspect"')]
+    pane = side[side.index('id="dock-find"') : side.index('id="dock-edit"')]
     assert 'data-panel="find"' in pane and 'role="tabpanel"' in pane
     for element_id in ("status-wrap", "hl-count", "hl-set", "hl-clear", "anchors", "fragment", "diag"):
         assert f'id="{element_id}"' in pane
-    inspect = side[side.index('id="dock-inspect"') : side.index('id="dock-edit"')]
-    assert 'id="details"' in inspect and 'id="details"' not in pane
+    assert 'id="details"' not in side  # the record's details are in the right-hand panel
 
 
-def test_a_map_or_table_focus_brings_inspect_forward_but_a_panels_own_does_not():
+def test_any_focus_opens_details_and_only_a_panels_own_does_not_stay_put_on_the_map():
     main = (JS_DIR / "main.js").read_text()
     on_focus = main[main.index("function onFocus(") : main.index("onFocusChanged();", main.index("function onFocus("))]
-    assert 'if (f.from === "map" || f.from === "table") showPanel("inspect");' in on_focus
+    assert 'showPanel("inspect")' not in on_focus and "showDetails(f.table, f.id)" in on_focus
     assert 'f.from !== "map"' in on_focus  # a panel's focus still flies the map there
     issues = (JS_DIR / "issues.js").read_text()
     assert 'jumpTo(table, id, "panel")' in issues and 'focus: { table, id, from: "panel" }' in issues
@@ -557,9 +556,9 @@ def test_the_workspace_strip_is_in_the_first_header_row_and_starts_hidden():
     assert '<div id="dock-tabs" class="rail" role="tablist" aria-orientation="vertical" aria-label="Panels"></div>' in html
 
 
-def test_core_registers_inspect_and_details_through_the_slots():
+def test_core_registers_the_inspect_workspace_through_the_slots_but_no_inspect_panel():
     src = (JS_DIR / "workspaces.js").read_text()
-    assert 'slots.addWorkspace(CORE, { id: "inspect"' in src and 'slots.addPanel(CORE, { id: "inspect"' in src
+    assert 'slots.addWorkspace(CORE, { id: "inspect"' in src and 'slots.addPanel(CORE, { id: "inspect"' not in src
     main = (JS_DIR / "main.js").read_text()
     assert "registerCoreSlots()" in main and "wireWorkspaces(" in main
 
@@ -665,7 +664,7 @@ def test_menus_and_tabs_name_their_groups_and_states():
 def test_validate_and_edit_are_core_dock_panels():
     html = (STATIC_DIR / "index.html").read_text()
     side = html[html.index('<aside id="side">') : html.index("</aside>")]
-    order = [side.index(f'id="dock-{p}"') for p in ("inspect", "edit", "validate")]
+    order = [side.index(f'id="dock-{p}"') for p in ("edit", "validate")]
     assert order == sorted(order)
     for panel in ("validate", "edit"):
         assert f'data-panel="{panel}"' in side and f'aria-labelledby="dtab-{panel}" hidden' in side
@@ -757,7 +756,7 @@ def test_the_find_panel_owns_the_selection_markup():
         'id="sel-saved"',
     ):
         assert el in pane
-    details = html.split('id="dock-inspect"', 1)[1].split("</section>", 1)[0]
+    details = html.split('id="details-panel"', 1)[1].split("</aside>", 1)[0]
     assert 'id="anchors"' not in details and 'id="details"' in details and 'id="hl-set"' not in details
 
 
@@ -882,7 +881,6 @@ def test_column_filters_are_popovers_and_chips_not_header_inputs():
 def test_core_dock_panels_register_icons_and_tabs_render_them_with_tips():
     expected = {
         "selection.js": 'icon: "search"',
-        "workspaces.js": 'icon: "info"',
         "edits.js": 'icon: "history"',
         "assistant.js": 'icon: "message"',
     }
@@ -941,13 +939,10 @@ def test_related_steps_control_has_an_info_popover():
     assert 'id="tbl-hops-pop"' in wrap and 'aria-haspopup="dialog"' in wrap
 
 
-def test_the_view_tab_is_a_core_panel_right_after_find_and_edit_help_is_dismissible():
+def test_the_view_panel_is_gone_and_edit_help_is_dismissible():
     html = (STATIC_DIR / "index.html").read_text()
-    assert 'data-panel="view" role="tabpanel"' in html
-    panels = (JS_DIR / "panels.js").read_text()
-    assert 'id: "view", title: "View", icon: "sliders", workspace: ALL_WORKSPACES, order: 5' in panels
-    assert "registerViewPanel()" in (JS_DIR / "main.js").read_text()
-    assert "sliders:" in (JS_DIR / "icons.js").read_text()
+    assert 'data-panel="view"' not in html
+    assert "registerViewPanel" not in (JS_DIR / "panels.js").read_text() + (JS_DIR / "main.js").read_text()
     edit = html[html.index('id="dock-edit"') : html.index('id="dock-validate"')]
     for element_id in ("ed-help", "ed-help-hide", "ed-help-show"):
         assert f'id="{element_id}"' in edit
@@ -955,24 +950,16 @@ def test_the_view_tab_is_a_core_panel_right_after_find_and_edit_help_is_dismissi
     assert 'wireDismissibleHelp($("ed-help"), helpKey("edit")' in (JS_DIR / "edits.js").read_text()
 
 
-def test_view_sections_are_disclosures_that_keep_their_control_ids():
+def test_the_links_row_keeps_width_direction_and_filter_in_its_options():
     html = (STATIC_DIR / "index.html").read_text()
-    view = html[html.index('id="dock-view"') : html.index('id="dock-inspect"')]
-    for sec in ("layers", "color", "width", "direction", "filter"):
-        assert f'<details class="vsec" data-sec="{sec}" open><summary>' in view
-    assert "<summary>Show only links where…</summary>" in view
-    assert "the data is not changed" in view
-    for element_id in (
-        "col-links",
-        "col-nodes",
-        "col-selection",
-        "colorby",
-        "node-colorby",
-        "flt-apply",
-        "plugin-layers",
-    ):
-        assert f'id="{element_id}"' in view
-    assert "wb.view.sections" in (JS_DIR / "viewmodel.js").read_text()
+    card = html[html.index('id="layers-card"') : html.index('id="split-handle"')]
+    opts = card[card.index('id="lc-links-opts"') : card.index('data-row="nodes"')]
+    for element_id in ("widthby", "tg-direction", "tg-offset", "flt-col", "flt-op", "flt-val", "flt-apply", "flt-clear", "flt-count", "flt-note"):
+        assert f'id="{element_id}"' in opts, element_id
+    assert "Show only links where…" in opts and "the data is not changed" in opts
+    for element_id in ("col-links", "col-nodes", "col-selection", "colorby", "node-colorby", "plugin-layers", "tg-labels", "ramp"):
+        assert f'id="{element_id}"' in card
+    assert "wb.layers.open" in (JS_DIR / "viewmodel.js").read_text()
 
 
 def test_overlay_rows_carry_a_description_from_the_registry():

@@ -107,55 +107,6 @@
       </div>
     </div>
     </section>
-    <section class="dock-pane" id="dock-view" data-panel="view" role="tabpanel" aria-labelledby="dtab-view" hidden>
-      <details class="vsec" data-sec="layers" open><summary>Layers</summary>
-      <div class="row"><label class="sw"><input type="checkbox" id="tg-links"><span></span></label>
-        <span class="lbl">Links</span><input type="color" class="swatch" id="col-links" aria-label="Link color"></div>
-      <div class="row"><label class="sw"><input type="checkbox" id="tg-nodes"><span></span></label>
-        <span class="lbl">Nodes</span><input type="color" class="swatch" id="col-nodes" aria-label="Node color"></div>
-      <div class="row"><label class="sw"><input type="checkbox" id="tg-selection"><span></span></label>
-        <span class="lbl">Selection</span><input type="color" class="swatch" id="col-selection" aria-label="Selection color"></div>
-      <div class="row"><label class="sw"><input type="checkbox" id="tg-labels"><span></span></label>
-        <span class="lbl">Basemap labels</span></div>
-      </details>
-      <div id="plugin-layers"></div>
-      <details class="vsec" data-sec="color" open><summary>Color</summary>
-      <div class="sub">Links by</div>
-      <div class="row"><select id="colorby" aria-label="Color links by"><option value="none">None (single color)</option></select></div>
-      <div class="sub">Nodes by</div>
-      <div class="row"><select id="node-colorby" aria-label="Color nodes by"><option value="none">None (single color)</option></select></div>
-      <div class="row" id="ramp-row" style="display:none"><span class="lbl">Ramp</span>
-        <select id="ramp" aria-label="Color ramp"><option>YlOrRd</option><option>Blues</option><option>Viridis</option></select></div>
-      <div class="row"><span class="lbl">Show legend</span>
-        <label class="sw"><input type="checkbox" id="tg-legend"><span></span></label></div>
-      </details>
-      <details class="vsec" data-sec="width" open><summary>Width</summary>
-      <div class="row"><select id="widthby" aria-label="Width links by"><option value="none">Lane count</option></select></div>
-      </details>
-      <details class="vsec" data-sec="direction" open><summary>Direction</summary>
-      <div class="row"><span class="lbl">Show direction</span>
-        <label class="sw"><input type="checkbox" id="tg-direction"><span></span></label></div>
-      <div class="row"><span class="lbl">Offset directions</span>
-        <label class="sw"><input type="checkbox" id="tg-offset"><span></span></label></div>
-      </details>
-      <details class="vsec" data-sec="filter" open><summary>Show only links where…</summary>
-      <div class="diag">Hides other links on the map and in the table's Filtered view; the data is not changed. Recorded in the session history.</div>
-      <div class="row"><select id="flt-col" aria-label="Filter column"></select></div>
-      <div class="row flt-cond"><select id="flt-op" aria-label="Filter operator">
-          <option value="eq">=</option><option value="ne">≠</option><option value="lt">&lt;</option>
-          <option value="lte">≤</option><option value="gt">&gt;</option><option value="gte">≥</option>
-          <option value="contains">contains</option><option value="isnull">is empty</option><option value="notnull">is not empty</option>
-        </select>
-        <input id="flt-val" aria-label="Filter value" size="8"></div>
-      <div class="row"><button class="mini" id="flt-apply">Apply</button><button class="mini ghost" id="flt-clear">Clear</button>
-        <span id="flt-count" class="diag" role="status"></span></div>
-      <div id="flt-note" class="diag" hidden></div>
-      </details>
-    </section>
-    <section class="dock-pane" id="dock-inspect" data-panel="inspect" role="tabpanel" aria-labelledby="dtab-inspect" hidden>
-    <div class="label">Details</div>
-    <div id="details"><span class="empty">Click a link or node on the map, or a row in the table.</span></div>
-    </section>
     <section class="dock-pane" id="dock-edit" data-panel="edit" role="tabpanel" aria-labelledby="dtab-edit" hidden>
       <div class="label">Changes <button class="iconbtn" id="ed-help-show" data-icon="info" data-tip="About this tab" aria-label="About this tab" hidden></button></div>
       <p class="diag help" id="ed-help">Every change to this network since it was opened, newest first: your edits, Python's and any
@@ -207,7 +158,72 @@
         <button class="iconbtn" id="btn-fitnet" data-tip="Zoom to full network" aria-label="Zoom to full network">&#9974;</button>
         <button class="iconbtn" id="btn-fitsel" data-tip="Zoom to selection" aria-label="Zoom to selection">&#9673;</button>
       </div>
-      <div id="legend"></div>
+      <div id="layers-card" class="lcard" data-open="true">
+        <button id="layers-toggle" class="iconbtn" data-icon="layers" data-tip="Layers and legend" data-tip-side="right"
+                aria-label="Layers and legend" aria-expanded="true" aria-controls="layers-body"></button>
+        <div id="layers-body" role="group" aria-label="Layers and legend">
+          <div class="lc-head"><span>Layers</span>
+            <button class="iconbtn" id="layers-hide" data-icon="chevron-left" data-tip="Collapse" data-tip-side="right" aria-label="Collapse the layers card"></button></div>
+          <div class="lc-row" data-row="links">
+            <div class="row lc-line">
+              <label class="eye"><input type="checkbox" id="tg-links" aria-label="Show links"><span class="eye-on" data-icon="eye"></span><span class="eye-off" data-icon="eye-off"></span></label>
+              <input type="color" class="swatch" id="col-links" aria-label="Link color">
+              <span class="lbl">Links</span>
+              <button class="iconbtn lc-more" id="lc-links-more" data-icon="chevron-right" data-tip="Width, direction and filter" aria-label="Links options"
+                      aria-expanded="false" aria-controls="lc-links-opts"></button>
+            </div>
+            <div class="row lc-by"><label for="colorby">by</label>
+              <select id="colorby" aria-label="Color links by"><option value="none">None (single color)</option></select></div>
+            <div class="lc-legend" id="lg-links"></div>
+            <div class="lc-opts" id="lc-links-opts" hidden>
+              <div class="row"><label for="widthby">Width by</label>
+                <select id="widthby" aria-label="Width links by"><option value="none">Lane count</option></select></div>
+              <div class="row"><span class="lbl">Show direction</span>
+                <label class="sw"><input type="checkbox" id="tg-direction"><span></span></label></div>
+              <div class="row"><span class="lbl">Offset directions</span>
+                <label class="sw"><input type="checkbox" id="tg-offset"><span></span></label></div>
+              <div class="sub">Show only links where…</div>
+              <div class="row"><select id="flt-col" aria-label="Filter column"></select></div>
+              <div class="row flt-cond"><select id="flt-op" aria-label="Filter operator">
+                  <option value="eq">=</option><option value="ne">≠</option><option value="lt">&lt;</option>
+                  <option value="lte">≤</option><option value="gt">&gt;</option><option value="gte">≥</option>
+                  <option value="contains">contains</option><option value="isnull">is empty</option><option value="notnull">is not empty</option>
+                </select>
+                <input id="flt-val" aria-label="Filter value" size="8"></div>
+              <div class="row"><button class="mini" id="flt-apply">Apply</button><button class="mini ghost" id="flt-clear">Clear</button>
+                <span id="flt-count" class="diag" role="status"></span></div>
+              <div class="diag">Hides other links on the map and in the table's Filtered view; the data is not changed. Recorded in the session history.</div>
+              <div id="flt-note" class="diag" hidden></div>
+            </div>
+          </div>
+          <div class="lc-row" data-row="nodes">
+            <div class="row lc-line">
+              <label class="eye"><input type="checkbox" id="tg-nodes" aria-label="Show nodes"><span class="eye-on" data-icon="eye"></span><span class="eye-off" data-icon="eye-off"></span></label>
+              <input type="color" class="swatch" id="col-nodes" aria-label="Node color">
+              <span class="lbl">Nodes</span>
+            </div>
+            <div class="row lc-by"><label for="node-colorby">by</label>
+              <select id="node-colorby" aria-label="Color nodes by"><option value="none">None (single color)</option></select></div>
+            <div class="lc-legend" id="lg-nodes"></div>
+          </div>
+          <div class="lc-row" data-row="selection">
+            <div class="row lc-line">
+              <label class="eye"><input type="checkbox" id="tg-selection" aria-label="Show the selection"><span class="eye-on" data-icon="eye"></span><span class="eye-off" data-icon="eye-off"></span></label>
+              <input type="color" class="swatch" id="col-selection" aria-label="Selection color">
+              <span class="lbl">Selection</span>
+            </div>
+          </div>
+          <div id="plugin-layers"></div>
+          <div class="lc-foot">
+            <div class="row lc-line" id="ramp-row" style="display:none"><span class="lbl">Ramp</span>
+              <select id="ramp" aria-label="Color ramp"><option>YlOrRd</option><option>Blues</option><option>Viridis</option></select></div>
+            <div class="row lc-line"><span class="lbl">Basemap labels</span>
+              <label class="sw"><input type="checkbox" id="tg-labels"><span></span></label></div>
+            <div class="row lc-line"><span class="lbl">Show legend</span>
+              <label class="sw"><input type="checkbox" id="tg-legend"><span></span></label></div>
+          </div>
+        </div>
+      </div>
       </div>
     </div>
     <div id="split-handle" role="separator" aria-orientation="horizontal" aria-label="Resize map and table" tabindex="0"
@@ -238,6 +254,13 @@
       </div>
     </div>
   </div>
+  <div id="details-handle" role="separator" aria-orientation="vertical" aria-label="Resize details panel" tabindex="0"
+       aria-valuemin="260" aria-valuemax="640" aria-valuenow="320" title="Drag to resize; double-click to reset"><span data-icon="grip"></span></div>
+  <aside id="details-panel" aria-labelledby="details-title" hidden>
+    <div class="dp-head"><h2 id="details-title">Details</h2>
+      <button class="iconbtn" id="details-close" data-icon="x" data-tip="Close (Esc)" aria-label="Close details"></button></div>
+    <div id="details"><span class="empty">Click a link or node on the map, or a row in the table.</span></div>
+  </aside>
   <footer id="history">
     <span id="hist-seq">—</span>
     <code id="hist-py">No actions yet.</code>

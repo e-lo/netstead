@@ -1104,7 +1104,7 @@ def test_grid_filter_chip_text_elides_a_long_value_list(node_module):
 
 # ---- resize.js: panel sizes (the map/table split percentage, the side column width) ----
 
-SIZE_DEFAULTS = {"split": 55, "side": 330}
+SIZE_DEFAULTS = {"split": 55, "side": 330, "details": 320}
 
 
 @pytest.mark.parametrize(
@@ -1116,6 +1116,9 @@ SIZE_DEFAULTS = {"split": 55, "side": 330}
         ("side", 100, 240),
         ("side", 9999, 720),
         ("side", 500, 500),
+        ("details", 100, 260),
+        ("details", 9999, 640),
+        ("details", 400, 400),
     ],
 )
 def test_clamp_size_keeps_each_panel_within_its_range(node_module, kind, value, expected):
@@ -1141,21 +1144,22 @@ def test_parse_sizes_falls_back_to_defaults_on_garbage(node_module, stored):
 
 
 def test_parse_sizes_reads_valid_fields(node_module):
-    assert parse_sizes(node_module, """'{"split":40,"side":500}'""") == {"split": 40, "side": 500}
+    got = parse_sizes(node_module, """'{"split":40,"side":500,"details":400}'""")
+    assert got == {"split": 40, "side": 500, "details": 400}
 
 
 def test_parse_sizes_defaults_each_bad_field_on_its_own(node_module):
-    assert parse_sizes(node_module, """'{"split":"x","side":500}'""") == {"split": 55, "side": 500}
-    assert parse_sizes(node_module, """'{"split":40}'""") == {"split": 40, "side": 330}
+    assert parse_sizes(node_module, """'{"split":"x","side":500}'""") == {"split": 55, "side": 500, "details": 320}
+    assert parse_sizes(node_module, """'{"split":40}'""") == {"split": 40, "side": 330, "details": 320}  # an older store
     # an out-of-range number is clamped, not dropped
-    assert parse_sizes(node_module, """'{"split":99,"side":1}'""") == {"split": 80, "side": 240}
+    assert parse_sizes(node_module, """'{"split":99,"side":1,"details":9999}'""") == {"split": 80, "side": 240, "details": 640}
 
 
 def test_serialize_sizes_round_trips(node_module):
-    expr = "parseSizes(serializeSizes({split: 40, side: 500}))"
-    assert node_module("resize.js", ["parseSizes", "serializeSizes"], expr) == {"split": 40, "side": 500}
-    raw = node_module("resize.js", ["serializeSizes"], "serializeSizes({split: 40, side: 500, extra: 1})")
-    assert json.loads(raw) == {"split": 40, "side": 500}
+    expr = "parseSizes(serializeSizes({split: 40, side: 500, details: 400}))"
+    assert node_module("resize.js", ["parseSizes", "serializeSizes"], expr) == {"split": 40, "side": 500, "details": 400}
+    raw = node_module("resize.js", ["serializeSizes"], "serializeSizes({split: 40, side: 500, details: 400, extra: 1})")
+    assert json.loads(raw) == {"split": 40, "side": 500, "details": 400}
 
 
 # ---- recents.js: the Open menu's recent networks ----
@@ -1545,13 +1549,11 @@ def test_swatch_tooltips_say_when_a_color_by_is_on(node_module):
     assert tip("nodes", STYLE_OFF) == "Node color"
 
 
-def test_folded_view_sections_round_trip_and_survive_bad_storage(node_module):
-    names = ["parseClosed", "serializeClosed"]
-    assert node_module("viewmodel.js", names, 'serializeClosed(new Set(["width", "color"]))') == '["color","width"]'
-    assert node_module("viewmodel.js", names, '[...parseClosed(\'["color","width"]\')]') == ["color", "width"]
-    for raw in ("null", "'{bad'", "'{}'", "'[1, \"a\"]'"):
-        expected = ["a"] if raw.startswith("'[1") else []
-        assert node_module("viewmodel.js", names, f"[...parseClosed({raw})]") == expected
+def test_the_layers_card_is_open_unless_stored_as_closed(node_module):
+    names = ["parseCardOpen", "CARD_KEY"]
+    assert node_module("viewmodel.js", names, "CARD_KEY") == "wb.layers.open"
+    expr = 'parseCardOpen("false"), parseCardOpen("true"), parseCardOpen(null), parseCardOpen("garbage")'
+    assert node_module("viewmodel.js", names, f"[{expr}]") == [False, True, True, True]
 
 
 def test_a_click_picks_nodes_over_links_and_never_a_hidden_layer(node_module):

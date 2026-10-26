@@ -1126,7 +1126,7 @@ def test_a_failed_activation_leaves_no_trace_in_the_dock_and_returns_to_inspect(
     assert proc.returncode == 0, proc.stderr
     got = json.loads(proc.stdout)
     assert got["during"] == ["broken.ws", True, False, "tabpanel"]
-    assert got["after"] == ["inspect", False, True, False, None, False, "tabpanel", ["inspect"], ["inspect"], 0, 2]
+    assert got["after"] == ["inspect", False, True, False, None, True, "tabpanel", ["inspect"], [], 0, 2]
     assert got["errors"] == []
 
 

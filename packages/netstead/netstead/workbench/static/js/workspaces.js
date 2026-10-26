@@ -1,12 +1,12 @@
-// Workspace tabs (header) and the dock (the left rail and its drawer), rendered from the slots registry. Core's Inspect workspace
-// and Inspect panel register here exactly as a plugin's would (the dock's other core panels register from their own
+// Workspace tabs (header) and the dock (the left rail and its drawer), rendered from the slots registry. Core's Inspect
+// workspace registers here exactly as a plugin's would (the Details panel is not a dock panel: detailspanel.js; the dock's core panels register from their own
 // modules: Find in selection.js, Changes and Validate in edits.js, Assistant in assistant.js). The workspace strip shows only
 // with two or more tabs. The rail is a vertical icon strip: clicking an entry opens its pane in the drawer, clicking the
 // open entry closes the drawer. Both follow the WAI-ARIA tabs pattern (arrows, Home, End).
 import { commandContext } from "./commands.js";
 import { $, esc, toast } from "./dom.js";
 import { hub } from "./hub.js";
-import { ALL_WORKSPACES, CORE, RESERVED_IDS, panelsFor, slots } from "./slots.js";
+import { CORE, RESERVED_IDS, panelsFor, slots } from "./slots.js";
 import { store } from "./store.js";
 import { currentViewMode, savedViews, setViewMode } from "./table.js";
 import { ICONS, icon } from "./icons.js";
@@ -22,7 +22,6 @@ const paneFor = id => document.getElementById(`dock-${id}`);
 
 export function registerCoreSlots() {
   slots.addWorkspace(CORE, { id: "inspect", title: "Inspect", order: 0 });
-  slots.addPanel(CORE, { id: "inspect", title: "Inspect", icon: "info", workspace: ALL_WORKSPACES, order: 10 }); // adopts #dock-inspect
 }
 
 export function addWorkspace(owner, spec) {

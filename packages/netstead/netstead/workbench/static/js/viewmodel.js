@@ -1,4 +1,4 @@
-// Pure helpers for the View tab: what a color swatch records, and which sections are folded. DOM-free
+// Pure helpers for the Layers card: what a color swatch records, and whether the card is open. DOM-free
 // (unit-tested under node: tests/test_workbench_js.py).
 
 const COLOR_BY = { links: ["color_by", "Color links by"], nodes: ["node_color_by", "Color nodes by"] };
@@ -25,14 +25,7 @@ export function swatchTip(kind, style) {
   return { links: "Link color", nodes: "Node color", selection: "Selection color" }[kind];
 }
 
-export const SECTIONS_KEY = "wb.view.sections";
+export const CARD_KEY = "wb.layers.open";
 
-// Folded sections as stored: a JSON list of section names that are closed. Anything unreadable means none.
-export function parseClosed(raw) {
-  try {
-    const list = JSON.parse(raw);
-    return new Set(Array.isArray(list) ? list.filter(x => typeof x === "string") : []);
-  } catch { return new Set(); }
-}
-
-export const serializeClosed = closed => JSON.stringify([...closed].sort());
+// Whether the Layers card is open, from its stored "true" / "false": open unless it was stored as closed.
+export const parseCardOpen = raw => raw !== "false";
