@@ -59,7 +59,6 @@
   #tbl-hops-wrap[hidden] { display:none; }
   #tbl-hops-info { width:24px; height:24px; background:none; color:var(--muted); }
   #tbl-hops-info svg { width:14px; height:14px; }
-  #tbl-hops-info[data-tip]:hover::after { top:calc(100% + 4px); right:0; transform:none; }
   #tbl-hops-pop { position:absolute; top:calc(100% + 6px); right:0; z-index:7; width:min(340px, 80vw); padding:10px 12px;
                   background:rgba(23,26,33,.98); border:1px solid var(--edge); border-radius:10px; color:var(--ink);
                   font-size:12.5px; line-height:1.45; }
@@ -79,7 +78,6 @@
   #tbl-grid th .fbtn:hover { color:var(--ink); border-color:var(--edge); }
   #tbl-grid th .fbtn.on { background:var(--accent); color:#11151a; border-color:var(--accent); }
   #tbl-grid th .fbtn svg { width:13px; height:13px; }
-  #tbl-grid [data-tip]:hover::after { top:calc(100% + 4px); right:auto; left:0; transform:none; }
   /* the chip strip: one chip per column filter, hidden when there are none */
   #tbl-chips { display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:6px 12px; border-bottom:1px solid var(--edge);
                font-size:12px; }
@@ -144,14 +142,11 @@
   .iconbtn.on { background:var(--accent); color:#11151a; border-color:var(--accent); }
   .iconbtn svg { width:18px; height:18px; display:block; }
   .iconbtn.off { opacity:.45; cursor:default; }  /* still hoverable: its tooltip says what it would do */
-  /* a pure-CSS tooltip: to the left of the button (the map's corner, the dock, the footer), or below it in the header,
-     where a tooltip above or beside the button would be clipped by the window's edge */
-  [data-tip]:hover::after { content:attr(data-tip); position:absolute; top:50%; right:calc(100% + 8px);
-             transform:translateY(-50%); white-space:nowrap; background:#11151a; color:var(--ink);
-             border:1px solid var(--edge); padding:4px 8px; border-radius:6px; font-size:12px;
-             pointer-events:none; z-index:5; }
-  header [data-tip]:hover::after { top:calc(100% + 6px); right:0; transform:none; }
-  [data-tip] { position:relative; }
+  /* the tooltip (tooltip.js): one fixed element above everything, so no map, drawer or window edge clips it */
+  #tip { position:fixed; left:0; top:0; z-index:2147483000; max-width:min(320px, calc(100vw - 8px)); white-space:normal;
+         background:#11151a; color:var(--ink); border:1px solid var(--edge); padding:4px 8px; border-radius:6px;
+         font-size:12px; line-height:1.4; pointer-events:none; }
+  #tip[hidden] { display:none; }
   header .iconbtn, #side .iconbtn, footer .iconbtn { width:30px; height:30px; backdrop-filter:none; background:none; }
   header .iconbtn:hover, #side .iconbtn:hover, footer .iconbtn:hover { background:#20242e; }
   .mini [data-icon] { display:inline-flex; vertical-align:-3px; margin-right:5px; }
@@ -204,9 +199,6 @@
   #fragment-box pre { padding-right:44px; }
   #fragment-box .iconbtn { position:absolute; top:4px; right:4px; }
   #fragment-copy:disabled { opacity:.45; cursor:default; }
-  #fragment-copy.copied::after { content:attr(data-tip); position:absolute; top:50%; right:calc(100% + 8px);
-             transform:translateY(-50%); white-space:nowrap; background:#11151a; color:var(--ink);
-             border:1px solid var(--edge); padding:4px 8px; border-radius:6px; font-size:12px; pointer-events:none; z-index:5; }
   .dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; }
   .anc { margin:0 0 6px; } .anc .mini, .cands .mini, .saved .mini { margin-left:4px; }
   .cands { margin:4px 0 0 14px; display:flex; flex-wrap:wrap; gap:4px; align-items:center; } .cands .mini { margin-left:0; }
@@ -440,8 +432,6 @@
     font-size:10px; line-height:14px; box-sizing:border-box; border:1.5px solid var(--bg); background:var(--edge); color:var(--ink); }
   #dock-tabs button.icontab .pcount.warn { background:var(--accent); color:#1b1206; }
   #dock-tabs button.icontab .pcount.error { background:rgb(224,82,77); color:#fff; }
-  #dock-tabs [data-tip]:hover::after, #dock-tabs [data-tip]:focus-visible::after { top:calc(100% + 6px); right:auto; left:50%; transform:translateX(-50%); }
-  #dock-tabs [data-tip]:last-child:hover::after { left:auto; right:0; transform:none; }
   #thinking { margin:4px 0; }
   button.busy { display:inline-flex; align-items:center; gap:6px; }
   .spin { width:11px; height:11px; border:2px solid currentColor; border-top-color:transparent; border-radius:50%;

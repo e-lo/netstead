@@ -30,6 +30,7 @@ import { wireSaveDialog } from "./savedialog.js";
 import { onSettingsHistory, registerSection, wireSettings } from "./settings.js";
 import { activeSelection, store } from "./store.js";
 import { onFocusChanged, onNetworkChanged, onNetworkEdited, refreshRows, restoreViewMode, syncScopeControls, tableVisible, wireTable } from "./table.js";
+import { wireTooltip } from "./tooltip.js";
 import { onWizardJob, wireWizard } from "./wizard.js";
 import { registerCoreSlots, showPanel, wireWorkspaces } from "./workspaces.js";
 
@@ -276,7 +277,7 @@ async function boot() {
   registerEditCommands();
   wirePalette({ onError: whenError, onRunError: runError });
   wireActionForm();
-  wireStore(); wirePanels(); wireFilter(); wireSide(); wireTable(); wireHandles(); wireHeader(); wireHistory(); wireMapButtons(); wireJobs(); wireWizard(); wireLLM(); wireSettings(); wireIssues(); wireEdits(); wireSaveDialog(); wireSelectionPanel(); wireAssistant();
+  wireStore(); wirePanels(); wireFilter(); wireSide(); wireTable(); wireHandles(); wireTooltip(); wireHeader(); wireHistory(); wireMapButtons(); wireJobs(); wireWizard(); wireLLM(); wireSettings(); wireIssues(); wireEdits(); wireSaveDialog(); wireSelectionPanel(); wireAssistant();
   registerIssueLayer(); // after wireStore: the layerSeq subscription that renders Overlays is in place
   registerSection("llm", "Language models", "llm-panel", () => renderLLMPanel());
   registerAssistantSettings();
