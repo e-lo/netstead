@@ -5,7 +5,7 @@ plumbing: exit codes, JSON shape, dry-run safety, and that
 ``--help`` advertises the new top-level commands so a user can find
 them. The ops themselves are exercised in ``test_clean.py`` /
 ``test_scope.py`` / ``test_indexes_cache.py`` — this file does **not**
-re-test the underlying behaviour.
+re-test the underlying behavior.
 
 The Leavenworth fixture's ``node`` table carries an empty ``name``
 column that ibis types as null, which DuckDB refuses to round-trip

@@ -39,7 +39,7 @@ Expected:
 0.97: 339 links, 121 nodes
 ```
 
-You just loaded the bundled Leavenworth network through the default ibis + DuckDB engine. Nothing was materialised — `net.links` is a lazy expression; only the integer count came back from DuckDB to Python.
+You just loaded the bundled Leavenworth network through the default ibis + DuckDB engine. Nothing was materialized — `net.links` is a lazy expression; only the integer count came back from DuckDB to Python.
 
 ## Step-by-step
 
@@ -48,10 +48,13 @@ You just loaded the bundled Leavenworth network through the default ibis + DuckD
 The bare `netstead` install is enough for read-only validation. Add `[clean,graph]` to unlock the ops the rest of this guide uses: `[clean]` brings in `shapely` + `geopandas` + `pyproj` for the geometry edits; `[graph]` brings in `scipy` (+ `numpy` + `pandas`) for the scope graph, connected components, and the data-quality rule pack.
 
 ```bash
+uv init --bare
 uv add \
   "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral" \
   "netstead[clean,graph] @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/netstead"
 ```
+
+`uv init --bare` makes a new folder a uv project, which `uv add` needs; skip it when you add netstead to a project you already have.
 
 This is the GitHub form the beta uses until the PyPI release is out; it then becomes `uv add 'netstead[clean,graph]'`, with `corral` coming along as a transitive dependency. For the other install tools (uv pip, pip, pipx), the full list of extras and what each pulls in, `netstead doctor`, and the zsh bracket-quoting rule, see [Install and troubleshoot](install.md).
 
@@ -95,11 +98,11 @@ print(f"issues: {len(report.issues)} ({report.spec_version})")
 In a notebook, `report` on its own renders an HTML card grouped by severity.
 
 ![Validation report card](assets/screenshots/leavenworth-validation-report.png){ .screenshot }
-*Validation report card (report._repr_html_() in a notebook) — 0 ERRORs, 1 WARNING fk.unverifiable, 16 INFO structural.missing_optional_resource*
+*Validation report card (report._repr_html_() in a notebook) — 0 ERRORs, 0 WARNINGs, 16 INFO structural.missing_optional_resource*
 
 ### 4. Run data-quality checks
 
-The data-quality rule pack covers things the spec is silent on but every real network gets wrong sooner or later. Its nine rules cover high-speed-residential, lane-count mismatch, sharp-angle bends, near-duplicate nodes, disconnected components, implausible v/c ratios, missing critical fields, overlapping links and non-unique combinations (see [Customise the quality pack](cookbook/customise-quality.md)). Findings come back as WARNING or INFO by default and carry `category=DATA_QUALITY`. The rule pack needs the `[graph]` extra. On Leavenworth, `quality.high_speed_residential` fires on 271 residential links whose `free_speed` is 40 — above the default 35 mph threshold.
+The data-quality rule pack covers things the spec is silent on but every real network gets wrong sooner or later. Its nine rules cover high-speed-residential, lane-count mismatch, sharp-angle bends, near-duplicate nodes, disconnected components, implausible v/c ratios, missing critical fields, overlapping links and non-unique combinations (see [Customize the quality pack](cookbook/customize-quality.md)). Findings come back as WARNING or INFO by default and carry `category=DATA_QUALITY`. The rule pack needs the `[graph]` extra. On Leavenworth, `quality.high_speed_residential` fires on 271 residential links whose `free_speed` is 40 — above the default 35 mph threshold.
 
 ```python
 from corral.quality import run_quality
@@ -164,7 +167,7 @@ Each accordion below is one alternative to the defaults used above. The first (m
     ```
 
 ??? note "Get a pandas (or polars) frame"
-    DuckDB (via ibis) is the only compute engine, and every table stays lazy until you ask. When downstream code wants a DataFrame, materialise just that table with `.to_pandas()` or `.to_polars()`.
+    DuckDB (via ibis) is the only compute engine, and every table stays lazy until you ask. When downstream code wants a DataFrame, materialize just that table with `.to_pandas()` or `.to_polars()`.
 
     ```python
     links_df = net.links.to_pandas()

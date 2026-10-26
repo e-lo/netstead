@@ -22,8 +22,8 @@ from netstead.workbench.assistant.stub import StubPlanner
 
 
 def test_describe_is_plain_words():
-    assert describe(Style(color_by="lanes")) == "colour links by lanes"
-    assert describe(Style(color_by="lanes", width_by="none")) == "colour links by lanes and size links by lane count"
+    assert describe(Style(color_by="lanes")) == "color links by lanes"
+    assert describe(Style(color_by="lanes", width_by="none")) == "color links by lanes and size links by lane count"
     assert describe(Filter(where=[FilterCond(col="lanes", op="gte", val=2)])) == "show only links where lanes ≥ 2"
     assert describe(Filter(where=[FilterCond(col="name", op="isnull")])) == "show only links where name is empty"
     assert describe(Filter()) == "clear the link filter"
@@ -70,7 +70,7 @@ def test_the_model_echo_carries_no_values():
             "select Ski Hill Drive",
             [("select", {"utterance": "Ski Hill Drive", "facility": {"name": "Ski Hill Drive"}})],
         ),
-        ("colour by lanes", [("style", {"color_by": "lanes"})]),
+        ("color by lanes", [("style", {"color_by": "lanes"})]),
         ("Color by lanes.", [("style", {"color_by": "lanes"})]),
         ("width by lanes", [("style", {"width_by": "lanes"})]),
         ("filter lanes >= 2", [("filter", {"where": [{"col": "lanes", "op": "gte", "val": 2}]})]),
@@ -84,7 +84,7 @@ def test_the_model_echo_carries_no_values():
         ("save the selection as cherry", [("save_selection", {"name": "cherry"})]),
         ("set lanes to 3 on the selection", [("edit_cells", {"on_selection": True, "values": {"lanes": 3}})]),
         (
-            "colour by lanes and zoom to the selection",
+            "color by lanes and zoom to the selection",
             [("style", {"color_by": "lanes"}), ("navigate", {"to_selection": True})],
         ),
         (
@@ -103,7 +103,7 @@ def test_the_model_echo_carries_no_values():
             ],
         ),
         (
-            "select Lewis and Clark Way and colour by lanes",
+            "select Lewis and Clark Way and color by lanes",
             [
                 ("select", {"utterance": "Lewis and Clark Way", "facility": {"name": "Lewis and Clark Way"}}),
                 ("style", {"color_by": "lanes"}),
@@ -116,7 +116,7 @@ def test_the_stub_planner_grammar(text, calls):
     assert [(c.name, c.arguments) for c in plan.calls] == calls and plan.text == ""
 
 
-@pytest.mark.parametrize("text", ["make me a sandwich", "", "colour by lanes and make me a sandwich"])
+@pytest.mark.parametrize("text", ["make me a sandwich", "", "color by lanes and make me a sandwich"])
 def test_the_stub_planner_says_what_it_understands(text):
     plan = StubPlanner().plan(text)
     assert plan.calls == () and "offline" in plan.text
@@ -136,7 +136,7 @@ def test_every_stub_call_fits_its_tool_and_becomes_an_action(tmp_path, isolated_
     session.dispatch(Select(link_ids=[170, 182]))
     specs = {s.tool.name: s for s in tool_specs(session)}
     text = (
-        "select Cherry Street between Prospect Street and West Center Street and colour by lanes and width by lanes "
+        "select Cherry Street between Prospect Street and West Center Street and color by lanes and width by lanes "
         "and filter lanes >= 2 and clear the filter and zoom to link 170 and zoom to the selection "
         "and save the selection as cherry and set lanes to 3 on the selection"
     )
@@ -198,11 +198,11 @@ SKI_HILL = ("select", {"utterance": "Ski Hill", "facility": {"name": "Ski Hill D
 
 
 def test_read_only_steps_run_at_once_and_are_recorded_via_the_assistant(tmp_path, isolated_env):
-    p = Scripted(_reply(SKI_HILL, ("style", {"color_by": "lanes"}), text="Selected and coloured."))
+    p = Scripted(_reply(SKI_HILL, ("style", {"color_by": "lanes"}), text="Selected and colored."))
     s = _session(tmp_path, isolated_env, p)
-    turn = s.assistant.ask("select ski hill drive and colour by lanes")
+    turn = s.assistant.ask("select ski hill drive and color by lanes")
     assert [st["status"] for st in turn["steps"]] == ["done", "done"] and turn["draft_id"] is None
-    assert turn["steps"][0]["result"] == "resolved: 20 links" and turn["text"] == "Selected and coloured."
+    assert turn["steps"][0]["result"] == "resolved: 20 links" and turn["text"] == "Selected and colored."
     assert [e.via for e in s.history[-2:]] == ["assistant", "assistant"]
     assert s.history[-2].python.startswith("app.do(Select(utterance='Ski Hill', query=")
     assert s.style["color_by"] == "lanes"
@@ -258,7 +258,7 @@ def test_a_text_only_answer_has_no_steps(tmp_path, isolated_env):
 def test_a_failed_read_only_step_stops_the_turn(tmp_path, isolated_env):
     p = Scripted(_reply(("navigate", {"to_selection": True}), ("style", {"color_by": "lanes"})))
     s = _session(tmp_path, isolated_env, p)
-    turn = s.assistant.ask("zoom to the selection and colour by lanes")
+    turn = s.assistant.ask("zoom to the selection and color by lanes")
     assert [st["status"] for st in turn["steps"]] == ["failed", "skipped"]
     assert "nothing is selected" in turn["steps"][0]["result"] and s.style["color_by"] != "lanes"
 
@@ -324,7 +324,7 @@ def test_a_failed_answer_is_still_charged(tmp_path, isolated_env):
     bad = _reply(("style", {"color_by": 3}), tokens=(500, 10))
     p = Scripted(bad, bad, base_url="https://api.example")
     s = _session(tmp_path, isolated_env, p)
-    turn = s.assistant.ask("colour")
+    turn = s.assistant.ask("color")
     assert turn["error"] and "still invalid" in turn["error"]
     assert s.assistant.used == {"ollama": 1020}
 
@@ -360,7 +360,7 @@ def test_one_question_at_a_time(tmp_path, isolated_env):
 
 def test_the_stub_provider_plans_offline(tmp_path, isolated_env):
     s = _session(tmp_path, isolated_env)  # select.provider is "stub" by default
-    turn = s.assistant.ask("colour by lanes")
+    turn = s.assistant.ask("color by lanes")
     assert turn["steps"][0]["status"] == "done" and s.style["color_by"] == "lanes"
     assert s.assistant.payload()["status"]["provider"] == "stub"
 
@@ -402,8 +402,8 @@ def test_unknown_names_in_the_allowlists_are_refused_when_set(tmp_path, isolated
     s = _session(tmp_path, isolated_env)
     from netstead.workbench.errors import ActionError
 
-    with pytest.raises(ActionError, match="no Action named 'colourise'"):
-        s.dispatch(SetSetting(key="assistant.actions", value=["style", "colourise"], scope="session"))
+    with pytest.raises(ActionError, match="no Action named 'colorize'"):
+        s.dispatch(SetSetting(key="assistant.actions", value=["style", "colorize"], scope="session"))
     with pytest.raises(ActionError, match="never offered"):
         s.dispatch(SetSetting(key="assistant.actions", value=["open_network"], scope="session"))
     with pytest.raises(ActionError, match="no plugin with the id 'cards'"):
@@ -528,7 +528,7 @@ def test_a_failed_repair_call_still_charges_the_answer_before_it(tmp_path, isola
 
     p = FailsOnRepair(_reply(("style", {"color_by": 3}), tokens=(700, 30)), base_url="https://api.example")
     s = _session(tmp_path, isolated_env, p)
-    turn = s.assistant.ask("colour")
+    turn = s.assistant.ask("color")
     assert turn["error"] == "down" and s.assistant.used == {"ollama": 730}
 
 
@@ -544,9 +544,7 @@ def test_on_selection_pins_the_selections_network_so_approve_edits_only_it(tmp_p
 
 
 def test_the_stub_planner_keeps_the_case_it_was_typed_in():
-    calls = (
-        StubPlanner().plan("Colour by Facility_Type and FILTER Name = Ski and set LANES to 3 on the selection").calls
-    )
+    calls = StubPlanner().plan("Color by Facility_Type and FILTER Name = Ski and set LANES to 3 on the selection").calls
     assert calls[0].arguments == {"color_by": "Facility_Type"}
     assert calls[1].arguments == {"where": [{"col": "Name", "op": "eq", "val": "Ski"}]}
     assert calls[2].arguments == {"on_selection": True, "values": {"LANES": 3}}
@@ -846,7 +844,7 @@ def test_an_unexpected_failure_while_running_steps_keeps_the_turn(tmp_path, isol
         raise RuntimeError("bad")
 
     monkeypatch.setattr(s, "dispatch_recorded", boom)
-    turn = s.assistant.ask("colour")
+    turn = s.assistant.ask("color")
     assert "while running its steps" in turn["error"] and s.assistant.turns[-1].role == "assistant"
 
 
@@ -978,7 +976,7 @@ def test_an_id_from_an_earlier_turn_or_the_selection_passes_the_guard(tmp_path, 
 def test_a_read_only_call_with_an_invented_field_is_accepted_without_it(tmp_path, isolated_env):
     p = Scripted(_reply(("style", {"color_by": "lanes", "show": {"lanes": True}, "colors": "crimson", "glow": 1})))
     s = _session(tmp_path, isolated_env, p)
-    turn = s.assistant.ask("colour by lanes")
+    turn = s.assistant.ask("color by lanes")
     assert len(p.requests) == 1 and turn["steps"][0]["status"] == "done"  # no repair round
     assert s.history[-1].python == "app.do(Style(color_by='lanes'))"  # the copied script never sees them
     assert turn["ignored"] == [
@@ -1003,7 +1001,7 @@ def test_an_unknown_key_on_navigate_is_dropped_but_a_missing_target_is_still_rep
 def test_a_call_left_with_nothing_is_repaired_not_accepted_empty(tmp_path, isolated_env):
     p = Scripted(_reply(("style", {"show": {"lanes": True}})), _reply(("style", {"color_by": "lanes"})))
     s = _session(tmp_path, isolated_env, p)
-    plan = s.assistant.plan("colour by lanes")
+    plan = s.assistant.plan("color by lanes")
     assert plan.attempts == 2 and plan.actions == [Style(color_by="lanes")]
 
 
@@ -1030,10 +1028,10 @@ def test_a_mutating_call_with_an_extra_key_is_never_drafted_as_is(tmp_path, isol
 
 
 def test_a_key_one_read_only_tool_owns_is_split_into_its_own_call(tmp_path, isolated_env):
-    folded = (SKI_HILL[0], {**SKI_HILL[1], "color_by": "lanes"})  # "select Ski Hill Drive and colour by lanes"
+    folded = (SKI_HILL[0], {**SKI_HILL[1], "color_by": "lanes"})  # "select Ski Hill Drive and color by lanes"
     p = Scripted(_reply(folded))
     s = _session(tmp_path, isolated_env, p)
-    turn = s.assistant.ask("select Ski Hill Drive and colour by lanes")
+    turn = s.assistant.ask("select Ski Hill Drive and color by lanes")
     assert len(p.requests) == 1 and [st["status"] for st in turn["steps"]] == ["done", "done"]  # no repair round
     assert [e.action["type"] for e in s.history[-2:]] == ["select", "style"] and s.style["color_by"] == "lanes"
     assert turn["split"] == ["call 1 (select): split color_by into a style call"] and turn["ignored"] == []
@@ -1041,14 +1039,14 @@ def test_a_key_one_read_only_tool_owns_is_split_into_its_own_call(tmp_path, isol
 
     two = Scripted(_reply(SKI_HILL, ("style", {"color_by": "lanes"})))  # as if the model had made two calls
     other = _session(tmp_path / "two", isolated_env, two)
-    other.assistant.ask("select Ski Hill Drive and colour by lanes")
+    other.assistant.ask("select Ski Hill Drive and color by lanes")
     assert [e.python for e in s.history[-2:]] == [e.python for e in other.history[-2:]]  # Copy as Python: the same
 
 
 def test_a_key_the_reply_already_calls_its_owner_for_is_left_out_not_split(tmp_path, isolated_env):
     p = Scripted(_reply((SKI_HILL[0], {**SKI_HILL[1], "color_by": "lanes"}), ("style", {"color_by": "lanes"})))
     s = _session(tmp_path, isolated_env, p)
-    plan = s.assistant.plan("select Ski Hill Drive and colour by lanes")
+    plan = s.assistant.plan("select Ski Hill Drive and color by lanes")
     assert [type(a) for a in plan.actions] == [Select, Style] and plan.split == []
     assert plan.ignored == ["call 1 (select): ignored color_by (not a field of select)"]
 
@@ -1085,7 +1083,7 @@ def test_a_split_that_does_not_fit_its_owner_is_repaired(tmp_path, isolated_env)
         _reply(SKI_HILL, ("style", {"color_by": "lanes"})),
     )
     s = _session(tmp_path, isolated_env, p)
-    plan = s.assistant.plan("select Ski Hill Drive and colour by lanes")
+    plan = s.assistant.plan("select Ski Hill Drive and color by lanes")
     assert "color_by belongs to style, not select" in p.requests[1].messages[-1].content
     assert plan.attempts == 2 and plan.split == [] and [type(a) for a in plan.actions] == [Select, Style]
 

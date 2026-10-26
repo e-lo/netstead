@@ -23,7 +23,7 @@ pkg = Package.from_source("./mydata.duckdb")                    # single-file du
 pkg = Package.from_source("./mydata.csv.zip")                   # zipped CSV bundle
 ```
 
-**Lazy evaluation at regional scale.** Tables aren't materialised until you ask. `pkg.tables["link"].filter(...).count()` pushes the count to DuckDB; only the integer comes back to Python.
+**Lazy evaluation at regional scale.** Tables aren't materialized until you ask. `pkg.tables["link"].filter(...).count()` pushes the count to DuckDB; only the integer comes back to Python.
 
 **One compute engine, any dataframe format.** DuckDB (driven through ibis) does all the work. Results come out as pandas, polars or Arrow via `Table.to_pandas()` / `.to_polars()` / `.collect()`, and in-memory frames go in via `from_arrow()`. See the [engine + formats concept](concepts/engines.md).
 
@@ -47,7 +47,7 @@ pkg = Package.from_source("./mydata.csv.zip")                   # zipped CSV bun
 
     ---
 
-    Your organisation has a tabular data spec (sensor metadata, asset catalogs, planning datasets) that you want to validate, version, and serve consistently.
+    Your organization has a tabular data spec (sensor metadata, asset catalogs, planning datasets) that you want to validate, version, and serve consistently.
 
 -   :material-cloud-outline:{ .lg .middle } &nbsp;**Cloud-resident data**
 
@@ -79,8 +79,11 @@ pkg = Package.from_source("./mydata.csv.zip")                   # zipped CSV bun
 release under the new name is pending), so the beta installs from GitHub with any of the tools below:
 
 ```bash
+uv init --bare
 uv add "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral"
 ```
+
+`uv init --bare` makes a new folder a uv project, which `uv add` needs; skip it when you add netstead to a project you already have.
 
 Once the release is out, pick the tool you already use — these all produce the same install:
 

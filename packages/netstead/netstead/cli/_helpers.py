@@ -58,7 +58,7 @@ def load_network_and_session_cls(source: Path, engine_name: str | None = None) -
     ``engine_name`` follows the resolves to the DuckDB engine, same as
     :func:`resolve_engine`. Callers can override the default ibis engine
     to dodge backend-specific edge cases (e.g. duckdb refusing null-typed
-    columns when re-materialising via ``engine.from_records`` during a
+    columns when re-materializing via ``engine.from_records`` during a
     ``replace_table`` edit on a fixture that carries empty string
     columns typed as null).
     """

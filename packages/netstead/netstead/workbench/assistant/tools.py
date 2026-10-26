@@ -301,7 +301,7 @@ def prepare_calls(calls: tuple[ToolCall, ...], specs: dict[str, ToolSpec]) -> Pr
     """``calls`` with each read-only call's stray keys split off, repaired or left out.
 
     Small models fold a request's second part into its first call (``select(…, color_by="lanes")`` for "select X and
-    colour by lanes"). A key a read-only call doesn't have, but another offered tool does, is:
+    color by lanes"). A key a read-only call doesn't have, but another offered tool does, is:
 
     - split off into a call of its own, right after the original, when exactly one offered tool owns all such keys,
       that tool is read-only, the reply doesn't call it already, and the new call matches its schema;

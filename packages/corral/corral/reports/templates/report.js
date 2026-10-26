@@ -1,4 +1,4 @@
-/* corral ValidationReport — interactive behaviour for the
+/* corral ValidationReport — interactive behavior for the
  * single-file HTML renderer.
  *
  * Vanilla JS only: this script is inlined into every produced report,

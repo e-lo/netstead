@@ -38,7 +38,7 @@ Expected:
 3 tables, 0 validation issues
 ```
 
-You just loaded a Frictionless data package through the ibis + DuckDB engine, then ran the structural / schema / FK / sync-state validator in a single call. Nothing was eagerly materialised — `pkg.tables["book"]` is still a lazy expression.
+You just loaded a Frictionless data package through the ibis + DuckDB engine, then ran the structural / schema / FK / sync-state validator in a single call. Nothing was eagerly materialized — `pkg.tables["book"]` is still a lazy expression.
 
 ## Step-by-step
 
@@ -108,7 +108,7 @@ for issue in report.issues[:5]:
     print(f"  {issue.severity.value:9} {issue.code:30} {issue.message[:60]}")
 ```
 
-In a Jupyter notebook, evaluating `report` on its own renders an HTML card grouped by severity. In a script, you can also serialise to JSON for CI:
+In a Jupyter notebook, evaluating `report` on its own renders an HTML card grouped by severity. In a script, you can also serialize to JSON for CI:
 
 ```python
 import tempfile, pathlib
@@ -153,7 +153,7 @@ Parquet and CSV directories and the zip each carry a `datapackage.json` with the
 Each accordion below is one alternative to the defaults used above. The first (most common) is expanded; the rest are collapsed — open the one that matches your situation.
 
 ???+ note "Get results as pandas or polars"
-    DuckDB is the only compute engine; pandas and polars are output formats. Materialise any `Table` to the frame type the next step wants (needs the `pandas` / `polars` extra respectively).
+    DuckDB is the only compute engine; pandas and polars are output formats. Materialize any `Table` to the frame type the next step wants (needs the `pandas` / `polars` extra respectively).
 
     <!-- doctest: skip -->
     ```python
@@ -173,7 +173,7 @@ Each accordion below is one alternative to the defaults used above. The first (m
     ```
 
 ??? note "Load only a subset of tables"
-    Pass `tables=` to materialise only the tables you need — useful when the package is large and you only care about a few resources.
+    Pass `tables=` to materialize only the tables you need — useful when the package is large and you only care about a few resources.
 
     ```python
     pkg = Package.from_source(
@@ -198,7 +198,7 @@ Each accordion below is one alternative to the defaults used above. The first (m
 
 * **No `datapackage.json` in your directory → pass `spec=` explicitly.** CSV-only fixtures and ad-hoc directories don't carry a manifest, so `corral` can't infer the schema. Point `spec=` at the canonical `datapackage.json` for your data. See [Frictionless data packages](concepts/frictionless.md) for the spec-vs-data distinction.
 * **Credential cascade order matters.** Per-call `credentials=` always wins; otherwise the `CORRAL_CRED_<HOST>_TOKEN` env var (or `CORRAL_CRED_<HOST>_KEY` + `CORRAL_CRED_<HOST>_SECRET`), then OS keyring, then `.netrc`. If you've stashed a token in two places, the higher-priority one is the one that gets used.
-* **Lazy by default.** Tables are lazy ibis expressions over DuckDB — nothing materialises until you call `.to_pandas()` / `.to_polars()` / `.count()`. Push predicates down and only pull the rows you need into Python. `.to_pandas()` and `.to_polars()` need the `pandas` / `polars` extras.
+* **Lazy by default.** Tables are lazy ibis expressions over DuckDB — nothing materializes until you call `.to_pandas()` / `.to_polars()` / `.count()`. Push predicates down and only pull the rows you need into Python. `.to_pandas()` and `.to_polars()` need the `pandas` / `polars` extras.
 
 ## See also
 

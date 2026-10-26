@@ -31,9 +31,10 @@ nothing leaves your computer and you need no API key.
 
 ## Prerequisites
 
-Python 3.11 or newer, and `netstead` with three extras: `[server]` is the Workbench itself, `[graph]` runs the
-quality rules inside validation and the path search behind "between", and `[nl]` adds the language-model
-providers you can switch to later (the offline parser needs none of them). If anything below fails to
+Python 3.11 or newer, and `netstead` with four extras: `[server]` is the Workbench itself, `[graph]` runs the
+quality rules inside validation and the path search behind "between", `[nl]` adds the language-model
+providers you can switch to later (the offline parser needs none of them), and `[osm]` powers Open → Place search
+and building a network from OpenStreetMap. If anything below fails to
 install or start, see [Install and troubleshoot](install.md).
 
 ## Steps
@@ -45,12 +46,15 @@ GitHub, both packages in one command (`pip install` takes the same two arguments
 macOS (zsh): see [Install and troubleshoot](install.md#zsh-quote-the-brackets).
 
 ```bash
+uv init --bare
 uv add \
   "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral" \
-  "netstead[server,graph,nl] @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/netstead"
+  "netstead[server,graph,nl,osm] @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/netstead"
 ```
 
-(Once the PyPI release is out: `uv add 'netstead[server,graph,nl]'`.)
+`uv init --bare` makes a new folder a uv project, which `uv add` needs; skip it when you add netstead to a project you already have.
+
+(Once the PyPI release is out: `uv add 'netstead[server,graph,nl,osm]'`.)
 
 The Leavenworth fixture ships inside the `netstead` wheel, so there is nothing to download. Ask Python where
 it landed and keep the path in a shell variable:
@@ -68,6 +72,11 @@ uv run netstead app "$LV" --provider stub
 ```
 
 Open <http://127.0.0.1:8850> in your browser.
+
+(You can also start `uv run netstead app` with nothing open and pick **Leavenworth, WA** from **Included examples**
+in the Open / Import wizard (**Open → Browse / import…**); the path above is only needed to pass the fixture on the
+command line. **Included examples** also lists RDU I-40, NC and **Market Street, San Francisco**, a small Overture-derived
+network with GERS ids (`overture_segment_id`, `overture_connector_id`) for trying the Find tab's Overture GERS id system.)
 
 You should see the **Netstead Workbench** header with the network picker showing `leavenworth`, the count
 **339 links · 121 nodes**, the **Map / Split / Table** view buttons, and the map below. If the map opens zoomed
@@ -97,11 +106,15 @@ thing the Workbench records.
 
 ### 3. Select a street by name
 
-Open the **Find** tab in the side panel. Type `Ski Hill Drive` in its box and press **Select** (or Enter).
+Open the **Find** tab in the side panel. With the offline pattern parser it shows a small form: leave **Find** on
+**Street**, start typing `Ski Hill Drive` in **Street** (the open network's street names are suggested), and press
+**Select** (or Enter). The sentence it sends, `Ski Hill Drive`, shows under the form. (With a language model chosen
+in the header, the Find tab has a free-text box instead.)
 
-Twenty links light up in the selection colour, and the **Find** tab shows the status `resolved`, the phrase you
+Twenty links light up in the selection color, and the **Find** tab shows the status `resolved`, the phrase you
 typed, a diagnostic line `facility ['Ski Hill Drive']: 20 link(s)`, and the **Fragment**: the GMNS selection
-fragment as JSON, listing the twenty `link_id`s. In the table bar, **Show → Selection** lists just those rows.
+fragment as JSON (as a **Segment**, the street name plus its from and to nodes; switch to **Link list** for the
+twenty `link_id`s, and use the copy button to take it elsewhere). In the table bar, **Show → Selection** lists just those rows.
 The strip at the bottom of the window now reads `app.do(Select(utterance='Ski Hill Drive'))`: the same
 selection as Python, which step 7 comes back to.
 
@@ -110,7 +123,10 @@ selection as Python, which step 7 comes back to.
 
 ### 4. Resolve an ambiguous selection
 
-Replace the phrase with `Cherry Street between Prospect Street and West Center Street` and press **Select**.
+Set **Find** to **Street between two cross streets**, then choose **Street** `Cherry Street`, **From cross street**
+`Prospect Street` and **To cross street** `West Center Street` (once the street is chosen, the cross streets offered
+are the ones that meet it), and press **Select**. The sentence under the form reads
+`Cherry Street between Prospect Street and West Center Street`.
 
 This time the status is **ambiguous** and the Find tab's badge shows `?`. Under **Anchors**, the `from`
 anchor resolved cleanly (`Prospect Street → node 53 · intersection`), but the `to` anchor has more than one
@@ -132,9 +148,8 @@ recorded selection, not a one-off click.
 Open the **Validate** tab in the dock and press the run icon (**Run validation**). It runs as a background job (the **Jobs**
 count in the header ticks while it works) and takes a few seconds on Leavenworth.
 
-When it finishes the status line reads `Validated v0: 272 warnings, 16 info`. That is two reports in one
-list. The spec checks find **0 errors, 1 warning and 16 info**: the warning is `fk.unverifiable` (`node.zone_id`
-points at a `zone` table the fixture doesn't ship, so the key can't be checked) and the 16 info findings are
+When it finishes the status line reads `Validated v0: 271 warnings, 16 info`. That is two reports in one
+list. The spec checks find **0 errors, 0 warnings and 16 info**: the 16 info findings are
 `structural.missing_optional_resource`, one per optional GMNS table that is absent. The quality rules add
 **271 warnings** of `quality.high_speed_residential`: residential links whose `free_speed` of 40 is above the
 default 35 mph threshold. The **Severity**, **Table** and **Code** filters show the same counts, for example
@@ -142,12 +157,12 @@ default 35 mph threshold. The **Severity**, **Table** and **Code** filters show 
 
 Every located issue is a dot on the map. Click an issue in the list: the map flies to its link (or use the
 crosshair "zoom to" icon on a located finding), Inspect shows the record, and the table scrolls to its row and
-marks it. The 17 table-level findings have no place on the map, so they sit grouped under a collapsed
+marks it. The 16 table-level findings have no place on the map, so they sit grouped under a collapsed
 **Unlocated findings** group at the bottom of the panel (expand with **`--all`**-style grouping, or the group's
 disclosure triangle).
 
 ![The Validate panel after Run validation](assets/screenshots/workbench-05-issues.png){ .screenshot }
-*The Validate panel after Run validation: 272 warnings and 16 info, each located issue a dot on the map. (screenshot predates the panel restructure)*
+*The Validate panel after Run validation: 271 warnings and 16 info, each located issue a dot on the map. (screenshot predates the panel restructure)*
 
 ### 6. Fix a finding
 

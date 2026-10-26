@@ -60,7 +60,7 @@ def test_cancel_takes_effect_at_next_stage(runner):
     release.set()
     assert job.wait(WAIT)
     snap = runner.snapshot(job)
-    assert snap["status"] == "cancelled" and snap["error_type"] == "JobCancelled" and snap["stage"] == "query"
+    assert snap["status"] == "canceled" and snap["error_type"] == "JobCancelled" and snap["stage"] == "query"
 
 
 def test_cancel_finished_job_is_a_noop(runner):

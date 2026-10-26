@@ -183,10 +183,10 @@ def test_from_nodes_path_between_includes_path_nodes():
 
 
 def test_from_nodes_path_between_ids_are_plain_python_ints():
-    """Path-expanded ids must be plain ``int`` so scopes serialise as JSON.
+    """Path-expanded ids must be plain ``int`` so scopes serialize as JSON.
 
     Regression: ``GMNSGraph.shortest_path`` yields ``numpy.int64`` node ids;
-    the scope must normalise them at collection time (``json.dumps`` and
+    the scope must normalize them at collection time (``json.dumps`` and
     FastMCP both reject numpy scalars).
     """
     from netstead.scope import from_nodes

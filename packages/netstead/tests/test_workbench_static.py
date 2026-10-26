@@ -1,11 +1,13 @@
 """Static front-end checks: served, module graph consistent, JS syntax valid."""
 
+import os
 import re
 import shutil
 
 import pytest
 from fastapi.testclient import TestClient
 from netstead.workbench import Session, build_app
+from netstead.workbench.buildid import static_build_id
 from netstead.workbench.server import STATIC_DIR
 
 JS_DIR = STATIC_DIR / "js"
@@ -19,16 +21,57 @@ def client(tmp_path_factory):
     return TestClient(build_app(Session(project_dir=tmp, environ={"NETSTEAD_CONFIG_DIR": str(tmp / "u")})))
 
 
-def test_index_loads_main_module(client):
+def test_index_loads_main_module_from_the_versioned_prefix(client):
     html = client.get("/").text
-    assert '<script type="module" src="/static/js/main.js">' in html
-    assert "/static/app.css" in html
+    build_id = static_build_id(STATIC_DIR)
+    assert f'<script type="module" src="/static/b/{build_id}/js/main.js">' in html
+    assert f"/static/b/{build_id}/app.css" in html
+
+
+def test_index_references_only_versioned_local_paths(client):
+    refs = re.findall(r'(?:src|href)="(/[^"]*)"', client.get("/").text)
+    assert refs and all(r.startswith("/static/b/") for r in refs)
+
+
+def test_build_id_is_stable_and_follows_the_files(tmp_path):
+    (tmp_path / "a.js").write_text("one")
+    first = static_build_id(tmp_path)
+    assert static_build_id(tmp_path) == first and re.fullmatch(r"[0-9a-f]{10}", first)
+    (tmp_path / "a.js").write_text("three")  # size changes
+    changed = static_build_id(tmp_path)
+    assert changed != first
+    os.utime(tmp_path / "a.js", (1, 1))  # only the mtime changes
+    assert static_build_id(tmp_path) != changed
+    (tmp_path / "b.css").write_text("x")  # a new file
+    assert static_build_id(tmp_path) != changed
+
+
+def test_versioned_assets_are_immutable_and_unversioned_still_revalidate(client):
+    build_id = static_build_id(STATIC_DIR)
+    r = client.get(f"/static/b/{build_id}/js/main.js")
+    assert r.status_code == 200 and "javascript" in r.headers["content-type"]
+    assert r.headers["cache-control"] == "public, max-age=31536000, immutable"
+    assert client.get("/static/js/main.js").headers["cache-control"] == "no-cache"
+    assert client.get("/static/b/0000000000/js/main.js").status_code == 404
+
+
+def test_no_module_hardcodes_an_absolute_static_url():
+    for path in JS_DIR.glob("*.js"):
+        assert "/static/" not in path.read_text(), path.name
 
 
 @pytest.mark.parametrize("name", sorted(p.name for p in JS_DIR.glob("*.js")))
 def test_every_module_is_served_as_javascript(client, name):
     r = client.get(f"/static/js/{name}")
     assert r.status_code == 200 and "javascript" in r.headers["content-type"]
+    # Revalidated on every load, so an upgrade never pairs a cached old module with a fresh one.
+    assert r.headers["cache-control"] == "no-cache"
+
+
+def test_an_unchanged_module_revalidates_as_not_modified(client):
+    first = client.get("/static/js/main.js")
+    again = client.get("/static/js/main.js", headers={"if-none-match": first.headers["etag"]})
+    assert again.status_code == 304
 
 
 def test_relative_imports_resolve_to_real_exports():
@@ -104,6 +147,11 @@ def test_open_menu_lists_recents_from_the_pure_module_then_browse():
     html = (STATIC_DIR / "index.html").read_text()
     row = html[html.index("<header>") : html.index("</header>")]
     assert 'id="open-wizard"' in row and 'aria-haspopup="menu"' in row and 'aria-controls="open-menu"' in row
+    button = row[row.index('<button id="open-wizard"') : row.index("</button>", row.index('id="open-wizard"'))]
+    assert (
+        'class="iconbtn"' in button and 'data-tip="Open a network' in button and 'aria-label="Open a network"' in button
+    )
+    assert "Open…" not in button and 'data-icon="folder-open"' in button  # an icon, no text
     assert '<div id="open-menu" role="menu"' in html and 'id="open-browse"' in html
     header = (JS_DIR / "header.js").read_text()
     assert 'from "./recents.js"' in header and "recentEntries(" in header and "openWizard()" in header
@@ -190,8 +238,10 @@ def test_header_has_the_llm_picker_and_panel():
     for marker in ('id="nl-provider"', 'id="nl-model"', 'id="nl-dot"', 'id="nl-default"', 'id="nl-manage"'):
         assert marker in html
     assert 'id="llm-panel"' in html
-    # The picker sits under the utterance box and its Select / Ask buttons, in the Find panel's bar.
-    assert html.index('id="utterance"') < html.index('id="go"') < html.index('id="nl-picker"')
+    # The picker is a popover under the robot button in header row 1, not part of the Find panel's bar.
+    header = html[html.index("<header>") : html.index("</header>")]
+    assert 'id="nl-btn"' in header and 'aria-haspopup="dialog"' in header and 'id="nl-picker"' in header
+    assert 'id="nl-dot"' in header.split('id="nl-btn"', 1)[1].split('id="nl-picker"', 1)[0]
     main = (JS_DIR / "main.js").read_text()
     assert 'from "./llm.js"' in main and "llm:" in main  # wired, and subscribed to the `llm` SSE event
 
@@ -241,22 +291,53 @@ def test_settings_module_is_wired_from_main():
     assert 'from "./settings.js"' in main and "registerSection(" in main and "wireSettings()" in main
 
 
-def test_the_header_is_one_row_and_the_find_panel_holds_the_utterance_box_and_picker():
+def test_the_header_is_one_row_and_the_find_panel_holds_the_utterance_box_not_the_picker():
     html = (STATIC_DIR / "index.html").read_text()
     header = html[html.index("<header>") : html.index("</header>")]
     assert header.count('class="hrow"') == 1 and 'id="nl-row"' not in html
     for element_id in ("net-select", "open-wizard", "save-btn", "valid-light", "viewmode", "jobs-btn", "settings-btn"):
         assert f'id="{element_id}"' in header
     assert 'id="cmd-btn"' in header
-    for element_id in ("utterance", "nl-picker", "go", "ask"):
+    for element_id in ("utterance", "go", "ask"):
         assert f'id="{element_id}"' not in header
+    for element_id in ("nl-btn", "nl-picker", "nl-provider", "nl-model", "nl-default", "nl-manage"):
+        assert f'id="{element_id}"' in header
     bar = html[html.index('id="find-bar"') : html.index('id="status-wrap"')]
-    for element_id in ("utterance", "go", "ask", "nl-picker", "nl-provider", "nl-model"):
+    for element_id in ("utterance", "go", "ask"):
         assert f'id="{element_id}"' in bar
+    for element_id in ("nl-picker", "nl-provider", "nl-model"):
+        assert f'id="{element_id}"' not in bar
     selection = (JS_DIR / "selection.js").read_text()
     assert "barRoute(e)" in selection and '$("ask").onclick' in selection  # Enter selects; Ctrl/⌘+Enter asks
     header_js = (JS_DIR / "header.js").read_text()
     assert '$("utterance")' not in header_js and '$("go")' not in header_js
+
+
+def test_find_bar_has_the_offline_form_beside_the_free_text_box():
+    html = (STATIC_DIR / "index.html").read_text()
+    bar = html[html.index('id="find-bar"') : html.index('id="status-wrap"')]
+    for element_id in (
+        "find-form",
+        "find-pattern",
+        "find-street",
+        "find-from",
+        "find-to",
+        "find-type",
+        "find-ids",
+        "find-streets",
+        "find-cross",
+        "find-sentence",
+        "find-missing",
+        "utterance",
+    ):
+        assert f'id="{element_id}"' in bar
+    assert 'list="find-streets"' in bar and 'list="find-cross"' in bar
+    assert bar.index('id="find-form"') < bar.index('id="utterance"')
+    selection = (JS_DIR / "selection.js").read_text()
+    assert "findText()" in selection and 'type: "select", utterance' in selection
+    assert "setFindProvider(provider)" in (JS_DIR / "llm.js").read_text()
+    form = (JS_DIR / "findform.js").read_text()
+    assert "streets/crossing" in form and "table/link/distinct" in form
 
 
 def test_basemap_swaps_in_place_on_a_viz_setting():
@@ -322,7 +403,7 @@ def test_map_draws_every_layer_from_the_registry_in_the_old_order():
 
 def test_the_view_section_lists_overlays_from_the_registry():
     html = (STATIC_DIR / "index.html").read_text()
-    view = html[html.index('id="view-section"') : html.index("</details>")]
+    view = html[html.index('id="dock-view"') : html.index('id="dock-inspect"')]
     assert 'id="plugin-layers"' in view
     assert "export function renderPluginLayers(" in (JS_DIR / "panels.js").read_text()
 
@@ -331,7 +412,7 @@ def test_the_view_controls_live_in_the_find_panel_not_in_map_popovers():
     html = (STATIC_DIR / "index.html").read_text()
     for gone in ("layers-panel", "settings-panel", "btn-layers", "btn-settings"):
         assert f'id="{gone}"' not in html
-    view = html[html.index('id="view-section"') : html.index("</details>")]
+    view = html[html.index('id="dock-view"') : html.index('id="dock-inspect"')]
     for element_id in (
         "tg-links",
         "tg-nodes",
@@ -355,13 +436,16 @@ def test_the_view_controls_live_in_the_find_panel_not_in_map_popovers():
         "plugin-layers",
     ):
         assert f'id="{element_id}"' in view, element_id
-    find = html[html.index('id="dock-find"') : html.index('id="dock-inspect"')]
-    assert 'id="view-section"' in find and 'id="hl-set"' in find and 'id="anchors"' in find
+    find = html[html.index('id="dock-find"') : html.index('id="dock-view"')]
+    assert 'id="view-section"' not in html and 'id="tg-links"' not in find  # View has its own tab now
+    assert 'id="hl-set"' in find and 'id="anchors"' in find
+    for heading in ("Layers", "Color", "Width", "Direction", "Show only links where…"):
+        assert f"<summary>{heading}</summary>" in view
     panels = (JS_DIR / "panels.js").read_text()
     assert "node_color_by: e.target.value" in panels and "populateNodeColorby(" in panels
     assert "settings-panel" not in panels and "btn-layers" not in panels
     assert "renderLegend(s.server.style, s.prop, s.nodeProp)" in (JS_DIR / "main.js").read_text()
-    assert "buildNodeColors(" in (JS_DIR / "map.js").read_text()  # nodes take their colours from node_color_by
+    assert "buildNodeStyle(" in (JS_DIR / "map.js").read_text()  # nodes take their colors from node_color_by
 
 
 def test_the_dock_tabs_are_find_inspect_edit_cards_validate_assistant():
@@ -372,15 +456,18 @@ def test_the_dock_tabs_are_find_inspect_edit_cards_validate_assistant():
     for gone in ("dock-details", "dock-selection", "dock-issues", "dock-edits"):
         assert gone not in html
     registrations = {
-        "selection.js": 'addPanel(CORE, { id: "find", title: "Find", workspace: ALL_WORKSPACES, order: 0',
-        "workspaces.js": 'slots.addPanel(CORE, { id: "inspect", title: "Inspect", workspace: ALL_WORKSPACES, order: 10',
-        "edits.js": 'addPanel(CORE, { id: "edit", title: "Edit", workspace: ALL_WORKSPACES, order: 20',
-        "assistant.js": 'addPanel(CORE, { id: "assistant", title: "Assistant", workspace: ALL_WORKSPACES, order: 40',
+        "selection.js": 'title: "Find", icon: "search", workspace: ALL_WORKSPACES, order: 0',
+        "workspaces.js": 'title: "Inspect", icon: "info", workspace: ALL_WORKSPACES, order: 10',
+        "edits.js": 'title: "Edit", icon: "pencil", workspace: ALL_WORKSPACES, order: 20',
+        "assistant.js": 'title: "Assistant", icon: "message", workspace: ALL_WORKSPACES, order: 40',
     }
     for name, text in registrations.items():
         assert text in (JS_DIR / name).read_text(), name
     edits = (JS_DIR / "edits.js").read_text()
-    assert 'addPanel(CORE, { id: "validate", title: "Validate", workspace: ALL_WORKSPACES, order: 30' in edits
+    assert (
+        'addPanel(CORE, { id: "validate", title: "Validate", icon: "shield-check", workspace: ALL_WORKSPACES, order: 30'
+        in edits
+    )
     # Order 25 is the project-cards plugin's Cards tab: core reserves the bare id for it.
     assert 'RESERVED_IDS = { cards: "project_cards" }' in (JS_DIR / "slots.js").read_text()
     assert 'const CARDS_PANEL = "cards"' in edits and 'hub.on("core.panels", syncCardButton)' in edits
@@ -395,14 +482,14 @@ def test_the_dock_tabs_are_find_inspect_edit_cards_validate_assistant():
 
 def test_validate_groups_repeated_structural_findings_and_offers_zoom_to():
     issues = (JS_DIR / "issues.js").read_text()
-    assert 'from "./issuegroups.js"' in issues and "groupIssues(issues)" in issues and "groupSummary(g)" in issues
-    assert 'class="iss grp' in issues and 'aria-expanded="false"' in issues and 'class="iss-members"' in issues
+    assert 'from "./issuegroups.js"' in issues and "groupBlurb(g)" in issues and "issues/summary?" in issues
+    assert 'class="iss grp type' in issues and 'aria-expanded="false"' in issues and 'class="iss-members"' in issues
     assert (
         'icon("crosshair"' in issues
         and 'class="iconbtn iss-zoom" data-tip="Zoom to" aria-label="${esc(zoomLabel(i, where))}"' in issues
     )
-    assert 'listHTML(page.issues, "iss-list")' in issues and 'listHTML(unlocated.issues, "iss-unlocated")' in issues
-    assert "const id = `${prefix}-grp-${k}`" in issues  # group ids never collide across the two lists
+    # One list: unlocated findings sit in their type's group (no separate Unlocated section listing them again).
+    assert "iss-unlocated" not in issues and 'located: "no"' not in issues
     for zoom in ("fitLinks([a.link])", "flyToNode(a.node)", "flyTo(a.lonlat[0], a.lonlat[1])"):
         assert zoom in issues
     assert '"#dock-validate .iss[data-i]"' in issues and 'showPanel("validate")' in issues
@@ -417,6 +504,9 @@ def test_map_popovers_sit_over_the_map_not_inside_it():
     overlay = wrap[wrap.index('<div id="map-overlay">') :]
     for element_id in ("map-btns", "legend"):
         assert f'id="{element_id}"' in overlay and f'id="{element_id}"' not in map_el
+    buttons = overlay[overlay.index('<div id="map-btns">') : overlay.index('<div id="legend">')]
+    assert 'id="btn-view"' not in html and "wireViewButton" not in (JS_DIR / "main.js").read_text()
+    assert 'id="btn-fitnet"' in buttons
     assert 'id="boxsel"' in map_el  # the box-select rectangle is measured against the map
     css = (STATIC_DIR / "app.css").read_text()
     assert "#map-overlay { position:absolute; inset:0; z-index:3; pointer-events:none; }" in css
@@ -602,8 +692,9 @@ def test_issue_markers_and_validation_commands_use_the_slots():
     assert "registerIssueLayer()" in main and "registerEditCommands()" in main
     html = (STATIC_DIR / "index.html").read_text()
     pane = html[html.index('id="dock-validate"') : html.index('id="dock-assistant"')]
-    for element_id in ("iss-run", "iss-report", "iss-status", "iss-list", "iss-unlocated", "iss-fixer"):
+    for element_id in ("iss-run", "iss-report", "iss-status", "iss-list", "iss-fixer"):
         assert f'id="{element_id}"' in pane
+    assert 'id="iss-unlocated"' not in pane and 'id="iss-unloc-count"' not in pane
     assert 'id="iss-edit"' in html[html.index('id="dock-edit"') : html.index('id="dock-validate"')]  # warnings: Edit
     assert 'id="tg-issues"' not in html  # hidden through View → Overlays, not a toggle of its own
 
@@ -670,6 +761,33 @@ def test_the_find_panel_owns_the_selection_markup():
     assert 'id="anchors"' not in details and 'id="details"' in details and 'id="hl-set"' not in details
 
 
+def test_the_fragment_is_copied_not_downloaded_and_has_one_form_and_id_system_at_a_time():
+    html = (STATIC_DIR / "index.html").read_text()
+    pane = html.split('id="dock-find"', 1)[1].split("</section>", 1)[0]
+    assert 'id="sel-export-go"' not in pane and "Download" not in pane
+    box = pane.split('id="fragment-box"', 1)[1].split('id="fragment-caption"', 1)[0]
+    copy = re.search(r'<button id="fragment-copy"[^>]*>', box).group(0)
+    for attr in (
+        'class="iconbtn"',
+        'data-icon="copy"',
+        'data-tip="Copy"',
+        'aria-label="Copy the fragment"',
+        "disabled",
+    ):
+        assert attr in copy
+    assert box.index('id="fragment-copy"') < box.index('id="fragment"')
+    form = pane.split('id="sel-export-form"', 1)[1].split("</select>", 1)[0]
+    assert "Segment" in form and "Link list" in form
+    ids = pane.split('id="sel-export-ids"', 1)[1].split("</select>", 1)[0]
+    for label in ("GMNS (link_id, node_id)", "OpenStreetMap (osm_way_id, osm_node_id)", "Overture GERS (gers ids)"):
+        assert label in ids
+    js = (JS_DIR / "selection.js").read_text()
+    assert "sel-export-go" not in js and "navigator.clipboard.writeText" in js
+    css = (STATIC_DIR / "app.css").read_text()
+    assert re.search(r"#fragment-box \.iconbtn \{[^}]*position:absolute", css)
+    assert re.search(r"#fragment-box pre \{[^}]*padding-right", css)
+
+
 def test_the_selection_panel_escapes_what_the_server_sends():
     js = (JS_DIR / "selection.js").read_text()
     # Selection names, anchor details and candidate labels all reach innerHTML only through esc().
@@ -713,7 +831,7 @@ def test_the_assistant_panel_and_the_ask_button_exist():
         'id="as-usage"',
     ):
         assert el in pane
-    assert 'id="ask"' in html.split('id="find-bar"', 1)[1].split('id="nl-picker"', 1)[0]
+    assert 'id="ask"' in html.split('id="find-bar"', 1)[1].split('id="status-wrap"', 1)[0]
     js = (JS_DIR / "assistant.js").read_text()
     assert 'addPanel(CORE, { id: "assistant"' in js and "workspace: ALL_WORKSPACES" in js
     assert 'id: "ask_assistant", title: "Ask the assistant…"' in js
@@ -759,3 +877,152 @@ def test_column_filters_are_popovers_and_chips_not_header_inputs():
     assert 'from "./gridfilter.js"' in table and "TBL.filters.conditions()" in table
     assert 'icon("filter"' in table and 'class="iconbtn fbtn' in table and "data-tip=" in table
     assert 'tablePath("distinct")' in table
+
+
+def test_core_dock_panels_register_icons_and_tabs_render_them_with_tips():
+    expected = {
+        "selection.js": 'icon: "search"',
+        "workspaces.js": 'icon: "info"',
+        "edits.js": 'icon: "pencil"',
+        "assistant.js": 'icon: "message"',
+    }
+    for name, needle in expected.items():
+        assert needle in (JS_DIR / name).read_text(), name
+    assert 'icon: "shield-check"' in (JS_DIR / "edits.js").read_text()
+    ws = (JS_DIR / "workspaces.js").read_text()
+    assert 'data-tip="${esc(label)}"' in ws and "aria-label=" in ws and "Object.hasOwn(ICONS" in ws
+    icons = (JS_DIR / "icons.js").read_text()
+    for name in ("search", "info", "pencil", "cards", "shield-check", "message"):
+        assert f"{name}:" in icons or f'"{name}":' in icons, name
+    plugin = (STATIC_DIR.parents[4] / "plugins/project-cards/netstead_project_cards/static/main.js").read_text()
+    assert 'icon: "cards"' in plugin
+
+
+def test_build_form_has_mode_checkboxes_and_a_folder_chooser():
+    html = (STATIC_DIR / "index.html").read_text()
+    form = html.split('data-step="options"', 1)[1].split('data-step="run"', 1)[0]
+    assert 'id="opt-network-type"' not in form
+    for mode in ("roads", "paths"):
+        assert f'<input type="checkbox" data-mode="{mode}"' in form
+    assert 'data-mode="all"' not in form and 'data-mode="drive"' not in form
+    # The chooser's container, the chosen-path display and a hint all sit in the step, and the path starts unset.
+    for marker in ('id="opt-out-fb"', 'id="opt-outdir" class="unset"', 'id="opt-out-hint"'):
+        assert marker in form
+    wizard = (JS_DIR / "wizard.js").read_text()
+    assert (
+        "network_types: chosenModes()" in wizard
+        and "network_type:" not in wizard.split("function buildAction", 1)[1][:600]
+    )
+    assert "Boolean(wz.outDir)" in wizard  # Estimate stays disabled until a folder is chosen
+    assert (
+        "pickFolder" in (JS_DIR / "filebrowser.js").read_text()
+        and "data-use" in (JS_DIR / "filebrowser.js").read_text()
+    )
+
+
+def test_table_toolbar_has_the_related_steps_select():
+    html = (STATIC_DIR / "index.html").read_text()
+    bar = html.split('id="tbl-bar"', 1)[1].split('id="tbl-chips"', 1)[0]
+    assert 'id="tbl-hops-wrap" hidden' in bar and '<select id="tbl-hops"' in bar and "Expand a hop" not in html
+
+
+def test_wizard_has_extras_notice_slots_and_loads_them_read_only():
+    html = (STATIC_DIR / "index.html").read_text()
+    assert 'class="ex-slot" data-for="osm"' in html and 'class="ex-slot" data-for="overture"' in html
+    assert 'id="ap-place-note"' in html
+    wizard = (JS_DIR / "wizard.js").read_text()
+    assert 'getJSON("/api/extras")' in wizard and "noticeHTML" in wizard and "clipboard.writeText" in wizard
+
+
+def test_related_steps_control_has_an_info_popover():
+    html = (STATIC_DIR / "index.html").read_text()
+    wrap = html.split('id="tbl-hops-wrap"', 1)[1].split('id="tbl-chips"', 1)[0]
+    assert 'id="tbl-hops-info"' in wrap and 'data-icon="info"' in wrap and 'data-tip="What is Related?"' in wrap
+    assert 'id="tbl-hops-pop"' in wrap and 'aria-haspopup="dialog"' in wrap
+
+
+def test_the_view_tab_is_a_core_panel_right_after_find_and_edit_help_is_dismissible():
+    html = (STATIC_DIR / "index.html").read_text()
+    assert 'data-panel="view" role="tabpanel"' in html
+    panels = (JS_DIR / "panels.js").read_text()
+    assert 'id: "view", title: "View", icon: "sliders", workspace: ALL_WORKSPACES, order: 5' in panels
+    assert "registerViewPanel()" in (JS_DIR / "main.js").read_text()
+    assert "sliders:" in (JS_DIR / "icons.js").read_text()
+    edit = html[html.index('id="dock-edit"') : html.index('id="dock-validate"')]
+    for element_id in ("ed-help", "ed-help-hide", "ed-help-show"):
+        assert f'id="{element_id}"' in edit
+    assert 'data-tip="Hide this help"' in edit and 'data-tip="About this tab"' in edit
+    assert 'wireDismissibleHelp($("ed-help"), helpKey("edit")' in (JS_DIR / "edits.js").read_text()
+
+
+def test_view_sections_are_disclosures_that_keep_their_control_ids():
+    html = (STATIC_DIR / "index.html").read_text()
+    view = html[html.index('id="dock-view"') : html.index('id="dock-inspect"')]
+    for sec in ("layers", "color", "width", "direction", "filter"):
+        assert f'<details class="vsec" data-sec="{sec}" open><summary>' in view
+    assert "<summary>Show only links where…</summary>" in view
+    assert "the data is not changed" in view
+    for element_id in (
+        "col-links",
+        "col-nodes",
+        "col-selection",
+        "colorby",
+        "node-colorby",
+        "flt-apply",
+        "plugin-layers",
+    ):
+        assert f'id="{element_id}"' in view
+    assert "wb.view.sections" in (JS_DIR / "viewmodel.js").read_text()
+
+
+def test_overlay_rows_carry_a_description_from_the_registry():
+    assert "l.description" in (JS_DIR / "panels.js").read_text()
+    assert "description = null" in (JS_DIR / "layers.js").read_text()
+    for module in ("issues.js", "selection.js"):
+        assert "description:" in (JS_DIR / module).read_text()
+
+
+def test_map_picks_through_the_node_first_priority_helper():
+    src = (JS_DIR / "map.js").read_text()
+    assert "pickPriority(" in src
+    assert "pickable: style.show.links" in src and "pickable: style.show.nodes" in src
+
+
+def test_the_robot_shows_status_by_color_and_dot_shape():
+    css = (STATIC_DIR / "app.css").read_text()
+    llm = (JS_DIR / "llm.js").read_text()
+    for state in ("ready", "offline", "unavailable"):
+        assert f"#nl-btn.llm-{state}" in css and f"#nl-btn .dot.llm-{state}" in css
+    assert "llmStatus(" in llm and "btn.className = `iconbtn llm-${status.state}`" in llm
+    assert "import " not in (JS_DIR / "llmstatus.js").read_text()  # pure
+
+
+def test_validate_groups_by_type_from_the_summary_and_labels_its_facets():
+    issues = (JS_DIR / "issues.js").read_text()
+    # groups come from the whole set (the summary), never from a page; members load per group on expand
+    assert "issues/summary?" in issues and "orderGroups(summary.groups)" in issues
+    assert 'class="iss grp type' in issues and "loadMembers(key)" in issues and "MEMBER_PAGE" in issues
+    assert '"All types"' in issues and "typeOptionLabel(c, n)" in issues
+    html = (STATIC_DIR / "index.html").read_text()
+    pane = html[html.index('id="dock-validate"') : html.index('id="dock-assistant"')]
+    for label, select in (("Severity", "iss-sev"), ("Table", "iss-table"), ("Type", "iss-code")):
+        assert f'<label class="iss-facet"><span>{label}</span><select id="{select}">' in pane
+    assert "iss-prev" not in pane and "iss-next" not in pane  # no page to turn: members have "Show more"
+
+
+def test_wizard_back_is_a_header_chevron_and_the_first_step_has_no_footer():
+    html = (STATIC_DIR / "index.html").read_text()
+    head = html[html.index('id="wizard"') :]
+    assert head.index('id="wz-back"') < head.index('id="wz-title"') < head.index('id="wz-foot"')
+    assert 'id="wz-back" data-icon="chevron-left" data-tip="Back" aria-label="Back" hidden' in html
+    wizard = (JS_DIR / "wizard.js").read_text()
+    assert '$("wz-back").hidden = wz.step === "source"' in wizard
+    assert '$("wz-foot").hidden = wz.step === "source"' in wizard
+    assert '"chevron-left"' in (JS_DIR / "icons.js").read_text()
+
+
+def test_a_finding_group_can_show_all_its_links_on_the_map():
+    issues = (JS_DIR / "issues.js").read_text()
+    assert 'data-tip="Show all on the map"' in issues and "issues/anchors?" in issues
+    assert "store.set({ highlights: new Set(a.links) }); fitLinks(a.links);" in issues
+    assert "g.located > 0" in issues  # no button for a type that has nothing on the map

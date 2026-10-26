@@ -120,7 +120,7 @@ class EditResult:
     session_id: str | None = None
 
     def _repr_html_(self) -> str:
-        """Render a Jupyter-friendly card summarising the edit result.
+        """Render a Jupyter-friendly card summarizing the edit result.
 
         Header carries the op + target table; the body shows the
         ``+added | -removed | ~changed`` diff line, the session id (if

@@ -14,6 +14,7 @@ from pydantic import ValidationError
 from .card import DraftCard, read_card_file
 from .catalog import Catalog, CatalogEntry, applicability, scan_catalog
 from .errors import CardError, CardNotSupported, not_supported
+from .facility import FORMS, GERS_REFUSAL, OSM_KEY, resolve_osm
 from .lower import Pending, describe
 from .mapping import FieldMap
 from .state import CardsState
@@ -22,18 +23,22 @@ from .types import TRANSIT_TYPES, NetworkChange, RoadwayDeletion, RoadwayPropert
 from .validate import card_problems
 
 __all__ = [
+    "APPLY_OFF",
     "SELECTABLE",
+    "apply_enabled",
     "as_action_errors",
     "catalog_entry",
     "check_card_shape",
     "check_entries",
     "complete_change",
+    "facility_options",
     "load_catalog",
     "open_handle",
     "pending_seqs",
     "refuse_transit",
     "selection_facility",
     "selection_networks",
+    "selection_options",
     "summary_text",
     "target_network",
 ]
@@ -86,6 +91,15 @@ def pending_seqs(host: Host, state: CardsState, net_id: str) -> Pending:
     return Pending(seqs, pending.issued, generation)
 
 
+#: What ``project_cards.apply_card`` says while ``enable_apply`` is off.
+APPLY_OFF = "applying cards is turned off (plugins.project_cards.enable_apply)"
+
+
+def apply_enabled(host: Host) -> bool:
+    """Whether ``[plugins.project_cards] enable_apply`` is on (applying catalog cards to a network; off by default)."""
+    return bool(getattr(host.settings, "enable_apply", False))
+
+
 def target_network(host: Host, state: CardsState, net_id: str | None) -> str:
     """The network a change goes to: ``net_id``, else the active one; an open preview stands for its base.
 
@@ -126,15 +140,10 @@ def selection_networks(host: Host, state: CardsState, net: str) -> frozenset[str
     return frozenset({net, preview.net_id})
 
 
-def selection_facility(
+def _selection_payload(
     host: Host, nets: frozenset[str], *, use_selection: bool, saved: str | None
-) -> tuple[Selection, list[str]]:
-    """The facility the shared (or a saved) selection on one of ``nets`` gives, and its warnings.
-
-    A click-pick becomes its link ids with ``ignore_missing`` false (a fix aimed at specific links fails loudly when
-    one is gone). A query becomes its query with the link ids it resolved to as provenance, keeping the intent's
-    ``ignore_missing`` (true, Wrangler's default, when the query has none) for both the card and the lowering.
-    """
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """``(payload, projectcard forms)`` of the shared (or a saved) selection, on one of ``nets`` and resolved."""
     if use_selection:
         payload: dict[str, Any] | None = host.selection
         where = "the selection"
@@ -151,36 +160,112 @@ def selection_facility(
     forms = payload.get("projectcard")
     if payload.get("status") != "resolved" or not forms:
         raise CardError(f"{where} is not resolved; pin its anchors first")
-    ids = list(payload["link_ids"])
-    if forms["picked"]:
-        selection = Selection(ids=ids, ignore_missing=False)
-    else:
-        query = copy.deepcopy(forms["query"])
+    return payload, forms
+
+
+def facility_options(forms: dict[str, Any]) -> dict[str, Any]:
+    """What a selection's facility may be written as, from its ``host.selection["projectcard"]`` forms.
+
+    ``forms`` and ``id_systems`` each map a choice to ``None`` (it works) or why not (a tooltip); ProjectCard has no
+    key for GERS ids, so that system always says so. ``form`` and ``id_system`` are the defaults: a click or box
+    selection is a Link list, a named one a Segment; both in GMNS ids.
+    """
+    systems = {**forms["id_systems"], "gers": GERS_REFUSAL}
+    problem = forms["segment_problem"]
+    return {
+        "forms": {"segment": problem, "link_list": None},
+        "id_systems": systems,
+        "form": "link_list" if forms["picked"] or problem else "segment",
+        "id_system": "gmns",
+        "picked": bool(forms["picked"]),
+    }
+
+
+def selection_options(host: Host, nets: frozenset[str], *, use_selection: bool, saved: str | None) -> dict[str, Any]:
+    """:func:`facility_options` of the shared (or a saved) selection on one of ``nets``."""
+    return facility_options(_selection_payload(host, nets, use_selection=use_selection, saved=saved)[1])
+
+
+def _choice(options: dict[str, Any], form: str | None, id_system: str) -> tuple[str, str]:
+    """The form and id system to write, refusing (``CardError``) one that is unavailable, with the reason."""
+    chosen = form or options["form"]
+    if chosen not in FORMS:
+        raise CardError(f"facility_form is segment or link_list, not {chosen!r}")
+    if id_system not in options["id_systems"]:
+        raise CardError(f"id_system is gmns or osm, not {id_system!r}")
+    for reason in (options["forms"][chosen], options["id_systems"][id_system]):
+        if reason:
+            raise CardError(reason)
+    return chosen, id_system
+
+
+def selection_facility(
+    host: Host,
+    nets: frozenset[str],
+    *,
+    use_selection: bool,
+    saved: str | None,
+    form: str | None = None,
+    id_system: str = "gmns",
+) -> tuple[Selection, list[str]]:
+    """The facility the shared (or a saved) selection on one of ``nets`` gives, and its warnings.
+
+    ``form`` is ``segment`` (the name/ref with the from/to anchors, applied to the link ids it resolved to, which are
+    the provenance a re-import reads) or ``link_list`` (ids only; ``ignore_missing`` false: a fix aimed at specific
+    links fails loudly when one is gone). By default a click or box selection is a Link list and a named one a
+    Segment. ``id_system`` is ``gmns`` or ``osm``: OpenStreetMap ids cover every link of a way, so a Link list in them
+    resolves to those links on the network (a warning says when that is more than were selected). GERS is refused.
+    """
+    payload, forms = _selection_payload(host, nets, use_selection=use_selection, saved=saved)
+    form, id_system = _choice(facility_options(forms), form, id_system)
+    warnings = list(payload.get("warnings") or [])
+    if form == "segment":
+        query = copy.deepcopy(forms["segment"][id_system])
         query.setdefault("links", {}).setdefault("ignore_missing", True)  # written explicitly, as the schema requires
-        selection = Selection(query=query, resolved=ids)  # its ignore_missing follows the query's
-    return selection, list(payload.get("warnings") or [])
+        return Selection(query=query, resolved=list(payload["link_ids"]), id_system=id_system), warnings
+    card_ids = forms["link_list"][id_system]["links"]
+    if id_system == "gmns":
+        return Selection(ids=list(payload["link_ids"]), ignore_missing=False), warnings
+    ways = [str(i) for i in card_ids[OSM_KEY["link"]]]
+    keys, _ = resolve_osm(host.network(payload["net_id"]).links_df(), "link", ways)
+    return Selection(ids=ways, id_system="osm", resolved=keys, ignore_missing=False), [
+        *warnings,
+        *forms["id_captions"].get("osm", []),
+    ]
 
 
 def complete_change(
-    host: Host, nets: frozenset[str], change: NetworkChange, use_selection: bool, saved: str | None
+    host: Host,
+    nets: frozenset[str],
+    change: NetworkChange,
+    use_selection: bool,
+    saved: str | None,
+    form: str | None = None,
+    id_system: str = "gmns",
 ) -> tuple[NetworkChange, list[str]]:
     """``change`` with its targets taken from the shared (or a saved) selection when asked, and its warnings.
 
-    ``nets`` are the networks the selection may be on (:func:`selection_networks`).
+    ``nets`` are the networks the selection may be on (:func:`selection_networks`); ``form`` and ``id_system`` say how
+    a property change's facility is written (:func:`selection_facility`). A deletion takes GMNS link ids.
     """
     if not use_selection and saved is None:
         return change, []
     if change.type not in SELECTABLE:
         raise CardError(f"{change.type} does not take a selection")
-    selection, warnings = selection_facility(host, nets, use_selection=use_selection, saved=saved)
     if isinstance(change, RoadwayDeletion):
         if change.links or change.nodes:
             raise CardError("give the links to delete or use a selection, not both")
+        if id_system != "gmns":
+            raise CardError("a roadway_deletion takes the selection's links by GMNS link_id")
+        selection, warnings = selection_facility(host, nets, use_selection=use_selection, saved=saved, form=form)
         # A pick's links fail loudly when one is gone; a query's follow its ignore_missing, as a property change does.
         update = {"links": selection.target_ids(), "ignore_missing": selection.ignore_missing}
         return change.model_copy(update=update), warnings
     if not isinstance(change, RoadwayPropertyChange) or change.facility is not None:
         raise CardError("give a facility or use a selection, not both")
+    selection, warnings = selection_facility(
+        host, nets, use_selection=use_selection, saved=saved, form=form, id_system=id_system
+    )
     return change.model_copy(update={"facility": selection}), warnings
 
 
@@ -222,16 +307,23 @@ def check_entries(host: Host, state: CardsState, net: str, entries: Sequence[Cat
     """Compute and store each entry's applicability on the open network ``net`` (read once); return the results.
 
     Each result is :func:`~netstead_project_cards.catalog.applicability`'s dict plus the ``net_id`` and ``version``
-    it was computed on. Nothing is mutated.
+    it was computed on. With ``enable_apply`` on, a card this session already put on ``net`` does not fit ("already
+    applied ..."): applying it again would apply it twice. Nothing is mutated.
     """
     handle = host.network(net)
     version = handle.version  # before the frames (cached per version): a result never claims a newer version
     links, nodes = handle.links_df(), handle.nodes_df()
+    applying = apply_enabled(host)
     results = []
     for entry in entries:
         result = {**applicability(entry.card, links, nodes), "net_id": net, "version": version}
+        if applying and (done := state.applied_card(net, entry.path)) is not None:  # a pill alone would hide that
+            result["ok"] = False
+            result["reason"] = f"already applied on {net} at {done.applied_at[11:16]}"
         state.set_applicability(entry, result)
         results.append(result)
+    if results:  # the catalog table (cards_catalog) is read again: its fits column moved
+        host.publish("checked", {"net_id": net, "cards": [e.card_id for e in entries]})
     return results
 
 
@@ -250,4 +342,5 @@ def summary_text(host: Host, state: CardsState, net_id: str | None) -> str:
     card = state.card(net) if net is not None else None
     draft = {"project": card.project, "changes": [describe(c) for c in card.changes]} if card is not None else None
     applied = [a.to_dict() for a in state.applied]
-    return build_summary(network, applied, draft, host.history("project_cards."), datetime.now(UTC))
+    history = host.history("project_cards.")
+    return build_summary(network, applied, draft, history, datetime.now(UTC), files=[dict(f) for f in state.files])

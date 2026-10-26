@@ -52,17 +52,26 @@ def test_a_pick_is_applied_recorded_and_drafted(session):
         "query": None,
         "resolved": None,
         "ignore_missing": False,
+        "id_system": "gmns",
     }  # a pick is written by id, ignore_missing false
     assert session.edits[NET].last().source == "project_cards"
-    assert session.network(NET).lineage[-1] == "project_cards: roadway_property_change link 1: free_speed 40 → 30"
+    assert (
+        session.network(NET).lineage[-1]
+        == "project_cards: roadway_property_change Link list: 1 link (GMNS): free_speed 40 → 30"
+    )
     assert session.history[-1].imports == "from netstead_project_cards.actions import AddChange"
     assert draft(session) == {
         "project": "",
+        "tags": [],
+        "dependencies": {"prerequisites": [], "corequisites": [], "conflicts": []},
+        "notes": None,
+        "source": None,
         "count": 1,
         "changes": [
             {
+                "index": 0,
                 "type": "roadway_property_change",
-                "describe": "roadway_property_change link 1: free_speed 40 → 30",
+                "describe": "roadway_property_change Link list: 1 link (GMNS): free_speed 40 → 30",
                 "steps": 1,
             }
         ],
@@ -271,13 +280,23 @@ READ_ONLY = {
     "project_cards.check_card",
     "project_cards.session_summary",
 }
+#: The catalog file Actions change files, not a network (``mutates`` false), and are never offered to the assistant.
+FILE_ACTIONS = {
+    "project_cards.rename_card",
+    "project_cards.duplicate_card",
+    "project_cards.delete_card",
+    "project_cards.restore_card",
+    "project_cards.update_card_meta",
+}
 
 
 def test_every_cards_action_that_changes_something_is_drafted_by_the_assistant(session):
     # The catalog Actions and the summary change no network, preview or file: the assistant may just call them.
     types = {t for t in session.actions.types() if t.startswith("project_cards.")}
-    assert types > READ_ONLY
-    assert {t for t in types if session.actions.model(t).mutates} == types - READ_ONLY
+    assert types > READ_ONLY | FILE_ACTIONS
+    assert {t for t in types if session.actions.model(t).mutates} == types - READ_ONLY - FILE_ACTIONS
+    # apply_card is never offered: enable_apply is per session, the assistant's tool list per Action class.
+    assert {t for t in types if not session.actions.model(t).assistant} == FILE_ACTIONS | {"project_cards.apply_card"}
 
 
 def test_a_replayed_session_reproduces_the_network(session, make_session):

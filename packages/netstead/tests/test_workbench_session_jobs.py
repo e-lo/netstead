@@ -104,7 +104,7 @@ def test_cancel_open_before_register(make_session, rdu_source, monkeypatch):
     session.jobs.cancel(job.id)
     release.set()
     assert job.wait(WAIT)
-    assert session.jobs.snapshot(job)["status"] == "cancelled"
+    assert session.jobs.snapshot(job)["status"] == "canceled"
     assert session.history[-1].error_type == "JobCancelled" and len(session.registry) == 0
 
 
@@ -335,6 +335,26 @@ def test_build_from_local_osm_writes_then_opens_from_disk(make_session, out_dir)
     assert result["threshold_s"] == 90 and result["approval"] == "not_needed"
     assert "approved=True" in entry.python and "input_file=" in entry.python
     assert session.jobs.snapshots()[0]["label"] == "build tiny"
+
+
+def test_build_from_local_osm_with_several_network_types_keeps_the_union(make_session, out_dir):
+    session = make_session()
+
+    def link_count(name, **kw):
+        action = BuildNetwork(
+            source="osm", input_file=OSM_FILE, output_dir=out_dir, output_format="parquet", name=name, **kw
+        )
+        return len(session.registry.get(session.dispatch(action)["net_id"]).links_df())
+
+    roads = link_count("roads-only")
+    assert link_count("roads-paths", network_types=["roads", "paths"]) > roads  # the footway joins the residential way
+
+
+def test_area_build_sends_the_union_of_modes_to_overpass(make_session, out_dir):
+    http = FakeOverpass(ways=10)
+    make_session(http=http).dispatch(_bbox_build(out_dir, network_types=["roads", "paths"]))
+    body = http.queries[-1]
+    assert "footway" in body and "motorway" in body
 
 
 def test_build_from_local_overture_snapshot_to_duckdb(make_session, out_dir):
@@ -589,7 +609,7 @@ def test_cancel_during_write_removes_the_staged_output(make_session, out_dir, mo
     assert len(list(Path(out_dir).iterdir())) == 1  # the hidden staging folder, fully written
     session.jobs.cancel(job.id)
     release.set()
-    assert job.wait(WAIT) and session.jobs.snapshot(job)["status"] == "cancelled"
+    assert job.wait(WAIT) and session.jobs.snapshot(job)["status"] == "canceled"
     assert list(Path(out_dir).iterdir()) == [] and len(session.registry) == 0
 
 

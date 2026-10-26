@@ -8,6 +8,7 @@ import { hub } from "./hub.js";
 import { ALL_WORKSPACES, CORE, panelsFor, slots } from "./slots.js";
 import { store } from "./store.js";
 import { currentViewMode, savedViews, setViewMode } from "./table.js";
+import { ICONS, icon } from "./icons.js";
 import { nextIndex, normalizeBadge, stripVisibility, tabLabel, viewFor, workspaceBadge } from "./tabs.js";
 
 const WS_KEY = "netstead.workspace";
@@ -20,7 +21,7 @@ const paneFor = id => document.getElementById(`dock-${id}`);
 
 export function registerCoreSlots() {
   slots.addWorkspace(CORE, { id: "inspect", title: "Inspect", order: 0 });
-  slots.addPanel(CORE, { id: "inspect", title: "Inspect", workspace: ALL_WORKSPACES, order: 10 }); // adopts #dock-inspect
+  slots.addPanel(CORE, { id: "inspect", title: "Inspect", icon: "info", workspace: ALL_WORKSPACES, order: 10 }); // adopts #dock-inspect
 }
 
 export function addWorkspace(owner, spec) {
@@ -98,14 +99,19 @@ function badgeOf(item) {
   try { return normalizeBadge(item.badge(ctx)); } catch (e) { report(item.owner, "badge", e); return null; }
 }
 
-const badgeHTML = b => (b && b.text ? ` <span class="pcount">${esc(b.text)}</span>` : "") +
-  (b && b.dirty ? ' <span class="dirty" aria-hidden="true">●</span>' : "");
+// One pill per badge: its count, orange ("warn") when something is unsaved; a dirty badge with no count is a dot.
+const badgeTone = b => (b.tone === "error" ? " error" : b.dirty || b.tone === "warn" ? " warn" : "");
+const badgeHTML = b => (b && !b.quiet ? ` <span class="pcount${badgeTone(b)}" aria-hidden="true">${esc(b.text)}</span>` : "");
 
 // Every plugin-supplied string (id, title, badge) is escaped.
 function tabHTML(prefix, item, selected, badge, controls) {
+  const iconic = prefix === "dtab" && typeof item.icon === "string" && Object.hasOwn(ICONS, item.icon);
+  const label = tabLabel(String(item.title), badge);
+  const body = iconic ? `${icon(item.icon, { size: 18 })}${badgeHTML(badge)}` : `${esc(item.title)}${badgeHTML(badge)}`;
   return `<button role="tab" id="${prefix}-${esc(item.id)}" data-id="${esc(item.id)}" aria-selected="${selected}" ` +
-    `aria-controls="${esc(controls)}" tabindex="${selected ? 0 : -1}" aria-label="${esc(tabLabel(String(item.title), badge))}"` +
-    `${selected ? ' class="on"' : ""}>${esc(item.title)}${badgeHTML(badge)}</button>`;
+    `aria-controls="${esc(controls)}" tabindex="${selected ? 0 : -1}" aria-label="${esc(label)}"` +
+    `${iconic ? ` data-tip="${esc(label)}"` : ""}${selected || iconic ? ` class="${[selected ? "on" : "", iconic ? "icontab" : ""].join(" ").trim()}"` : ""}>` +
+    `${body}</button>`;
 }
 
 // Redraw a strip without losing keyboard focus from the tab that had it (state arrives while a user tabs around).

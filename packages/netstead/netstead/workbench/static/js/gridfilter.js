@@ -18,7 +18,7 @@ const CHIP_VALUES = 4; // values shown on a chip before "+n"
 
 const isNum = v => typeof v === "number" && Number.isFinite(v);
 
-// `spec`, normalised, or an Error naming what is wrong with it (the popover shows the message as a toast).
+// `spec`, normalized, or an Error naming what is wrong with it (the popover shows the message as a toast).
 function check(spec) {
   if (!spec || typeof spec !== "object") throw new Error("A filter needs a kind");
   const { kind } = spec;

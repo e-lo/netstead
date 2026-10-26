@@ -71,7 +71,7 @@ def bench_build(node_recs, link_recs):
 
     def _run():
         net = build.network_from_records(node_recs, link_recs)
-        # Force materialisation so timing reflects real work, not laziness.
+        # Force materialization so timing reflects real work, not laziness.
         return net.nodes.count(), net.links.count()
 
     (nodes, links), seconds, peak_mb = _timed(_run)

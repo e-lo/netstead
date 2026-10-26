@@ -71,6 +71,7 @@ def test_scan_lists_cards_one_level_deep_and_reports_what_is_not_a_card(folder, 
         "tags": ["fix"],
         "change_count": 2,
         "applicability": None,
+        "fit": {"state": "unchecked", "label": "Not checked", "reasons": [], "warnings": [], "net_id": None},
     }
 
 
@@ -91,8 +92,18 @@ def test_a_card_whose_ids_exist_applies(frames):
     assert got == {
         "ok": True,
         "changes": [
-            {"describe": "roadway_property_change link 1: lanes → 3", "resolved": 1, "missing": [], "reason": None},
-            {"describe": "roadway_property_change link 2, 3: lanes → 3", "resolved": 2, "missing": [], "reason": None},
+            {
+                "describe": "roadway_property_change Link list: 1 link (GMNS): lanes → 3",
+                "resolved": 1,
+                "missing": [],
+                "reason": None,
+            },
+            {
+                "describe": "roadway_property_change Link list: 2 links (GMNS): lanes → 3",
+                "resolved": 2,
+                "missing": [],
+                "reason": None,
+            },
         ],
     }
 
@@ -114,7 +125,7 @@ def test_a_query_without_provenance_has_a_reason(frames):
     with_provenance = unresolved.model_copy(update={"facility": Selection(query=QUERY, resolved=[1, 5, 999999])})
     got = applicability(DraftCard(project="q", changes=[with_provenance]), *frames)
     assert got["ok"] is True and got["changes"][0] == {
-        "describe": "roadway_property_change link 1, 5, 999999: lanes → 2",
+        "describe": "roadway_property_change Segment: Benton Street (GMNS): lanes → 2",
         "resolved": 2,
         "missing": [999999],  # the query's ignore_missing is true: skipped, not refused
         "reason": None,

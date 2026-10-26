@@ -320,16 +320,36 @@ def test_record_issues_and_the_status_line(node_module):
     )
     assert line == "Validated v2: 272 warnings, 16 info · the network changed since: re-run"
     assert node_module("issuelist.js", ["statusLine"], "statusLine(null)") == "Not validated yet."
-    assert node_module("issuelist.js", ["rangeLabel"], "rangeLabel(100, 50, 288)") == "101\u2013150 of 288"
 
 
-def test_the_issues_badge_counts_issues_and_edit_warnings(node_module):
-    assert node_module("issuelist.js", ["issuesBadge"], f"issuesBadge({STATE})") == 10  # 6 issues + 4 warnings
-    assert node_module(
-        "issuelist.js", ["issuesBadge"], '[issuesBadge({active: "b", edits: {}}), issuesBadge(null)]'
-    ) == [
-        None,
-        None,
+def test_the_issues_badge_counts_what_needs_attention(node_module):
+    # errors win (red pill); info is never counted, but the tooltip lists everything
+    assert node_module("issuelist.js", ["issuesBadge"], f"issuesBadge({STATE})") == {
+        "text": "1",
+        "tone": "error",
+        "dirty": False,
+        "title": "1 error, 6 warnings, 3 info",  # 2 validation warnings + 4 live edit warnings
+    }
+
+
+def test_the_issues_badge_falls_back_to_warnings_then_quiet(node_module):
+    def state(counts):
+        return f'{{active: "a", issues: {{a: {{version: 1, counts: {counts}}}}}, edits: {{a: {{}}}}}}'
+
+    expr = (
+        f"[issuesBadge({state('{error: 0, warning: 271, info: 16}')}),"
+        f" issuesBadge({state('{error: 0, warning: 0, info: 16}')}),"
+        f" issuesBadge({state('{error: 3, warning: 1, info: 16}')}),"
+        f" issuesBadge({state('{error: 0, warning: 0, info: 0}')}),"
+        " issuesBadge({active: 'b', edits: {}}), issuesBadge(null)]"
+    )
+    assert node_module("issuelist.js", ["issuesBadge"], expr) == [
+        {"text": "271", "tone": "warn", "dirty": False, "title": "271 warnings, 16 info"},
+        {"quiet": True, "dirty": False, "title": "16 info"},  # info alone raises no pill
+        {"text": "3", "tone": "error", "dirty": False, "title": "3 errors, 1 warning, 16 info"},
+        {"quiet": True, "dirty": False, "title": "clean"},
+        {"quiet": True, "dirty": False, "title": "not run yet"},
+        {"quiet": True, "dirty": False, "title": "not run yet"},
     ]
 
 
@@ -461,7 +481,11 @@ def test_pending_lines_badges_and_undo(node_module):
     panel = node_module(
         "editmodel.js", ["editsBadge"], f'[editsBadge({STATE}), editsBadge({{...{STATE}, active: "b"}})]'
     )
-    assert panel == [{"text": "2", "dirty": True, "title": "2 unsaved"}, None]
+    assert panel == [{"text": "2", "dirty": True, "title": "2 unsaved edits"}, None]
+    one = node_module(
+        "editmodel.js", ["editsBadge"], 'editsBadge({active: "a", edits: {a: {dirty: true, unsaved: 1}}})'
+    )
+    assert one["title"] == "1 unsaved edit"
     blocked = node_module(
         "editmodel.js",
         ["undoBlocked"],
@@ -607,12 +631,50 @@ def test_export_choices_follow_status_and_kind(node_module):
     assert lost["resolved"] is False and lost["reason"] == "Nothing was found to export."
 
 
+def test_export_choice_falls_back_to_what_the_selection_allows(node_module):
+    options = {
+        "forms": {"segment": "This selection has no named segment; use Link list", "link_list": None},
+        "id_systems": {"gmns": None, "osm": None, "gers": "no column"},
+    }
+    expr = (
+        f"[validChoice({json.dumps(options)}, {{form: 'segment', ids: 'gers'}}),"
+        f" validChoice({json.dumps(options)}, {{form: 'link_list', ids: 'osm'}}),"
+        " validChoice({}, {form: 'segment', ids: 'osm'})]"
+    )
+    assert node_module("selectmodel.js", ["validChoice"], expr) == [
+        {"form": "link_list", "ids": "gmns"},
+        {"form": "link_list", "ids": "osm"},
+        {"form": "segment", "ids": "osm"},
+    ]
+
+
+def test_export_params(node_module):
+    expr = (
+        "[exportParams({what: 'fragment', form: 'segment', ids: 'osm'}),"
+        " exportParams({what: 'projectcard', form: 'link_list', ids: 'gmns', name: 'two links'})]"
+    )
+    assert node_module("selectmodel.js", ["exportParams"], expr) == [
+        "what=fragment&form=segment&id_system=osm",
+        "what=projectcard&form=link_list&id_system=gmns&name=two+links",
+    ]
+
+
 def test_selection_badge(node_module):
     expr = (
         f"[selectionBadge({json.dumps(SEL)}), selectionBadge({json.dumps({**SEL, 'status': 'resolved'})}),"
         " selectionBadge(null)]"
     )
-    assert node_module("selectmodel.js", ["selectionBadge"], expr) == ["?", 2, None]
+    assert node_module("selectmodel.js", ["selectionBadge"], expr) == [
+        {"text": "?", "dirty": False, "title": "an anchor is ambiguous"},
+        {"text": "2", "dirty": False, "title": "2 selected links"},
+        None,
+    ]
+    one = node_module(
+        "selectmodel.js",
+        ["selectionBadge"],
+        f"selectionBadge({json.dumps({**SEL, 'status': 'resolved', 'link_ids': [7]})})",
+    )
+    assert one["title"] == "1 selected link"
 
 
 def test_link_widths_scale_a_numeric_property(node_module):
@@ -915,12 +977,17 @@ def test_arrow_pixel_offset_follows_the_right_hand_offset_line(node_module):
     assert off(0, 1, 10) == [8, 0]  # northbound: right is east
     assert off(90, 1, 10) == [0, -8]  # westbound: right is north
     assert off(180, 1, 5) == [-4, 0]  # southbound: right is west
-    assert off(-90, 0, 10) == [0, 0]  # offsets off: on the centreline
+    assert off(-90, 0, 10) == [0, 0]  # offsets off: on the centerline
 
 
 @pytest.mark.parametrize(("zoom", "size"), [(12, 8), (13, 8), (14, 10), (15, 12), (18, 18), (22, 18)])
 def test_arrow_size_grows_with_zoom_between_8_and_18_px(node_module, zoom, size):
     assert node_module("netbuf.js", ["arrowSize"], f"arrowSize({zoom})") == size
+
+
+@pytest.mark.parametrize(("zoom", "scale"), [(8, 0.4), (11, 0.4), (12.5, 0.7), (14, 1), (18, 1)])
+def test_node_markers_shrink_when_zoomed_out(node_module, zoom, scale):
+    assert node_module("netbuf.js", ["nodeRadiusScale"], f"nodeRadiusScale({zoom})") == pytest.approx(scale)
 
 
 # ---- gridfilter.js: the table's per-column filter model and its chip text ----
@@ -989,7 +1056,7 @@ def test_grid_filter_remove_clear_get_and_a_replaced_column(node_module):
         ('{kind: "set", mode: "any_of", values: [], listLike: true}', "value"),
         ('{kind: "set", mode: "all_of", values: ["a"], listLike: false}', "all of"),
         ('{kind: "text", val: "  "}', "text"),
-        ('{kind: "colour"}', "kind"),
+        ('{kind: "color"}', "kind"),
     ],
 )
 def test_grid_filter_refuses_a_malformed_spec(node_module, spec, message):
@@ -1178,12 +1245,12 @@ def test_validity_error_warn_and_clean_with_plurals(node_module):
     }
 
 
-# ---- palette.js: node colours follow the links' palette rules
+# ---- palette.js: node colors follow the links' palette rules
 
 _NODE_STYLE = 'ramp: "YlOrRd", colors: {nodes: [1, 2, 3]}'
 
 
-def test_node_colours_single_categorical_continuous_and_null(node_module):
+def test_node_colors_single_categorical_continuous_and_null(node_module):
     expr = (
         "(() => { const net = {N: {count: 3}}; const rows = c => [0, 1, 2].map(i => [...c.slice(i * 4, i * 4 + 4)]);"
         f" const single = buildNodeColors(net, {{node_color_by: 'none', {_NODE_STYLE}}}, null);"
@@ -1196,9 +1263,33 @@ def test_node_colours_single_categorical_continuous_and_null(node_module):
         " return [rows(single), rows(cat), rows(num), rows(other)]; })()"
     )
     single, cat, num, other = node_module("palette.js", ["buildNodeColors"], expr)
-    assert single == [[1, 2, 3, 150]] * 3 and other == single  # no property, or the wrong one: the single colour
+    assert single == [[1, 2, 3, 150]] * 3 and other == single  # no property, or the wrong one: the single color
     assert cat == [[228, 66, 62, 215], [205, 208, 214, 215], [57, 126, 184, 215]]  # palette, null, palette
     assert num == [[255, 237, 160, 215], [254, 178, 76, 215], [240, 59, 32, 215]]  # the ramp's ends and middle
+
+
+def test_node_style_semantic_for_ctrl_type_generic_otherwise(node_module):
+    expr = (
+        "(() => { const net = {N: {count: 5}};"
+        " const rows = (c, n) => [...Array(n).keys()].map(i => [...c.slice(i * 4, i * 4 + 4)]);"
+        f" const ct = buildNodeStyle(net, {{node_color_by: 'ctrl_type', {_NODE_STYLE}}},"
+        " {name: 'ctrl_type', kind: 'categorical', categories: ['signal', 'no_control', 'odd'],"
+        " values: ['no_control', 'signal', 'odd', null, 'signal']});"
+        f" const gen = buildNodeStyle(net, {{node_color_by: 'z', {_NODE_STYLE}}},"
+        " {name: 'z', kind: 'categorical', categories: ['a', 'b'], values: ['a', 'b', 'a', 'b', 'a']});"
+        f" const none = buildNodeStyle(net, {{node_color_by: 'none', {_NODE_STYLE}}}, null);"
+        " return [rows(ct.colors, 5), [...ct.radii], ct.order && [...ct.order], rows(gen.colors, 2), [...gen.radii],"
+        " gen.order, rows(none.colors, 1), [...none.radii], none.order]; })()"
+    )
+    got = node_module("palette.js", ["buildNodeStyle"], expr)
+    ct, ct_r, order, gen, gen_r, gen_order, none, none_r, none_order = got
+    assert ct[1][:3] == [214, 39, 40] and ct_r[1] == 7 and ct_r[4] == 7  # signal: red, 7 px
+    assert ct[0] == [150, 155, 165, 150] and ct_r[0] == 2.5  # no_control: grey, 2.5 px
+    assert ct[2][:3] == [77, 175, 74] and ct_r[2] == 2  # unknown value: its generic palette color, default radius
+    assert ct[3][:3] == [205, 208, 214] and ct_r[3] == 2  # null: the default
+    assert order[-2:] == [1, 4]  # signals draw last
+    assert gen[0][:3] == [228, 66, 62] and gen[1][:3] == [57, 126, 184] and set(gen_r) == {2} and gen_order is None
+    assert none[0] == [1, 2, 3, 150] and set(none_r) == {2} and none_order is None
 
 
 # ---- issuegroups.js: the Validate panel's client-side grouping (mirrors corral.reports.grouping.group_issues)
@@ -1259,3 +1350,393 @@ def test_located_means_an_anchor_the_map_can_use(node_module):
         " located({anchor: null}), located({key: 7}), located(null)]"
     )
     assert node_module("issuegroups.js", ["located"], expr) == [True, True, True, False, False, False]
+
+
+def test_thinking_text_adds_seconds_after_three(node_module):
+    expr = (
+        "[thinkingText({provider: 'ollama', model: 'qwen', elapsedMs: 1200}),"
+        " thinkingText({provider: 'ollama', model: 'qwen', elapsedMs: 7200}),"
+        " thinkingText({provider: 'ollama', model: '', elapsedMs: 0}), thinkingText({elapsedMs: 100})]"
+    )
+    got = node_module("assistmodel.js", ["thinkingText"], expr)
+    assert got == ["Thinking… (ollama · qwen)", "Thinking… 7 s", "Thinking… (ollama)", "Thinking…"]
+
+
+def test_place_search_shows_real_errors_not_no_matches(node_module):
+    names = ["candidatesHTML"]
+
+    def render(result_js: str) -> str:
+        return node_module("placesearch.js", names, f"candidatesHTML({result_js})")
+
+    assert "No matches." in render("{candidates: []}")
+    listed = render('{candidates: [{display_name: "King County <WA>", type: "administrative"}]}')
+    assert 'data-i="0"' in listed and "King County &lt;WA&gt;" in listed and "No matches" not in listed
+    missing = render('{error: Object.assign(new Error("requires the osm extra"), {status: 501})}')
+    assert "Place search needs the [osm] extra: requires the osm extra" in missing and "No matches" not in missing
+    failed = render('{error: Object.assign(new Error("place search failed: Timeout: slow"), {status: 502})}')
+    assert "Place search failed: Timeout: slow" in failed and "failed: place search failed" not in failed
+
+
+def test_build_modes_are_roads_and_paths_and_legacy_names_map(node_module):
+    names = ["toggleMode", "normalizeModes", "modesProblem", "MODES"]
+
+    def run(expr):
+        return node_module("buildmodes.js", names, expr)
+
+    assert run("MODES.map(m => m.id)") == ["roads", "paths"]
+    assert run('toggleMode(["roads"], "paths", true)') == ["roads", "paths"]
+    assert run('toggleMode(["paths", "roads"], "roads", false)') == ["paths"]
+    assert run('toggleMode([], "paths", true)') == ["paths"]
+    assert run('normalizeModes("drive")') == ["roads"]
+    assert run('normalizeModes("bike")') == ["roads", "paths"]
+    assert run('normalizeModes(["all"])') == ["roads", "paths"]
+    assert run('normalizeModes(["paths", "boat"])') == ["paths"]
+    assert run('normalizeModes("hovercraft")') == ["roads"]
+    assert run("modesProblem([])") != "" and run('modesProblem(["roads"])') == ""
+
+
+def test_related_steps_control_shows_only_for_the_related_scope(node_module):
+    names = ["hopsView", "hopsFromValue", "HOPS_TIP"]
+
+    def run(expr):
+        return node_module("hops.js", names, expr)
+
+    assert run('hopsView("related", 2)') == {"hidden": False, "value": "2"}
+    assert run('hopsView("related", 1)') == {"hidden": False, "value": "1"}
+    for scope in ("all", "selection", "highlighted", "filtered"):
+        assert run(f'hopsView("{scope}", 2)')["hidden"] is True
+    assert run('[hopsFromValue("2"), hopsFromValue("1"), hopsFromValue("x")]') == [2, 1, 1]
+    assert "1 step" in run("HOPS_TIP") and "2 steps" in run("HOPS_TIP")
+
+
+INFO = {
+    "installed": {"osm": False, "overture": True},
+    "install": {
+        "osm": {"uv": "uv add 'x[osm]'", "pip": "pip install 'x[osm]'"},
+        "overture": {"uv": "uv add 'x[overture]'", "pip": "pip install 'x[overture]'"},
+        "osm,overture": {"uv": "uv add 'x[osm,overture]'", "pip": "pip install 'x[osm,overture]'"},
+    },
+    "docs_url": "https://example.test/install/",
+}
+
+
+def test_extras_a_choice_needs(node_module):
+    names = ["extrasFor", "missingExtras"]
+
+    def run(expr):
+        return node_module("extrasnotice.js", names, expr)
+
+    assert run('extrasFor("osm")') == ["osm"] and run('extrasFor("overture")') == ["overture"]
+    assert run('extrasFor("overture", {place: true})') == ["overture", "osm"] and run('extrasFor("local")') == []
+    installed = json.dumps(INFO["installed"])
+    assert run(f'missingExtras(["overture", "osm"], {installed})') == ["osm"]
+    assert run('missingExtras(["osm"], null)') == []  # not answered yet: do not block
+
+
+def test_extras_notice_shows_both_commands_with_copy_and_the_docs_link(node_module):
+    names = ["noticeHTML"]
+    html = node_module("extrasnotice.js", names, f'noticeHTML(["osm"], {json.dumps(INFO)})')
+    assert "Install the [osm] extra to use this:" in html
+    assert html.index("uv add") < html.index("pip install") and html.count("data-copy") == 2
+    assert 'href="https://example.test/install/"' in html and "How to install" in html
+    both = node_module("extrasnotice.js", names, f'noticeHTML(["overture", "osm"], {json.dumps(INFO)})')
+    assert "[overture] and [osm] extras" in both and "x[osm,overture]" in both
+    assert node_module("extrasnotice.js", names, f"noticeHTML([], {json.dumps(INFO)})") == ""
+
+
+def test_related_explanation_is_generic_or_uses_the_real_answer(node_module):
+    names = ["relatedExplanation", "subjectOf", "GENERIC"]
+
+    def run(expr):
+        return node_module("relatedhelp.js", names, expr)
+
+    generic = run("GENERIC")
+    assert run("relatedExplanation({})") == generic
+    assert run('relatedExplanation({subject: "link 1", related: null})') == generic
+    text = " ".join(generic)
+    for key in ("lane.link_id = 17", "link_tod.link_id = 17", "link.from_node_id", "lane_tod.lane_id"):
+        assert key in text
+    assert run('subjectOf({table: "link", id: 17}, [1, 2])') == "link 17"
+    assert run("subjectOf(null, [1, 2])") == "2 highlighted links" and run("subjectOf(null, [])") == ""
+    node = {"table": "node", "hop": 1, "via": ["link.from_node_id"], "count": 2, "partial": False}
+    lane = {"table": "lane", "hop": 1, "via": ["lane.link_id"], "count": 1, "partial": False}
+    related = {"hops": 1, "tables": [node, lane]}
+    lines = run(f'relatedExplanation({{subject: "link 1", related: {json.dumps(related)}}})')
+    assert lines[0].startswith("For link 1") and "2 node rows (link.from_node_id)" in lines[1]
+    assert "1 lane row (lane.link_id)" in lines[1] and "Choose 2 steps" in lines[-1]
+    two = dict(related, hops=2)
+    lines = run(f'relatedExplanation({{subject: "link 1", related: {json.dumps(two)}}})')
+    assert "nothing more in this network" in lines[2]
+
+
+def test_dismissible_help_remembers_its_choice_and_survives_broken_storage(node_module):
+    harness = """
+const mem = new Map();
+const storage = {
+  getItem: k => (mem.has(k) ? mem.get(k) : null),
+  setItem: (k, v) => mem.set(k, v),
+  removeItem: k => mem.delete(k),
+};
+const boom = () => { throw new Error("blocked"); };
+const broken = { getItem: boom, setItem: boom, removeItem: boom };
+const mk = () => ({ el: { hidden: false }, hideBtn: {}, showBtn: { hidden: true } });
+const a = mk();
+wireDismissibleHelp(a.el, helpKey("edit"), { ...a, storage });
+const shownFirst = [a.el.hidden, a.showBtn.hidden];
+a.hideBtn.onclick();
+const afterHide = [a.el.hidden, a.showBtn.hidden, mem.get("wb.help.edit")];
+const b = mk();
+wireDismissibleHelp(b.el, helpKey("edit"), { ...b, storage });  // a reload: still hidden
+const reload = [b.el.hidden, b.showBtn.hidden];
+b.showBtn.onclick();
+const afterShow = [b.el.hidden, b.showBtn.hidden, mem.has("wb.help.edit")];
+const c = mk();
+wireDismissibleHelp(c.el, "k", { ...c, storage: broken });
+c.hideBtn.onclick();
+const brokenHide = [c.el.hidden, c.showBtn.hidden];
+"""
+    got = node_module(
+        "help.js",
+        ["helpKey", "wireDismissibleHelp"],
+        "(() => {" + harness + "return {shownFirst, afterHide, reload, afterShow, brokenHide};})()",
+    )
+    assert got == {
+        "shownFirst": [False, True],
+        "afterHide": [True, False, "hidden"],
+        "reload": [True, False],
+        "afterShow": [False, True, False],
+        "brokenHide": [True, False],  # the toggle works even when nothing can be remembered
+    }
+
+
+def test_tab_labels_say_what_the_badge_means(node_module):
+    got = node_module(
+        "tabs.js",
+        ["tabLabel", "countOf"],
+        '[tabLabel("Edit", {text: "1", dirty: true, title: countOf(1, "unsaved edit")}), tabLabel("Edit", null),'
+        ' tabLabel("Find", {text: "16", title: "16 selected links"}), tabLabel("Find", 3), countOf(0, "edit")]',
+    )
+    assert got == ["Edit — 1 unsaved edit", "Edit", "Find — 16 selected links", "Find — 3", "0 edits"]
+
+
+STYLE_ON = {"color_by": "facility_type", "node_color_by": "ctrl_type"}
+STYLE_OFF = {"color_by": "none", "node_color_by": "none"}
+
+
+def _patch(node_module, kind, style):
+    return node_module(
+        "viewmodel.js", ["swatchPatch"], f"swatchPatch({json.dumps(kind)}, [1, 2, 3], {json.dumps(style)})"
+    )
+
+
+def test_a_swatch_pick_turns_off_that_layers_color_by_in_the_same_action(node_module):
+    assert _patch(node_module, "nodes", STYLE_ON) == {"colors": {"nodes": [1, 2, 3]}, "node_color_by": "none"}
+    assert _patch(node_module, "links", STYLE_ON) == {"colors": {"links": [1, 2, 3]}, "color_by": "none"}
+    assert _patch(node_module, "nodes", STYLE_OFF) == {"colors": {"nodes": [1, 2, 3]}}
+    assert _patch(node_module, "selection", STYLE_ON) == {"colors": {"selection": [1, 2, 3]}}
+
+
+def test_swatch_tooltips_say_when_a_color_by_is_on(node_module):
+    def tip(kind, style):
+        return node_module("viewmodel.js", ["swatchTip"], f"swatchTip({json.dumps(kind)}, {json.dumps(style)})")
+
+    assert tip("nodes", STYLE_ON) == "Single color (turns off Color nodes by: ctrl_type)"
+    assert tip("links", STYLE_ON) == "Single color (turns off Color links by: facility_type)"
+    assert tip("nodes", STYLE_OFF) == "Node color"
+
+
+def test_folded_view_sections_round_trip_and_survive_bad_storage(node_module):
+    names = ["parseClosed", "serializeClosed"]
+    assert node_module("viewmodel.js", names, 'serializeClosed(new Set(["width", "color"]))') == '["color","width"]'
+    assert node_module("viewmodel.js", names, '[...parseClosed(\'["color","width"]\')]') == ["color", "width"]
+    for raw in ("null", "'{bad'", "'{}'", "'[1, \"a\"]'"):
+        expected = ["a"] if raw.startswith("'[1") else []
+        assert node_module("viewmodel.js", names, f"[...parseClosed({raw})]") == expected
+
+
+def test_a_click_picks_nodes_over_links_and_never_a_hidden_layer(node_module):
+    def pick(hits, show, hidden=()):
+        expr = f"pickPriority({json.dumps(hits)}, {json.dumps({'show': show})}, new Set({json.dumps(list(hidden))}))"
+        return node_module("pickmodel.js", ["pickPriority"], expr)
+
+    both = [{"layerId": "links", "index": 4}, {"layerId": "nodes", "index": 2}]
+    on = {"links": True, "nodes": True}
+    assert pick(both, on)["layerId"] == "nodes"
+    assert pick(both, {"links": True, "nodes": False})["layerId"] == "links"
+    assert pick(both[:1], {"links": False, "nodes": True}) is None
+    with_overlay = [*both, {"layerId": "hello.dots", "index": 0}]
+    assert pick(with_overlay, on)["layerId"] == "hello.dots"
+    assert pick(with_overlay, on, ["hello.dots"])["layerId"] == "nodes"
+    assert pick([], on) is None
+
+
+# ---- llmstatus.js: the header robot's status (color from readiness; privacy stays in the tooltip words)
+
+_OLLAMA = '{provider: "ollama", label: "Ollama", kind: "local", usable: true, configured: true}'
+_DOWN = (
+    '{provider: "ollama", label: "Ollama", kind: "local", usable: false, configured: false,'
+    ' error: "Ollama is not running"}'
+)
+_NOKEY = '{provider: "anthropic", label: "Anthropic", kind: "remote", usable: false, configured: false, error: null}'
+_KEYED = '{provider: "anthropic", label: "Anthropic", kind: "remote", usable: true, configured: true}'
+
+
+def test_the_robot_status_is_green_yellow_or_red(node_module):
+    calls = [
+        f"{{provider: 'ollama', row: {_OLLAMA}, model: 'qwen2.5:7b', privacy: 'Nothing leaves this machine.'}}",
+        "{provider: 'stub', privacy: 'Offline pattern parser: nothing leaves this machine.'}",
+        f"{{provider: 'ollama', row: {_DOWN}, model: 'qwen2.5:7b'}}",
+        f"{{provider: 'ollama', row: {_OLLAMA}, model: 'qwen2.5:7b', modelMissing: true}}",
+        f"{{provider: 'anthropic', row: {_NOKEY}, model: 'claude-x'}}",
+        f"{{provider: 'anthropic', row: {_KEYED}, model: 'claude-x'}}",
+        "{provider: 'nope', row: null}",
+    ]
+    expr = "[" + ", ".join(f"llmStatus({c})" for c in calls) + "]"
+    got = node_module("llmstatus.js", ["llmStatus"], expr)
+    assert [g["state"] for g in got] == [
+        "ready",
+        "offline",
+        "unavailable",
+        "unavailable",
+        "unavailable",
+        "ready",
+        "unavailable",
+    ]
+    assert got[0]["text"] == "Language model: Ollama · qwen2.5:7b — ready. Nothing leaves this machine."
+    assert got[1]["text"].startswith("Language model: Offline (pattern) — offline pattern parser only.")
+    assert "not available: Ollama is not running" in got[2]["text"]
+    assert "qwen2.5:7b is not installed; run: ollama pull qwen2.5:7b" in got[3]["text"]
+    assert "no Anthropic API key is set" in got[4]["text"]
+    assert "nope is not set up" in got[6]["text"]
+
+
+_TYPES = (
+    "[{code: 'quality.high_speed_residential', severity: 'warning', count: 271,"
+    " fix_hint: 'Lower the speed.', tables: ['link']},"
+    " {code: 'x.info', severity: 'info', count: 400, fix_hint: null, tables: ['node']},"
+    " {code: 'a.err', severity: 'error', count: 2, fix_hint: 'Fix it.', tables: ['link']},"
+    " {code: 'b.warn', severity: 'warning', count: 271, fix_hint: null, tables: []},"
+    " {code: 'structural.missing_optional_resource', severity: 'info', count: 3, fix_hint: 'h',"
+    " tables: ['lane', 'zone', 'use']}]"
+)
+
+
+def test_type_groups_order_by_severity_then_count(node_module):
+    got = node_module("issuegroups.js", ["orderGroups"], f"orderGroups({_TYPES}).map(g => g.code)")
+    assert got == [
+        "a.err",  # errors first, however few
+        "b.warn",  # warnings: equal counts break on code
+        "quality.high_speed_residential",
+        "x.info",  # then info, largest first
+        "structural.missing_optional_resource",
+    ]
+    assert node_module("issuegroups.js", ["orderGroups"], "orderGroups(null)") == []
+
+
+def test_type_group_titles_blurbs_and_totals(node_module):
+    names = ["groupTitle", "groupBlurb", "totalsLine", "typeOptionLabel", "remaining", "typeKey"]
+    expr = (
+        f"(() => {{ const g = {_TYPES}; return [groupTitle(g[0]), groupBlurb(g[0]), groupBlurb(g[1]), groupBlurb(g[4]),"
+        " totalsLine(287, g), totalsLine(1, [g[0]]), totalsLine(0, []), typeOptionLabel('a.b', 1234),"
+        " remaining(271, 50), remaining(5, 9), typeKey(g[0])]; })()"
+    )
+    assert node_module("issuegroups.js", names, expr) == [
+        "quality.high_speed_residential · warning · 271",
+        "Lower the speed.",  # the rule's hint, shown once for the group
+        "",
+        "optional resources absent: lane, zone, use",  # structural groups name their resources, as before
+        "287 findings in 5 types",
+        "1 finding in 1 type",
+        "No findings",
+        "a.b (1,234)",
+        221,
+        0,
+        "quality.high_speed_residential\u0000warning",
+    ]
+
+
+def test_examples_list_renders_one_open_button_per_example(node_module):
+    items = [
+        {"id": "a", "name": "Alpha <WA>", "description": "A & B", "links": 1234, "nodes": 56, "source": "/x/a b"},
+        {"id": "b", "name": "Beta", "description": "Second", "links": 7, "nodes": 3, "source": "/x/b"},
+    ]
+    html = node_module("examplesmodel.js", ["examplesHTML"], f"examplesHTML({json.dumps(items)})")
+    assert html.index("Included examples") < html.index("Alpha")
+    assert html.count("data-example-source=") == 2 and 'data-example-source="/x/a b"' in html
+    assert "Alpha &lt;WA&gt;" in html and "A &amp; B" in html and "1,234 links, 56 nodes" in html
+    assert node_module("examplesmodel.js", ["examplesHTML"], "examplesHTML([])") == ""
+
+
+def test_a_group_with_no_finding_on_the_map_says_so(node_module):
+    blurbs = node_module(
+        "issuegroups.js",
+        ["groupBlurb"],
+        "[groupBlurb({code: 'quality.x', fix_hint: 'Fix it.', count: 3, located: 0}),"
+        " groupBlurb({code: 'quality.x', fix_hint: 'Fix it.', count: 3, located: 2}),"
+        " groupBlurb({code: 'quality.y', count: 2, located: 0}),"
+        " groupBlurb({code: 'quality.z', fix_hint: 'Hint.', count: 1})]",
+    )
+    assert blurbs == ["Fix it. (not on the map)", "Fix it.", "(not on the map)", "Hint."]
+
+
+def test_find_form_sentences_match_what_the_offline_parser_reads(node_module):
+    from netstead.select.parse import StubParser
+
+    f = {
+        "street": " Pine  Street ",
+        "from": "Orchard Street",
+        "to": "Central Avenue",
+        "type": "Residential",
+        "ids": "59 60,61",
+    }
+    got = node_module(
+        "findmodel.js",
+        ["patternSentence"],
+        f"['street', 'between', 'type', 'ids'].map(p => patternSentence(p, {json.dumps(f)}))",
+    )
+    assert got == [
+        "Pine Street",
+        "Pine Street between Orchard Street and Central Avenue",
+        "All Residential links",
+        "Links 59, 60, 61",
+    ]
+    street, between, kind, ids = (StubParser().parse(s) for s in got)
+    assert street.facility.name == "Pine Street" and street.from_anchor is None
+    assert (between.from_anchor, between.to_anchor) == ("Orchard Street", "Central Avenue")
+    assert kind.select_all and kind.conditions == {"facility_type": ["residential"]}
+    assert ids.link_ids == [59, 60, 61]
+
+
+def test_find_form_required_blanks_and_messages(node_module):
+    expr = """[
+      requiredMissing("street", { street: "" }),
+      requiredMissing("between", { street: "Pine Street", from: " ", to: "Central" }),
+      requiredMissing("ids", { ids: "5, x" }),
+      requiredMissing("type", { type: "primary" }),
+      patternSentence("between", { street: "Pine Street", from: "A" }),
+      missingMessage("between", { street: "Pine Street" }),
+      missingMessage("ids", { ids: "5, x" }),
+      missingMessage("street", { street: "Pine Street" })
+    ]"""
+    got = node_module("findmodel.js", ["requiredMissing", "patternSentence", "missingMessage"], expr)
+    assert got == [
+        ["street"],
+        ["from"],
+        ["ids"],
+        [],
+        "",
+        "Fill in: From cross street, To cross street.",
+        "Ids: type link ids as whole numbers, like 59, 60.",
+        "",
+    ]
+
+
+def test_find_form_cross_choices_and_mode(node_module):
+    expr = """[
+      crossChoices(["A", "B", "C"], ["C", "B"], "b"),
+      crossChoices(["A", "B"], null, ""),
+      crossChoices(["A", "B"], [], "A"),
+      useForm("stub"), useForm("ollama"), parseIds("1, 2"), parseIds("1 a"), parseIds("")
+    ]"""
+    got = node_module("findmodel.js", ["crossChoices", "useForm", "parseIds"], expr)
+    assert got == [["C"], ["A", "B"], ["B"], True, False, [1, 2], None, None]

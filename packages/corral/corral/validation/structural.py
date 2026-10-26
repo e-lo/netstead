@@ -39,7 +39,7 @@ an ERROR when validating against the canonical GMNS spec, which is
 clearly wrong. This same policy is the natural one for any other
 Frictionless package that follows the GMNS convention.
 
-If a downstream caller wants stricter behaviour ("any declared
+If a downstream caller wants stricter behavior ("any declared
 resource must be present"), it can iterate the report and re-categorise
 ``structural.missing_optional_resource`` to ERROR — the codes are
 stable for exactly this kind of policy layering.
@@ -316,7 +316,7 @@ def _scan_directory_of_known_formats(source_path: Path) -> ResourceListing:
         source_path: A local directory.
 
     Returns:
-        A :class:`ResourceListing` aggregated from every recognisable
+        A :class:`ResourceListing` aggregated from every recognizable
         child file in the directory. Empty if nothing matches.
     """
     listings: list[ResourceRef] = []
@@ -440,7 +440,7 @@ def check_structural_from_source(
                     severity=Severity.ERROR,
                     category=Category.STRUCTURAL,
                     code="structural.missing_file",
-                    message=(f"could not open source {source_str!r}: no registered format adapter recognises it"),
+                    message=(f"could not open source {source_str!r}: no registered format adapter recognizes it"),
                     fix_hint=(
                         "Confirm the path/URL is correct and the format is "
                         "one of: csv, parquet, duckdb, zipcsv, remote URL."

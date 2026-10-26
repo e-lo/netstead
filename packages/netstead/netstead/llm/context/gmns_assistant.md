@@ -94,7 +94,7 @@ short sentence. Leave out every field you don't need.
 - `edit_cells`, `delete_rows`, `undo_edit`, `save_network`: these change the network, so the user approves them first.
   Never invent ids: use `"on_selection": true` for the selected links, or ids the user typed.
 
-Request: colour the links by lanes and zoom to the selection
+Request: color the links by lanes and zoom to the selection
 Tool calls: style {"color_by": "lanes"}; navigate {"to_selection": true}
 
 Request: show only links with at least 2 lanes

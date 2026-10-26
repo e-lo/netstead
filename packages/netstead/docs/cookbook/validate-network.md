@@ -19,10 +19,10 @@ Validate the bundled Leavenworth fixture from the shell. Add `--json` to any `ne
 netstead validate --json packages/netstead/netstead/fixtures/leavenworth/csv
 ```
 
-Expected — the command exits 0 because Leavenworth has no ERRORs. The issue list holds 16 INFO entries (`structural.missing_optional_resource`, one per optional GMNS table the fixture doesn't ship) plus one WARNING, `fk.unverifiable`: `node.zone_id` declares a foreign key into a `zone` table that isn't in the package, so the FK can't be checked:
+Expected — the command exits 0 because Leavenworth has no ERRORs. The issue list holds 16 INFO entries (`structural.missing_optional_resource`, one per optional GMNS table the fixture doesn't ship) and nothing else. (`node` declares a foreign key into `zone`, but the fixture has no `node.zone_id` column, so there is nothing to verify and no finding is raised.)
 
 ```json
-{"header": "validation report: ...", "issues": [{"severity": "info", "code": "structural.missing_optional_resource", ...}, {"severity": "warning", "code": "fk.unverifiable", ...}]}
+{"header": "validation report: ...", "issues": [{"severity": "info", "code": "structural.missing_optional_resource", ...}, ...]}
 ```
 
 The same call from Python returns a `ValidationReport` dataclass:
@@ -39,15 +39,15 @@ print(f"is_clean={report.is_clean}  issues={len(report.issues)}")
 Expected:
 
 ```text
-is_clean=False  issues=17
+is_clean=True  issues=16
 ```
 
-`is_clean` is `False` here only because of the `fk.unverifiable` WARNING; `report.has_errors` is `False`.
+`is_clean` is `True` because no ERROR or WARNING fired; the INFO findings don't break it. `report.has_errors` is `False`.
 
 The CLI exits non-zero if any ERROR-severity finding fires, so it drops straight into a CI gate.
 
 ![Validation report card for the Leavenworth fixture](../assets/screenshots/leavenworth-validation-report.png){ .screenshot }
-*Validation report card. Zero ERRORs; 16 INFO findings for the optional tables the fixture doesn't ship, and one `fk.unverifiable` WARNING because there is no `zone` table to resolve `node.zone_id` against. Data-quality rules are a separate pass (`netstead quality`) and don't appear here.*
+*Validation report card. Zero ERRORs, zero WARNINGs, and 16 INFO findings for the optional tables the fixture doesn't ship. Data-quality rules are a separate pass (`netstead quality`) and don't appear here.*
 
 ## Step-by-step
 
@@ -130,7 +130,7 @@ fk_problems = [i for i in report.issues if i.category is Category.FOREIGN_KEY]
 * `STRUCTURAL` — package-level shape problems (missing required table, missing required file).
 * `FOREIGN_KEY` — cross-table integrity (`link.from_node_id` points at a node that doesn't exist).
 * `SYNC_STATE` — FKs that resolved on disk but were invalidated by an in-memory edit (see [edit-with-rollback](edit-with-rollback.md)).
-* `DATA_QUALITY` — rule-pack findings (high-speed-residential, lane-count-mismatch, etc.). Always WARNING / INFO; see [customise the quality pack](customise-quality.md).
+* `DATA_QUALITY` — rule-pack findings (high-speed-residential, lane-count-mismatch, etc.). Always WARNING / INFO; see [customize the quality pack](customize-quality.md).
 
 ### 5. Common codes you'll see
 
@@ -146,7 +146,7 @@ Stable identifier strings let you script around specific findings without parsin
 | `structural.missing_file` | STRUCTURAL | ERROR | A table is declared in the package descriptor but the file isn't there. |
 | `fk.missing_target` | FOREIGN_KEY | ERROR | FK points at a row that doesn't exist in the parent table. |
 | `fk.null_in_required_fk` | FOREIGN_KEY | ERROR | A required FK column is null on a row. |
-| `fk.unverifiable` | FOREIGN_KEY | WARNING | The FK's target table isn't in the package, so it can't be checked (Leavenworth: `node.zone_id` → `zone`). |
+| `fk.unverifiable` | FOREIGN_KEY | WARNING | The FK's target table isn't in the package, so it can't be checked and the source column holds at least one value. An absent or all-null source column raises nothing. |
 | `sync.fk_stale` | SYNC_STATE | ERROR | An edit invalidated an FK and no `recompute` ran. |
 | `quality.high_speed_residential` | DATA_QUALITY | WARNING | Residential link with speed limit above the configured threshold. |
 
@@ -232,7 +232,7 @@ Stable identifier strings let you script around specific findings without parsin
 ## Pitfalls
 
 * **WARNING-level findings don't fail CI.** That's intentional — data-quality findings are advisory. If you want them to be blocking, post-process: `if any(i.code.startswith("quality.") for i in report.issues): sys.exit(1)`.
-* **Data-quality thresholds are configurable.** A WARNING firing on your network may just mean the default threshold doesn't match your context (e.g. metric vs imperial speed). See the [customise the quality pack](customise-quality.md) recipe.
+* **Data-quality thresholds are configurable.** A WARNING firing on your network may just mean the default threshold doesn't match your context (e.g. metric vs imperial speed). See the [customize the quality pack](customize-quality.md) recipe.
 * **`sync.fk_stale` only fires after an edit.** A freshly-loaded package can't be out of sync with itself. If you see this in CI, an upstream step in the same process mutated the network.
 * **The validator runs against the spec version embedded in the package.** Override with `Network.from_source(path, spec_version="0.96")` if the package is mislabeled.
 

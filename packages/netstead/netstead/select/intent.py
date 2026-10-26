@@ -24,7 +24,7 @@ from .errors import IntentError
 
 __all__ = ["DIRECTIONS", "Facility", "SelectionIntent"]
 
-#: Recognised travel directions on a facility.
+#: Recognized travel directions on a facility.
 DIRECTIONS = frozenset({"EB", "WB", "NB", "SB"})
 
 

@@ -63,7 +63,7 @@ export function workspaceSpec(spec) {
   return { ...spec, layout: { ...(spec.layout || {}) } };
 }
 
-// {workspace: id | "*" | [ids], id, title, render?(el), badge?(ctx), onShow?(), order?}
+// {workspace: id | "*" | [ids], id, title, icon? (an icons.js name: the dock tab shows it, the title as tooltip), render?(el), badge?(ctx), onShow?(), order?}
 export function panelSpec(spec) {
   need(spec, "panel", ["id", "title", "workspace"]);
   functions(spec, "panel", ["render", "badge", "onShow"]);

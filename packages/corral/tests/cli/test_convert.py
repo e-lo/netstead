@@ -4,7 +4,7 @@ End-to-end exercises the convert command through typer's
 :class:`CliRunner` against the Leavenworth fixture. The roundtrip test
 is the load-bearing one — it proves the CSV → parquet write produces a
 package corral can read back with the same logical table set. The
-remaining tests pin the format-inference / flag-parsing behaviours so a
+remaining tests pin the format-inference / flag-parsing behaviors so a
 later refactor of those rules can't silently drift.
 """
 

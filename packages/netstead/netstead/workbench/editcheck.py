@@ -144,7 +144,7 @@ def check_rows(
     """Check the rows in ``touched`` (``{table: keys}``) that still exist; tables without a key are skipped.
 
     ``first`` (a subset of ``touched``: the newest edit's keys) is checked before the rest, so
-    :data:`MAX_CHECKED_KEYS` never cuts the newest edit's rows in favour of older ones.
+    :data:`MAX_CHECKED_KEYS` never cuts the newest edit's rows in favor of older ones.
     """
     pks = table_keys(net)
     schemas = _schemas(net.spec)

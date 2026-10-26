@@ -212,3 +212,20 @@ def test_set_setting_url_checks_cover_keys_and_base_url_query():
 )
 def test_is_secret_name(name, expected):
     assert is_secret_name(name) is expected
+
+
+def test_build_network_takes_several_network_types_and_reads_a_recorded_single_one():
+    base = {**_BUILD, "input_file": "/x.osm"}
+    assert BuildNetwork(**base).network_types == ["roads"]
+    assert BuildNetwork(**base, network_types=["paths", "roads"]).network_types == ["paths", "roads"]
+    # Retired names still replay: drive -> roads; walk, bike, all -> roads + paths.
+    assert BuildNetwork.model_validate({**base, "network_type": "drive"}).network_types == ["roads"]
+    assert BuildNetwork.model_validate({**base, "network_type": "walk"}).network_types == ["roads", "paths"]
+    assert BuildNetwork(**base, network_types=["bike", "drive"]).network_types == ["roads", "paths"]
+    assert BuildNetwork(**base, network_types=["all"]).network_types == ["roads", "paths"]
+    with pytest.raises(ValidationError, match="unknown network type 'boat'"):
+        BuildNetwork(**base, network_types=["boat"])
+    with pytest.raises(ValidationError):
+        BuildNetwork(**base, network_types=[])
+    with pytest.raises(ValidationError, match="not both"):
+        BuildNetwork.model_validate({**base, "network_type": "walk", "network_types": ["bike"]})

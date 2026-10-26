@@ -18,7 +18,8 @@ from typing import Any
 
 from .card import DraftCard
 from .errors import CardError
-from .lower import KEYS, describe, few, rows_by_key
+from .facility import OSM_NOUN, resolve_selection
+from .lower import KEYS, describe, existing_mismatches, few, rows_by_key
 from .types import (
     TRANSIT_TYPES,
     UNRESOLVED_QUERY,
@@ -35,6 +36,7 @@ __all__ = [
     "CatalogEntry",
     "applicability",
     "card_targets",
+    "fit",
     "scan_catalog",
     "with_options",
 ]
@@ -69,6 +71,7 @@ class CatalogEntry:
             "tags": list(self.tags),
             "change_count": self.change_count,
             "applicability": self.applicability,
+            "fit": fit(self.applicability),
         }
 
 
@@ -172,16 +175,52 @@ def with_options(
 def applicability(card: DraftCard, links: Any, nodes: Any) -> dict[str, Any]:
     """Whether ``card`` applies to a network whose link and node tables are ``links`` and ``nodes`` (pandas frames).
 
-    Returns ``{ok, changes: [{describe, resolved, missing, reason}]}``: per change, how many of its target records
-    the network has (``resolved``), the ids it lacks (``missing``), and ``reason`` when the change cannot be applied
-    at all (a transit change, an incomplete one, a query without provenance, an added record whose id is taken, or
+    Returns ``{ok, changes: [{describe, resolved, missing, reason, warnings?}]}``: per change, how many of its target
+    records the network has (``resolved``), the ids it lacks (``missing``), and ``reason`` when the change cannot be
+    applied at all (a property whose ``existing`` differs from the network's value under ``existing_value_conflict:
+    error``, a transit change, an incomplete one, a query without provenance, an added record whose id is taken, or
     an added link whose end node is absent). ``ok`` is false when any change has a reason, or lacks an id its
-    selection does not ignore (``ignore_missing``): the lowering would refuse it. Missing ids a selection ignores
-    are listed but do not make the card inapplicable (they would be skipped). Nothing is mutated.
+    selection does not ignore (``ignore_missing``): the lowering would refuse it. ``warnings`` appears when a
+    conflict is only warned about or skipped. Missing ids a selection ignores are listed but do not make the card
+    inapplicable (they would be skipped). Nothing is mutated.
     """
     results = [_check(change, links, nodes) for change in card.changes]
     oks = [r.pop("_ok") for r in results]
     return {"ok": all(oks), "changes": results}
+
+
+def fit(applicability: dict[str, Any] | None) -> dict[str, Any]:
+    """Whether a card fits the network, as the catalog's status pill shows it: ``{state, label, reasons, warnings}``.
+
+    ``state`` is ``fits``, ``no`` or ``unchecked``. ``reasons`` (for ``no``) are short, in order: the card's own
+    reason ("already applied ..."), then each change's ("conflict: ...", "missing link 999999", ...). ``warnings``
+    are the conflicts only warned about or skipped. ``net_id`` is the network it was checked on.
+
+    >>> fit(None)
+    {'state': 'unchecked', 'label': 'Not checked', 'reasons': [], 'warnings': [], 'net_id': None}
+    >>> fit({"ok": False, "net_id": "n", "changes": [{"reason": None, "lacks": ["link 9"]}]})["reasons"]
+    ['missing link 9']
+    """
+    if applicability is None:
+        return {"state": "unchecked", "label": "Not checked", "reasons": [], "warnings": [], "net_id": None}
+    changes = applicability.get("changes", [])
+    warnings = [w for c in changes for w in c.get("warnings", [])]
+    net = applicability.get("net_id")
+    if applicability.get("ok"):
+        return {"state": "fits", "label": "Fits this network", "reasons": [], "warnings": warnings, "net_id": net}
+    reasons = [applicability["reason"]] if applicability.get("reason") else []
+    for c in changes:
+        if c.get("reason"):
+            reasons.append(c["reason"])
+        elif c.get("lacks"):
+            reasons.append(f"missing {'; '.join(c['lacks'])}")
+    return {
+        "state": "no",
+        "label": "Doesn't fit",
+        "reasons": reasons or ["does not apply"],
+        "warnings": warnings,
+        "net_id": net,
+    }
 
 
 def _check(change: NetworkChange, links: Any, nodes: Any) -> dict[str, Any]:
@@ -195,13 +234,54 @@ def _check(change: NetworkChange, links: Any, nodes: Any) -> dict[str, Any]:
         if sel is None or sel.unresolved:
             return _refuse(out, UNRESOLVED_QUERY)
         frame = links if sel.table == "link" else nodes
-        return _resolve(out, frame, sel.table, sel.target_ids(), ignore_missing=sel.ignore_missing)
+        try:
+            sel, absent = resolve_selection(sel, frame)  # OpenStreetMap ids -> the records carrying them here
+        except CardError as exc:
+            return _refuse(out, str(exc))
+        _resolve(out, frame, sel.table, sel.target_ids(), ignore_missing=sel.ignore_missing)
+        if absent:
+            _lack(out, OSM_NOUN[sel.table], absent, ignore_missing=sel.ignore_missing)
+        return _existing(out, change, sel.table, frame, list(dict.fromkeys(sel.target_ids())))
     if isinstance(change, RoadwayDeletion):
         _resolve(out, links, "link", list(change.links), ignore_missing=change.ignore_missing)
         return _resolve(out, nodes, "node", list(change.nodes))  # nodes are always aimed at specific records
     if isinstance(change, RoadwayAddition):
         return _addition(out, change, links, nodes)
     return _refuse(out, f"{change.type} cannot be checked in this version")  # a type added after this module
+
+
+def _existing(
+    out: dict[str, Any], change: RoadwayPropertyChange, table: str, frame: Any, wanted: list[Any]
+) -> dict[str, Any]:
+    """Compare each property's ``existing`` with the target rows' current values, as applying the change would.
+
+    ``existing_value_conflict`` decides: ``error`` makes the change not ok (a ``conflict:`` reason), ``warn`` adds a
+    warning, ``skip`` adds a note that the property will be skipped.
+    """
+    props = {p: pc for p, pc in change.property_changes.items() if pc.existing is not None}
+    if not props:
+        return out
+    unknown = [p for p in props if p not in frame.columns]
+    if unknown:
+        return _refuse(out, f"{table} has no column(s) {', '.join(unknown)}")
+    current = rows_by_key(frame, KEYS[table], wanted, list(props))
+    ids = [i for i in wanted if str(i) in current]
+    errors: list[str] = []
+    for prop, pc in props.items():
+        bad = existing_mismatches(pc, ids, current, prop)
+        if not bad:
+            continue
+        found = current[str(bad[0])][prop]
+        message = f"{prop}: expected {pc.existing}, found {found} on {len(bad)} of {len(ids)} {table}s"
+        if pc.existing_value_conflict == "error":
+            errors.append(message)
+        elif pc.existing_value_conflict == "skip":
+            out.setdefault("warnings", []).append(f"{message}; {prop} will be skipped")
+        else:
+            out.setdefault("warnings", []).append(message)
+    if errors:
+        return _refuse(out, f"conflict: {'; '.join(errors)}")
+    return out
 
 
 def _refuse(out: dict[str, Any], reason: str) -> dict[str, Any]:
@@ -217,9 +297,15 @@ def _resolve(
     found = rows_by_key(frame, KEYS[table], wanted, []) if wanted else {}
     missing = [i for i in wanted if str(i) not in found]
     out["resolved"] += len(wanted) - len(missing)
+    return _lack(out, table, missing, ignore_missing=ignore_missing)
+
+
+def _lack(out: dict[str, Any], what: str, missing: list[Any], *, ignore_missing: bool) -> dict[str, Any]:
+    """List the ``missing`` ids of ``what`` ("link", "OSM way"); without ``ignore_missing`` they make it not ok."""
     out["missing"] = [*out["missing"], *missing]
     if missing and not ignore_missing:
         out["_ok"] = False
+        out.setdefault("lacks", []).append(f"{what} {few(missing)}")  # what refuses it, for the fit's reasons
     return out
 
 

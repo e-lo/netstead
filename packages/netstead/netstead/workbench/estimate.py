@@ -19,6 +19,8 @@ from functools import cache
 from importlib import resources
 from typing import Any, Literal
 
+from netstead.network_types import NetworkTypes
+
 from .area import BboxArea, PlaceArea, PointArea
 from .extras import optional_module
 
@@ -101,7 +103,7 @@ def needs_approval(estimate: Estimate, threshold_s: float) -> bool:
 def count_osm(
     area: BboxArea | PointArea | PlaceArea,
     *,
-    network_type: str,
+    network_type: NetworkTypes,
     endpoint: str,
     http: Any,
     user_agent: str,
@@ -125,7 +127,7 @@ def count_osm(
 def count_overture(
     bbox: tuple[float, float, float, float],
     *,
-    network_type: str,
+    network_type: NetworkTypes,
     overture_release: str,
     data_root: str | None,
     engine: Any = None,

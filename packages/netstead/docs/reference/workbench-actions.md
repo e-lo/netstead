@@ -122,8 +122,8 @@ Replay: `app.do(DeleteSelection(name='ski hill'))`
 
 #### `Style` — `style`
 
-Partially update the map style; omitted fields are unchanged. `color_by` colours links by a column of the link
-table and `node_color_by` colours nodes by one of the node table (`"none"` for a single colour); `width_by`
+Partially update the map style; omitted fields are unchanged. `color_by` colors links by a column of the link
+table and `node_color_by` colors nodes by one of the node table (`"none"` for a single color); `width_by`
 sizes links by a numeric column (`"none"` for widths by lane count). A fresh session defaults `color_by` to
 `"facility_type"` and `node_color_by` to `"ctrl_type"` when those columns exist (`"none"` otherwise).
 
@@ -279,7 +279,7 @@ Build a GMNS network from OSM or Overture, write it to `output_dir`, then open i
 | `output_dir` | `str` | required |
 | `output_format` | `"parquet" \| "csv" \| "duckdb" \| "zip"` | required |
 | `name` | `str` (file-name characters, ≤ 100) | required |
-| `network_type` | `str` | `"drive"` |
+| `network_types` | `list[str]` (one or more of `roads`, `paths`; kept if any allows it) | `["roads"]` (a recorded single `network_type` is still read; recorded `drive` replays as `roads`, and `walk`, `bike`, `all` as `roads` + `paths`) |
 | `extra_tags` | `list[str] \| None` | `None` |
 | `spec_version` | `str \| None` | `None` (`io.spec_version`) |
 | `overture_release` | `str \| None` | `None` (`overture.release`; only with `source="overture"`) |

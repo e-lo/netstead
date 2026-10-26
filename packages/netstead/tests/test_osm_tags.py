@@ -69,21 +69,20 @@ class TestOnewayDirection:
 
 
 class TestAllowedHighways:
-    def test_drive_includes_motorway_excludes_footway(self):
-        allowed = tags.allowed_highways("drive")
+    def test_roads_include_motorway_excludes_footway(self):
+        allowed = tags.allowed_highways("roads")
         assert "motorway" in allowed
         assert "footway" not in allowed
 
-    def test_walk_includes_footway(self):
-        assert "footway" in tags.allowed_highways("walk")
+    def test_paths_include_footway(self):
+        assert "footway" in tags.allowed_highways("paths")
 
-    def test_all_accepts_any(self):
-        # "all" means no restriction → empty/None sentinel; helper reports acceptance.
-        assert tags.accepts_highway("all", "anything_at_all") is True
+    def test_no_type_accepts_arbitrary_values(self):
+        assert tags.accepts_highway(["roads", "paths"], "anything_at_all") is False
 
     def test_drive_accepts_helper(self):
-        assert tags.accepts_highway("drive", "residential") is True
-        assert tags.accepts_highway("drive", "footway") is False
+        assert tags.accepts_highway("roads", "residential") is True
+        assert tags.accepts_highway("roads", "footway") is False
 
     def test_unknown_network_type_raises(self):
         with pytest.raises(ValueError):
@@ -137,4 +136,4 @@ class TestMappingFilesLoad:
 
     def test_network_filters_cover_all_network_types(self):
         filters = tags.load_network_filters()
-        assert {"drive", "walk", "bike", "all"} <= set(filters)
+        assert set(filters) == {"roads", "paths"}

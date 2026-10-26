@@ -340,7 +340,7 @@ def test_apply_marks_tracker_dirty() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Empty-log + missing-log behaviours
+# Empty-log + missing-log behaviors
 # ---------------------------------------------------------------------------
 
 

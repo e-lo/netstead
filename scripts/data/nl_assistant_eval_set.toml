@@ -6,13 +6,13 @@
 # compare without case, spaces or dashes. Only the keys given are checked.
 
 [[case]]
-utterance = "colour the links by lanes"
+utterance = "color the links by lanes"
 [[case.expect]]
 type = "style"
 color_by = "lanes"
 
 [[case]]
-utterance = "colour by lanes and zoom to the selection"
+utterance = "color by lanes and zoom to the selection"
 select_first = [1, 2]
 [[case.expect]]
 type = "style"
@@ -95,7 +95,7 @@ utterance = "open my network from the desktop"
 no_calls = true
 
 [[case]]
-utterance = "select Ski Hill Drive and colour by lanes"
+utterance = "select Ski Hill Drive and color by lanes"
 [[case.expect]]
 type = "select"
 "query.facility.name" = "Ski Hill Drive"

@@ -417,8 +417,8 @@ def test_provenance_for_a_change_the_card_lacks_stays_in_the_notes():
 
 
 def test_a_property_change_s_unsupported_selector_names_no_change_kind():
-    card = _one("roadway_property_change", {"facility": {"nodes": {"osm_node_id": [1]}}, "property_changes": _LANES})
-    with pytest.raises(CardNotSupported, match=r"^change 1: only model_node_id selections of nodes can be read"):
+    card = _one("roadway_property_change", {"facility": {"nodes": {"name": ["x"]}}, "property_changes": _LANES})
+    with pytest.raises(CardNotSupported, match=r"^change 1: only model_node_id or osm_node_id selections of nodes"):
         DraftCard.from_card(card)
 
 
@@ -559,7 +559,9 @@ def test_writing_an_unhashable_record_value_does_not_raise_type_error():
     ],
 )
 def test_extra_selector_keys_are_not_dropped(card):
-    with pytest.raises(CardNotSupported, match=r"^change 1: only model_\w+ selections of \w+s can be read"):
+    with pytest.raises(
+        CardNotSupported, match=r"^change 1: only model_\w+( or osm_\w+)? selections of \w+s can be read"
+    ):
         DraftCard.from_card(card)
 
 

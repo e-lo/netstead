@@ -227,7 +227,7 @@ def register(app: typer.Typer) -> None:
         if _is_installed(model, installed):
             typer.echo(f"{model} is already installed{where}; pulling again checks for an update.")
         if not yes and not typer.confirm(f"Download {model} ({_size_text(registry, model)}) with {info.label}{where}?"):
-            typer.echo("cancelled")
+            typer.echo("canceled")
             raise typer.Exit(1)
         try:
             _pull_with_progress(registry, model)

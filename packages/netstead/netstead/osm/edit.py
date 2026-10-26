@@ -201,7 +201,7 @@ def _lookup_row_id(
 ) -> str | None:
     """Read ``column`` from row ``row`` of ``table_name`` and format the edit URL.
 
-    Materialises the table via ``to_pandas()`` since the lookup is
+    Materializes the table via ``to_pandas()`` since the lookup is
     row-positional and engines disagree on row-positional access. For
     the renderer use case this happens once per render, not per issue
     — the caller is expected to cache.

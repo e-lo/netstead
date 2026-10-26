@@ -42,7 +42,7 @@ class WriteUnsupportedForSchemeError(FormatError, NotImplementedError):
 
     Inherits from :class:`NotImplementedError` so existing
     ``except NotImplementedError`` callers (and tests written against
-    the prior bare-builtin behaviour) keep matching. The
+    the prior bare-builtin behavior) keep matching. The
     :class:`FormatError` arm gives downstream code a categorical
     "corral I/O refused this" handle.
     """

@@ -11,7 +11,7 @@ GMNS allows three ways to carry a link's geometry, in priority order:
 output row with a ``source`` column so callers can audit how the
 geometry was produced.
 
-This module materialises through pyarrow (via the underlying
+This module materializes through pyarrow (via the underlying
 :class:`~corral.dataset.Table`'s engine) rather than expressing the
 resolution chain in ibis. Reason: the geometry table is typically tiny
 relative to links, the join is one-shot, and the pyarrow code reads
@@ -33,7 +33,7 @@ __all__ = ["GeometrySource", "assemble_link_geometry"]
 
 
 def _to_wkb(cell: object) -> bytes | None:
-    """Normalise a geometry cell (WKB ``bytes`` or legacy WKT ``str``) to WKB bytes.
+    """Normalize a geometry cell (WKB ``bytes`` or legacy WKT ``str``) to WKB bytes.
 
     Post-ingest the ``link`` / ``geometry`` tables already hold WKB, so this is a
     pass-through; it also accepts a WKT string (re-encoding via the dep-free
@@ -183,10 +183,10 @@ def _build_node_xy_lookup(net: Network) -> dict:
 
 
 def _to_arrow(table) -> pa.Table:
-    """Materialise a :class:`~corral.dataset.Table` to pyarrow.
+    """Materialize a :class:`~corral.dataset.Table` to pyarrow.
 
     Two-hop ``to_pandas`` → ``pa.Table.from_pandas`` matches the rest
     of the netstead.indexes / semantics layer so we don't introduce a
-    second materialisation contract.
+    second materialization contract.
     """
     return pa.Table.from_pandas(table.to_pandas(), preserve_index=False)

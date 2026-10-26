@@ -7,6 +7,50 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
 
 ### Added
 
+- **Card facilities as a Segment or a Link list, in a chosen id system.** A property change's facility is built in
+  exactly one of the two strict forms the Find tab exports: **Segment** (`name` / `ref` with `from` / `to`;
+  re-resolvable, with the resolved ids kept in a `netstead.resolved[i]` note) or **Link list** (ids only), in GMNS
+  (`model_link_id`, `model_node_id`) or OpenStreetMap ids (`osm_link_id`, `osm_node_id`, as text). The change form and
+  New card mode have the Segment / Link list choice and an ID system select (Segment disabled for an unnamed
+  selection, GERS refused with ProjectCard's reason); `project_cards.add_change` and `project_cards.preview` take
+  `facility_form` and `id_system`. Defaults: Link list + GMNS for clicked or box-selected links, Segment + GMNS for a
+  named selection. Import and the catalog's fit check resolve OSM ids on the open network (`osm_link_id` against
+  `link.osm_way_id`, several links per way; `osm_node_id` against `node.osm_node_id`). The draft and Inspect views show
+  the form and id system per change (`Segment: Pine Street, node 33 → 19 (GMNS)`, `Link list: 1 link (GMNS)`), which
+  also changes the text of a change's `describe` (lineage, Edits panel, summary). Reads the strict forms from
+  `host.selection["projectcard"]["segment"|"link_list"]` (core, Host API 1.8, additive).
+- **New card mode.** A **New card** button in the Cards panel's Draft section starts a guided mode with a step
+  indicator (Type → Select → Details → Add), Back and Cancel: pick a change type (roadway property change, deletion,
+  addition; the transit types are shown disabled, "not yet supported"), select the facility with the shared
+  selection (links clicked or box-selected in Highlight mode and set as the selection, a description run through core's `select` Action, or
+  a saved selection) with a live count and **Use these N links**, then the change form, Preview and Add to card. It
+  dispatches the existing `project_cards.preview` and `project_cards.add_change`; an addition skips Select. The
+  right-click "New change ▸ …" entry point stays.
+- **Edit a card.** `project_cards.edit_card(card_id, replace_draft=False)` (the catalog row's **Edit**) loads a
+  catalog card into the open network's draft with `import` semantics (all or nothing) and remembers its file; a
+  draft with uncommitted changes is refused unless `replace_draft`, which undoes them first. The commit dialog then
+  offers **Save over <file>** (overwrite) or **Save as new file**. `project_cards.remove_change(index)` removes any
+  change of the draft, not only the last: it undoes the draft back to that change and re-applies the later ones, so
+  the network ends as if the change had never been made, and refuses (changing nothing) when a later change depends
+  on the removed one. The draft's **Edit…** is remove plus re-add through the form. `plugins.project_cards.drafts`
+  entries now carry `tags`, `dependencies`, `notes`, `source` (`{card_id, path}` or `null`) and each change's
+  `index`. A commit inside the open catalog's folder rescans the catalog (its result's `listed`).
+- **Edit the catalog's files.** Each catalog card has a **File** disclosure: **Rename…**
+  (`project_cards.rename_card(card_id, new_name, overwrite=False)`), **Duplicate** (`duplicate_card`, to
+  `<name>-copy.yml`, `-copy-2`, …), **Edit metadata…** (`update_card_meta(card_id, project=, tags=,
+  dependencies=)`, changing only those keys of the file) and **Delete** (`delete_card`, which moves the file to a
+  `.trash` folder inside the catalog folder; never a hard delete), with **Undo delete** in the status line
+  (`restore_card`). Every write goes through `host.writable`, stays inside the catalog folder (one sub-folder, nothing
+  hidden), validates the card with `projectcard` first and never replaces a different file unless `overwrite`. They
+  change files, not a network (`mutates` false), are kept out of the assistant's tools, are rolled back with a
+  failing parent Action, and are listed in the session summary's new **Catalog files** section
+  (`plugins.project_cards.files`; deletions this session are `plugins.project_cards.trash`).
+- **Inspect a card.** **Inspect** on a catalog card (and on the draft) opens a read-only view: project, tags,
+  dependencies, notes and file; each change with its type, facility (ids, or the query and what it resolved to),
+  property changes (existing → set or change) and its applicability on the open network. Clicking a change
+  highlights its links on the map (`wb.highlight`; the map does not zoom, since `wb` has no camera control), and a
+  **YAML** toggle shows the card's text. `GET /api/plugins/project_cards/card?card_id=…` (or `?draft=true`) serves
+  it, reading the file through `host.readable`; nothing is mutated or stored.
 - **A catalog of cards, checked against the network, previewed and applied.** `project_cards.open_catalog(path)`
   (or the new `catalog_dir` setting) lists the ProjectCard files of a folder and one level of its sub-folders, with
   the files that are not cards and why; `refresh_catalog` rescans. `check_card(card_id)` says whether a card applies
@@ -32,6 +76,36 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
 
 ### Changed
 
+- A selection made by a request and applied as a Link list is written by id with `ignore_missing: false`, like a
+  pick; as a Segment it keeps the query's flag. A facility no longer mixes both forms' anchors with the request's
+  text.
+- **The catalog as a table.** The plugin registers the table view's read-only `cards_catalog` (Host API 1.8,
+  `host.register_table`; the plugin now needs 1.8): `card_id`, `project`, `tags` (comma list), `change_count`,
+  `change_types`, `fits` (null until checked), `reason`, `links_targeted`, `modified` (the file's mtime, ISO).
+  **Show as table** in the Catalog section opens it (`wb.showTable`); a row click selects the card in the panel
+  (`core.table_row`). A check (`check_card`, or the `/catalog` listing's) publishes `project_cards.checked`, so the
+  table is read again.
+- **A status pill says whether a card fits.** The catalog's `✓` / `✗` / `?` glyph is now a pill: green "Fits this
+  network", red "Doesn't fit" (its first reason inline, every reason in the tooltip: "missing link 999999",
+  "conflict: …", "already applied …" with apply on) or gray "Not checked" with a check button
+  (`project_cards.check_card`). The heading reads "Catalog · checked against <network>". Each catalog entry
+  (`state()` and `GET /catalog`) carries `fit`: `{state: fits | no | unchecked, label, reasons, warnings, net_id}`
+  (`netstead_project_cards.catalog.fit`); a change's check lists `lacks` (`"link 999999"`) for the missing ids that
+  refuse it.
+- **"This session", not "Applied this session".** The panel's third section lists what the session did with cards,
+  newest first with the time and an icon: "Saved <file>" (a commit), the catalog file actions (renamed, duplicated,
+  deleted, restored, metadata edited) and "Applied <card> to <network>" only while `enable_apply` is on. It reads
+  `plugins.project_cards.session` (`{kind, verb, text, detail, card_id, at}` each), a log kept with the commit and
+  file records and taken back with them on a rollback. A committed record now carries `at`.
+- **Applying cards is off by default.** The new setting `[plugins.project_cards] enable_apply` (default `false`)
+  gates `project_cards.apply_card`: off, it is refused with "applying cards is turned off
+  (plugins.project_cards.enable_apply)", the panel offers no **Apply…** (`plugins.project_cards.enable_apply` in the
+  state says which), and a card saved this session no longer reads as "already applied". The assistant is never
+  offered `apply_card` (`assistant = False`). The apply code and its tests stay (run with the setting on).
+- **Icon buttons.** The Cards panel's per-card and per-section actions are icon buttons with a tooltip and an
+  accessible name that says what they act on (`iconbtn`, core's icons through `wb.icon`, plus a few drawn by the
+  panel; an older host shows their text). A catalog card's actions sit in one row; its **File** disclosure is gone
+  (the file actions are in the row, the path is under **Details**). The dialogs keep their text buttons.
 - **The panel is the dock's Cards tab.** It registers as `cards` (the bare id core reserves for this plugin), titled
   "Cards", between core's Edit and Validate tabs (order 25); it was `project_cards.draft`, titled "Card", last.
 - **A query selection without provenance reads; applying it is what is refused.** A card that selects links by a
@@ -54,6 +128,17 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
 
 ### Fixed
 
+- **Applicability checks `existing` values.** A card whose property change expects a value the network no longer
+  has (for example one already applied on this network) used to show `✓` and then fail when applied. The check now
+  compares each property's `existing` with the target rows, the same way applying does (1 matches 1.0), following
+  `existing_value_conflict`: `error` makes the change not ok (`conflict: lanes: expected 1, found 2 on 4 of 4 links`,
+  shown as `✗` with the reason in the tooltip), `warn` and `skip` stay ok and list a `warnings` entry. A card
+  applied on the network this session says "already applied on <net> at HH:MM". `project_cards.apply_card` checks
+  with its `existing_value_conflict` / `ignore_missing` overrides, so a `warn` or `skip` override is not refused.
+- **Renaming, deleting or restoring a card's file updates an open draft's source.** A draft loaded with Edit kept
+  the old path after `rename_card` (so "Save over" wrote the old name); it now follows the rename, loses its source
+  on `delete_card` (the commit dialog then offers only "Save as new file"), gets it back on `restore_card`, and
+  all three are undone with a rolled-back Action.
 - **`project_cards.undo_change` undoes an applied catalog card.** Core's Edit panel refuses its own Undo on a card
   applied from the catalog ("the last change was made by project_cards; undo it there"), pointing at this plugin's
   undo — but it used to answer "nothing to undo" for it (it only ever took back the draft's last change), leaving

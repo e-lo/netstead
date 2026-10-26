@@ -113,16 +113,15 @@ class TestApplyMapping:
 
 
 class TestNetworkFilters:
-    def test_drive_allows_residential_not_footway(self):
-        assert attrs.accepts_class("drive", "residential") is True
-        assert attrs.accepts_class("drive", "footway") is False
+    def test_roads_allow_residential_not_footway(self):
+        assert attrs.accepts_class("roads", "residential") is True
+        assert attrs.accepts_class("roads", "footway") is False
 
-    def test_walk_allows_footway(self):
-        assert attrs.accepts_class("walk", "footway") is True
+    def test_paths_allow_footway(self):
+        assert attrs.accepts_class("paths", "footway") is True
 
-    def test_all_accepts_anything(self):
-        assert attrs.accepts_class("all", "whatever") is True
-        assert attrs.allowed_classes("all") == frozenset()
+    def test_no_type_accepts_arbitrary_values(self):
+        assert attrs.accepts_class(["roads", "paths"], "whatever") is False
 
     def test_unknown_network_type_raises(self):
         with pytest.raises(ValueError, match="unknown network_type"):

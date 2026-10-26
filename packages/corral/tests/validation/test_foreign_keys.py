@@ -94,7 +94,7 @@ def _load_rows(csv_path: Path) -> list[dict[str, Any]]:
 
     All integer-looking fields are coerced to ``int`` (or ``None`` for
     blanks); everything else is left as a string. The engines' scan
-    paths then normalise via ``cast_schema``.
+    paths then normalize via ``cast_schema``.
     """
     with csv_path.open() as f:
         raw = list(csv.DictReader(f))
@@ -148,7 +148,7 @@ def leavenworth_tables_pandas(leavenworth_package: DataPackage):
 
     Yields (engine, tables) so the test body can pass both to
     :func:`check_foreign_keys`. Uses :func:`_load_rows` so the cross-engine
-    behaviour is hit indirectly via the per-engine parametrised tests.
+    behavior is hit indirectly via the per-engine parametrised tests.
     """
     engine = IbisEngine()
     tables: dict[str, Any] = {}
@@ -296,6 +296,42 @@ class TestUnverifiable:
         unverifiable = [i for i in report.issues if i.code == "fk.unverifiable"]
         assert unverifiable
         assert all(i.severity is Severity.ERROR for i in unverifiable)
+
+
+class TestUnverifiableSkippedWhenNothingToVerify:
+    @staticmethod
+    def _check(rows, fields="ref"):
+        engine = IbisEngine()
+        try:
+            src = engine.scan({"data": rows})
+            fk = ForeignKey(
+                fields=fields,
+                reference=ForeignKeyReference(
+                    resource="tgt", fields=fields if isinstance(fields, str) else list(fields)
+                ),
+            )
+            return check_foreign_key(fk, "src", src, "tgt", None)
+        finally:
+            engine.close()
+
+    def test_absent_source_column_no_finding(self):
+        assert self._check([{"id": 1}]) == []
+
+    def test_all_null_source_column_no_finding(self):
+        assert self._check([{"id": 1, "ref": None}, {"id": 2, "ref": None}]) == []
+
+    def test_one_non_null_value_still_warns(self):
+        issues = self._check([{"id": 1, "ref": None}, {"id": 2, "ref": 7}])
+        assert [i.code for i in issues] == ["fk.unverifiable"]
+        assert issues[0].severity is Severity.WARNING
+
+    def test_composite_all_absent_or_null_no_finding(self):
+        rows = [{"a": None}, {"a": None}]
+        assert self._check(rows, fields=["a", "b"]) == []
+
+    def test_composite_partial_value_warns(self):
+        issues = self._check([{"a": 1, "b": None}], fields=["a", "b"])
+        assert [i.code for i in issues] == ["fk.unverifiable"]
 
 
 # ---------------------------------------------------------------------------

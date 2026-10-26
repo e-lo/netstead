@@ -14,9 +14,9 @@ def test_the_entry_point_names_the_factory():
     assert ep.value == "netstead_project_cards:plugin" and ep.load() is plugin
 
 
-def test_the_plugin_needs_host_api_1_7_and_runs_on_this_one():
+def test_the_plugin_needs_host_api_1_8_and_runs_on_this_one():
     built = plugin()
-    assert (built.id, built.requires_api, built.version) == ("project_cards", "1.7", netstead_project_cards.__version__)
+    assert (built.id, built.requires_api, built.version) == ("project_cards", "1.8", netstead_project_cards.__version__)
     assert api_compatible(built.requires_api, HOST_API)
 
 
@@ -47,8 +47,10 @@ def test_the_front_end_is_served(make_session):
 
     session = make_session(open_network=False)
     (status,) = [s for s in session.plugin_status if s.id == "project_cards"]
-    assert status.frontend == "/plugins/project_cards/main.js"
+    prefix, _, build = status.frontend.partition("/b/")
+    assert prefix == "/plugins/project_cards" and build.endswith("/main.js")  # served under a per-build URL
     client = TestClient(build_app(session))
+    assert client.get(status.frontend).status_code == 200
     for name in ("main.js", "controller.js", "cardmodel.js"):
         response = client.get(f"/plugins/project_cards/{name}")
         assert response.status_code == 200 and "javascript" in response.headers["content-type"]

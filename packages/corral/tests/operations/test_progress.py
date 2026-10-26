@@ -2,7 +2,7 @@
 
 The progress helper wraps an iterable with a rich.progress bar, detects
 notebook environments, auto-disables under pytest, and exposes a Spinner
-context manager for indeterminate ops. Behaviour-focused tests; we do
+context manager for indeterminate ops. Behavior-focused tests; we do
 not assert on rich's rendering — only on what we yield and on the
 notebook-detection heuristic.
 """

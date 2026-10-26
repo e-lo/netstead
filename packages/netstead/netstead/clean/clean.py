@@ -80,14 +80,14 @@ __all__ = [
 
 
 def _to_arrow(table) -> pa.Table:
-    """Materialise a :class:`~corral.dataset.Table` to pyarrow."""
+    """Materialize a :class:`~corral.dataset.Table` to pyarrow."""
     return pa.Table.from_pandas(table.to_pandas(), preserve_index=False)
 
 
 def _submit_replace(session: Session, table_name: str, new_rows: list[dict]) -> EditResult:
     """Submit a ``replace_table`` Edit for ``table_name`` carrying ``new_rows``.
 
-    Uses the package's engine to materialise the new expression from
+    Uses the package's engine to materialize the new expression from
     plain row dicts — same path as :meth:`Engine.from_records` so we
     stay backend-agnostic.
     """
@@ -170,7 +170,7 @@ def simplify_geometry(
 
     Raises:
         CleanError: If the network has no link shapes in either
-            location, or ``mode`` is unrecognised.
+            location, or ``mode`` is unrecognized.
 
     Examples:
         >>> import pytest

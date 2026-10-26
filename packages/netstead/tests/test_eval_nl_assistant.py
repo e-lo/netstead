@@ -64,7 +64,7 @@ def test_the_eval_never_dispatches_a_plan(ev, tmp_path, isolated_env, monkeypatc
     out = ev.run_eval(
         ev.load_cases(ev.EVAL_SET)[:2], runs=1, provider=Scripted(), environ=isolated_env, project_dir=tmp_path
     )
-    assert out.rows[0] == ("colour the links by lanes", 1, 1, pytest.approx(out.rows[0][3]))
+    assert out.rows[0] == ("color the links by lanes", 1, 1, pytest.approx(out.rows[0][3]))
     assert out.rows[1][1] == 0 and out.tokens == 24 and out.dispatched == 0
 
 

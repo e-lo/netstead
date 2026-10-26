@@ -32,7 +32,14 @@ def test_a_property_change_form_on_a_pick(client, session):
     session.dispatch(Select(link_ids=[1, 2]))
     got = form(client, type="roadway_property_change", use_selection="true")
     assert got["supported"] is True and got["net_id"] == "leavenworth"
-    assert got["targets"] == {"table": "link", "count": 2, "picked": True, "label": "2 picked links", "warnings": []}
+    targets = {k: v for k, v in got["targets"].items() if k != "facility"}
+    assert targets == {
+        "table": "link",
+        "count": 2,
+        "picked": True,
+        "label": "Link list: 2 links (GMNS)",
+        "warnings": [],
+    }
     assert got["existing"]["facility_type"] == "residential" and got["existing"]["lanes"] == 1
     assert "free_speed" not in got["existing"]  # 40.0 and 40.23: not every target agrees
     columns = got["columns"]["properties"]
@@ -46,7 +53,7 @@ def test_a_query_selection_is_labelled_by_its_query(client, session):
     session.dispatch(Select(utterance="Benton Street"))
     got = form(client, type="roadway_property_change", use_selection="true")
     assert got["targets"]["picked"] is False and got["targets"]["count"] == 4
-    assert got["targets"]["label"] == '4 links matching {"name": ["Benton Street"]}'
+    assert got["targets"]["label"] == "Segment: Benton Street (GMNS), 4 links"
 
 
 def test_a_saved_selection_form(client, session):
@@ -54,7 +61,7 @@ def test_a_saved_selection_form(client, session):
     session.dispatch(SaveSelection(name="one"))
     session.dispatch(Select(link_ids=[2]))
     got = form(client, type="roadway_property_change", saved="one")
-    assert got["targets"]["label"] == "1 picked link" and got["existing"]["free_speed"] == 40.0
+    assert got["targets"]["label"] == "Link list: 1 link (GMNS)" and got["existing"]["free_speed"] == 40.0
 
 
 def test_deletion_and_addition_forms(client, session):

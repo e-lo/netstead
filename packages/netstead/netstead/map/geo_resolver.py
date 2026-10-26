@@ -49,7 +49,7 @@ _PROP_VALUE_MAX_CHARS = 80
 
 
 def _build_props(record, columns: list[str], *, skip: frozenset[str]) -> dict:
-    """Build a JSON-serialisable tooltip props dict from a pandas row.
+    """Build a JSON-serializable tooltip props dict from a pandas row.
 
     Skips long-form / internal columns, drops null / NaN, truncates over-long
     string values, and coerces numpy scalars to Python primitives so the
@@ -73,7 +73,7 @@ def _build_props(record, columns: list[str], *, skip: frozenset[str]) -> dict:
 
 
 def _to_json_primitive(val) -> object | None:
-    """Coerce a pandas/numpy cell value to a JSON-serialisable Python primitive.
+    """Coerce a pandas/numpy cell value to a JSON-serializable Python primitive.
 
     Returns ``None`` for nulls (``None``, ``NaN``) so callers can drop them
     instead of carrying ``"nan"`` strings into the tooltip.
@@ -130,7 +130,7 @@ def _polyline_midpoint(points: list[tuple[float, float]]) -> tuple[float, float]
 class GeoResolver:
     """Cached resolver: turn issues into ``(lon, lat)`` against ``network``.
 
-    Materialises the links and nodes tables once at construction time
+    Materializes the links and nodes tables once at construction time
     and reuses them for every :meth:`resolve` call.
 
     Attributes:
@@ -138,7 +138,7 @@ class GeoResolver:
     """
 
     def __init__(self, network: Network) -> None:
-        """Materialise ``network``'s ``link`` / ``node`` / ``geometry`` tables and pre-compute lookups."""
+        """Materialize ``network``'s ``link`` / ``node`` / ``geometry`` tables and pre-compute lookups."""
         self.network = network
         self._links_df: pd.DataFrame | None = self._materialise("link")
         self._nodes_df: pd.DataFrame | None = self._materialise("node")

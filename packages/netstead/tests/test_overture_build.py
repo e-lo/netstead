@@ -29,7 +29,7 @@ def _links_df(net):
 
 class TestBuildDriveNetwork:
     def test_nodes_links_and_provenance(self, engine):
-        net = build.build_network_from_overture(WORLD_BBOX, network_type="drive", data_root=FIXTURE_ROOT, engine=engine)
+        net = build.build_network_from_overture(WORLD_BBOX, network_type="roads", data_root=FIXTURE_ROOT, engine=engine)
         links = _links_df(net)
         nodes = net.nodes.to_pandas()
         # residential (split at interior connector -> 2 sub-segs, two-way -> 4)
@@ -39,7 +39,7 @@ class TestBuildDriveNetwork:
         assert "overture_segment_id" in links.columns
 
     def test_oneway_primary_has_single_direction(self, engine):
-        net = build.build_network_from_overture(WORLD_BBOX, network_type="drive", data_root=FIXTURE_ROOT, engine=engine)
+        net = build.build_network_from_overture(WORLD_BBOX, network_type="roads", data_root=FIXTURE_ROOT, engine=engine)
         links = _links_df(net)
         hwy = links[links["overture_segment_id"] == "s_hwy"]
         assert len(hwy) == 1
@@ -47,14 +47,14 @@ class TestBuildDriveNetwork:
         assert hwy.iloc[0]["free_speed"] == pytest.approx(62.1)  # 100 km/h -> mph
 
     def test_name_carried(self, engine):
-        net = build.build_network_from_overture(WORLD_BBOX, network_type="drive", data_root=FIXTURE_ROOT, engine=engine)
+        net = build.build_network_from_overture(WORLD_BBOX, network_type="roads", data_root=FIXTURE_ROOT, engine=engine)
         links = _links_df(net)
         assert "Main St" in set(links["name"])
 
 
 class TestConfigAndValidation:
     def test_config_declares_crs_and_units(self, engine):
-        net = build.build_network_from_overture(WORLD_BBOX, network_type="drive", data_root=FIXTURE_ROOT, engine=engine)
+        net = build.build_network_from_overture(WORLD_BBOX, network_type="roads", data_root=FIXTURE_ROOT, engine=engine)
         cfg = net.config.to_pandas().iloc[0]
         assert cfg["dataset_name"] == "overture_export"
         assert cfg["crs"] == "EPSG:4326"
@@ -62,7 +62,7 @@ class TestConfigAndValidation:
         assert cfg["speed"] == "mph"
 
     def test_network_validates_without_errors(self, engine):
-        net = build.build_network_from_overture(WORLD_BBOX, network_type="drive", data_root=FIXTURE_ROOT, engine=engine)
+        net = build.build_network_from_overture(WORLD_BBOX, network_type="roads", data_root=FIXTURE_ROOT, engine=engine)
         errors = [i for i in net.validate().issues if i.severity.value == "error"]
         assert errors == [], errors
 
@@ -70,14 +70,14 @@ class TestConfigAndValidation:
 class TestEdgeCases:
     def test_extra_tags_carried_onto_links(self, engine):
         net = build.build_network_from_overture(
-            WORLD_BBOX, network_type="drive", data_root=FIXTURE_ROOT, engine=engine, extra_tags=["subtype"]
+            WORLD_BBOX, network_type="roads", data_root=FIXTURE_ROOT, engine=engine, extra_tags=["subtype"]
         )
         assert "subtype" in net.links.to_pandas().columns
 
     def test_empty_area_raises(self, engine):
         with pytest.raises(ValueError, match="no Overture segments matched"):
             build.build_network_from_overture(
-                (10.0, 10.0, 11.0, 11.0), network_type="drive", data_root=FIXTURE_ROOT, engine=engine
+                (10.0, 10.0, 11.0, 11.0), network_type="roads", data_root=FIXTURE_ROOT, engine=engine
             )
 
 

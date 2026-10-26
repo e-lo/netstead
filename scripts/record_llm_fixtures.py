@@ -42,7 +42,7 @@ class _Recording(httpx.BaseTransport):
     """Pass requests to the network and keep the last exchange (request + decoded response).
 
     Headers travel with ``self.last`` only long enough for :func:`record` to read the request's
-    JSON body; nothing here, and nothing :func:`record` writes to a fixture, ever serialises a
+    JSON body; nothing here, and nothing :func:`record` writes to a fixture, ever serializes a
     header.
     """
 

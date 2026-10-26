@@ -18,7 +18,7 @@ Requires the matching optional extra: `pip install 'netstead[osm]'` or `pip inst
 Build the drivable network for a place and write it as CSV. The area is geocoded via Nominatim, the road network is fetched from Overpass, and the result is a GMNS package on disk:
 
 ```bash
-netstead build --place "Leavenworth, WA" --network-type drive --source osm --format csv ./leavenworth-osm
+netstead build --place "Leavenworth, WA" --network-type roads --source osm --format csv ./leavenworth-osm
 ```
 
 The command prints a summary (`nodes`, `links`, `spec_version`); add `--json` for a machine-readable document.
@@ -60,10 +60,10 @@ netstead build --source overture --overture-release 2026-09-23.1 --data-root /da
 
 ### 4. Choose modes and output format
 
-`--network-type` is one of `drive` / `walk` / `bike` / `all`. The output format is inferred from the destination extension, or set it explicitly with `--format` (`csv` / `parquet` / `duckdb` / `zip`). A destination with no extension — `./net` in the examples above — is written as a **Parquet** directory; pass `--format csv` for CSV:
+`--network-type` is `roads` (motorway through residential, service and other roads, links and busways), `paths` (footways, paths, pedestrian ways, steps, tracks, cycleways and bridleways), or both: repeat the option or comma-separate (`--network-type roads,paths`). Proposed, construction and corridor ways are never built. The old names still work but are deprecated: `drive` means `roads`; `walk`, `bike` and `all` mean `roads,paths`. Overture builds use the same two types, mapped onto Overture road classes (no busway class exists there). The output format is inferred from the destination extension, or set it explicitly with `--format` (`csv` / `parquet` / `duckdb` / `zip`). A destination with no extension — `./net` in the examples above — is written as a **Parquet** directory; pass `--format csv` for CSV:
 
 ```bash
-netstead build --place "Leavenworth, WA" --network-type bike --format parquet ./bike-net
+netstead build --place "Leavenworth, WA" --network-type roads,paths --format parquet ./full-net
 ```
 
 ### 5. Validate what you built
@@ -82,7 +82,7 @@ Programmatic equivalent — `netstead.osm.build_network_from_osm` returns a `Net
 ```python
 from netstead.osm import build_network_from_osm
 
-net = build_network_from_osm("Leavenworth, WA", network_type="drive")
+net = build_network_from_osm("Leavenworth, WA", network_type="roads")
 print(net.links.count(), net.nodes.count())
 net.write("leavenworth-osm", format="csv", overwrite=True)
 ```
@@ -93,7 +93,7 @@ net.write("leavenworth-osm", format="csv", overwrite=True)
 ```python
 from netstead.overture import build_network_from_overture
 
-net = build_network_from_overture((-120.67, 47.58, -120.64, 47.61), network_type="drive")
+net = build_network_from_overture((-120.67, 47.58, -120.64, 47.61), network_type="roads")
 net.write("leavenworth-overture")   # no extension → Parquet directory
 ```
 
@@ -145,7 +145,7 @@ print(net.links.count())
     ```python
     from netstead.osm import build_network_from_osm_file
 
-    net = build_network_from_osm_file("leavenworth.osm", network_type="drive", extra_tags=["surface"])
+    net = build_network_from_osm_file("leavenworth.osm", network_type="roads", extra_tags=["surface"])
     net.write("leavenworth-osm", format="csv")
     ```
 

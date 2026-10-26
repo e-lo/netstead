@@ -40,7 +40,7 @@ function segmentAngle(points, i) {
 
 // One arrow per link row (so a two-way street gets one per direction), at its path's midpoint by length:
 // `{link, position, angle, side}`. `side` is which offset line the row is drawn on: +1 (the right-hand side,
-// where the map's PathStyleExtension draws a positive offset) when `offset` is on, 0 (the centreline) when
+// where the map's PathStyleExtension draws a positive offset) when `offset` is on, 0 (the centerline) when
 // off. Paths of fewer than two points get no arrow.
 export function buildArrows(paths, { offset = false } = {}) {
   const side = offset ? 1 : 0, arrows = [];
@@ -63,7 +63,7 @@ export function linkPaths(count, linkStart, positions) {
   return paths;
 }
 
-// Where an arrow sits relative to its link's centreline, in screen pixels (+y down, deck.gl's `getPixelOffset`):
+// Where an arrow sits relative to its link's centerline, in screen pixels (+y down, deck.gl's `getPixelOffset`):
 // `side * amt` path widths to the right of travel, the same line the PathStyleExtension draws the row on when
 // its offset is `amt` (its unit is the path's own clamped pixel width). With `angle` as buildArrows gives it,
 // the right-hand perpendicular on screen is (cos angle, -sin angle): eastbound (-90) -> (0, 1), straight down.
@@ -74,6 +74,10 @@ export function arrowPixelOffset(angle, side, widthPx, amt) {
 
 // Arrow height in pixels: readable at the zoom they first appear (13), growing to 18 px by zoom 18.
 export function arrowSize(zoom) { return Math.max(8, Math.min(18, 8 + 2 * (zoom - 13))); }
+
+// Node markers shrink as the map zooms out, so a whole city's intersections don't merge into one blob: full size at
+// zoom 14 and above, down to 40% at zoom 11 and below.
+export function nodeRadiusScale(zoom) { return Math.max(0.4, Math.min(1, 0.4 + 0.2 * (zoom - 11))); }
 
 export function decodeNetwork(buf) {
   const hlen = new DataView(buf).getUint32(0, true);

@@ -273,7 +273,7 @@ console.log(JSON.stringify({ calls, error, kept, addition, after: ctl.state }));
         ],
         ["dispatch", {"type": "project_cards.import", "path": "cards/a.yml"}],
     ]
-    assert got["after"] == {"compose": None, "check": None, "catalog": None}
+    assert got["after"] == {"compose": None, "check": None, "catalog": None, "create": None, "inspect": None}
 
 
 def test_a_preview_closed_elsewhere_is_not_closed_again(run_js):
@@ -515,28 +515,63 @@ const snapshot = { plugins: { project_cards: { drafts: {}, preview: null,
 """
 
 
-def test_catalog_rows_badge_and_tip(run_js):
+def test_catalog_rows_carry_the_status_pill(run_js):
     got = run_js(
         MODEL,
-        'import { catalogRows, catalogOf } from "./cardmodel.js";'
+        'import { catalogRows, catalogOf, checkedAgainst } from "./cardmodel.js";'
         + CATALOG_SNAPSHOT
         + """
 const rows = catalogRows(snapshot);
 console.log(JSON.stringify({ rows, none: catalogRows({ plugins: { project_cards: { catalog: null } } }),
-  fresher: catalogRows(snapshot, { path: "/cards", cards: [entry("new.yml", ok)] }).map(r => r.badge),
-  open: catalogOf(snapshot).path }));
+  fresher: catalogRows(snapshot, { path: "/cards", cards: [entry("new.yml", ok)] }).map(r => r.fit),
+  open: catalogOf(snapshot).path, against: checkedAgainst(catalogOf(snapshot)),
+  unchecked: checkedAgainst({ cards: [entry("new.yml", null)] }), empty: checkedAgainst(null) }));
 """,
     )
     rows = {r["card_id"]: r for r in got["rows"]}
     assert [r["card_id"] for r in got["rows"]] == ["good.yml", "bad.yml", "query.yml", "new.yml"]
-    assert rows["good.yml"]["badge"] == "✓" and rows["good.yml"]["tip"] == "Applies to base"
+    pill = {k: (r["fit"], r["label"], r["reason"], r["tip"]) for k, r in rows.items()}
+    # No `fit` from the server here (an older one): the pill follows the applicability.
+    assert pill["good.yml"] == ("fits", "Fits this network", "", "Fits base")
+    assert pill["bad.yml"] == ("no", "Doesn't fit", "does not apply", "does not apply")
+    assert pill["new.yml"] == ("unchecked", "Not checked", "", "Not checked against this network yet")
     good = rows["good.yml"]
     assert (good["project"], good["changes"], good["tags"]) == ("Good", 2, ["a", "b"])
-    assert rows["bad.yml"]["badge"] == "✗" and rows["bad.yml"]["tip"] == "lanes on 3 links: missing 999999"
-    assert rows["query.yml"]["badge"] == "✗"
-    assert rows["query.yml"]["tip"] == "lanes on a query: query without provenance; re-resolution not supported"
-    assert rows["new.yml"]["badge"] == "?" and rows["new.yml"]["tip"] == "Not checked yet"
-    assert got["none"] == [] and got["fresher"] == ["✓"] and got["open"] == "/cards"
+    assert got["none"] == [] and got["fresher"] == ["fits"] and got["open"] == "/cards"
+    assert got["against"] == "base" and got["unchecked"] is None and got["empty"] is None
+
+
+def test_the_pill_shows_the_servers_fit(run_js):
+    got = run_js(
+        MODEL,
+        'import { fitPill } from "./cardmodel.js";'
+        + """
+const fit = (state, reasons = [], warnings = []) => ({ fit: { state, reasons, warnings, net_id: "base" } });
+console.log(JSON.stringify({
+  no: fitPill(fit("no", ["missing link 999999", "conflict: lanes: expected 1, found 2 on 4 of 4 links"],
+                  ["lanes: expected 1, found 3 on 1 of 1 links"])),
+  warned: fitPill(fit("fits", [], ["lanes: expected 1, found 2 on 2 of 2 links"])),
+  applied: fitPill(fit("no", ["already applied on base at 09:05"])),
+  bare: fitPill(fit("no")), unchecked: fitPill(fit("unchecked")), nothing: fitPill(null),
+}));
+""",
+    )
+    assert got["no"] == {
+        "fit": "no",
+        "label": "Doesn't fit",
+        "reason": "missing link 999999",  # the first, shown inline
+        "tip": "missing link 999999\nconflict: lanes: expected 1, found 2 on 4 of 4 links\n"
+        "lanes: expected 1, found 3 on 1 of 1 links",
+    }
+    assert got["warned"] == {
+        "fit": "fits",
+        "label": "Fits this network",
+        "reason": "",
+        "tip": "Fits base\nlanes: expected 1, found 2 on 2 of 2 links",
+    }
+    assert got["applied"]["reason"] == "already applied on base at 09:05"
+    assert got["bare"]["reason"] == "does not apply"
+    assert got["unchecked"]["fit"] == got["nothing"]["fit"] == "unchecked"
 
 
 def test_apply_defaults_ignore_missing_only_for_missing_ids(run_js):
@@ -560,21 +595,32 @@ console.log(JSON.stringify({ defaults: rows.map(r => [r.card_id, applyDefaults(r
     assert got["few"] == "1, 2, 3, 4, 5 (+2 more)"
 
 
-def test_applied_rows_newest_first(run_js):
+def test_session_rows_carry_the_verb_the_icon_and_the_time(run_js):
     got = run_js(
         MODEL,
-        'import { appliedRows, summaryFileName } from "./cardmodel.js";'
-        + CATALOG_SNAPSHOT
+        'import { sessionRows, summaryFileName } from "./cardmodel.js";'
         + """
-console.log(JSON.stringify({ rows: appliedRows(snapshot), none: appliedRows({}),
+const at = t => `2026-10-21T${t}+00:00`;
+const session = [
+  { kind: "renamed", verb: "Renamed", text: "Renamed a.yml to b.yml", detail: "", card_id: "a.yml",
+    at: at("10:20:00") },
+  { kind: "applied", verb: "Applied", text: "Applied c.yml to base", detail: "1 change(s)", card_id: "c.yml",
+    at: at("10:15:30") },
+  { kind: "saved", verb: "Saved", text: "Saved q.yml", detail: "2 change(s) from base", card_id: "q",
+    at: at("09:05:00") },
+  { kind: "someday", verb: "Did", text: "Did x", card_id: "x", at: at("08:00:00") },
+];
+const state = { plugins: { project_cards: { session } } };
+console.log(JSON.stringify({ rows: sessionRows(state), none: sessionRows({}),
   name: [summaryFileName("leavenworth"), summaryFileName(null)] }));
 """,
     )
-    assert [(r["card_id"], r["source"], r["time"], r["changes"]) for r in got["rows"]] == [
-        ("second", "catalog", "10:15", 1),
-        ("first", "committed", "09:05", 2),
+    assert [(r["kind"], r["icon"], r["text"], r["detail"], r["time"]) for r in got["rows"]] == [
+        ("renamed", "rename", "Renamed a.yml to b.yml", "", "10:20"),
+        ("applied", "check-circle", "Applied c.yml to base", "1 change(s)", "10:15"),
+        ("saved", "save", "Saved q.yml", "2 change(s) from base", "09:05"),
+        ("someday", "info", "Did x", "", "08:00"),  # a kind this panel does not know yet still shows
     ]
-    assert got["rows"][0]["project"] == "Second"
     assert got["none"] == []
     assert got["name"] == ["leavenworth-cards-session.txt", "network-cards-session.txt"]
 
@@ -608,6 +654,7 @@ await ctl.applyCard("a.yml", { existing_value_conflict: "warn", ignore_missing: 
 const closed = cards.preview;
 await ctl.previewCard("a.yml", "base");
 const text = await ctl.summary("base");
+await ctl.checkCard("a.yml", "base");
 cards.catalog = null;
 const gone = [ctl.catalog(), ctl.catalogChanged()];
 console.log(JSON.stringify({ none, opened, again, fresher, other, closed, text, gone,
@@ -628,6 +675,8 @@ console.log(JSON.stringify({ none, opened, again, fresher, other, closed, text, 
         "project_cards.close_preview",
         "project_cards.preview_card",
         "/summary.txt?net_id=base",
+        "project_cards.check_card",
+        "/catalog?net_id=base",  # the listing is read again after a check
     ]
     apply = next(c[1] for c in got["calls"] if c[0] == "dispatch" and c[1]["type"] == "project_cards.apply_card")
     assert apply == {
@@ -637,3 +686,360 @@ console.log(JSON.stringify({ none, opened, again, fresher, other, closed, text, 
         "ignore_missing": True,
         "net_id": "base",
     }
+
+
+# ------------------------------------------------------------------------------------------- the New card mode
+
+
+def test_the_step_rules(run_js):
+    got = run_js(
+        MODEL,
+        """
+import { chooseType, createAfter, startCreate, stepIndicator, typeChoices } from "./cardmodel.js";
+const states = m => stepIndicator(m).map(s => `${s.key}:${s.state}`);
+const start = startCreate();
+const prop = chooseType(start, "roadway_property_change");
+const add = chooseType(start, "roadway_addition");
+const form = createAfter(prop, "form", "ski");
+const previewed = createAfter(form, "previewed");
+const added = createAfter(previewed, "added");
+const errors = [];
+for (const t of ["transit_routing_change", "nope"]) {
+  try { chooseType(start, t); } catch (e) { errors.push(e.message); }
+}
+try { createAfter(start, "jump"); } catch (e) { errors.push(e.message); }
+console.log(JSON.stringify({
+  start: states(start), prop: [prop.step, states(prop)], add: [add.step, states(add)],
+  form: [form.step, form.saved, states(form)], previewed: [previewed.step, states(previewed)],
+  added: states(added),
+  back: [createAfter(previewed, "back"), createAfter(prop, "back").step,
+         createAfter(createAfter(add, "form"), "back").step],
+  choices: typeChoices().map(c => [c.type, c.enabled, c.note]),
+  errors,
+}));
+""",
+    )
+    assert got["start"] == ["type:current", "select:todo", "details:todo", "add:todo"]
+    assert got["prop"] == ["select", ["type:done", "select:current", "details:todo", "add:todo"]]
+    # An addition selects nothing: its form opens at once and Select is skipped.
+    assert got["add"] == ["details", ["type:done", "select:skipped", "details:current", "add:todo"]]
+    assert got["form"] == ["details", "ski", ["type:done", "select:done", "details:current", "add:todo"]]
+    assert got["previewed"] == ["add", ["type:done", "select:done", "details:done", "add:current"]]
+    assert got["added"] == ["type:done", "select:done", "details:done", "add:done"]
+    back, from_select, from_addition_form = got["back"]
+    assert back == {"step": "select", "type": "roadway_property_change", "saved": None}
+    assert from_select == "type" and from_addition_form == "type"
+    assert [c[1] for c in got["choices"]] == [True, True, True, False, False, False, False]
+    assert got["choices"][3] == ["transit_property_change", False, "not yet supported"]
+    assert got["errors"] == [
+        "Transit routing change is not yet supported",
+        "no change type nope",
+        "no creation step event jump",
+    ]
+
+
+def test_the_select_step_counts_the_shared_selection_and_lists_saved_ones(run_js):
+    got = run_js(
+        MODEL,
+        """
+import { savedChoices, selectionStatus } from "./cardmodel.js";
+const preview = { net_id: "base-2", base: "base", describe: "x", stale: false };
+const at = (selection, extra = {}) => ({ selection, plugins: { project_cards: { preview } }, ...extra });
+const resolved = { net_id: "base", status: "resolved", link_ids: [1, 2, 3] };  // as state() reports it
+const saved = [{ name: "ski", net_id: "base", links: 4 }, { name: "one", net_id: "base", links: 1 },
+               { name: "far", net_id: "other", links: 2 }];
+console.log(JSON.stringify({
+  none: selectionStatus(at(null), "base"),
+  ready: selectionStatus(at(resolved), "base"),
+  onPreview: selectionStatus(at({ ...resolved, net_id: "base-2" }), "base-2").ready,
+  baseFromPreview: selectionStatus(at(resolved), "base-2").ready,
+  elsewhere: selectionStatus(at({ ...resolved, net_id: "other" }), "base").ready,
+  one: selectionStatus(at({ ...resolved, link_ids: [5] }), "base").label,
+  unresolved: selectionStatus(at({ ...resolved, status: "ambiguous" }), "base"),
+  saved: savedChoices(at(null, { saved_selections: saved }), "base-2"),
+  noSaved: savedChoices(null, "base"),
+}));
+""",
+    )
+    assert got["none"] == {"count": 0, "ready": False, "label": "Nothing selected on this network yet."}
+    assert got["ready"] == {"count": 3, "ready": True, "label": "3 links selected."}
+    assert got["onPreview"] is True and got["baseFromPreview"] is True and got["elsewhere"] is False
+    assert got["one"] == "1 link selected."
+    assert got["unresolved"]["ready"] is False and "not resolved yet" in got["unresolved"]["label"]
+    assert got["saved"] == [{"name": "ski", "label": "ski (4 links)"}, {"name": "one", "label": "one (1 link)"}]
+    assert got["noSaved"] == []
+
+
+def test_the_controller_walks_the_steps_with_the_existing_actions(run_js):
+    got = run_js(
+        BOTH,
+        STUB_WB
+        + """
+const steps = [];
+const at = () => steps.push(ctl.state.create && ctl.state.create.step);
+let refused = null;
+try { await ctl.useFacility(); } catch (e) { refused = e.message; }
+await ctl.start("roadway_deletion", { saved: "ski" });  // a right-click form is open: New card closes it
+await ctl.preview({ options: {} });
+await ctl.beginCreate(); at();
+await ctl.chooseCreateType("roadway_property_change"); at();
+await ctl.useFacility(); at();
+await ctl.preview({ columns: { lanes: 3 }, options: {} }); at();
+await ctl.backCreate(); at();  // leaving the form closes it and its preview
+await ctl.useFacility({ saved: "ski" }); at();
+await ctl.add({ columns: { lanes: 3 }, options: {} }); at();
+ctl.anotherChange(); at();
+await ctl.chooseCreateType("roadway_addition"); at();
+await ctl.cancel(); at();
+let empty = null;
+try { await ctl.selectByText("  "); } catch (e) { empty = e.message; }
+await ctl.selectByText("main street", "base");
+ctl.endCreate();
+console.log(JSON.stringify({ steps, refused, empty, compose: ctl.state.compose,
+  calls: calls.map(c => c[0] !== "dispatch" ? c
+    : [c[1].type, c[1].saved_selection || c[1].use_selection || c[1].utterance || null]) }));
+""",
+    )
+    assert got["refused"] == "the New card mode is not open"
+    assert got["steps"] == ["type", "select", "details", "add", "select", "details", "added", "type", "details", None]
+    assert got["empty"].startswith("Describe the links to select")
+    assert got["calls"] == [
+        ["get", "/form?type=roadway_deletion&saved=ski"],
+        ["project_cards.preview", "ski"],
+        ["project_cards.close_preview", None],  # New card closed the right-click form and its preview
+        ["get", "/form?type=roadway_property_change&use_selection=true"],
+        ["project_cards.preview", True],
+        ["project_cards.close_preview", None],  # Back from the form
+        ["get", "/form?type=roadway_property_change&saved=ski"],
+        ["project_cards.add_change", "ski"],
+        ["get", "/form?type=roadway_addition"],  # an addition's form opens with its type
+        ["select", "main street"],
+    ]
+    assert got["compose"] is None
+
+
+# ------------------------------------------------------------------------------------------- editing a card
+
+
+def test_commit_choices_and_the_edit_prompt(run_js):
+    got = run_js(
+        MODEL,
+        """
+import { baseName, commitChoices, editPrompt } from "./cardmodel.js";
+const fields = { project: "P", path: "/cards/main.yml", tags: [], overwrite: false, net_id: "base" };
+const source = { card_id: "main.yml", path: "/cards/main.yml" };
+const good = { project: "Main", fit: "fits", tip: "Fits base" };
+const bad = { project: "Main", fit: "no", tip: "missing link 9" };
+console.log(JSON.stringify({
+  plain: commitChoices(fields),
+  same: commitChoices(fields, source),
+  relative: commitChoices({ ...fields, path: "cards/main.yml" }, source)[1].disabled,
+  other: commitChoices({ ...fields, path: "/cards/main-v2.yml", overwrite: true }, source)[1],
+  names: [baseName("/a/b/c.yml"), baseName("c:\\\\x\\\\d.json"), baseName(""), baseName(null)],
+  empty: editPrompt(null, good), emptyBad: editPrompt({ count: 0 }, bad).ask,
+  one: editPrompt({ count: 1 }, good), two: editPrompt({ count: 2 }, bad).ask,
+}));
+""",
+    )
+    assert got["plain"] == [{"key": "commit", "label": None, "fields": got["plain"][0]["fields"], "disabled": ""}]
+    over, as_new = got["same"]
+    assert over["label"] == "Save over main.yml" and over["fields"]["overwrite"] is True
+    assert over["fields"]["path"] == "/cards/main.yml" and over["disabled"] == ""
+    assert as_new["label"] == "Save as new file" and as_new["disabled"].startswith("Give a different card file")
+    assert got["relative"].startswith("Give a different")
+    assert got["other"]["disabled"] == "" and got["other"]["fields"]["overwrite"] is False  # never replaces
+    assert got["names"] == ["c.yml", "d.json", "", ""]
+    assert got["empty"] == {"replace": False, "ask": ""}
+    assert got["emptyBad"] == "Main does not fit this network as it is: missing link 9"
+    assert got["one"]["replace"] is True
+    assert got["one"]["ask"] == (
+        "The draft card has 1 uncommitted change. Edit undoes it (network edits included) and loads Main instead."
+    )
+    assert got["two"].startswith("The draft card has 2 uncommitted changes. Edit undoes them")
+    assert got["two"].endswith("as it is: missing link 9")
+
+
+def test_the_controller_removes_edits_and_loads_cards(run_js):
+    got = run_js(
+        BOTH,
+        STUB_WB
+        + """
+const DRAFT = { changes: [
+  { index: 0, type: "roadway_property_change", targets: { links: [3, 4] } },
+  { index: 1, type: "roadway_addition", targets: { links: [340] } },
+  { index: 2, type: "roadway_deletion", targets: { links: [] } } ] };
+const get = wb.api.get;
+wb.api.get = async path => (path.startsWith("/card?") ? (calls.push(["get", path]), DRAFT) : get(path));
+const dispatch = wb.api.dispatch;
+wb.api.dispatch = async action => {
+  if (action.type === "select") server.selection = { link_ids: [...action.link_ids].reverse() };  // arrives later
+  return dispatch(action);
+};
+await ctl.removeChange(1, "base");
+await ctl.editCard("main.yml");
+await ctl.editCard("main.yml", { replaceDraft: true, netId: "base" });
+await ctl.editChange(0, "base");
+const outdated = ctl.selectionChanged();  // the selection the form was read for is the one it shows
+await ctl.editChange(1, "base");
+await ctl.editChange(2);
+let missing = null;
+try { await ctl.editChange(5, "base"); } catch (e) { missing = e.message; }
+console.log(JSON.stringify({ outdated, missing, calls: calls.map(c => (c[0] === "dispatch" ? c[1] : c)) }));
+""",
+    )
+    assert got["outdated"] is False
+    assert got["missing"] == "The draft has no change 6"
+    assert got["calls"] == [
+        {"type": "project_cards.remove_change", "index": 1, "net_id": "base"},
+        {"type": "project_cards.edit_card", "card_id": "main.yml", "replace_draft": False},
+        {"type": "project_cards.edit_card", "card_id": "main.yml", "replace_draft": True, "net_id": "base"},
+        ["get", "/card?draft=true&net_id=base"],
+        {"type": "project_cards.remove_change", "index": 0, "net_id": "base"},
+        {"type": "select", "link_ids": [3, 4], "net_id": "base"},
+        ["get", "/form?type=roadway_property_change&use_selection=true"],
+        ["get", "/card?draft=true&net_id=base"],
+        {"type": "project_cards.remove_change", "index": 1, "net_id": "base"},
+        ["get", "/form?type=roadway_addition"],  # an addition: no selection
+        ["get", "/card?draft=true"],
+        {"type": "project_cards.remove_change", "index": 2},
+        ["get", "/form?type=roadway_deletion&use_selection=true"],  # no links to select: the form says so
+        ["get", "/card?draft=true&net_id=base"],
+    ]
+
+
+# ------------------------------------------------------------------------------------------ editing the catalog
+
+
+def test_the_catalog_file_forms(run_js):
+    got = run_js(
+        MODEL,
+        """
+import { fileLine, metaFields, metaForm, renameName, splitList } from "./cardmodel.js";
+const detail = { project: "Main", tags: ["a", "b"], dependencies: { prerequisites: ["Bridge"], conflicts: [] } };
+console.log(JSON.stringify({
+  split: splitList(" a, ,b ,, c "), empty: splitList(null),
+  form: metaForm(detail), bare: metaForm({}),
+  fields: metaFields({ project: " Main St ", tags: "x, y", prerequisites: "Bridge", corequisites: "", conflicts: "W" }),
+  noProject: metaFields({ project: "  " }),
+  rename: [renameName(" b.yml ", "a.yml"), renameName("", "a.yml"), renameName("a.yml", "a.yml")],
+  lines: [
+    { action: "renamed", card_id: "a.yml", to: "b.yml" }, { action: "duplicated", card_id: "a.yml", to: "a-copy.yml" },
+    { action: "deleted", card_id: "a.yml", to: ".trash/" }, { action: "restored", card_id: "a.yml", to: "a.yml" },
+    { action: "updated", card_id: "a.yml", to: "project, tags" },
+  ].map(fileLine),
+}));
+""",
+    )
+    assert got["split"] == ["a", "b", "c"] and got["empty"] == []
+    assert got["form"] == {
+        "project": "Main",
+        "tags": "a, b",
+        "prerequisites": "Bridge",
+        "corequisites": "",
+        "conflicts": "",
+    }
+    assert got["bare"]["project"] == "" and got["bare"]["tags"] == ""
+    assert got["fields"] == {
+        "fields": {
+            "project": "Main St",
+            "tags": ["x", "y"],
+            "dependencies": {"prerequisites": ["Bridge"], "corequisites": [], "conflicts": ["W"]},
+        }
+    }
+    assert got["noProject"] == {"error": "Give the card a project name"}
+    assert got["rename"] == [
+        {"name": "b.yml"},
+        {"error": "Give the card a new file name"},
+        {"error": "a.yml already has that name"},
+    ]
+    assert got["lines"] == [
+        "Renamed a.yml to b.yml",
+        "Duplicated a.yml as a-copy.yml",
+        "Moved a.yml to the catalog's .trash/ folder",
+        "Restored a.yml",
+        "Saved a.yml's project, tags",
+    ]
+
+
+def test_the_controller_dispatches_the_catalog_file_actions(run_js):
+    got = run_js(
+        BOTH,
+        STUB_WB
+        + """
+await ctl.renameCard("a.yml", "b.yml");
+await ctl.renameCard("a.yml", "b.yml", true);
+await ctl.duplicateCard("a.yml");
+await ctl.duplicateCard("a.yml", "c.yml");
+await ctl.deleteCard("a.yml");
+await ctl.restoreCard("a.yml");
+await ctl.restoreCard("a.yml", true);
+await ctl.updateCardMeta("a.yml", { project: "P", tags: [], dependencies: {} });
+await ctl.cardDetail("a.yml", "base");
+console.log(JSON.stringify(calls.map(c => (c[0] === "dispatch" ? c[1] : c))));
+""",
+    )
+    assert got == [
+        {"type": "project_cards.rename_card", "card_id": "a.yml", "new_name": "b.yml", "overwrite": False},
+        {"type": "project_cards.rename_card", "card_id": "a.yml", "new_name": "b.yml", "overwrite": True},
+        {"type": "project_cards.duplicate_card", "card_id": "a.yml"},
+        {"type": "project_cards.duplicate_card", "card_id": "a.yml", "new_name": "c.yml"},
+        {"type": "project_cards.delete_card", "card_id": "a.yml"},
+        {"type": "project_cards.restore_card", "card_id": "a.yml"},
+        {"type": "project_cards.restore_card", "card_id": "a.yml", "overwrite": True},
+        {
+            "type": "project_cards.update_card_meta",
+            "card_id": "a.yml",
+            "project": "P",
+            "tags": [],
+            "dependencies": {},
+        },
+        ["get", "/card?card_id=a.yml&net_id=base"],
+    ]
+
+
+MODEL_HARNESS = """
+import {
+  changeAction, chooseFacility, facilityChoice, facilityReason, facilityText,
+} from "./cardmodel.js";
+const targets = {
+  facility: {
+    form: "segment", id_system: "gmns",
+    forms: { segment: null, link_list: null },
+    id_systems: { gmns: null, osm: null, gers: "ProjectCard has no key for GERS ids" },
+  },
+};
+const unnamed = { facility: { ...targets.facility, form: "link_list",
+  forms: { segment: "This selection has no named segment; use Link list", link_list: null } } };
+const prop = { type: "roadway_property_change", property_changes: {} };
+const attempt = fn => { try { return fn(); } catch (e) { return e.message; } };
+console.log(JSON.stringify({
+  choice: facilityChoice(targets), none: facilityChoice({}), nothing: facilityChoice(null),
+  reason: [facilityReason(targets, "id_systems", "gers"), facilityReason(targets, "id_systems", "osm"),
+           facilityReason({}, "forms", "segment")],
+  chosen: chooseFacility(targets, { form: "segment", id_system: "gmns" }, { id_system: "osm" }),
+  gers: attempt(() => chooseFacility(targets, { form: "segment", id_system: "gmns" }, { id_system: "gers" })),
+  segmentRefused: attempt(() => chooseFacility(unnamed, { form: "link_list", id_system: "gmns" }, { form: "segment" })),
+  property: changeAction("add_change", prop, { facility: { form: "link_list", id_system: "osm" } }),
+  saved: changeAction("preview", prop, { saved: "ski", facility: { form: "segment", id_system: "gmns" } }),
+  deletion: changeAction("add_change", { type: "roadway_deletion" },
+    { facility: { form: "link_list", id_system: "osm" } }),
+  plain: changeAction("add_change", prop),
+  texts: [
+    facilityText({ ...prop, facility: { table: "link", ids: [1, 2] } }),
+    facilityText({ ...prop, facility: { table: "link", ids: ["5"], id_system: "osm" } }),
+  ],
+}));
+"""
+
+
+def test_the_facility_choice_rules_and_the_action_fields(run_js):
+    got = run_js(MODEL, MODEL_HARNESS)
+    assert got["choice"] == {"form": "segment", "id_system": "gmns"} and got["none"] is None and got["nothing"] is None
+    assert got["reason"] == ["ProjectCard has no key for GERS ids", "", ""]
+    assert got["chosen"] == {"form": "segment", "id_system": "osm"}
+    assert got["gers"] == "ProjectCard has no key for GERS ids"
+    assert got["segmentRefused"] == "This selection has no named segment; use Link list"
+    assert got["property"]["facility_form"] == "link_list" and got["property"]["id_system"] == "osm"
+    assert got["saved"]["saved_selection"] == "ski" and got["saved"]["facility_form"] == "segment"
+    assert "facility_form" not in got["deletion"] and "id_system" not in got["plain"]  # a deletion takes GMNS ids
+    assert got["texts"] == ["Link list: 2 links (GMNS)", "Link list: 1 OSM way (OpenStreetMap)"]

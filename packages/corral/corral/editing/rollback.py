@@ -85,13 +85,13 @@ def rollback(
     if not rows:
         return []
 
-    materialised = [_inflate_result(row) for row in rows]
+    materialized = [_inflate_result(row) for row in rows]
     if to is None:
-        selected = materialised
+        selected = materialized
     elif isinstance(to, datetime):
-        selected = [r for r in materialised if r.applied_at > to]
+        selected = [r for r in materialized if r.applied_at > to]
     elif isinstance(to, str):
-        selected = [r for r in materialised if r.session_id == to]
+        selected = [r for r in materialized if r.session_id == to]
     else:
         raise RollbackError(f"`to` must be None, a session_id str, or a datetime; got {type(to).__name__}")
 

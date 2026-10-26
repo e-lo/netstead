@@ -101,7 +101,7 @@ class PackageRegistry:
     """Lazy registry mapping public id → :class:`Package` (or subclass).
 
     Built once at app startup from :class:`ServerSettings.packages`;
-    each :meth:`get` materialises the package on first access via the
+    each :meth:`get` materializes the package on first access via the
     configured ``loader`` (default :meth:`Package.from_source`) and
     caches the result. Hot-reload + cache invalidation are out of
     scope for v1 — restart the server to pick up a config change.
@@ -228,7 +228,7 @@ def build_app(
 
     @app.get("/packages", dependencies=[Depends(auth_dep)], tags=["packages"])
     def list_packages() -> list[dict[str, Any]]:
-        """List all configured package ids (without materialising them)."""
+        """List all configured package ids (without materializing them)."""
         return [registry.describe(pid) for pid in registry.list_ids()]
 
     @app.get("/packages/{pkg_id}", dependencies=[Depends(auth_dep)], tags=["packages"])

@@ -17,7 +17,7 @@ prunes unrelated partitions — locked in by
 
 For non-ibis engines (parity is ``ibis + pandas`` per the task brief),
 the table is wrapped as an ``ibis.memtable`` via
-:func:`corral.validation._ibis.to_ibis`, filtered, materialised via
+:func:`corral.validation._ibis.to_ibis`, filtered, materialized via
 **pyarrow**, and rebuilt on the source engine's ``from_records``
 primitive. No ``import pandas`` lives in this module — same rule as
 the validators.
@@ -191,7 +191,7 @@ def _apply_predicate(
 
     Tables whose expression is an ibis Table on a duckdb backend keep
     the filter lazy on that backend. Non-ibis engines route through an
-    ``ibis.memtable`` (default duckdb backend), materialise via
+    ``ibis.memtable`` (default duckdb backend), materialize via
     **pyarrow**, and rebuild on the source engine via
     :meth:`Engine.from_records`. Missing geometry column is a no-op so
     :meth:`Package.scope` works on mixed-geometry packages.
@@ -291,9 +291,9 @@ def from_polygon(
 ) -> Table:
     """Return a scoped :class:`Table` whose rows intersect ``polygon``.
 
-    Serialises ``polygon`` to WKT once on the Python side; the duckdb
+    Serializes ``polygon`` to WKT once on the Python side; the duckdb
     spatial extension does the geometric test. Same lazy / push-down
-    behaviour as :func:`from_bbox`.
+    behavior as :func:`from_bbox`.
 
     Args:
         table: Source lazy :class:`Table`.
@@ -356,7 +356,7 @@ def from_geometry_buffer(
     """Return a scoped :class:`Table` within ``distance_m`` of ``geometry``.
 
     The buffer is computed inside duckdb via ``ST_Buffer`` — the Python
-    side never materialises the buffered polygon. ``distance_m`` is in
+    side never materializes the buffered polygon. ``distance_m`` is in
     the **CRS units of the geometry column** (EPSG:4326 → degrees). The
     parameter name matches ``NetworkScope.buffer_spatial`` in
     :mod:`netstead.scope`; metric-aware projection belongs in that

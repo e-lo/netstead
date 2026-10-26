@@ -35,6 +35,13 @@ export function budgetText(status) {
   return `${count(status.remote_used)} of ${count(status.budget)} tokens used this session (all remote models)`;
 }
 
+// The in-flight line under the Find box: "Thinking… (provider · model)", with the elapsed seconds from 3 s on.
+export function thinkingText({ provider, model, elapsedMs }) {
+  const who = [provider, model].filter(Boolean).join(" · ");
+  if (elapsedMs >= 3000) return `Thinking… ${Math.floor(elapsedMs / 1000)} s`;
+  return who ? `Thinking… (${who})` : "Thinking…";
+}
+
 // The header box: Enter selects (unchanged); Ctrl+Enter or ⌘Enter asks the assistant (either modifier, on any
 // platform: Ctrl+Enter is not a system shortcut on a Mac either).
 export function barRoute(e) {

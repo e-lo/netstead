@@ -4,7 +4,9 @@
 // The panel is a section of the Settings dialog (settings.js); "Models…" opens Settings there.
 import { dispatch, getJSON, sendJSON } from "./api.js";
 import { $, esc, toast } from "./dom.js";
+import { setFindProvider } from "./findform.js";
 import { openJobsPanel } from "./jobs.js";
+import { llmStatus } from "./llmstatus.js";
 import { openSettings } from "./settings.js";
 
 const SECRETS = { "X-Netstead-Secrets": "1" };
@@ -35,6 +37,7 @@ let savedDefault = null; // the non-session pair: seen before any session overri
 let baseSources = null;  // where that pair came from ({provider, model}: "user" | "project" | "env" | "default")
 let refreshSeq = 0;      // drop out-of-order refresh responses
 let modelsSeq = 0;
+let modelMissing = false; // the chosen local model is not installed (set by renderModels, read by the robot status)
 const pulling = new Set(); // Ollama models this tab asked to pull, until that model's own pull job ends
 // "Pull {model} (Ollama)" (see routes/llm.py:_pull_label); used to recover the model id from a job event.
 const PULL_JOB_LABEL = /^Pull (.+) \(Ollama\)$/;
@@ -145,8 +148,8 @@ async function renderPicker() {
     html.push(`<option value="${esc(provider)}" selected disabled>${esc(row ? row.label : provider)} (not set up)</option>`);
   }
   $("nl-provider").innerHTML = html.join("");
-  $("nl-dot").className = `dot ${dotClass(current || providerRow(provider))}`;
-  $("nl-picker").title = current ? privacyNote(current) : `${provider} is not set up: open Models… to add a key or start it.`;
+  setFindProvider(provider);
+  $("nl-wrap").title = current ? privacyNote(current) : `${provider} is not set up: open Models… to add a key or start it.`;
   $("nl-default").disabled = !canMakeDefault();
   const shadow = shadowingLayers();
   $("nl-default").title = shadow.length
@@ -154,6 +157,29 @@ async function renderPicker() {
     : "Save this provider and model as your default";
   if (panelOpen()) $("llm-privacy").textContent = privacyNote(providerRow(provider));
   await renderModels(provider, model);
+  syncButtonTip(current, provider);
+}
+
+// The header robot shows whether the chosen provider and model can answer: its color (green ready, yellow
+// offline pattern parser only, red not available), a dot whose shape says the same, and a tooltip in words that
+// also carries the privacy note. The text is the button's accessible name too.
+function syncButtonTip(current, provider) {
+  const row = provider === "stub" ? null : current || providerRow(provider);
+  const status = llmStatus({ provider, row, model: $("nl-model").value, modelMissing, privacy: row ? privacyNote(row) : "Nothing leaves this machine." });
+  const btn = $("nl-btn");
+  btn.dataset.tip = status.text;
+  btn.setAttribute("aria-label", status.text);
+  btn.className = `iconbtn llm-${status.state}`;
+  $("nl-dot").className = `dot llm-${status.state}`;
+}
+
+function pickerIsOpen() { return !$("nl-picker").hidden; }
+
+function setPicker(open, { refocus = false } = {}) {
+  $("nl-picker").hidden = !open;
+  $("nl-btn").setAttribute("aria-expanded", String(open));
+  if (open) $("nl-provider").focus();
+  else if (refocus) $("nl-btn").focus();
 }
 
 async function fetchModels(provider) {
@@ -164,15 +190,17 @@ async function renderModels(provider, model) {
   const seq = ++modelsSeq;
   const box = $("nl-model");
   const p = providerRow(provider);
+  modelMissing = false;
   box.hidden = provider === "stub";
   if (provider === "stub" || !p || !p.usable) {
     box.innerHTML = "";
     box.disabled = true;
     return;
   }
-  let models = [];
+  let models = [], listed = false;
   try {
     models = await fetchModels(provider);
+    listed = true;
   } catch (e) {
     report(e);
   }
@@ -181,6 +209,7 @@ async function renderModels(provider, model) {
   const label = m => [m.label, m.tier, m.tools === false ? "JSON mode" : null].filter(Boolean).join(" · ");
   const opts = models.map(m => `<option value="${esc(m.id)}"${m.id === chosen ? " selected" : ""}>${esc(label(m))}</option>`);
   if (chosen && !models.some(m => m.id === chosen)) {
+    modelMissing = listed && p.local;
     opts.unshift(`<option value="${esc(chosen)}" selected>${esc(chosen)}${p.local ? " (not installed)" : ""}</option>`);
   }
   box.innerHTML = opts.join("");
@@ -195,6 +224,7 @@ function syncModelTitle(note = "") {
   const full = chosen ? chosen.textContent : "";
   box.dataset.full = full;
   box.title = [full, note].filter(Boolean).join(" — ");
+  if (llm) syncButtonTip(providerRow(llm.selected.provider), llm.selected.provider);
 }
 
 // The picker changes this session only; "Make default" saves the current choice to the user file.
@@ -567,10 +597,13 @@ function trackHeaderHeight() {
 
 export function wireLLM() {
   trackHeaderHeight();
+  $("nl-btn").onclick = () => setPicker(!pickerIsOpen());
+  $("nl-wrap").onkeydown = e => { if (e.key === "Escape" && pickerIsOpen()) { e.preventDefault(); setPicker(false, { refocus: true }); } };
+  document.addEventListener("pointerdown", e => { if (pickerIsOpen() && !e.target.closest("#nl-wrap")) setPicker(false); });
   $("nl-provider").onchange = e => onProviderChange(e.target.value);
   $("nl-model").onchange = e => { syncModelTitle(); onModelChange(e.target.value); };
   $("nl-default").onclick = () => makeDefault();
-  $("nl-manage").onclick = () => openSettings("llm").catch(report);
+  $("nl-manage").onclick = () => { setPicker(false); openSettings("llm").catch(report); };
   $("llm-providers").onclick = e => {
     const button = e.target.closest("button[data-act]");
     if (!button) return;

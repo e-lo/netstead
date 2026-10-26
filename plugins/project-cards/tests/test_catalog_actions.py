@@ -86,6 +86,7 @@ def test_open_catalog_lists_the_cards_and_the_rejected_files(session, folder):
         "tags": ["fix"],
         "change_count": 2,
         "applicability": None,
+        "fit": {"state": "unchecked", "label": "Not checked", "reasons": [], "warnings": [], "net_id": None},
     }
     assert [r["card_id"] for r in catalog["rejected"]] == ["notes.yml"]
     assert session.network(NET).version == 0  # nothing on the network changed
@@ -158,7 +159,8 @@ def test_apply_card_changes_the_network_and_records_it(session, folder, publishe
     assert applied["net_id"] == NET and applied["applied_at"].endswith("+00:00")
     assert NET not in state["drafts"]  # applied, not drafted: the card is already a file
     assert state["catalog"]["cards"][1]["applicability"] is None  # the network changed: checked again on demand
-    assert [e["name"] for e in published if e.get("type") == "plugin"] == ["catalog", "applied"]
+    own = [e["name"] for e in published if e.get("type") == "plugin" and e["plugin"] == "project_cards"]
+    assert own == ["catalog", "applied"]  # each also tells the table view (core.table_changed)
     assert session.history[-1].python == "app.do(ApplyCard(card_id='good.yml'))"
     assert sorted(folder.iterdir()) == sorted([folder / "good.yml", folder / "bad.yml", folder / "notes.yml"])
     undone = session.dispatch(UndoChange())  # an applied card is undone as a whole, not as a draft change
@@ -220,7 +222,7 @@ def test_apply_card_refuses_a_card_with_a_missing_id_unless_told_to_skip_it(sess
     session.dispatch(OpenCatalog(path=str(folder)))
     with pytest.raises(
         ActionError,
-        match=r"bad\.yml does not apply to leavenworth: .*link 999999.*: missing 999999; apply with ignore_missing",
+        match=r"bad\.yml does not apply to leavenworth: .*: missing 999999; apply with ignore_missing",
     ):
         session.dispatch(ApplyCard(card_id="bad.yml"))
     assert session.network(NET).version == 0 and cards_state(session)["applied"] == []
@@ -253,7 +255,9 @@ def test_apply_card_always_refuses_a_query_without_provenance(session, folder):
 def test_apply_card_overrides_the_cards_conflict_rule(session, folder):
     write(DraftCard(project="Stale", changes=[lanes(1, existing=7)]), folder / "stale.yml")
     session.dispatch(OpenCatalog(path=str(folder)))
-    with pytest.raises(ActionError, match="change 1 of 1: conflict: lanes: expected 7"):
+    with pytest.raises(
+        ActionError, match=r"does not apply to .*: conflict: lanes: expected 7, found 1 on 1 of 1 links"
+    ):
         session.dispatch(ApplyCard(card_id="stale.yml"))
     result = session.dispatch(ApplyCard(card_id="stale.yml", existing_value_conflict="warn"))
     assert result["warnings"] == ["lanes: expected 7 on link 1, found 1"] and cell(session, 1, "lanes") == [3]
@@ -301,8 +305,8 @@ def test_preview_card_shows_every_change_on_a_copy_and_publishes_the_targets(ses
     preview = result["preview"]
     assert result["base"] == NET and result["card_id"] == "good.yml" and result["warnings"] == []
     assert [c["describe"] for c in result["changes"]] == [
-        "roadway_property_change link 1: lanes → 3",
-        "roadway_property_change link 2, 3: lanes → 4",
+        "roadway_property_change Link list: 1 link (GMNS): lanes → 3",
+        "roadway_property_change Link list: 2 links (GMNS): lanes → 4",
     ]
     assert session.active == preview and cell(session, 1, "lanes", preview) == [3] and cell(session, 1, "lanes") == [1]
     assert cards_state(session)["preview"] == {
@@ -362,7 +366,7 @@ def test_session_summary_names_the_network_the_cards_and_the_actions(session, fo
     assert "Spec version: " in text
     assert "- Good (good.yml, catalog): 2 changes, edit ids 1, 2; " in text
     assert "- Widening (widening, committed): 1 change, edit ids 3; " in text
-    assert "## Draft card\n\n(unnamed):\n- roadway_property_change link 6: lanes → 2\n" in text
+    assert "## Draft card\n\n(unnamed):\n- roadway_property_change Link list: 1 link (GMNS): lanes → 2\n" in text
     actions = text.split("## Actions\n\n")[1].split("\n\n")[0].splitlines()
     assert [line.split(" ")[3] for line in actions] == [
         "project_cards.open_catalog",

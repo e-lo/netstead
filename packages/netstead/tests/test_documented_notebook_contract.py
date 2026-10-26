@@ -64,4 +64,4 @@ def test_notebook_code_cells_run_in_order(tmp_path: Path, monkeypatch: pytest.Mo
         except Exception as exc:  # pragma: no cover - failure path
             pytest.fail(f"notebook code cell {index} raised {type(exc).__name__}: {exc}\n---\n{cell}")
     assert namespace["net"].links.count() == 339
-    assert len(namespace["report"].issues) == 17
+    assert len(namespace["report"].issues) == 16

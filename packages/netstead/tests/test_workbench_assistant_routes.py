@@ -21,7 +21,7 @@ def setup(tmp_path):
 
 def test_ask_then_read(setup):
     _, client = setup
-    turn = client.post("/api/assistant/ask", json={"text": "colour by lanes"}).json()
+    turn = client.post("/api/assistant/ask", json={"text": "color by lanes"}).json()
     assert turn["steps"][0]["status"] == "done"
     j = client.get("/api/assistant").json()
     assert [t["role"] for t in j["turns"]] == ["user", "assistant"] and j["status"]["provider"] == "stub"
@@ -55,14 +55,14 @@ def test_bad_bodies_and_busy(setup):
 
 def test_clear(setup):
     _, client = setup
-    client.post("/api/assistant/ask", json={"text": "colour by lanes"})
+    client.post("/api/assistant/ask", json={"text": "color by lanes"})
     assert client.post("/api/assistant/clear").status_code == 200
     assert client.get("/api/assistant").json()["turns"] == []
 
 
 def test_a_cross_origin_ask_is_refused(setup):
     s, client = setup
-    r = client.post("/api/assistant/ask", json={"text": "colour by lanes"}, headers={"Origin": "https://evil.example"})
+    r = client.post("/api/assistant/ask", json={"text": "color by lanes"}, headers={"Origin": "https://evil.example"})
     assert r.status_code == 403 and s.assistant.turns == []
 
 

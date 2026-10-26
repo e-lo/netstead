@@ -228,7 +228,7 @@ Three conventions apply across the tree:
 
 ## Examples
 
-Check the install, then summarise and validate a network. `--json` turns the summary into one
+Check the install, then summarize and validate a network. `--json` turns the summary into one
 JSON document; `--html` writes the interactive validation report next to the terminal output.
 
 ```bash

@@ -121,7 +121,7 @@ The Workbench notes this section as "not used yet: networks open with DuckDB's o
 
 | Key | Type | Default | Meaning | Applies |
 |---|---|---|---|---|
-| `build.network_type` | `str` | `"drive"` | Network type the wizard prefills. | live |
+| `build.network_type` | `list[str]` | `["roads"]` | Network types the wizard prefills: `roads`, `paths` or both. A single name is accepted; the old `drive` reads as `roads` and `walk`, `bike`, `all` as both. | live |
 | `build.buffer_m` | `float` (> 0) | `1000.0` | Buffer in metres the wizard prefills for a point area. | live |
 | `build.extra_tags` | `list[str]` | `[]` | Extra OSM tags the wizard prefills. | live |
 
@@ -221,6 +221,7 @@ For example, the bundled project-cards plugin reads `[plugins.project_cards]`:
 | Key | Type | Default | Meaning | Applies |
 |---|---|---|---|---|
 | `plugins.project_cards.catalog_dir` | `str \| None` | `None` | A folder of ProjectCard files to open as the Cards panel's catalog on load (equivalent to calling `project_cards.open_catalog` once at startup). Must resolve inside `io.allowed_roots`. | next open |
+| `plugins.project_cards.enable_apply` | `bool` | `false` | Turn on applying catalog cards to a network (`project_cards.apply_card` and the Cards panel's **Apply…**). Off, `apply_card` is refused and the panel offers no Apply. The assistant is never offered `apply_card`. | live |
 
 ## See also
 

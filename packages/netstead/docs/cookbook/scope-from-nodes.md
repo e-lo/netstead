@@ -13,7 +13,7 @@ You have a list of node ids (e.g. study-area boundary nodes, signalised intersec
 
 ## Quick example
 
-Build a scope from three seed nodes. With `path_between=True` (the default), BFS shortest paths between every pair of seeds determine what's included; `.apply()` materialises the result as a normal `Network`:
+Build a scope from three seed nodes. With `path_between=True` (the default), BFS shortest paths between every pair of seeds determine what's included; `.apply()` materializes the result as a normal `Network`:
 
 ```python
 from netstead import Network
@@ -66,7 +66,7 @@ print(f"links in scope:    {len(scope.link_ids)}")
 print(f"provenance:        {scope.provenance}")   # str describing the op
 ```
 
-### 4. Apply to materialise a sub-network
+### 4. Apply to materialize a sub-network
 
 `.apply()` returns a normal `Network` you can validate, run quality checks on, or write out. Every table is pre-filtered by FK chain — lane rows whose `link_id` isn't in scope are dropped, signal rows for missing controllers are dropped, etc. A table the scope empties entirely (e.g. `signal_controller` when no signals fall in the subgraph) survives as a zero-row table with its schema intact:
 

@@ -2,6 +2,8 @@
 // in part from the offline report's "Fix locally" editor (map/templates/map_component.js: coerceLikely).
 // Import-free and DOM-free: unit-tested under node (tests/test_workbench_js.py).
 
+import { countOf } from "./tabs.js";
+
 const JSON_TYPE = { num: "number", bool: "boolean", str: "string" };
 
 // The typed text as the value to send. Empty clears the cell (null). A number when the current value is a
@@ -133,7 +135,8 @@ export function dirtyBadge(summary) {
 // The dock's workspace tab shows the dirty mark from it whenever another workspace is open.
 export function editsBadge(state) {
   const s = editSummary(state);
-  return s && s.dirty ? { text: s.unsaved ? String(s.unsaved) : "", dirty: true, title: dirtyBadge(s) } : null;
+  if (!s || !s.dirty) return null;
+  return { text: s.unsaved ? String(s.unsaved) : "", dirty: true, title: s.unsaved ? countOf(s.unsaved, "unsaved edit") : dirtyBadge(s) };
 }
 
 // Why core's Undo is unavailable, or "" when it can undo.

@@ -5,7 +5,7 @@ engine expression and route the payload through ibis (``filter`` /
 ``ifelse`` / ``anti_join``), so the work runs on the engine's connection
 (under its lock) rather than on an ``ibis.memtable`` copy of the whole
 table, one per op, registered with ibis's process-wide default backend
-(#145). Results materialise via pyarrow so the module stays
+(#145). Results materialize via pyarrow so the module stays
 pandas-free. Sample capture is bounded at :data:`SAMPLE_CAP` rows.
 
 Because the expression is live, one edit queries it more than once: a
@@ -43,7 +43,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 
 
 def _sample(arrow: pa.Table, *, cap: int = SAMPLE_CAP) -> list[dict]:
-    """Materialise up to ``cap`` rows of ``arrow`` as a list of row dicts."""
+    """Materialize up to ``cap`` rows of ``arrow`` as a list of row dicts."""
     return arrow.slice(0, cap).to_pylist()
 
 
@@ -53,7 +53,7 @@ def _sample_expr(expr: ibis.Table, *, cap: int = SAMPLE_CAP) -> list[dict]:
 
 
 def _arrow_of(expr: TableExpr) -> pa.Table:
-    """Normalise an engine-native expression to a pyarrow Table via ibis."""
+    """Normalize an engine-native expression to a pyarrow Table via ibis."""
     return to_ibis(expr).to_pyarrow()
 
 

@@ -182,7 +182,7 @@ class GMNSGraph:
             # Topology use (connectivity/scope): keep edges whose cost is
             # missing by giving them unit cost, rather than dropping them
             # (which would fragment the network). Mirrors GraphIndex's
-            # null-length -> 1.0 behaviour. Routing callers leave this False.
+            # null-length -> 1.0 behavior. Routing callers leave this False.
             weight = np.where(np.isfinite(weight), weight, 1.0)
 
         keep &= np.isfinite(weight)
@@ -243,7 +243,7 @@ class GMNSGraph:
     def from_network(cls, net, *, cost: str = "length", **kwargs) -> GMNSGraph:
         """Build a graph from a :class:`netstead.network.Network` (corral package).
 
-        Materialises the ``node`` and ``link`` tables to pandas and delegates to
+        Materializes the ``node`` and ``link`` tables to pandas and delegates to
         :meth:`build`. ``cost`` defaults to ``"length"`` so distance-based ops
         (:meth:`network_buffer`) and connectivity work without extra arguments.
 

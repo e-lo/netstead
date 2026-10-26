@@ -61,7 +61,7 @@ def _records_to_expr(eng: Any, records: Sequence[dict[str, Any]], schema: Any) -
     valid and typed.
 
     Args:
-        eng: The compute engine to materialise through.
+        eng: The compute engine to materialize through.
         records: The row dicts to load (possibly empty).
         schema: The GMNS resource schema used to seed columns when empty.
 
@@ -117,7 +117,7 @@ def network_from_records(
         link_records: GMNS ``link`` rows.
         spec_version: GMNS spec version to validate against
             (default :data:`netstead.spec.DEFAULT_SPEC`).
-        engine: Engine to materialise through. Defaults to the corral
+        engine: Engine to materialize through. Defaults to the corral
             default (ibis/duckdb).
         dataset_name: ``config.dataset_name`` value identifying the source.
         units: Unit declarations for the ``config`` row. ``None`` uses

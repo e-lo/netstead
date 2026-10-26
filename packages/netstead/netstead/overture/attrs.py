@@ -4,7 +4,7 @@ Mirror of :mod:`netstead.osm.tags` for the Overture source. Which Overture
 segment property feeds which GMNS field — and which ``class`` values count as
 drivable / walkable / bikeable — lives in maintained YAML under ``mappings/``,
 so retargeting a field is a data edit, not a code change. Value-level logic that
-cannot be data (scoped-rule reduction, unit normalisation, direction inference)
+cannot be data (scoped-rule reduction, unit normalization, direction inference)
 lives in the :data:`TRANSFORMS` registry and :func:`overture_direction` below.
 
 Several Overture attributes are **arrays of scoped rules** (``{..., between:
@@ -21,6 +21,8 @@ from importlib import resources
 from typing import Any
 
 import yaml
+
+from netstead.network_types import NetworkTypes, allowed_union
 
 __all__ = [
     "TRANSFORMS",
@@ -122,7 +124,7 @@ def max_speed_mph(value: Any) -> float | None:
     """Reduce an Overture ``speed_limits`` array to a single speed in **mph**.
 
     Picks the whole-segment rule (see :func:`_pick_rule`), reads its
-    ``max_speed`` ``{value, unit}``, and normalises to mph. Overture carries an
+    ``max_speed`` ``{value, unit}``, and normalizes to mph. Overture carries an
     explicit unit, so — unlike OSM — no km/h default guessing is needed.
 
     Args:
@@ -309,69 +311,58 @@ def load_network_filters() -> dict[str, list[str]]:
     """Load the per-``network_type`` allowed-``class`` lists from YAML.
 
     Returns:
-        Mapping ``{network_type: [allowed class values]}``. An empty list means
-        "accept any class" (used by ``all``).
+        Mapping ``{network_type: [allowed class values]}``.
 
     Examples:
         >>> f = load_network_filters()
-        >>> "drive" in f and "all" in f
+        >>> "roads" in f and "paths" in f
         True
     """
     return _load_mapping_yaml("overture_network_filters.yaml")
 
 
-def allowed_classes(network_type: str) -> frozenset[str]:
+def allowed_classes(network_type: NetworkTypes) -> frozenset[str]:
     """Return the set of Overture ``class`` values allowed for ``network_type``.
 
     Args:
         network_type: One of the keys in ``overture_network_filters.yaml``
-            (``drive``, ``walk``, ``bike``, ``all``).
+            (``roads``, ``paths``; legacy ``drive``/``walk``/``bike``/``all`` map onto them).
 
     Returns:
-        A frozenset of allowed ``class`` values. Empty for ``all`` (meaning no
-        restriction — see :func:`accepts_class`).
+        A frozenset of allowed ``class`` values.
 
     Raises:
         ValueError: If ``network_type`` is not a known key.
 
     Examples:
-        >>> "motorway" in allowed_classes("drive")
+        >>> "motorway" in allowed_classes("roads")
         True
-        >>> "footway" in allowed_classes("drive")
+        >>> "footway" in allowed_classes("roads")
         False
     """
-    filters = load_network_filters()
-    if network_type not in filters:
-        raise ValueError(f"unknown network_type {network_type!r}; expected one of {sorted(filters)}")
-    return frozenset(filters[network_type] or [])
+    return allowed_union(load_network_filters(), network_type)
 
 
-def accepts_class(network_type: str, class_value: Any) -> bool:
+def accepts_class(network_type: NetworkTypes, class_value: Any) -> bool:
     """Report whether a ``class`` value belongs to ``network_type``.
-
-    An empty allow-list (``all``) accepts any value.
 
     Args:
         network_type: One of the keys in ``overture_network_filters.yaml``.
         class_value: The Overture ``class`` value to test.
 
     Returns:
-        ``True`` if the value is in the network's allow-list (or the list is
-        empty), else ``False``.
+        ``True`` if the value is in the network's allow-list, else ``False``.
 
     Raises:
         ValueError: If ``network_type`` is not a known key.
 
     Examples:
-        >>> accepts_class("drive", "residential")
+        >>> accepts_class("roads", "residential")
         True
-        >>> accepts_class("all", "anything")
+        >>> accepts_class("paths", "footway")
         True
     """
-    allowed = allowed_classes(network_type)
-    if not allowed:
-        return True
-    return class_value in allowed
+    return class_value in allowed_classes(network_type)
 
 
 def apply_mapping(segment: Mapping[str, Any], extra_tags: list[str] | None = None) -> dict[str, Any]:

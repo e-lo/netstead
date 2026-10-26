@@ -8,7 +8,7 @@ async function readJSON(r) {
     // Our own 422s are {error, detail: [pydantic errors]}: say which field failed, not just "invalid build".
     const why = j.error && Array.isArray(j.detail)
       ? j.detail.map(d => (d.loc && d.loc.length ? `${d.loc.join(".")}: ` : "") + d.msg).join("; ") : "";
-    throw new Error(j.error ? (why ? `${j.error}: ${why}` : j.error) : detail || r.statusText);
+    throw Object.assign(new Error(j.error ? (why ? `${j.error}: ${why}` : j.error) : detail || r.statusText), { status: r.status });
   }
   return j;
 }

@@ -19,13 +19,16 @@ The packages were renamed from `gmnspy` / `datagrove` in October 2026 and the fi
 the new names is pending, so install the beta from GitHub (both packages, in one command):
 
 ```bash
-uv pip install \
+uv init --bare
+uv add \
   "dbcorral @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/corral" \
   "netstead[all] @ git+https://github.com/e-lo/netstead.git@main#subdirectory=packages/netstead"
-netstead doctor                        # confirm install
+uv run netstead doctor
 ```
 
-`pip install` and `uv add` accept the same two arguments. Once `netstead` 1.0.0b2 is on PyPI this
+Run it in a new, empty folder: `uv init --bare` makes the folder a uv project, which `uv add` needs (skip it
+inside a project you already have), and `uv run netstead doctor` confirms the install. `pip install` takes the
+same two package arguments, inside an activated virtual environment. Once `netstead` 1.0.0b2 is on PyPI this
 becomes `uv add 'netstead[all]==1.0.0b2'`.
 
 - 📖 [Beta program details — what's in scope, how to report](BETA.md)

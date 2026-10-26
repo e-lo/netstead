@@ -41,7 +41,7 @@ def validate(
     Args:
         source: A :class:`Network`, or anything :func:`read` accepts
             (local path, URL, package directory).
-        engine: Engine to materialise through. Only consulted when
+        engine: Engine to materialize through. Only consulted when
             ``source`` is a path — ignored when it's already a Network.
         spec_version: GMNS spec version to validate against. Only
             consulted when ``source`` is a path.
@@ -99,7 +99,7 @@ def read(
         source: Local path, ``s3://`` / ``https://`` / ``duckdb://`` URL,
             or directory of CSV / Parquet / DuckDB / zipped-CSV files
             containing the GMNS package.
-        engine: Engine to materialise through. Defaults to the
+        engine: Engine to materialize through. Defaults to the
             corral default (typically the ibis + DuckDB engine).
         spec_version: GMNS spec version to validate against. Defaults
             to :data:`DEFAULT_SPEC` (currently ``"0.97"``); must be one

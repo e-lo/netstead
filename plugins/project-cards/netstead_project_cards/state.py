@@ -33,6 +33,7 @@ from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
+from pathlib import PurePath
 from typing import Any, Literal
 
 from .card import DraftCard
@@ -40,7 +41,27 @@ from .catalog import Catalog, CatalogEntry
 from .lower import Applied, Mark, Pending, describe
 from .types import CHANGE_TYPES, ROADWAY_TYPES, NetworkChange
 
-__all__ = ["AppliedCard", "CardsState", "Draft", "Entry", "Preview", "Undone", "slug", "timestamp"]
+__all__ = [
+    "FILE_VERBS",
+    "AppliedCard",
+    "CardsState",
+    "Draft",
+    "Entry",
+    "Preview",
+    "Undone",
+    "session_row",
+    "slug",
+    "timestamp",
+]
+
+#: What the session list says for each catalog file Action (its record's ``action``): the verb and how ``to`` reads.
+FILE_VERBS = {
+    "renamed": ("Renamed", "{card_id} to {to}"),
+    "duplicated": ("Duplicated", "{card_id} as {to}"),
+    "deleted": ("Deleted", "{card_id} (moved to {to})"),
+    "restored": ("Restored", "{card_id}"),
+    "updated": ("Edited the metadata of", "{card_id} ({to})"),
+}
 
 
 def slug(text: str) -> str:
@@ -95,6 +116,8 @@ class Draft:
     card: DraftCard = field(default_factory=DraftCard)
     entries: list[Entry] = field(default_factory=list)
     undone: list[Undone] = field(default_factory=list)
+    source: dict[str, str] | None = None  # ``{card_id, path}``: the catalog card the draft was loaded from (Edit)
+    detached: dict[str, str] | None = None  # the ``source`` a deleted file left behind, which a restore gives back
 
     def reconcile(self, pending: Pending) -> None:
         """Make the draft describe the network: put back changes whose undo was rolled back, drop changes that were.
@@ -175,6 +198,31 @@ class AppliedCard:
         return {**asdict(self), "edit_ids": list(self.edit_ids)}
 
 
+def session_row(entry: dict[str, Any]) -> dict[str, Any]:
+    """One session-log entry as the panel's "This session" list shows it: ``{kind, verb, text, detail, card_id, at}``.
+
+    ``kind`` is ``saved``, ``applied``, or the catalog file Action (``renamed``, ``duplicated``, ``deleted``,
+    ``restored``, ``updated``); ``text`` starts with the verb.
+
+    >>> session_row({"kind": "saved", "card_id": "q", "path": "/cards/q.yml", "net_id": "n", "changes": 2, "at": "t"})
+    {'kind': 'saved', 'verb': 'Saved', 'text': 'Saved q.yml', 'detail': '2 change(s) from n', 'card_id': 'q', 'at': 't'}
+    >>> session_row({"kind": "file", "action": "renamed", "card_id": "a.yml", "to": "b.yml", "at": "t"})["text"]
+    'Renamed a.yml to b.yml'
+    """
+    kind = entry["kind"]
+    if kind == "saved":
+        verb, text = "Saved", f"Saved {PurePath(entry['path']).name}"
+        detail = f"{entry['changes']} change(s) from {entry['net_id']}"
+    elif kind == "applied":
+        verb, text = "Applied", f"Applied {entry['card_id']} to {entry['net_id']}"
+        detail = f"{entry['changes']} change(s)"
+    else:
+        kind = entry["action"]
+        verb, pattern = FILE_VERBS.get(kind, (kind.capitalize(), "{card_id}"))
+        text, detail = f"{verb} {pattern.format(card_id=entry['card_id'], to=entry['to'])}", ""
+    return {"kind": kind, "verb": verb, "text": text, "detail": detail, "card_id": entry["card_id"], "at": entry["at"]}
+
+
 def timestamp() -> str:
     """Now, as an ISO timestamp in UTC without microseconds (an :class:`AppliedCard`'s ``applied_at``)."""
     return datetime.now(UTC).replace(microsecond=0).isoformat()
@@ -195,6 +243,12 @@ class CardsState:
         self.applied: list[AppliedCard] = []
         self._catalog: Catalog | None = None
         self._preview: Preview | None = None
+        self.files: list[dict[str, Any]] = []  # catalog files changed this session: ``{action, card_id, to, at}``
+        self.trash: list[dict[str, str]] = []  # cards deleted this session, newest last: ``{card_id, path, trash}``
+        #: What this session did with cards, oldest first: a card saved (committed), applied (from the catalog) or a
+        #: catalog file changed. Each is ``{kind, card_id, at, ...}``; :meth:`session_rows` reads it newest first.
+        self._log: list[dict[str, Any]] = []
+        self._applied_log: dict[int, dict[str, Any]] = {}  # ``id(AppliedCard)`` -> its log entry (catalog cards)
         self._undoing: set[str] = set()  # networks whose draft's last change is being undone right now
         self._generation = 0  # undos so far (:meth:`pop`): a pending-edits read is trusted only for undos before it
 
@@ -241,18 +295,48 @@ class CardsState:
         """Append ``applied`` to the applied cards; return the undo (for ``host.on_rollback``) that forgets it."""
         with self._lock:
             self.applied.append(applied)
+            if applied.source == "catalog":
+                entry = {
+                    "kind": "applied",
+                    "card_id": applied.card_id,
+                    "net_id": applied.net_id,
+                    "path": applied.path,
+                    "changes": applied.changes,
+                    "at": applied.applied_at,
+                }
+                self._log.append(entry)
+                self._applied_log[id(applied)] = entry
 
         def undo() -> None:
             with self._lock:
                 self.applied = [a for a in self.applied if a is not applied]
+                self._unlog(self._applied_log.pop(id(applied), None))
 
         return undo
+
+    def session_rows(self, apply_enabled: bool = False) -> list[dict[str, Any]]:
+        """What this session did with cards, newest first (:func:`session_row`); applied cards only with apply on."""
+        with self._lock:
+            return self._session_rows(apply_enabled)
+
+    def _session_rows(self, apply_enabled: bool) -> list[dict[str, Any]]:
+        return [session_row(e) for e in reversed(self._log) if apply_enabled or e["kind"] != "applied"]
+
+    def _unlog(self, entry: dict[str, Any] | None) -> None:
+        """Take ``entry`` out of the session log (nothing for ``None``). Call it under the lock."""
+        if entry is not None:
+            self._log = [e for e in self._log if e is not entry]
+
+    def applied_card(self, net_id: str, path: str) -> AppliedCard | None:
+        """The newest card from the file at ``path`` that this session put on ``net_id`` (and still has there)."""
+        with self._lock:
+            return next((a for a in reversed(self.applied) if a.net_id == net_id and a.path == path), None)
 
     def last_catalog_card(self, net_id: str) -> AppliedCard | None:
         """The most recently applied catalog card (source ``"catalog"``) still recorded on ``net_id``, if any.
 
         A committed card (source ``"committed"``) is never returned: :meth:`~netstead_project_cards.handlers.
-        Handlers.undo_change` only takes back a catalog card this way, and keeps the draft-undo behaviour for
+        Handlers.undo_change` only takes back a catalog card this way, and keeps the draft-undo behavior for
         everything else.
         """
         with self._lock:
@@ -269,11 +353,15 @@ class CardsState:
         """
         with self._lock:
             self.applied = [a for a in self.applied if a is not applied]
+            entry = self._applied_log.get(id(applied))
+            self._unlog(entry)
 
         def undo() -> None:
             with self._lock:
                 if not any(a is applied for a in self.applied):
                     self.applied.append(applied)
+                if entry is not None and not any(e is entry for e in self._log):
+                    self._log.append(entry)
 
         return undo
 
@@ -362,6 +450,170 @@ class CardsState:
             d.card = d.card.model_copy(update={"changes": [e.change for e in d.entries]})
             return len(d.entries)
 
+    def source(self, net_id: str) -> dict[str, str] | None:
+        """The catalog card (``{card_id, path}``) ``net_id``'s draft was loaded from to edit, if any."""
+        with self._lock:
+            d = self._drafts.get(net_id)
+            return dict(d.source) if d is not None and d.source is not None else None
+
+    def follow_file(self, path: str, to: dict[str, str] | None, *, restore: bool = False) -> Callable[[], None]:
+        """Point every draft whose source is the file at ``path`` at ``to`` (``{card_id, path}``); return the undo.
+
+        A rename passes the new place; a delete passes ``None`` (the draft then has no source, and its commit offers
+        only "Save as new file") and the drafts remember what they lost; a restore (``restore=True``) gives that back
+        to the drafts that lost the file at ``path``, now at ``to``.
+        """
+        with self._lock:
+            before = [(d, d.source, d.detached) for d in self._drafts.values()]
+            for d in self._drafts.values():
+                if restore and d.source is None and d.detached is not None and d.detached["path"] == path:
+                    d.source, d.detached = (dict(to) if to else None), None
+                elif not restore and d.source is not None and d.source["path"] == path:
+                    d.detached = dict(d.source) if to is None else d.detached
+                    d.source = dict(to) if to is not None else None
+
+        def undo() -> None:
+            with self._lock:
+                for d, source, detached in before:
+                    d.source, d.detached = source, detached
+
+        return undo
+
+    def entries(self, net_id: str) -> list[Entry]:
+        """``net_id``'s draft changes, oldest first (a new list; the entries are shared and frozen)."""
+        with self._lock:
+            d = self._drafts.get(net_id)
+            return list(d.entries) if d is not None else []
+
+    def _take(self, d: Draft, index: int, removed: Sequence[Entry]) -> None:
+        """Take ``d``'s changes from ``index`` on (``removed``, which the caller has undone) out, as undone ones.
+
+        Each counts as one undo (newest first), so a rolled-back removal puts them back in order (see
+        :meth:`Draft.reconcile`). Call it under the lock.
+        """
+        current = d.entries[index:]
+        if len(current) != len(removed) or any(a is not b for a, b in zip(current, removed, strict=True)):
+            raise RuntimeError("the draft changed while its changes were being undone")
+        for entry in reversed(removed):
+            self._generation += 1
+            d.undone.append(Undone(entry, self._generation))
+        del d.entries[index:]
+
+    def replace_tail(
+        self, net_id: str, handle: Any, index: int, removed: Sequence[Entry], applied: Sequence[Applied]
+    ) -> int:
+        """Replace ``net_id``'s draft changes from ``index`` on: ``removed`` (undone by the caller) by ``applied``.
+
+        :meth:`~netstead_project_cards.handlers.Handlers.remove_change` undoes a change and the ones after it, then
+        applies the later ones again: their new marks replace the old. Returns the change count.
+        """
+        with self._lock:
+            d = self._drafts.get(net_id)
+            if d is None or d.handle() is not handle:
+                raise RuntimeError(f"{net_id}'s draft changed while a change was being removed")
+            self._take(d, index, removed)
+            d.entries.extend(Entry(a.change, tuple(a.marks)) for a in applied)
+            d.card = d.card.model_copy(update={"changes": [e.change for e in d.entries]})
+            return len(d.entries)
+
+    def load(
+        self,
+        net_id: str,
+        handle: Any,
+        removed: Sequence[Entry],
+        applied: Sequence[Applied],
+        card: DraftCard,
+        source: dict[str, str],
+    ) -> tuple[int, Callable[[], None]]:
+        """Make ``net_id``'s draft the card ``card`` from ``source`` (``{card_id, path}``), to edit it.
+
+        ``removed`` are the draft's changes, which the caller has undone; ``applied`` the card's changes, applied.
+        The draft takes the card's project, tags, dependencies and notes. Returns the change count and an undo (for
+        ``host.on_rollback``) that puts the draft's metadata and source back; its changes are reconciled by marks.
+        """
+        with self._lock:
+            d = self._drafts.get(net_id)
+            if d is None or d.handle() is not handle:
+                if removed:
+                    raise RuntimeError(f"{net_id}'s draft changed while it was being replaced")
+                d = self._drafts[net_id] = Draft(weakref.ref(handle))
+            self._take(d, 0, removed)
+            before = {k: getattr(d.card, k) for k in ("project", "tags", "dependencies", "notes")}
+            was = d.source
+            d.entries.extend(Entry(a.change, tuple(a.marks)) for a in applied)
+            meta = {"project": card.project, "tags": list(card.tags), "dependencies": card.dependencies}
+            d.card = d.card.model_copy(update={**meta, "notes": card.notes, "changes": [e.change for e in d.entries]})
+            d.source, d.detached = dict(source), None
+            count = len(d.entries)
+
+        def undo() -> None:
+            with self._lock:
+                d.card = d.card.model_copy(update=before)
+                d.source = was
+
+        return count, undo
+
+    def record_file(self, record: dict[str, Any]) -> Callable[[], None]:
+        """Note a catalog file change (``{action, card_id, to}``; ``at`` is added); return the undo that forgets it."""
+        entry = {**record, "at": timestamp()}
+        logged = {"kind": "file", **entry}
+        with self._lock:
+            self.files.append(entry)
+            self._log.append(logged)
+
+        def undo() -> None:
+            with self._lock:
+                self.files = [f for f in self.files if f is not entry]
+                self._unlog(logged)
+
+        return undo
+
+    def trashed(self, record: dict[str, str]) -> Callable[[], None]:
+        """Note a card moved to the trash (``{card_id, path, trash}``); return the undo that forgets it."""
+        entry = dict(record)
+        with self._lock:
+            self.trash.append(entry)
+
+        def undo() -> None:
+            with self._lock:
+                self.trash = [t for t in self.trash if t is not entry]
+
+        return undo
+
+    def last_trashed(self, card_id: str) -> dict[str, str] | None:
+        """The newest deletion of ``card_id`` this session (``None``: none)."""
+        with self._lock:
+            return next((dict(t) for t in reversed(self.trash) if t["card_id"] == card_id), None)
+
+    def restored(self, card_id: str) -> Callable[[], None]:
+        """Forget the newest deletion of ``card_id`` (it was restored); return the undo that remembers it again."""
+        with self._lock:
+            entry = next((t for t in reversed(self.trash) if t["card_id"] == card_id), None)
+            if entry is not None:
+                self.trash = [t for t in self.trash if t is not entry]
+
+        def undo() -> None:
+            with self._lock:
+                if entry is not None and not any(t is entry for t in self.trash):
+                    self.trash.append(entry)
+
+        return undo
+
+    def swap_catalog(self, catalog: Catalog) -> Callable[[], None]:
+        """Make ``catalog`` the open one; return the undo (for ``host.on_rollback``) that puts the older one back.
+
+        The undo does nothing once another catalog has replaced ``catalog`` (opened or rescanned since).
+        """
+        with self._lock:
+            older, self._catalog = self._catalog, catalog
+
+        def undo() -> None:
+            with self._lock:
+                if self._catalog is catalog:
+                    self._catalog = older
+
+        return undo
+
     def project(self, net_id: str) -> str:
         """The project name of ``net_id``'s draft (``""`` when unnamed)."""
         with self._lock:
@@ -387,8 +639,11 @@ class CardsState:
                 "path": path,
                 "project": card.project,
                 "changes": len(card.changes),
+                "at": timestamp(),
             }
             self.committed.append(record)
+            saved = {"kind": "saved", **record}
+            self._log.append(saved)
             draft = self._drafts.pop(net_id, None)
             seqs = tuple(
                 m.seq for e in (draft.entries if draft is not None else []) for m in e.marks if m.seq is not None
@@ -402,6 +657,7 @@ class CardsState:
             forget()
             with self._lock:
                 self.committed = [c for c in self.committed if c is not record]
+                self._unlog(saved)
                 if draft is None:
                     self._drafts.pop(net_id, None)
                 else:
@@ -409,14 +665,16 @@ class CardsState:
 
         return card_id, undo
 
-    def snapshot(self, network: Callable[[str], Any | None], pending: Callable[[str], Pending]) -> dict[str, Any]:
+    def snapshot(
+        self, network: Callable[[str], Any | None], pending: Callable[[str], Pending], *, apply_enabled: bool = False
+    ) -> dict[str, Any]:
         """JSON-safe state for ``/api/state`` (``plugins.project_cards``), each draft reconciled with its network.
 
         ``network(net_id)`` is the open network's handle, or ``None``: the drafts of a closed network are dropped (its
         pending edits went with it, so its draft can never be committed or undone), and so is a preview whose network
         or base is gone (:meth:`Preview.stands_for_base`). ``pending(net_id)`` is the plugin's pending edits on an
         open network (:class:`~netstead_project_cards.lower.Pending`). Both are called before the lock is taken, never
-        under it.
+        under it. ``apply_enabled`` is the ``enable_apply`` setting, reported so the panel offers Apply only when on.
         """
         with self._lock:
             ids = list(self._drafts)
@@ -437,10 +695,14 @@ class CardsState:
             drafts = {
                 net_id: {
                     "project": d.card.project,
+                    "tags": list(d.card.tags),
+                    "dependencies": d.card.dependencies.model_dump(),
+                    "notes": d.card.notes,
+                    "source": dict(d.source) if d.source is not None else None,
                     "count": len(d.entries),
                     "changes": [
-                        {"type": e.change.type, "describe": describe(e.change), "steps": len(e.marks)}
-                        for e in d.entries
+                        {"index": i, "type": e.change.type, "describe": describe(e.change), "steps": len(e.marks)}
+                        for i, e in enumerate(d.entries)
                     ],
                 }
                 for net_id, d in self._drafts.items()
@@ -451,7 +713,11 @@ class CardsState:
                 "committed": [dict(c) for c in self.committed],
                 "applied": [a.to_dict() for a in self.applied],
                 "catalog": self._catalog.to_dict() if self._catalog is not None else None,
+                "files": [dict(f) for f in self.files],
+                "session": self._session_rows(apply_enabled),
+                "trash": [dict(t) for t in self.trash],
                 "preview": reported,
                 "change_types": list(CHANGE_TYPES),
                 "supported": sorted(ROADWAY_TYPES),
+                "enable_apply": apply_enabled,
             }

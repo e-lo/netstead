@@ -123,8 +123,21 @@ def open_locator(source: str, settings: Settings) -> str:
     Like :func:`classify_source` (and raises the same errors), but a ``duckdb://`` source stays
     ``duckdb://<resolved path>`` so a DuckDB file without a ``.duckdb`` extension still opens.
     """
+    kind, target = split_source(source)
+    if kind == "local" and _bundled(target):
+        return local_locator(source, _resolve(target))
     kind, target = classify_source(source, settings)
     return str(target) if kind == "remote" else local_locator(source, target)
+
+
+def _bundled(path: str) -> bool:
+    """Whether ``path`` is the folder of an example network bundled with netstead (openable outside the roots)."""
+    from .examples import is_bundled_example  # deferred: importing it loads the fixtures and duckdb
+
+    try:
+        return is_bundled_example(_resolve(path))
+    except PathNotAllowed:
+        return False
 
 
 def allowed_roots(settings: Settings) -> list[Path]:

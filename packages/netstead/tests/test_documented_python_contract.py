@@ -303,7 +303,7 @@ def _isolate_global_state():
     pytest session):
 
     1. **Quality rule registry** — doc blocks that exec
-       ``register_rule(...)`` (the customise-quality cookbook) would
+       ``register_rule(...)`` (the customize-quality cookbook) would
        pollute later tests that expect a clean registry.
     2. **ibis interactive mode** — the query-and-update cookbook shows
        the natural notebook pattern ``ibis.options.interactive = True``

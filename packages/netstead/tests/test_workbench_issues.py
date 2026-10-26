@@ -24,8 +24,8 @@ def session(tmp_path, isolated_env):
 
 def test_run_validation_is_a_recorded_job_with_counts(session):
     result = session.dispatch(RunValidation())
-    # Leavenworth: 16 structural infos + 1 fk.unverifiable warning, and 271 high_speed_residential warnings.
-    assert result["counts"] == {"error": 0, "warning": 272, "info": 16}
+    # Leavenworth: 16 structural infos, no fk.unverifiable warning, and 271 high_speed_residential warnings.
+    assert result["counts"] == {"error": 0, "warning": 271, "info": 16}
     assert result["version"] == 0 and result["stale"] is False and result["unknown_rules"] == []
     entry = session.history[-1]
     assert entry.ok and entry.python == "app.do(RunValidation())"
@@ -47,7 +47,7 @@ def test_quality_issues_carry_their_link_key_and_anchor(session):
 
 def test_rule_settings_reach_the_rules(session):
     session.dispatch(SetSetting(key="validation.rules", value={"quality.high_speed_residential": {"enabled": False}}))
-    assert session.dispatch(RunValidation())["counts"]["warning"] == 1
+    assert session.dispatch(RunValidation())["counts"]["warning"] == 0
 
 
 def test_unknown_rule_codes_are_reported(session):
@@ -122,7 +122,7 @@ def test_an_edit_makes_the_issue_set_stale_and_a_rerun_sees_it(session):
     session.dispatch(RunValidation())
     session.dispatch(EditCells(ids=[1], values={"free_speed": 30}))
     assert session.state()["issues"]["leavenworth"]["stale"] is True
-    assert session.dispatch(RunValidation())["counts"]["warning"] == 271  # link 1 is no longer flagged
+    assert session.dispatch(RunValidation())["counts"]["warning"] == 270  # link 1 is no longer flagged
 
 
 def test_a_validation_that_finishes_after_a_newer_one_is_superseded(session, monkeypatch):
@@ -157,7 +157,7 @@ def test_issues_located_after_an_undo_point_at_the_restored_rows(session):
     session.dispatch(EditCells(ids=[1], values={"free_speed": 30}))
     session.dispatch({"type": "undo_edit"})
     result = session.dispatch(RunValidation())
-    assert result["stale"] is False and result["counts"]["warning"] == 272  # link 1 is flagged again
+    assert result["stale"] is False and result["counts"]["warning"] == 271  # link 1 is flagged again
     issues = session.issue_set("leavenworth")
     hit = issues.query(code="quality.high_speed_residential", record=("link", "1"))
     assert [(i["key"], i["anchor"]) for i in hit] == [(1, {"link": 1})]

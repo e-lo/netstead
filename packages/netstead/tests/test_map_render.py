@@ -217,7 +217,7 @@ def test_node_points_carry_props_for_tooltips(tmp_path):
 def test_props_skip_long_or_internal_columns(tmp_path):
     """``geometry`` WKT strings must NOT be dumped into the tooltip props — far too long."""
     # Build a network with a `geometry` column on the link table; props
-    # serialisation must not expose it.
+    # serialization must not expose it.
     link = pd.DataFrame(
         {
             "link_id": [1],
@@ -555,7 +555,7 @@ def test_unlocated_findings_are_collapsed_by_default_with_the_count():
     match = re.search(r'<details class="gv-unlocated"([^>]*)>\s*<summary>Unlocated findings \((\d+)\)</summary>', html)
     assert match, "unlocated block missing or not a <details>"
     assert "open" not in match.group(1)
-    assert match.group(2) == "17"
+    assert match.group(2) == "16"
 
 
 def test_source_path_appears_exactly_once_in_the_report():
@@ -570,10 +570,10 @@ def test_grouped_structural_findings_render_as_one_line_with_the_resource_list()
     assert unlocated.count("structural.missing_optional_resource") == 1
     assert unlocated.count("optional resources absent:") == 1
     assert "zone, config, curb_seg" in unlocated  # every name is listed, not truncated
-    assert "fk.unverifiable" in unlocated
-    assert unlocated.count("<li") == 2
+    assert "fk.unverifiable" not in unlocated
+    assert unlocated.count("<li") == 1
     # Every list entry still links to a findings-table row.
-    assert unlocated.count("data-unlocated-issue-id=") == 2
+    assert unlocated.count("data-unlocated-issue-id=") == 1
 
 
 def test_resources_table_lists_present_and_absent_spec_tables():

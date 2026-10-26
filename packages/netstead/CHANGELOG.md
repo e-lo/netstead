@@ -6,6 +6,14 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ## [Unreleased]
 
+### Added
+
+- **Market Street, San Francisco example network (Overture).** `netstead.fixtures.market_street` ships a
+  129-node, 186-link roads network around Lotta's Fountain, built with `netstead build --source overture`
+  (release 2026-09-23.1) with Overture GERS ids on every link and node, as csv, parquet, zip and
+  `datapackage.json`. It is listed under **Included examples** in the Workbench and exercises the Find tab's
+  Overture GERS id system on real data. Data (c) OpenStreetMap contributors, ODbL; data from TomTom.
+
 ### Security
 
 - **`netstead app` refuses to expose your home folder.** A non-loopback host
@@ -19,7 +27,98 @@ This file is for the **netstead** package only. The underlying generic engine `c
   `io.allowed_roots` entry (`[""]`, which resolved to the current folder) is now
   a settings error.
 
+### Changed
+
+- **Workbench Find tab: with the offline parser, Select is a fill-in-the-blanks form.** No more guessing the
+  grammar. Pick a pattern (Street; Street between two cross streets; All links of a type; Link ids) and fill its
+  blanks. Street and cross-street fields suggest the open network's street names, and once a Street is chosen the
+  cross streets narrow to the streets that meet it (new read-only route `GET /api/n/{net}/{component}/streets/crossing?name=`).
+  The assembled sentence shows under the form and is sent unchanged to the same Select action, so history and
+  replay are the same. Missing blanks block Select and are named. With a language model chosen the free-text box is
+  back, prefilled with the last sentence. The offline parser now also reads `all <type> links` (and `all links`)
+  and `links 59, 60`.
+- **Workbench Find tab: the selection fragment is a Segment or a Link list, in the ID system you pick, and you
+  copy it.** The Download button is gone: a copy button at the top right of the Fragment box copies it. **Segment**
+  is the facility's name (or ref) plus the `from`/`to` anchors, re-resolvable on another network version; **Link
+  list** is only the resolved ids. Neither mixes in the other's fields, and the utterance is a caption under the
+  box instead of `notes` in it. A new **IDs** choice writes GMNS (`link_id`, `node_id`), OpenStreetMap
+  (`osm_way_id`, `osm_node_id`; ProjectCard `osm_link_id`, `osm_node_id`) or Overture GERS
+  (`overture_segment_id`, `overture_connector_id`) ids. A system the network has no columns for is disabled with
+  the reason, GERS is refused for ProjectCard (it has no key), and Segment is disabled for a selection with no
+  named facility. Ids that several links share (one OSM way is split into many links) are deduplicated, with a
+  caption. `GET /api/selection/export` takes `form=segment|link_list` and `id_system=gmns|osm|gers` (the older
+  `resolved` / `query` still work, in GMNS ids) and returns `captions` and `options` (which forms and id systems
+  this selection can use, each `null` or the reason it cannot). New `netstead.select.idsystems`; `to_fragment` and
+  `to_projectcard` take the `segment` / `link_list` forms and an `ids=` mapping; the GMNS selection schema accepts
+  `osm_way_id` / `overture_segment_id` links and `osm_node_id` / `overture_connector_id` anchors.
+- **Workbench Open / Import: Included examples, and a Back chevron.** The wizard's first screen now ends with
+  **Included examples**, the networks bundled with netstead (Leavenworth, WA; RDU I-40) with their link and node
+  counts, each opening in one click (`GET /api/examples`). Bundled examples open even when the install lives outside
+  `io.allowed_roots`; no other path under the package does. Back is now a chevron at the top-left of the dialog
+  header (hidden on the first screen), and the footer only appears when a step has an action (Next, Estimate,
+  Build, Open).
+- **Build network types are now `roads` and `paths`.** They replace `drive` / `walk` / `bike` / `all` in the Workbench
+  build form (two checkboxes, at least one), `build.network_type` (now a list, default `["roads"]`), the Build Network
+  action, `netstead build --network-type` (repeat it or comma-separate) and the Python builders. `roads` is the drive
+  classes plus `busway`; `paths` is bridleway, footway, path, pedestrian, steps, track and cycleway. Proposed,
+  construction, corridor and other non-network `highway` values are never built, and there is no "all highways" type
+  any more. Overture builds map the same two groups onto Overture road classes. Old names still replay: `drive` means
+  `roads`; `walk`, `bike` and `all` mean `roads` + `paths` (recorded actions, settings, CLI and API calls; the CLI
+  help marks them deprecated). Unknown names are an error that lists the valid ones.
+- **Workbench View tab: swatches beat color-by, collapsible sections, node-first picking, explained overlays.** Picking a
+  Links or Nodes color swatch while that layer is colored by a column now turns the column coloring off in the same
+  recorded Style action (the swatch's tooltip says so). Each View section folds (remembered per browser). A map click
+  or hover only picks layers that are switched on, and a node wins over the link under it. Overlay rows explain
+  themselves with an info tooltip; the Filter section is headed "Show only links where..." with a note that the data
+  is not changed.
+- **The Workbench Validate list is grouped by finding type.** Instead of 271 near-identical
+  `quality.high_speed_residential` rows burying everything else, each rule code and severity is one collapsible
+  row (count and the rule's fix hint once; errors first, then warnings, then info, largest first) that loads its
+  findings, 50 at a time, when opened. The filter menus are labeled Severity, Table and Type, and Type lists the
+  finding types with counts. New route `GET /api/n/{net}/{component}/issues/summary` returns the groups for the
+  same filters as `/issues`, built from the whole issue set.
+- **The Workbench robot shows its status by color.** The header's language-model icon (and a small dot whose
+  shape says the same) is green when the chosen provider and model are ready, yellow when only the offline pattern
+  parser is in use, and red when the provider is unavailable (missing key, Ollama not running, model not pulled).
+  The tooltip says it in words and keeps the privacy note; the old blue/gray privacy colors are gone.
+- **Workbench Validate badge counts what needs attention.** The tab's pill shows the number of errors (red) when there
+  are any, else warnings (amber), else nothing; info findings are never counted. The tooltip still gives the whole
+  breakdown ("Validate — 3 errors, 1 warning, 16 info"), or says "clean" or "not run yet".
+- **Workbench side panel: a View tab, dismissible Edit help, readable badges.** The map and style controls (layers,
+  color, width, direction, filter) moved out of the Find tab's collapsed section into their own **View** tab right
+  after Find, and the map's layers button is gone. The Edit tab's explanatory paragraph hides behind a "x" (and comes
+  back from an info button; remembered per browser). Each tab's badge is now one pill at the icon's corner, orange
+  while edits are unsaved, and the tab tooltip says what it counts ("Edit — 2 unsaved edits", "Find — 16 selected
+  links", "Validate — 271 warnings, 16 info").
+- **"What is Related?"** An info button beside the table Related steps control opens a short explanation with an
+  example, using the real counts for the focused or highlighted records when there are any.
+- **The Workbench table's "Expand a hop" is a "Related: 1 step / 2 steps" control** that shows only when
+  **Show** is Related, with a tooltip explaining how far foreign keys are followed.
+
+- **The Workbench model picker is a header icon.** A robot button in the header opens the provider and model
+  picker as a popover (the privacy dot is a badge on it; the tooltip names the provider and model). The picker no
+  longer sits in the Find tab.
+
+- **Workbench: a map button for the View settings, Open as an icon, nodes styled by control type.** The map
+  gets a layers button that opens the Find tab's View section; the header's Open is an icon button with the
+  same recents menu; and nodes colored by `ctrl_type` use red (large) signals, orange/amber stop signs, yellow
+  yield and small grey uncontrolled nodes, with a dark outline, signals drawn on top, and a legend that shows
+  each category at its size. The side panel's dock tabs are icons with tooltips (badges stay as a pill on the
+  icon), so they no longer wrap onto two lines. A natural-language Select or Ask now
+  shows it is working: a spinner in the button and a "Thinking… (provider · model)" line that counts seconds
+  after 3 s.
+
 ### Fixed
+
+- **Workbench build form: several network types and a visible folder chooser.** Network type is now a set of
+  checkboxes (drive, walk, bike, or all highways), and a build keeps a way or segment if any chosen type allows it.
+  `BuildNetwork` takes `network_types: list[str]` (a recorded single `network_type` is still read), and the OSM and
+  Overture builders accept a list of network types. The output-folder step shows the chosen path (or "not chosen
+  yet"), a hint, and a **Use** button on each folder; Estimate stays disabled until a folder is chosen.
+
+- **Workbench place search shows why it failed.** A failed place search (for example, the `[osm]` extra is missing,
+  or the geocoder is down) now says so in the Area step instead of "No matches."; the Workbench quickstart
+  installs `netstead[server,graph,nl,osm]`.
 
 - **Categorical cell edits in the Workbench grid are offered the spec's allowed
   values, and an out-of-enum value is kept and flagged, never silently lost.**
@@ -32,21 +131,25 @@ This file is for the **netstead** package only. The underlying generic engine `c
   say "comma-separated"); a cell with an open edit warning is outlined in red
   with a warning icon and the message as its tooltip; and leaving a cell
   applies the edit, as in a spreadsheet (Escape discards it).
+- **Selection mode filters match GMNS uses.** `drive` now keeps links whose
+  `allowed_uses` list `auto`/`truck`/...; it used to drop every link. An emptied
+  or narrowed selection says why, and the parser sets `modes` only when you
+  name a travel mode.
 - **The Workbench map draws link shapes kept in the `geometry` table.** A
   network whose links carry a `geometry_id` into a separate `geometry` table
   (the bundled Leavenworth network, for one) drew every link as a straight
   node-to-node line. `viz.buffers.pack_network` now takes the optional
   `geometry` frame and resolves shapes in GMNS order: an inline `link.geometry`,
   else the `geometry_id` row, else the straight from/to segment.
-- **Workbench map: a legible focus colour, and direction arrows that follow
+- **Workbench map: a legible focus color, and direction arrows that follow
   their offset line.** The focused link is now a saturated magenta over a dark
   casing (it was white: invisible on the light Positron basemap and over white
   highway casings); highlights keep their cyan and get the same casing. With
   "Offset directions" on, each link row's arrow now sits on that row's own
-  offset line instead of the centreline, so a two-way street shows one arrow
+  offset line instead of the centerline, so a two-way street shows one arrow
   per direction rather than two crossed into an X. Arrows sit at the path's
   midpoint by length (not its middle vertex), have a dark outline, and grow
-  from 8 px at zoom 13 to 18 px at zoom 18. The selection colour is still
+  from 8 px at zoom 13 to 18 px at zoom 18. The selection color is still
   yours to set (`style.colors.selection`).
 - **A Workbench build's engine failing to close no longer hides the result.**
   Since corral's `IbisEngine.close()` stopped swallowing errors, a failed
@@ -140,7 +243,13 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Added
 
-- **Workbench: Find / Inspect / Edit / Cards / Validate panels; the map coloured
+- **The Open / Import wizard says up front when an extra is missing.** The OpenStreetMap and Overture choices (and
+  place search under Overture) are disabled with an "Install the [osm] extra to use this:" notice, the uv and pip
+  commands with Copy buttons, and a link to the install docs; nothing is installed from the page. A new read-only
+  `GET /api/extras` reports what imports, sharing its probes with `netstead doctor` (which now also checks
+  `[overture]`).
+
+- **Workbench: Find / Inspect / Edit / Cards / Validate panels; the map colored
   by default.** The side panel's tabs, in order: **Find** (the utterance box
   with Select / Ask and the model picker, moved out of the header's second row,
   which is gone; the selection's anchors, diagnostics, export and saved
@@ -155,12 +264,21 @@ This file is for the **netstead** package only. The underlying generic engine `c
   structural findings folded into one `▸ code (n)` row that expands, and a
   "Zoom to" crosshair on every located finding); then **Assistant**. Plugins
   may register the bare panel id `cards` only as `project_cards`
-  (`RESERVED_IDS` in `slots.js`). Opening a network colours links by
+  (`RESERVED_IDS` in `slots.js`). Opening a network colors links by
   `facility_type` and nodes by `ctrl_type` when the tables have those columns
   (`DEFAULT_STYLE`; a network without them opens with `"none"`), the legend
   shows both, and `Style` gains `node_color_by` (validated against the node
   table, replayed as `app.do(Style(node_color_by=...))`). `GET …/properties`
   and `GET …/property/{name}` take `?table=node` for the node table's columns.
+- **Host API 1.8: plugin tables in the table view.** `host.register_table(name, title, rows_fn, *,
+  primary_key, columns=None)` publishes a read-only table, listed under "Plugins" in the table rail and served by
+  the table routes (`/tables`, `/table/<name>/rows`, `schema`, `distinct`, `locate`), so sorting and the column
+  filters (`any_of`, `between`, …) work as on a network table. Core builds a pandas frame from `rows_fn()` and keeps
+  it until the plugin publishes or the network changes; a failing `rows_fn` is a 500 naming the plugin, and its rail
+  entry says why. Never edited or linked to the map: a row click emits `core.table_row` (`{plugin, table, id}`) to
+  the plugin. `host.unregister_table(name)`; a plugin's tables go when it is unloaded. In the browser,
+  `wb.showTable(name)` opens the table pane on it. The project cards plugin publishes its catalog as
+  `cards_catalog`.
 - **Host API 1.7: reading inside the sandbox, and a view of history.** `host.readable(path)` resolves a file or
   folder that exists inside `io.allowed_roots` (`PathNotAllowed` outside them, `ActionError` when nothing is there);
   `host.list_dir(path)` lists a folder's entries (`{name, path, kind, is_dir}`, folders first, hidden entries
@@ -374,7 +492,7 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Changed
 
-- **The quality rule pack filters in DuckDB instead of materialising tables**
+- **The quality rule pack filters in DuckDB instead of materializing tables**
   ([#181](https://github.com/e-lo/netstead/issues/181)). Each rule now writes its
   predicate as an ibis expression and fetches only the offending rows, so findings
   are unchanged (a golden test pins every field on Leavenworth, RDU I-40 and a
@@ -496,7 +614,7 @@ map with an **edit log** for triaging findings and replaying the fixes in Python
     PK-indexed row lookup, drift check (`from_value` vs current), and
     per-edit `skipped` reasons.
   - **On-disk format is `network-wrangler` ProjectCard.** Each session
-    serialises to a single ProjectCard with `changes[]` of
+    serializes to a single ProjectCard with `changes[]` of
     `roadway_property_change` entries. GMNS `link_id` maps to
     `model_link_id` in the facility selector; per-cell values live under
     `property_changes.<column>.{existing, set}`. Node property changes
@@ -587,7 +705,7 @@ This is a **beta**: API surface is stable enough to build against and most user-
 
 - **New architecture.** GMNS-specific code now sits on top of a generic Frictionless engine ([`datagrove`](https://github.com/e-lo/netstead/tree/main/packages/corral) (now `corral`)) shipped as a separate PyPI package. The intent: future spec toolkits (GTFSpy, etc.) reuse the engine.
 - **Multi-version GMNS support out of the box.** Spec versions `0.95`, `0.96`, `0.97` ship side-by-side. `DEFAULT_SPEC = "0.97"`. Override per call: `gmnspy.read(..., spec_version="0.96")`.
-- **Regional-scale performance.** Lazy ibis + DuckDB by default. Predicates push down to SQL. Validation and scope operations stream rather than materialising the whole network.
+- **Regional-scale performance.** Lazy ibis + DuckDB by default. Predicates push down to SQL. Validation and scope operations stream rather than materializing the whole network.
 - **Three usage modes, one core.** CLI (`gmnspy <command>`), notebook (`Network._repr_html_`), and programmatic (`gmnspy.read`, `gmnspy.validate`) all share the same underlying objects.
 
 ### New features

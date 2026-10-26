@@ -12,7 +12,7 @@ What's in it
 - ~3 MB total across all four storage variants below.
 - Provenance: synthesized from OpenStreetMap via osmnx
   (``osmnx.graph_from_place("Leavenworth, Washington, USA",
-  network_type="drive")``, which follows the city polygon) — see
+  network_type="roads")``, which follows the city polygon) — see
   :file:`README.md` for the full attribute-derivation table.
 
 Four storage variants
@@ -141,7 +141,7 @@ def load(format: str = "csv") -> Network:
     Returns:
         A :class:`netstead.Network` loaded through the default ibis +
         DuckDB engine. Tables are lazy expressions; nothing
-        materialises until you call ``.count()`` / ``.to_pandas()`` /
+        materializes until you call ``.count()`` / ``.to_pandas()`` /
         validate.
 
     Examples:

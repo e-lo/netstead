@@ -15,7 +15,7 @@ Two value types live here:
 * :class:`Table` — wraps one engine-native expression plus the
   Frictionless schema, source locator, and a mutable ``dirty`` flag.
   Lazy ops (``filter`` / ``select`` / ``head``) return a new
-  :class:`Table`; materialisation happens only at the
+  :class:`Table`; materialization happens only at the
   :meth:`Table.to_pandas` / :meth:`Table.to_polars` / :meth:`Table.collect`
   boundary.
 * :class:`Package` — wraps a :class:`~corral.spec.model.DataPackage`

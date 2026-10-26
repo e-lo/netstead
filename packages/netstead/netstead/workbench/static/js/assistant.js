@@ -18,7 +18,7 @@ let panel = null, catalog = null;
 let asking = null; // the question in flight (shown with "Thinking…" until the answer arrives), or null
 
 export function registerAssistantPanel() {
-  panel = addPanel(CORE, { id: "assistant", title: "Assistant", workspace: ALL_WORKSPACES, order: 40,
+  panel = addPanel(CORE, { id: "assistant", title: "Assistant", icon: "message", workspace: ALL_WORKSPACES, order: 40,
     badge: () => assistBadge(store.get().assistant) });
   addCommandTo(slots, store, CORE, { id: "ask_assistant", title: "Ask the assistant…", contexts: ["palette"],
     run: () => { showPanel("assistant"); $("as-input").focus(); } });
@@ -27,7 +27,7 @@ export function registerAssistantPanel() {
 function setBusy(busy) {
   for (const id of ["as-send", "ask"]) {
     $(id).disabled = busy;
-    $(id).textContent = busy ? "Asking…" : "Ask";
+    if (id === "as-send") $(id).textContent = busy ? "Asking…" : "Ask"; // the header's Ask shows a spinner instead
   }
 }
 
@@ -115,7 +115,7 @@ function pendingElement(q) {
 function noteText(st) {
   if (st.error) return st.error;
   if (st.provider === "stub") {
-    return "Offline assistant (a few fixed commands). Choose a language model in the header for more.";
+    return "Offline assistant (a few fixed commands). Choose a language model with the robot icon in the header for more.";
   }
   const sends = (st.sends || []).length ? st.sends.join("; ") : "nothing beyond your question";
   const compact = st.compact ? ` It is offered a compact tool set (${(st.tools || []).length} tools: ` +
@@ -129,7 +129,7 @@ export function renderAssistant(payload) {
   const turns = (payload && payload.turns) || [];
   const draft = payload ? payload.draft : null;
   if (!turns.length && !asking) {
-    log.innerHTML = '<span class="empty">Ask for what you want done, e.g. “colour by lanes and zoom to the selection”.</span>';
+    log.innerHTML = '<span class="empty">Ask for what you want done, e.g. “color by lanes and zoom to the selection”.</span>';
   } else {
     log.replaceChildren(...turns.map(t => turnElement(t, draft)));
     if (asking) log.appendChild(pendingElement(asking));

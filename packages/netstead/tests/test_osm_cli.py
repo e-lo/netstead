@@ -114,3 +114,41 @@ def test_build_reports_network_error_cleanly(monkeypatch):
     assert result.exit_code == 1
     # Handled (clean Exit), not a leaked ConnectionError traceback.
     assert isinstance(result.exception, SystemExit)
+
+
+def _network_types_passed(monkeypatch, tmp_path, *args):
+    seen = {}
+
+    def fake(*_a, network_type, **_kw):
+        seen["network_type"] = network_type
+        return _fake_network()
+
+    monkeypatch.setattr("netstead.osm.build_network_from_osm", fake)
+    result = runner.invoke(
+        app, ["build", str(tmp_path / "net"), "--bbox", "-71.1,41.9,-70.9,42.1", "--format", "csv", "--json", *args]
+    )
+    return result, seen.get("network_type")
+
+
+def test_network_type_defaults_to_roads(tmp_path, monkeypatch):
+    result, seen = _network_types_passed(monkeypatch, tmp_path)
+    assert result.exit_code == 0, result.stderr
+    assert seen == ["roads"]
+    assert json.loads(result.stdout)["network_type"] == "roads"
+
+
+def test_network_type_repeated_and_comma_values(tmp_path, monkeypatch):
+    repeated = _network_types_passed(monkeypatch, tmp_path, "--network-type", "paths", "--network-type", "roads")
+    assert repeated[1] == ["paths", "roads"]
+    assert _network_types_passed(monkeypatch, tmp_path, "--network-type", "roads, paths")[1] == ["roads", "paths"]
+
+
+def test_network_type_legacy_names_are_mapped(tmp_path, monkeypatch):
+    assert _network_types_passed(monkeypatch, tmp_path, "--network-type", "drive")[1] == ["roads"]
+    assert _network_types_passed(monkeypatch, tmp_path, "--network-type", "bike")[1] == ["roads", "paths"]
+
+
+def test_network_type_unknown_name_lists_the_valid_ones(tmp_path, monkeypatch):
+    result, _ = _network_types_passed(monkeypatch, tmp_path, "--network-type", "boat")
+    assert result.exit_code != 0
+    assert "roads" in result.output + result.stderr and "paths" in result.output + result.stderr

@@ -282,7 +282,7 @@ class RemoteAdapter:
         prefix (``s3://b/p/``), the fsspec filesystem for the URL is
         consulted — built from ``credentials`` when given, else from the
         credentials cascade for the host (same rule as :meth:`read`).
-        Each child with a recognised extension contributes one
+        Each child with a recognized extension contributes one
         :class:`ResourceRef` whose path is the child's full URL (same
         scheme and host as ``source``), so reading it routes back through
         this adapter and the same credentials.

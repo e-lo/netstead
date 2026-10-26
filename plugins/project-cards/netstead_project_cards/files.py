@@ -4,6 +4,9 @@ The bytes go to a temporary file in the destination folder first. It is then mov
 (``os.replace``, atomic) to overwrite, or hard-linked to it (``os.link``, which fails if a file is already there) to
 create, so a file that appears after any check is never replaced. A filesystem without hard links gets an exclusive
 create instead, which never replaces a file either. The temporary file is removed on every path.
+
+A move (:func:`move_file`, for renaming a catalog card or putting it in the catalog's trash) is that write followed by
+removing the source, so it never replaces a file either; :func:`undo_move` puts both back.
 """
 
 from __future__ import annotations
@@ -16,7 +19,7 @@ from pathlib import Path
 
 from .errors import CardError
 
-__all__ = ["Written", "undo_write", "write_file"]
+__all__ = ["Moved", "Written", "move_file", "undo_move", "undo_write", "write_file"]
 
 
 @dataclass(frozen=True)
@@ -64,6 +67,44 @@ def undo_write(written: Written) -> str | None:
         return "removed" if written.previous is None else "restored"
     _remove_folders(written.made)
     return None
+
+
+@dataclass(frozen=True)
+class Moved:
+    """What :func:`move_file` did: the source it removed (and its bytes), and the write that made the destination."""
+
+    source: Path
+    data: bytes
+    written: Written
+
+
+def move_file(source: Path, dest: Path, *, overwrite: bool) -> Moved:
+    """Move ``source`` to ``dest`` (making its folders); replace an existing ``dest`` only with ``overwrite``.
+
+    Raises:
+        CardError: ``source`` cannot be read, ``dest`` exists and ``overwrite`` is false, or a write or the removal
+            failed (then nothing has changed: the destination is undone).
+    """
+    try:
+        data = source.read_bytes()
+    except OSError as exc:
+        raise CardError(f"could not read {source}: {exc.strerror or exc}") from exc
+    written = write_file(dest, data, overwrite=overwrite)
+    try:
+        source.unlink()
+    except OSError as exc:
+        undo_write(written)
+        raise CardError(f"could not remove {source}: {exc.strerror or exc}") from exc
+    return Moved(source, data, written)
+
+
+def undo_move(moved: Moved) -> str | None:
+    """Put a moved file back where it was and undo its destination; ``None``, or what could not be done."""
+    try:
+        _place(moved.source, moved.data, overwrite=False)  # a file that appeared there since is never replaced
+    except (_Exists, OSError):
+        return "restored"
+    return undo_write(moved.written)
 
 
 def _missing_folders(path: Path) -> tuple[Path, ...]:

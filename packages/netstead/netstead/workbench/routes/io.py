@@ -2,7 +2,7 @@
 
 None of these are recorded as actions: browsing, checking a URL, searching for a place, and
 estimating a build change no session state. (Cancel acts on a job, not on the session; the
-cancelled action is recorded when its job ends.) All of them sit behind the app-wide loopback
+canceled action is recorded when its job ends.) All of them sit behind the app-wide loopback
 Host/Origin guard in :mod:`netstead.workbench.server`.
 """
 
@@ -15,16 +15,23 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
+from netstead.extras_probe import extra_installed, install_commands
+
 from .. import build
 from ..actions import BuildNetwork
 from ..errors import ActionError, PathNotAllowed
 from ..estimate import needs_approval
+from ..examples import examples
 from ..extras import optional_module
 from ..files import list_dir
 from ..session import Session
 from ..urlcheck import check_url
 
 __all__ = ["io_router"]
+
+#: The extras the Open / Import wizard needs: OpenStreetMap builds and place search, and Overture builds.
+WIZARD_EXTRAS = ("osm", "overture")
+INSTALL_DOCS_URL = "https://e-lo.github.io/netstead/netstead/install/"
 
 
 def io_router(session: Session) -> APIRouter:
@@ -52,6 +59,19 @@ def io_router(session: Session) -> APIRouter:
         if not isinstance(url, str) or not url.strip():
             raise HTTPException(422, 'body must be {"url": "..."}')
         return check_url(url.strip())
+
+    @router.get("/examples")
+    def example_networks() -> list[dict[str, Any]]:
+        """The example networks bundled with netstead (read-only; computed once)."""
+        return list(examples())
+
+    @router.get("/extras")
+    def extras() -> dict[str, Any]:
+        """Which wizard-relevant extras import, and the commands that install the missing ones (nothing is run)."""
+        installed = {name: extra_installed(name) for name in WIZARD_EXTRAS}
+        # Keyed by the comma-joined, sorted extras a choice needs: one extra, or both for an Overture place search.
+        install = {key: install_commands(*key.split(",")) for key in ("osm", "overture", "osm,overture")}
+        return {"installed": installed, "install": install, "docs_url": INSTALL_DOCS_URL}
 
     @router.get("/geocode")
     def geocode(q: str, limit: int = 8) -> dict[str, Any]:

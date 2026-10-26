@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal, get_args, g
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
 from netstead.llm.secrets import has_url_userinfo, is_secret_name, looks_like_secret
+from netstead.network_types import normalize_types
 from netstead.viz.tables import MAX_FILTER_CONDITIONS, MAX_IN_VALUES, TOKEN_OPS
 
 from .area import Area
@@ -180,8 +181,8 @@ class ClearSelection(BaseAction):
 class Style(BaseAction):
     """Partially update the map style; omitted fields are unchanged.
 
-    ``color_by`` colours links by a column of the link table and ``node_color_by`` nodes by one of the node
-    table (``"none"`` for a single colour); ``width_by`` sizes links by a numeric column (``"none"`` for widths
+    ``color_by`` colors links by a column of the link table and ``node_color_by`` nodes by one of the node
+    table (``"none"`` for a single color); ``width_by`` sizes links by a numeric column (``"none"`` for widths
     by lane count).
     """
 
@@ -338,12 +339,26 @@ class BuildNetwork(BaseAction):
     output_dir: str
     output_format: Literal["parquet", "csv", "duckdb", "zip"]
     name: str = Field(pattern=_NAME_PATTERN, max_length=100)
-    network_type: str = "drive"
+    network_types: list[str] = Field(default_factory=lambda: ["roads"], min_length=1)
     extra_tags: list[str] | None = None
     spec_version: str | None = None
     overture_release: str | None = None
     label: str | None = None
     approved: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def _legacy_network_type(cls, data: Any) -> Any:
+        """Recorded builds name one ``network_type``; read it as ``network_types``, with retired names mapped."""
+        if isinstance(data, dict) and "network_type" in data:
+            data = dict(data)
+            single = data.pop("network_type")
+            if "network_types" in data:
+                raise ValueError("give network_types, not both network_types and network_type")
+            data["network_types"] = [single]
+        if isinstance(data, dict) and isinstance(data.get("network_types"), list | tuple | str):
+            data = {**data, "network_types": normalize_types(data["network_types"])}
+        return data
 
     @model_validator(mode="after")
     def _one_input(self) -> BuildNetwork:

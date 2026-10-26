@@ -418,20 +418,33 @@ def test_badges_normalise_roll_up_and_read_aloud(node_module):
         ' workspaceBadge(null, [null, {text: "4"}, {dirty: true, title: "Draft card"}]),'
         ' workspaceBadge(null, [{text: "4"}]), workspaceBadge("!", [{dirty: true}]),'
         ' tabLabel("Edits", {text: 2, dirty: true, title: "2 unsaved"}), tabLabel("Issues", 5),'
-        ' tabLabel("Details", null)]',
+        ' tabLabel("Details", null), normalizeBadge({quiet: true, title: "clean"}), normalizeBadge({quiet: true}),'
+        ' tabLabel("Validate", {quiet: true, title: "clean"}), workspaceBadge({quiet: true, title: "x"}, [null]),'
+        ' normalizeBadge({text: "3", tone: "error"}).tone]',
     )
     assert got == [
         None,
         None,
-        {"text": "3", "dirty": False, "title": ""},
-        {"text": "", "dirty": True, "title": "2 unsaved"},
+        {"text": "3", "dirty": False, "tone": "", "quiet": False, "title": ""},
+        {"text": "", "dirty": True, "tone": "", "quiet": False, "title": "2 unsaved"},
         None,
-        {"text": "", "dirty": True, "title": "Draft card"},  # a dirty panel marks its workspace tab
+        {
+            "text": "",
+            "dirty": True,
+            "tone": "",
+            "quiet": False,
+            "title": "Draft card",
+        },  # a dirty panel marks its workspace tab
         None,  # a count alone doesn't
-        {"text": "!", "dirty": False, "title": ""},
-        "Edits, 2 unsaved",
-        "Issues, 5",
+        {"text": "!", "dirty": False, "tone": "", "quiet": False, "title": ""},
+        "Edits — 2 unsaved",
+        "Issues — 5",
         "Details",
+        {"text": "", "dirty": False, "tone": "", "quiet": True, "title": "clean"},  # a title with no pill
+        None,
+        "Validate — clean",
+        None,  # a quiet badge never marks the workspace tab
+        "error",
     ]
 
 
@@ -544,7 +557,7 @@ class _Shapes(BaseModel):
     """The pydantic shapes a plugin Action's schema commonly has."""
 
     tint: _Color | None = None  # anyOf [{$ref}, {type: null}]
-    color: _Color = Field(_Color.blue, description="The colour.")  # {$ref, default, description}
+    color: _Color = Field(_Color.blue, description="The color.")  # {$ref, default, description}
     size: _Size = _Size.M
     lanes: Literal[1, 2] = 1
     where: _Where = Field(default_factory=_Where, description="Where to.")
@@ -555,7 +568,7 @@ def test_fields_resolve_refs_with_their_own_keys_and_inside_any_of(node_module):
     got = {f["key"]: (f["kind"], f.get("options"), f["nullable"], f["default"], f["description"]) for f in fields}
     assert got == {
         "tint": ("choice", ["red", "blue"], True, None, ""),
-        "color": ("choice", ["red", "blue"], False, "blue", "The colour."),
+        "color": ("choice", ["red", "blue"], False, "blue", "The color."),
         "size": ("choice", [1, 2], False, 2, ""),
         "lanes": ("choice", [1, 2], False, 1, ""),
         "where.city": ("text", None, False, "Paris", ""),

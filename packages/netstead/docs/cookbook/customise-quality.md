@@ -1,11 +1,11 @@
 ---
-title: Customise the data-quality rule pack
+title: Customize the data-quality rule pack
 audience: users
 kind: howto
 summary: Override thresholds, disable rules, promote severity, and register your own rule via entry point.
 ---
 
-# Customise the data-quality rule pack
+# Customize the data-quality rule pack
 
 ## When to use this
 
@@ -135,7 +135,7 @@ has_errors = any(i.severity is Severity.ERROR for i in report.issues)
 
 A rule is a plain class (no base class needed — `corral.quality.Rule` is a `Protocol`) with three attributes, `code`, `description` and `severity`, and two methods: `applies_to(package) -> bool`, a cheap predicate the runner calls first, and `run(package, report, config)`, which appends findings to `report` with `report.add_issue(...)`. Accept the third `config` argument to read `RuleConfig.thresholds`; a rule with no thresholds may define `run(self, package, report)` and the runner passes two arguments. Don't apply `severity_override` yourself — `run_quality` rewrites the severity of every issue your rule emitted after it returns.
 
-Write the predicate against the table's ibis expression (`package.tables["link"].expr`) so DuckDB filters the rows and only the offending ones reach Python; on a 200k-link network that is the difference between materialising every row and fetching a handful. Number the rows with `ibis.row_number()` *before* filtering so `Issue.row` is the row's position in the whole table. This rule flags links longer than a configurable maximum (Leavenworth's `length` column is in metres):
+Write the predicate against the table's ibis expression (`package.tables["link"].expr`) so DuckDB filters the rows and only the offending ones reach Python; on a 200k-link network that is the difference between materializing every row and fetching a handful. Number the rows with `ibis.row_number()` *before* filtering so `Issue.row` is the row's position in the whole table. This rule flags links longer than a configurable maximum (Leavenworth's `length` column is in metres):
 
 ```python
 import ibis

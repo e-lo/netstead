@@ -47,19 +47,41 @@ def test_issues_before_any_validation(fresh):
 
 def test_a_page_with_facets(client):
     j = client.get(f"{BASE}/issues?limit=10").json()
-    assert (j["total"], len(j["issues"]), j["unlocated"], j["stale"]) == (288, 10, 17, False)
+    assert (j["total"], len(j["issues"]), j["unlocated"], j["stale"]) == (287, 10, 16, False)
     assert j["facets"]["code"]["quality.high_speed_residential"] == 271
-    assert j["facets"]["severity"] == {"error": 0, "warning": 272, "info": 16}
+    assert j["facets"]["severity"] == {"error": 0, "warning": 271, "info": 16}
 
 
 def test_filters(client):
     assert client.get(f"{BASE}/issues?severity=info").json()["total"] == 16
     assert client.get(f"{BASE}/issues?severity=error,info").json()["total"] == 16
-    assert client.get(f"{BASE}/issues?code=fk.unverifiable").json()["total"] == 1
-    assert client.get(f"{BASE}/issues?located=no").json()["total"] == 17
+    assert client.get(f"{BASE}/issues?code=fk.unverifiable").json()["total"] == 0
+    assert client.get(f"{BASE}/issues?located=no").json()["total"] == 16
     first = client.get(f"{BASE}/issues?located=yes&limit=1").json()["issues"][0]
     rec = client.get(f"{BASE}/issues?record=link:{first['key']}").json()
     assert rec["total"] >= 1 and all(i["key"] == first["key"] for i in rec["issues"])
+
+
+def test_the_summary_folds_the_whole_set_by_code_and_severity(client):
+    j = client.get(f"{BASE}/issues/summary").json()
+    assert (j["total"], j["stale"]) == (287, False)
+    assert j["facets"]["severity"] == {"error": 0, "warning": 271, "info": 16}
+    first = j["groups"][0]
+    assert (first["code"], first["severity"], first["count"]) == ("quality.high_speed_residential", "warning", 271)
+    assert first["fix_hint"] and first["tables"] == ["link"]
+    assert sum(g["count"] for g in j["groups"]) == 287
+    ranks = [{"error": 0, "warning": 1, "info": 2}[g["severity"]] for g in j["groups"]]
+    assert ranks == sorted(ranks)  # error, then warning, then info
+    info = client.get(f"{BASE}/issues/summary?severity=info").json()
+    assert {g["severity"] for g in info["groups"]} == {"info"} and info["total"] == 16
+    # a group's members are paged through /issues with the group's own code and severity
+    page = client.get(f"{BASE}/issues?code={first['code']}&severity={first['severity']}&limit=5&offset=5").json()
+    assert page["total"] == 271 and len(page["issues"]) == 5
+
+
+def test_the_summary_before_any_validation(fresh):
+    j = fresh.get(f"{BASE}/issues/summary").json()
+    assert j["version"] is None and j["groups"] == [] and j["total"] == 0
 
 
 def test_markers_and_the_record_index(client):
@@ -220,3 +242,19 @@ def test_edit_reads_are_not_recorded(edited):
     c.get(f"{BASE}/edits")
     c.post(f"{BASE}/table/link/delete-plan", json={"ids": [1]})
     assert len(s.history) == before
+
+
+def test_each_summary_group_counts_its_findings_on_the_map(client):
+    groups = {g["code"]: g for g in client.get(f"{BASE}/issues/summary").json()["groups"]}
+    assert groups["structural.missing_optional_resource"]["located"] == 0  # table-level: no map anchor
+    speed = groups["quality.high_speed_residential"]
+    assert speed["located"] == speed["count"]  # every finding sits on a link
+
+
+def test_anchors_lists_every_link_of_one_finding_type(client):
+    a = client.get(f"{BASE}/issues/anchors", params={"code": "quality.high_speed_residential", "severity": "warning"})
+    assert a.status_code == 200
+    body = a.json()
+    assert len(body["links"]) == len(set(body["links"])) > 200 and body["nodes"] == [] and body["points"] == []
+    none = client.get(f"{BASE}/issues/anchors", params={"code": "structural.missing_optional_resource"}).json()
+    assert none == {"links": [], "nodes": [], "points": []}  # table-level findings have no map anchor

@@ -22,7 +22,7 @@ validate, fix, replay and save on the bundled Leavenworth network in ten minutes
 uv run netstead app ./my-network
 ```
 
-Open <http://127.0.0.1:8850>. Open more networks with **Open…** in the header: it opens a menu with up to
+Open <http://127.0.0.1:8850>. Open more networks with the **Open** (folder) icon in the header: it opens a menu with up to
 three recent networks, then **Browse / import…** for the full wizard (see below). Switch between open
 networks with the network picker. `netstead viz` and `netstead select-serve`
 are aliases of `netstead app` (the old standalone apps they used to start are gone).
@@ -54,7 +54,7 @@ shared network.
 
 ## Open or import a network
 
-**Open… → Browse / import…** opens a wizard with four sources:
+**Open → Browse / import…** opens a wizard with four sources:
 
 - **GMNS on this machine**: a server-side file browser. Entries are tagged (GMNS folder, `.zip`, `.duckdb`,
   `datapackage.json`); pick one and it opens in place. Nothing is uploaded.
@@ -64,6 +64,11 @@ shared network.
   to adjust), typing `W,S,E,N` or a point plus a buffer, or searching for a place and picking one of the
   outlines. You can instead pick a local file: a `.osm` XML file or an Overpass JSON export for OSM, or an
   Overture snapshot folder holding `segment.parquet` + `connector.parquet` (see `netstead.overture.layout`).
+
+Below the four sources, **Included examples** lists the networks that ship with netstead (Leavenworth, WA and an
+RDU I-40 interchange stretch), each with its link and node counts. One click opens it, with no path to look up
+and no need for it to sit under `io.allowed_roots`. Once you pick a source, the **‹** (Back) button at the
+top-left of the dialog returns to this list; **Esc** closes the dialog.
 
 A build always writes to the output folder and format you choose (Parquet, CSV, DuckDB, or Zip) and then opens
 the result from disk, so what you see is what was saved. It never overwrites an existing output; a leftover
@@ -94,7 +99,7 @@ Credentials never go in the URL: a source with `user:password@` in it is refused
 credential cascade looks instead (environment variables, the system keyring, or `~/.netrc`). A presigned URL's
 query string (`?X-Amz-Signature=…`, an Azure SAS token) is accepted and kept in the session history, because
 the replay script needs it to open the same object; it is stripped from error messages, job labels, the network
-summary, and the **Open…** menu's recents list. Treat a copied **Session as Python** script that opened a
+summary, and the **Open** menu's recents list. Treat a copied **Session as Python** script that opened a
 signed URL as holding that (expiring) signature.
 
 ```toml
@@ -187,8 +192,8 @@ has a badge showing where its current value comes from: `default`, `user`, `proj
 - `io.allowed_roots` is read-only here. The folders the app may read and write can only be widened in a
   config file, an environment variable, or on the command line.
 - A basemap change applies at once, without reloading the page.
-- **Language models** is a section of the same dialog. **Models…**, next to the provider/model picker in
-  the **Find** tab, opens it too.
+- **Language models** is a section of the same dialog. **Models…**, in the model picker (the robot icon in the
+  header), opens it too.
 - The dialog is keyboard-friendly: focus starts in it, Tab stays inside it, and Esc closes it and returns focus to
   where you were.
 
@@ -217,7 +222,10 @@ Focus is a view. Clicking never changes the selection.
   - The keys come from the GMNS spec, not a hard-coded list.
   - The table list shows how many records are related in each table (`N related`; a `+` means the count stopped
     early). Hover a tinted row to see which key relates it, for example `related via lane.link_id → link`.
-  - **Expand a hop** follows keys one more step: from a node to its links, then to their lanes.
+  - With **Show → Related**, the **Related** control chooses how far to follow keys: **1 step** (direct references,
+    such as the links at a node) or **2 steps** (references of references, such as then their lanes). It shows only
+    for that scope. The **i** button beside it explains Related with an example, using the real record counts when
+    something is highlighted or focused. 2 steps reaches new tables only; it never loops back to one already reached.
   - Related records are a read-only view. Nothing is recorded.
 
 ## Workspaces, panels and commands
@@ -233,13 +241,14 @@ Focus is a view. Clicking never changes the selection.
   rotate and the row the browser's own menu.
 - **Workspaces and the dock.** When a plugin adds a workspace, tabs for each appear in the header; each keeps the
   map / split / table view you left it in. The right drawer is a dock, with a tab per panel at its top, in order:
-  **Find** (the selection box, anchors, diagnostics, export, saved selections, highlighted links and the **View**
-  controls — layers, colour and width, direction, filter links), **Inspect** (the focused record; comes forward
-  automatically when you click a map feature or a table row), **Edit** (the edit list, undo/redo, edit warnings and
-  "Save selection as card…"), **Cards** (the project-cards plugin's panel, when it's installed) and **Validate**
-  (run / export, status, facets and the grouped findings list), then **Assistant**, then any panel another plugin
-  adds. The map itself keeps only its zoom/highlight/fit buttons and the legend — the old Layers and Map display
-  popovers are gone; their controls live in the Find tab's **View** section, which scrolls if the panel is short.
+  The tabs are icons (hover for the name; counts stay as a badge on the icon): **Find** (magnifier; the selection form or box, anchors, diagnostics, export, saved selections and highlighted links), **View** (sliders; the layers, color and width, direction and
+  filter controls), **Inspect** (info; the focused record; comes forward
+  automatically when you click a map feature or a table row), **Edit** (pencil; the edit list, undo/redo, edit warnings and
+  "Save selection as card…"), **Cards** (stacked cards; the project-cards plugin's panel, when it's installed) and **Validate**
+  (shield with a check; run / export, status, facets and the grouped findings list), then **Assistant** (chat bubble), then any panel another plugin
+  adds. The map itself keeps only its zoom/highlight/fit buttons and the legend; the old Layers and Map display
+  popovers are gone, and their controls live in the **View** tab. A tab's badge is one pill at its icon's corner (orange while
+  edits are unsaved) and the tooltip says what it counts. The Edit tab's help paragraph hides behind its **×**; the **ⓘ** beside the heading brings it back.
   Draggable handles between the map and the table, and between the map/table and the side panel, resize them
   (double-click a handle to reset; sizes are remembered per browser).
 - **Settings → Plugins** lists the installed [Workbench plugins](workbench-plugins.md): version, the plugin API
@@ -252,18 +261,26 @@ Focus is a view. Clicking never changes the selection.
   palette, Ctrl+K / ⌘K, checks the spec, the keys and the quality rules as a background job; the Jobs badge
   counts it while it runs. The quality rules read **Settings → Validation** (`validation.rules`, keyed by rule
   code, such as `quality.high_speed_residential`).
-- When it finishes, the panel reads `Validated v0: 272 warnings, 16 info` (for the Leavenworth fixture), the
-  header's validity light turns green / amber / red with the counts on hover, the **Validate** tab badge
-  counts the issues plus any open edit warnings, and each located issue is a dot on the map.
+- When it finishes, the panel reads `Validated v0: 271 warnings, 16 info` (for the Leavenworth fixture), the
+  header's validity light turns green / amber / red with the counts on hover, and each located issue is a dot
+  on the map. The **Validate** tab badge counts what needs attention: a red pill with the number of errors when
+  there are any, else an amber pill with the number of warnings (open edit warnings included), else no pill.
+  Info findings are never counted; hover for the whole breakdown ("Validate — 3 errors, 1 warning, 16 info",
+  "Validate — clean", "Validate — not run yet").
 - **Click an issue:** its record is focused, the map flies to it, and when the table shows that table its row is
   scrolled into view and marked. **Click a dot** on the map: the Validate panel opens on **This record**, that
   record's issues. Rows with issues carry a mark in the table. A located finding also carries a crosshair
   "zoom to" icon as an explicit affordance.
-- Filter by severity, table and code. **This record** lists only the focused record's issues. Issues with
-  no place on the map (a table-level check, a row whose node has no coordinates) are grouped: findings that
-  share a code and differ only by resource (such as the sixteen `structural.missing_optional_resource` lines
-  a partial GMNS package produces) collapse into one row under **Unlocated findings**, expandable to the
-  individual findings.
+- **Findings are grouped by type.** One collapsible row per rule code and severity ("▸ quality.high_speed_residential
+  warning 271"), with the rule's fix hint shown once, ordered errors first, then warnings, then info, largest
+  group first. Open a group to see its findings (50 at a time, with **Show more**), each with its crosshair
+  "zoom to" and **Fix**. Groups are built from every finding, not from one page. For structural findings
+  (such as the sixteen `structural.missing_optional_resource` lines a partial GMNS package produces) the row
+  names the resources instead of a hint.
+- Filter with the **Severity**, **Table** and **Type** menus (each starts with an "All …" choice; Type lists
+  the finding types with their counts). **This record** lists only the focused record's issues, with its
+  groups already open. Issues with no place on the map (a table-level check, a row whose node has no
+  coordinates) are also listed under **Unlocated**, where repeated structural findings fold into one row.
 - **Fix** on an issue opens the record editor on that issue's record, on the column the issue names (or the
   whole record when it names none), prefilled with the current value and with the issue as the note. Apply sends
   one edit with only the values you changed.
@@ -376,6 +393,27 @@ written to, and a copy inside the source folder is refused.
   `accept_warnings=True` accepts whatever warnings the network has when the replay runs. See
   [Every action is replayable](#every-action-is-replayable).
 
+## Find: the offline form and the language-model box
+
+With **Offline (pattern)** chosen, the **Find** tab is a form, so you never have to guess the phrasing:
+
+| Pattern | Blanks | Sentence sent to Select |
+| --- | --- | --- |
+| Street | Street | `Pine Street` |
+| Street between two cross streets | Street, From cross street, To cross street | `Pine Street between Orchard Street and Central Avenue` |
+| All links of a type | Facility type | `All residential links` |
+| Link ids | Ids | `Links 59, 60` |
+
+Street and cross-street fields suggest the open network's street names; after you pick a Street, the cross
+streets are narrowed to the streets that meet it. The assembled sentence shows under the form, and **Select**
+sends exactly that sentence (so the history and the replay script read as they always have). A blank that is
+still empty blocks Select and is named under the form. **Ask** keeps its own behavior; offline it understands only
+a few fixed requests (see [Ask the assistant](#ask-the-assistant)), which its tooltip says.
+
+Choose a language model in the header and the free-text box comes back, prefilled with the last sentence; choosing
+Offline again restores the form. The offline parser also reads `<street> from <A> to <B>`, with the same
+cross-street names the resolver uses for `between`.
+
 ## Verify a selection
 
 - The **Find** tab shows the selection's status, its anchors and diagnostics.
@@ -387,10 +425,21 @@ written to, and a copy inside the source folder is refused.
   the selection you were checking stays as it was.
 - A pin is part of the selection's query, so it survives an edit and a saved selection's reuse. When an edit takes
   the pinned node off the facility, see [What the selection does after an edit](#what-the-selection-does-after-an-edit).
-- **Export** downloads a resolved selection as a GMNS fragment (checked against the selection schema) or a
-  ProjectCard facility object, in resolved form (link ids) or query form (name/ref + conditions, which a tool can
-  resolve again). With a stale pin, the resolved form downloads with a warning and the query form is refused:
-  the query no longer gives those links.
+- **Export** shows a resolved selection in the **Fragment** box, as a GMNS fragment (checked against the
+  selection schema) or a ProjectCard facility object, one form at a time: **Segment** (the facility's name plus the
+  `from`/`to` anchors, which a tool can resolve again on another version of the network) or **Link list** (only
+  the resolved link ids). The box changes as soon as you change an option; the utterance is a caption under it,
+  not part of the fragment. **IDs** picks the id system: GMNS (`link_id`, `node_id`), OpenStreetMap
+  (`osm_way_id`, `osm_node_id`) or Overture GERS (`overture_segment_id`, `overture_connector_id`). A system the
+  network has no columns for is disabled, with the reason as its tooltip (the Leavenworth example has OSM ids,
+  not GERS). Several links can share one OSM way, so the list is deduplicated and a caption says so ("3 links
+  share OSM way 5847010"), and when a way also covers links outside the selection ("OSM way 5846369 also covers
+  11 links outside this selection"). ProjectCard has no key for GERS ids, so that choice is disabled for
+  ProjectCard objects. A selection made by clicking links has no named segment: **Segment** is disabled, with the
+  tooltip "This selection has no named segment; use Link list". The copy button at the top right of the box
+  copies the fragment to the clipboard. A saved selection's **Export** still downloads a file, in the form and ID
+  system chosen here. With a stale pin, Segment is refused (the query no longer gives those links), and Link
+  list exports with a warning.
 - **Save selection…** keeps the selection under a name; **Use** brings it back, resolved on the network as it is
   now. `app.do(SaveSelection(name="ski hill"))`, `app.do(UseSelection(name="ski hill"))`. **Export** on a saved
   selection resolves it the same way without making it current, and warns when its network is not open (it then
@@ -401,15 +450,24 @@ written to, and a copy inside the source folder is refused.
 
 ## Style, filter and navigate
 
-The map's style and link filter are set from the **Find** tab's **View** section (its layer toggles, colour
+The map's style and link filter are set from the **View** tab (its layer toggles, color
 and width pickers, direction controls and **Filter links** replace the old map popovers).
+Nodes colored by `ctrl_type` use a fixed style where size carries meaning too (signals large and red, stop signs orange or amber, yield yellow, uncontrolled nodes small and grey) and signals draw on top; other columns use the generic palette.
 
 - **Color links by** / **Color nodes by** pick a categorical or numeric column for links and nodes
   independently (`app.do(Style(color_by="facility_type"))`, `app.do(Style(node_color_by="ctrl_type"))`). A
-  fresh network defaults to colouring links by `facility_type` and nodes by `ctrl_type` when those columns
-  exist, falling back to a single colour otherwise.
+  fresh network defaults to coloring links by `facility_type` and nodes by `ctrl_type` when those columns
+  exist, falling back to a single color otherwise.
+- The color swatches beside **Links**, **Nodes** and **Selection** set a single color. Picking the Links or Nodes
+  swatch while that layer is colored by a column turns **Color links by** / **Color nodes by** off in the same
+  recorded action (`Style(colors=..., node_color_by="none")`), since a column coloring would hide the swatch.
+- Each section of the View tab (Layers, Overlays, Color, Width, Direction, **Show only links where...**) folds open and
+  closed; the tab remembers which are folded in this browser. **Overlays** lists a plugin's or core's map layers
+  (issue markers, anchor candidates) with a switch and an info tooltip saying what each draws.
+- On the map, a click, right-click or hover picks only layers that are switched on, and when a node and a link are
+  both under the pointer the node wins (so nodes can be inspected where links run through them).
 - **Width by** sizes links by a numeric column (`app.do(Style(width_by="lanes"))`).
-- **Filter links**, in the same View section, dims every link that doesn't match
+- **Show only links where...** (the View tab's filter; it hides the other links on the map and in the table's Filtered view and never changes the data) dims every link that doesn't match
   (`app.do(Filter(where=[{"col": "lanes", "op": "gte", "val": 2}]))`); the table's **Filtered** scope lists the
   matching links (the filter applies to links: on the node table it lists every node). `Filter(where=None)`
   clears it. Filters are fields and operators only, never free text or SQL: `contains` matches a plain
@@ -441,7 +499,7 @@ independent: the grid's filters only narrow what the table shows.
   session only: **Clear** empties it, and it is gone when the Workbench stops.
 - It uses the provider and model chosen next to the Find tab's selection box (hover the model to see its full
   name when it's truncated). With **Offline (pattern)** it understands a few fixed commands
-  (`colour by lanes`, `width by lanes`, `filter lanes >= 2`, `clear the filter`, `zoom to the selection`,
+  (`color by lanes`, `width by lanes`, `filter lanes >= 2`, `clear the filter`, `zoom to the selection`,
   `zoom to link 170`, `select <street>`, `save the selection as <name>`, `set lanes to 3 on the selection`).
 - Steps that only change the view or the selection run at once, and each is listed with its `app.do(...)` line.
   Steps that change a network or something you made (edits, deletions, undo, saving a copy, and, once you allow
@@ -462,7 +520,7 @@ independent: the grid's filters only narrow what the table shows.
 - **Small local models** get help, and the panel says so. A read-only step with a field its tool doesn't have (or,
   for a style, a malformed one) runs without it, and the answer lists what was left out ("Left out: …"); a step that
   changes a network is never changed this way, it is asked for again. A field that belongs to another read-only tool
-  becomes a step of its own: "select Ski Hill Drive and colour by lanes" folded into one select is run as a select
+  becomes a step of its own: "select Ski Hill Drive and color by lanes" folded into one select is run as a select
   and a style ("Split: …"); if the field could belong to more than one tool, or to one that changes a network, the
   model is asked again. The model sees what each GMNS column means
   (`free_speed` is the speed limit). With `assistant.compact_tools = "auto"` (the default) a model on this machine is
@@ -492,12 +550,20 @@ To set up a local model (install Ollama, pull `qwen3:4b`, troubleshoot), see
 `select.provider` accepts `anthropic`, `openai`, `gemini`, `ollama` or `stub`. `claude` is still
 accepted as an alias for `anthropic` (existing config files keep working).
 
-Pick a provider and model with the picker next to the utterance box. The choice is
+Pick a provider and model with the picker under the robot icon in the header. The choice is
 `SetSetting(scope="session")` — it applies to this session only; **Make default** saves the same
 pair with `scope="user"`, and warns first if a project setting or a `NETSTEAD_SELECT__*` /
 `NETSTEAD_SELECT__MODEL` environment variable would still override it. **Models…** opens the
 Language models panel: set, replace, remove and test keys, point at another Ollama server, pull an
 Ollama model, tune quality and context, and browse the model catalog.
+
+The robot itself shows whether the choice can answer, by color and by the shape of its small dot:
+**green** (circle) when the provider and model are ready (a configured key, or a reachable Ollama with
+the model pulled), **yellow** (diamond) when only the offline pattern parser is in use, and **red**
+(square) when the chosen provider is not available (missing key, Ollama not running, model not
+pulled). Hover for the state in words, for example "Language model: Ollama · qwen3:4b — ready"
+or "… — not available: Ollama is not running", followed by what each selection sends; whether data
+leaves the machine is only ever said in that text, never by the color.
 
 The defaults are each provider's small, fast model — enough for one selection at a time — and are
 maintained in `netstead/llm/models.toml`:
@@ -543,7 +609,7 @@ quietly switches to another provider.
 
 Every selection sends your utterance and the selection tool's schema (GMNS field names such as
 `lanes`), never your network tables or files. The `[llm.quality]` settings add more, and the
-privacy note next to the picker always lists exactly what the chosen provider receives. Every part
+privacy note in the picker's tooltip always lists exactly what the chosen provider receives. Every part
 of the prompt that is network- or project-sourced data (not an instruction) is fenced in its own
 tagged block (for example `<network_vocabulary>…</network_vocabulary>`) so a street name or
 project note can never be mistaken for a new instruction to the model.

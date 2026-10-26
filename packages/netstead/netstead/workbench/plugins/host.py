@@ -99,13 +99,22 @@ class Host:
         """A copy of the shared selection payload (the dict ``/api/state`` carries), plus its ``projectcard``.
 
         ``projectcard`` holds the ProjectCard facility forms of a resolved selection (``picked``, ``resolved``,
-        ``query``), or ``None``: core owns the facility form, so a plugin never builds its own.
+        ``query``), or ``None``: core owns the facility form, so a plugin never builds its own. Since 1.9 it also
+        has the strict forms: ``segment`` and ``link_list`` (each ``{id system: facility}``, ``gmns`` and ``osm``),
+        ``segment_problem``, ``id_systems`` (``{system: None or why not}``) and ``id_captions``.
         """
         # Not via ``state()``: that calls every plugin's ``state(host)``, which may read this property.
         sel = self._session.selection_copy()
         if sel is not None:
-            sel["projectcard"] = payload_facility_forms(sel)
+            sel["projectcard"] = payload_facility_forms(sel, self._selection_network(sel))
         return sel
+
+    def _selection_network(self, payload: dict[str, Any]) -> NetworkHandle | None:
+        """The network a selection payload is on (``None`` once it is closed), to look its ids up in."""
+        try:
+            return self._session.network(payload.get("net_id"))
+        except (ActionError, KeyError):
+            return None
 
     def saved_selections(self) -> list[dict[str, Any]]:
         """Each saved selection: ``name``, ``net_id``, ``status``, ``links``, ``utterance``, ``by``, ``stale``."""
@@ -120,7 +129,7 @@ class Host:
         """
         sel = self._session.saved_selection(name)
         if sel is not None:
-            sel["projectcard"] = payload_facility_forms(sel)
+            sel["projectcard"] = payload_facility_forms(sel, self._selection_network(sel))
             sel["warnings"] = selection_warnings(sel)
         return sel
 
@@ -237,6 +246,10 @@ class Host:
 
         ``name`` matches ``[a-z][a-z0-9_]*``: in the browser ``wb.on("a.b")`` means plugin ``a``'s event ``b``, so a
         dotted name could never be listened for. Raises ``ValueError`` otherwise.
+
+        Publishing is also how this plugin says its tables changed (1.8): each table it registered
+        (:meth:`register_table`) is built again on its next read, and the browser gets a ``core.table_changed`` event
+        (``{plugin, tables}``) so a table view showing one reloads it.
         """
         if not isinstance(name, str) or not _EVENT_NAME.fullmatch(name):
             raise ValueError(
@@ -244,6 +257,47 @@ class Host:
                 f"starting with a letter ([a-z][a-z0-9_]*); got {name!r}"
             )
         self._session.events.publish({"type": "plugin", "plugin": self.plugin_id, "name": name, "payload": payload})
+        if tables := self._session.plugin_tables.changed(self.plugin_id):
+            self._session.events.publish(
+                {
+                    "type": "plugin",
+                    "plugin": "core",
+                    "name": "table_changed",
+                    "payload": {"plugin": self.plugin_id, "tables": tables},
+                }
+            )
+
+    def register_table(
+        self,
+        name: str,
+        title: str,
+        rows_fn: Callable[[], Any],
+        *,
+        primary_key: str,
+        columns: Sequence[str] | None = None,
+    ) -> None:
+        """Publish a read-only table to the Workbench's table view, listed under "Plugins" in its rail (1.8).
+
+        ``rows_fn()`` returns the rows: an iterable of dicts (or a pandas frame), each with its ``primary_key``
+        (unique, never null). Core builds them into a frame when the table is read and keeps it until this plugin
+        publishes anything (:meth:`publish`) or the network the view is on changes, then calls ``rows_fn`` again;
+        it is called outside the session lock, from a route, so it may call ``Host`` methods but must not block.
+        The table is served by the table view's own routes (``/api/n/<net>/roadway/table/<name>/rows``, ``schema``,
+        ``distinct``): sorting and the column filters work as on a network table (a comma-separated text column takes
+        ``any_of`` / ``all_of`` / ``none_of``). It is never edited and never linked to the map; a row click in the
+        browser emits ``core.table_row`` (``{plugin, table, id}``) for the plugin to act on. ``columns`` fixes the
+        columns and their order (so an empty table still has them). ``name`` matches ``[a-z][a-z0-9_]*`` and is no
+        network table's (``link``, ``node``, ...) nor another plugin's; registering it again replaces this plugin's
+        own. Raises ``ValueError`` (``TypeError`` for a ``rows_fn`` that is not callable) otherwise. The table goes
+        when the plugin is unloaded.
+        """
+        self._session.plugin_tables.register(
+            self.plugin_id, name, title, rows_fn, primary_key=primary_key, columns=columns
+        )
+
+    def unregister_table(self, name: str) -> bool:
+        """Take this plugin's table ``name`` out of the table view (1.8); ``False`` when it has none by that name."""
+        return self._session.plugin_tables.unregister(self.plugin_id, name)
 
     def submit_job(self, label: str, fn: Callable[[JobContext], Any]) -> str:
         """Run ``fn(ctx)`` on a background job (progress and cancel in the jobs panel); return the job id."""

@@ -53,7 +53,7 @@ def read(
             Only consulted for URL sources; merges with the env / keyring /
             netrc cascade per :func:`corral.io.credentials.resolve_credentials`
             (explicit wins).
-        engine: Engine to materialise through. Defaults to the registry
+        engine: Engine to materialize through. Defaults to the registry
             default (typically the ibis + DuckDB engine).
         scope: Optional dict of :meth:`Package.scope` kwargs applied to
             the loaded package before returning — lets callers chain

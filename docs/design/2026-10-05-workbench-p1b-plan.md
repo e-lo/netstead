@@ -9,7 +9,7 @@ Status: **implemented** (#212) · Parent: [Workbench design](2026-10-02-netstead
   the map there.
 - A box-select becomes the table's "Highlighted" filter.
 - A foreign-key cell (`from_node_id`) jumps to the node's row and its marker.
-- When records are focused or highlighted, rows that are one foreign key away tint in a lighter colour: in every table
+- When records are focused or highlighted, rows that are one foreign key away tint in a lighter color: in every table
   and on the map. The keys come from the GMNS spec.
 - A **Settings** dialog is generated from the `Settings` JSON schema. It shows where each value comes from, saves
   through `SetSetting`, and shows refused keys read-only with the reason. The existing Language-models panel becomes

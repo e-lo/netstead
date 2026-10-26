@@ -51,7 +51,7 @@ class InvalidEngineCallError(ValueError):
 class UnsupportedSourceError(TypeError):
     """Engine cannot interpret the given source.
 
-    Raised when the source is the wrong type (unrecognised dict shape,
+    Raised when the source is the wrong type (unrecognized dict shape,
     not a path / dict / handle), as opposed to an unsupported *format*
     (which raises :class:`NotImplementedError` with a hint at the
     deferred FormatAdapter task). Inherits from ``TypeError`` so it

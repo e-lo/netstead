@@ -9,7 +9,7 @@ report can be rendered to rich-console, JSON, or HTML
 The contract is deliberately narrow:
 
 - :class:`Severity` and :class:`Category` are ``str`` enums so they
-  serialise to stable, human-readable JSON without custom encoders.
+  serialize to stable, human-readable JSON without custom encoders.
 - :class:`Issue` is a *frozen* dataclass so a report can be safely
   held after the underlying data has changed.
 - :class:`ValidationReport` is *mutable* so multiple checks can
@@ -474,10 +474,10 @@ class ValidationReport:
         """
         return not (self.has_errors or self.has_warnings)
 
-    # -- Serialisation ------------------------------------------------------
+    # -- Serialization ------------------------------------------------------
 
     def to_dict(self) -> dict[str, Any]:
-        """Return a JSON-serialisable dict snapshot of the report.
+        """Return a JSON-serializable dict snapshot of the report.
 
         Schema:
 
@@ -636,7 +636,7 @@ class ValidationReport:
         return self.to_rich()
 
     def _repr_html_(self) -> str:
-        """Render a compact Jupyter-friendly card summarising the report.
+        """Render a compact Jupyter-friendly card summarizing the report.
 
         Header carries the source locator + spec version; the body
         shows per-severity counts and the first ten issues as a
@@ -695,7 +695,7 @@ class ValidationReport:
 
 
 def _issue_to_dict(issue: Issue) -> dict[str, Any]:
-    """Flatten one :class:`Issue` to a JSON-serialisable dict.
+    """Flatten one :class:`Issue` to a JSON-serializable dict.
 
     ``dataclasses.asdict`` does most of the work; we only need to coerce
     the two ``Enum`` fields to their ``.value`` strings so they survive

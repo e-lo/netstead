@@ -20,7 +20,7 @@ DuckDB session and gives them a map and linked tables. What it adds that a GIS d
   through plugins, ProjectCard output.
 * **Validation on the map.** Issues link to rows and markers; a fix is an edit, not a redraw.
 
-What it deliberately leaves to other tools: cartography beyond colour-by, width-by and filter; context layers
+What it deliberately leaves to other tools: cartography beyond color-by, width-by and filter; context layers
 such as aerials, land use or census data; printing; 3D; and running a model.
 
 ## Why we have it

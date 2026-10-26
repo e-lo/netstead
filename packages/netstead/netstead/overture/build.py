@@ -27,6 +27,7 @@ from typing import Any
 
 from netstead._network_build import network_from_records
 from netstead.network import Network
+from netstead.network_types import NetworkTypes
 from netstead.spec import DEFAULT_SPEC
 
 from . import convert, query
@@ -38,7 +39,7 @@ def build_network_from_overture(
     area: str | Sequence[float],
     *,
     buffer_m: float = 0.0,
-    network_type: str = "drive",
+    network_type: NetworkTypes = "roads",
     extra_tags: list[str] | None = None,
     spec_version: str = DEFAULT_SPEC,
     engine: Any = None,
@@ -52,14 +53,14 @@ def build_network_from_overture(
             ``(west, south, east, north)`` bbox. (Place strings are geocoded via
             the OSM source's Nominatim helper and need the ``[osm]`` extra.)
         buffer_m: Buffer in metres applied when ``area`` is a point.
-        network_type: One of ``drive``/``walk``/``bike``/``all`` (filters on
+        network_type: One of ``roads``/``paths`` or a list (filters on
             Overture ``class``; see ``overture_network_filters.yaml``).
         extra_tags: Extra Overture segment property paths (dotted, e.g.
             ``"subclass"`` / ``"road_surface"``) to carry onto each link as
             columns. Same purpose as the OSM source's ``extra_tags``, with
             Overture property names instead of OSM tag keys.
         spec_version: GMNS spec version (default :data:`netstead.spec.DEFAULT_SPEC`).
-        engine: Compute engine to materialise through (default: corral
+        engine: Compute engine to materialize through (default: corral
             ibis/duckdb).
         overture_release: Pinned Overture release string (ignored when
             ``data_root`` is set). Bump to move releases reproducibly.

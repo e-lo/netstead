@@ -102,7 +102,7 @@ The server exposes seven stateless tools. Every tool takes a `source` — any pa
 Each of these exercises a different tool — paste them into a chat with the server configured to see the agent pick the right call:
 
 * **"What's in the GMNS network at `packages/netstead/netstead/fixtures/leavenworth/csv`?"** — agent calls `describe_network`, returns spec version `0.97`, 339 links, 121 nodes and the nine table names.
-* **"Run the quality rules on that network and summarise the warnings by code."** — agent calls `quality_check`, groups the `issues` list by `code`, and reports the counts.
+* **"Run the quality rules on that network and summarize the warnings by code."** — agent calls `quality_check`, groups the `issues` list by `code`, and reports the counts.
 * **"Scope the network to the shortest paths between nodes 1, 25 and 50 and tell me how many links that is."** — agent calls `scope_from_nodes` with `node_ids=[1, 25, 50]` and `path_between=true` (the default). See the known issue on this tool in the [MCP tools reference](../ai/mcp-tools.md#scope_from_nodessource-node_ids-path_between).
 
 ## Common variations

@@ -13,6 +13,7 @@ import { addLayer } from "./map.js";
 import { activatePlugins, createErrorReporter } from "./pluginload.js";
 import { slots } from "./slots.js";
 import { activeSelection, store } from "./store.js";
+import { showTable } from "./table.js";
 import { createWb } from "./wbhost.js";
 import { addPanel, addWorkspace, restoreWorkspace, showPanel } from "./workspaces.js";
 
@@ -31,7 +32,7 @@ export async function loadPlugins() {
   for (const spec of actionCommands(actions, plugins)) addCommand(spec.owner, { ...spec, run: () => openActionForm(spec.entry) });
   const shared = { hostApi, actionTypes: new Set(actions.map(a => a.type)), schemas: new Map(actions.map(a => [a.type, a.schema])) };
   await activatePlugins(plugins, {
-    importModule: status => import(`${status.frontend}?v=${encodeURIComponent(status.version)}`),
+    importModule: status => import(status.frontend),
     createWb: id => createWb(id, hostDeps(shared)),
     timeoutMs: ACTIVATE_TIMEOUT_MS,
     report: reportPluginError,
@@ -44,6 +45,6 @@ function hostDeps({ hostApi, actionTypes, schemas }) {
     hostApi, store, activeSelection, getJSON, postJSON, dispatch, fetch: (url, init) => fetch(url, init),
     events: hub, addCommand, layers: { register: addLayer }, dock: { addWorkspace, addPanel, showPanel },
     schemaForm, actionTypes, actionSchema: type => schemas.get(type) || null, toast, onError: reportPluginError,
-    frozenCopy, icon,
+    frozenCopy, icon, showTable,
   };
 }

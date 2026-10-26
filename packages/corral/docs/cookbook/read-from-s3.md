@@ -45,7 +45,7 @@ net = Network.from_source(
 print(f"{net.spec_version}: {net.links.count()} links")
 ```
 
-Either way the load is lazy — `pkg['link']` / `net.links` is a `Table` wrapping an ibis expression, not a materialised frame.
+Either way the load is lazy — `pkg['link']` / `net.links` is a `Table` wrapping an ibis expression, not a materialized frame.
 
 ## How a URL is read
 
@@ -122,7 +122,7 @@ A URL ending in `/` is listed: every child with a known extension (`.csv`, `.par
 
 ### 4. Verify the load is lazy
 
-Each table wraps an ibis `Table`. `Table.filter` takes a callable over that expression and returns a new lazy table; the filter pushes down into the parquet reader, so only the survivors transit when you materialise (`to_polars()` needs the `polars` extra, `to_pandas()` the `pandas` one):
+Each table wraps an ibis `Table`. `Table.filter` takes a callable over that expression and returns a new lazy table; the filter pushes down into the parquet reader, so only the survivors transit when you materialize (`to_polars()` needs the `polars` extra, `to_pandas()` the `pandas` one):
 <!-- doctest: skip -->
 
 ```python

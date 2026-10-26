@@ -7,6 +7,7 @@ import { dispatch, getJSON, netPath } from "./api.js";
 import { commandContext, runCommand } from "./commands.js";
 import { $, esc, toast } from "./dom.js";
 import { dirtyBadge, editsBadge, pendingLine, redoBlocked, undoBlocked, validatedText } from "./editmodel.js";
+import { helpKey, wireDismissibleHelp } from "./help.js";
 import { hub } from "./hub.js";
 import { issuesBadge } from "./issuelist.js";
 import { ALL_WORKSPACES, CORE, slots } from "./slots.js";
@@ -23,8 +24,8 @@ const activeId = () => { const s = store.get().server; return s && s.active; };
 
 // Badges read the server state (ctx.state), so the dock refreshes them on every state event.
 export function registerEditPanels() {
-  addPanel(CORE, { id: "edit", title: "Edit", workspace: ALL_WORKSPACES, order: 20, badge: c => editsBadge(c.state) });
-  addPanel(CORE, { id: "validate", title: "Validate", workspace: ALL_WORKSPACES, order: 30, badge: c => issuesBadge(c.state) });
+  addPanel(CORE, { id: "edit", title: "Edit", icon: "pencil", workspace: ALL_WORKSPACES, order: 20, badge: c => editsBadge(c.state) });
+  addPanel(CORE, { id: "validate", title: "Validate", icon: "shield-check", workspace: ALL_WORKSPACES, order: 30, badge: c => issuesBadge(c.state) });
 }
 
 export async function loadEdits() {
@@ -121,6 +122,7 @@ export function wireEdits() {
   $("ed-undo").onclick = () => dispatch({ type: "undo_edit" }).catch(fail);
   $("ed-redo").onclick = () => dispatch({ type: "redo_edit" }).catch(fail);
   $("ed-card").onclick = saveAsCard;
+  wireDismissibleHelp($("ed-help"), helpKey("edit"), { hideBtn: $("ed-help-hide"), showBtn: $("ed-help-show") });
   hub.on("core.panels", syncCardButton);
   syncCardButton(slots.panels.list().map(p => p.id));
 }

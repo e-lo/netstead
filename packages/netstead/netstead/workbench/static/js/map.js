@@ -2,8 +2,9 @@
 import { $, esc } from "./dom.js";
 import { createClickGuard } from "./gesture.js";
 import { layerRegistry } from "./layers.js";
-import { arrowPixelOffset, arrowSize, buildArrows, linkPaths, widthForLanes } from "./netbuf.js";
-import { buildLinkColors, buildLinkWidths, buildNodeColors, dimUnmatched } from "./palette.js";
+import { arrowPixelOffset, arrowSize, buildArrows, linkPaths, nodeRadiusScale, widthForLanes } from "./netbuf.js";
+import { pickPriority } from "./pickmodel.js";
+import { buildLinkColors, buildLinkWidths, buildNodeStyle, dimUnmatched } from "./palette.js";
 import { commandContext, frozenCopy } from "./commands.js";
 import { CORE } from "./slots.js";
 import { activeSelection, store } from "./store.js";
@@ -26,7 +27,7 @@ const TOOLTIP_STYLE = { background: "#11151a", color: "#e6e8ec", fontSize: "12px
 
 let map = null, overlay = null;
 let handlers = { onLinkClick() {}, onNodeClick() {}, onBoxSelect() {}, onContextMenu() {}, onLayerError(e) { console.error(e); } };
-let colorCache = { key: null, colors: null }, widthCache = { key: null, widths: null }, nodeColorCache = { key: null, colors: null };
+let colorCache = { key: null, colors: null }, widthCache = { key: null, widths: null }, nodeCache = { key: null };
 let pathsCache = { key: null, paths: null }, arrowCache = { key: null, arrows: null };
 let labelsShown = true;
 // Whether the current style's layers exist (style.load fired). Not map.isStyleLoaded(): that also waits for
@@ -43,7 +44,7 @@ export function initMap(style, hooks) {
   map.addControl(overlay);
   wireContextMenu();
   new ResizeObserver(() => map.resize()).observe($("map"));
-  map.on("zoomend", () => { const s = store.get(); if (s.server && s.server.style.show_direction) render(); });
+  map.on("zoomend", () => { if (store.get().server) render(); }); // arrows and node sizes follow the zoom
   // Ready once the style is parsed, not on "load": that waits for every basemap tile of the opening
   // (continental) view, so the network would be drawn and fitted seconds late, or never offline.
   map.on("style.load", () => { styleReady = true; });
@@ -68,7 +69,7 @@ function wireContextMenu() {
 
 export function resizeSoon() { if (map) setTimeout(() => map.resize(), 60); }
 
-// Per-vertex link colours; links the recorded Filter does not match are dimmed. The Set is replaced (never changed)
+// Per-vertex link colors; links the recorded Filter does not match are dimmed. The Set is replaced (never changed)
 // when the filter or the network changes, so it can key the cache.
 let filterSeq = 0, lastFilterIds = null;
 function linkColors(s) {
@@ -82,13 +83,23 @@ function linkColors(s) {
   return colorCache.colors;
 }
 
-// Per-node colours for `style.node_color_by` (or the single node colour), cached like the links'.
-function nodeColors(s) {
+// Per-node colors and radii (semantic for ctrl_type), with positions in draw order (larger markers last), cached
+// like the links'. `order` maps a drawn index back to the node's index (null: the same).
+function nodeStyle(s) {
   const st = s.server.style, np = s.nodeProp;
   const key = JSON.stringify([s.netKey, st.node_color_by, st.ramp, st.colors.nodes, np && np.name, np && np.netKey]);
-  if (nodeColorCache.key !== key) nodeColorCache = { key, colors: buildNodeColors(s.net, st, np) };
-  return nodeColorCache.colors;
+  if (nodeCache.key !== key) {
+    const { colors, radii, order } = buildNodeStyle(s.net, st, np), pos = s.net.nodePositions;
+    if (!order) nodeCache = { key, colors, radii, positions: pos, order };
+    else {
+      const positions = new Float64Array(pos.length), c = new Uint8Array(colors.length), r = new Float32Array(radii.length);
+      order.forEach((src, k) => { positions.set(pos.subarray(src * 2, src * 2 + 2), k * 2); c.set(colors.subarray(src * 4, src * 4 + 4), k * 4); r[k] = radii[src]; });
+      nodeCache = { key, colors: c, radii: r, positions, order };
+    }
+  }
+  return nodeCache;
 }
+const nodeIndex = i => (nodeCache.order ? nodeCache.order[i] : i);
 
 // Per-vertex widths for `style.width_by`, or null (the lane-count widths).
 function linkWidths(s) {
@@ -117,8 +128,9 @@ function baseLayers(s) {
         attributes: { getPath: { value: net.linkPositions, size: 2 }, getWidth: { value: widths, size: 1 },
                       getColor: { value: colors, size: 4 } } },
       widthUnits: "pixels", widthMinPixels: LINK_MIN_PX, capRounded: true, jointRounded: true,
-      pickable: true, autoHighlight: true, highlightColor: [255, 140, 59, 235],
-      onClick: info => { if (info && info.index >= 0) handlers.onLinkClick(store.get().attrs.link_id[info.index]); } };
+      pickable: style.show.links, autoHighlight: true, highlightColor: [255, 140, 59, 235],
+      // A node under the pointer wins over the link beneath it (featureAt); a link only when no node is there.
+      onClick: info => { const f = info && info.index >= 0 && featureAt(info); if (f) clickFeature(f); } };
     if (OFFSET_EXT) { props.extensions = [OFFSET_EXT]; props.getOffset = offsetOn ? OFFSET_AMT : 0; }
     layers.push(new deck.PathLayer(props));
     const zoom = map.getZoom();
@@ -133,14 +145,17 @@ function baseLayers(s) {
         updateTriggers: { getPixelOffset: [offsetOn, widthCache.key] } }));
     }
   }
-  // Nodes draw above links, and are pickable, so a map click can focus a node. Their colours come from the node
-  // table's `node_color_by` column (nodeColors), the single node colour without one.
+  // Nodes draw above links, and are pickable, so a map click can focus a node. Their colors come from the node
+  // table's `node_color_by` column (nodeColors), the single node color without one.
   if (style.show.nodes) layers.push(new deck.ScatterplotLayer({ id: "nodes",
-    data: { length: net.N.count, attributes: { getPosition: { value: net.nodePositions, size: 2 },
-                                               getFillColor: { value: nodeColors(s), size: 4 } } },
-    getRadius: 1.8, radiusUnits: "pixels", radiusMinPixels: 2,
-    pickable: true, autoHighlight: true, highlightColor: [255, 140, 59, 235],
-    onClick: info => { if (info && info.index >= 0) handlers.onNodeClick(net.nodeIds[info.index]); } }));
+    data: { length: net.N.count, attributes: { getPosition: { value: nodeStyle(s).positions, size: 2 },
+                                               getFillColor: { value: nodeStyle(s).colors, size: 4 },
+                                               getRadius: { value: nodeStyle(s).radii, size: 1 } } },
+    radiusUnits: "pixels", radiusScale: nodeRadiusScale(map.getZoom()), radiusMinPixels: 1.5,
+    stroked: true, filled: true, lineWidthMinPixels: 1, lineWidthUnits: "pixels",
+    getLineColor: [20, 20, 30, 220],
+    pickable: style.show.nodes, autoHighlight: true, highlightColor: [255, 140, 59, 235],
+    onClick: info => { const f = info && info.index >= 0 && featureAt(info); if (f) clickFeature(f); } }));
   return layers;
 }
 
@@ -164,7 +179,7 @@ function idPathLayer(net, layerId, ids, color, extraWidth) {
     parameters: { depthTest: false } });
 }
 
-// idPathLayer twice: a 2 px wider dark casing under the coloured stroke, so the focus and highlights stay legible
+// idPathLayer twice: a 2 px wider dark casing under the colored stroke, so the focus and highlights stay legible
 // whatever the basemap draws beneath them.
 function casedPathLayers(net, layerId, ids, color, extraWidth) {
   const stroke = idPathLayer(net, layerId, ids, color, extraWidth);
@@ -259,22 +274,37 @@ export function addLayer(owner, component, id, factory, options) {
   return () => { if (dispose()) changed(); };
 }
 
-function getTooltip({ layer, index }) {
+// The link or node feature ({table, id}) the pointer means: nodes win over links, and a layer switched off (or an
+// overlay hidden) never picks (pickmodel.js). `point` is {x, y} in map pixels.
+function featureAt(point, radius = 4) {
+  const s = store.get();
+  if (!overlay || !s.net || !s.attrs) return null;
+  const hits = overlay.pickMultipleObjects({ x: point.x, y: point.y, radius, depth: 4, layerIds: ["nodes", "links"] })
+    .filter(h => h.index != null && h.index >= 0 && h.layer)
+    .map(h => ({ layerId: h.layer.id, index: h.index }));
+  const hit = pickPriority(hits, s.server.style, s.hiddenLayers);
+  if (!hit) return null;
+  if (hit.layerId === "nodes") return { table: "node", id: s.net.nodeIds[nodeIndex(hit.index)] };
+  return { table: "link", id: s.attrs.link_id[hit.index], index: hit.index };
+}
+
+const clickFeature = f => (f.table === "node" ? handlers.onNodeClick(f.id) : handlers.onLinkClick(f.id));
+
+function getTooltip({ layer, index, x, y }) {
   const attrs = store.get().attrs;
-  if (!layer || layer.id !== "links" || index == null || index < 0 || !attrs) return null;
-  const id = attrs.link_id[index], nm = attrs.name[index], rf = attrs.ref[index], ft = attrs.facility_type[index];
+  if (!layer || (layer.id !== "links" && layer.id !== "nodes") || index == null || index < 0 || !attrs) return null;
+  const f = featureAt({ x, y });
+  if (!f) return null;
+  if (f.table === "node") return { html: `<b>node ${esc(f.id)}</b>`, style: TOOLTIP_STYLE };
+  const id = f.id, nm = attrs.name[f.index], rf = attrs.ref[f.index], ft = attrs.facility_type[f.index];
   return { html: `<b>link ${esc(id)}</b><br>${nm ? esc(nm) : "<i>unnamed</i>"}${rf ? " · " + esc(rf) : ""}` +
     `<br><span style="color:#8a93a3">${ft ? esc(ft) : ""}</span>`, style: TOOLTIP_STYLE };
 }
 
 // The record under a right-click: a link or node feature ({table, id}), or null.
 function recordAt(point) {
-  const s = store.get();
-  const info = overlay.pickObject({ x: point.x, y: point.y, radius: 4, layerIds: ["nodes", "links"] });
-  if (!info || info.index == null || info.index < 0 || !s.net) return null;
-  if (info.layer.id === "links") return { table: "link", id: s.attrs.link_id[info.index] };
-  if (info.layer.id === "nodes") return { table: "node", id: s.net.nodeIds[info.index] };
-  return null;
+  const f = featureAt(point);
+  return f && { table: f.table, id: f.id };
 }
 
 function fit(bounds, padding, retried, duration = 500) {

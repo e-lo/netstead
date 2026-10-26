@@ -8,7 +8,6 @@ schema / FK checks) or ``netstead quality <path>`` (data-quality rules).
 
 from __future__ import annotations
 
-import importlib
 import os
 import sys
 
@@ -16,6 +15,7 @@ import typer
 from corral.cli.render import render_table
 
 from netstead import Network
+from netstead.extras_probe import EXTRA_PROBES, probe_extra
 from netstead.spec import SUPPORTED_SPECS, load_gmns_spec
 
 __all__ = ["register"]
@@ -75,28 +75,6 @@ def _check_python_version() -> dict[str, object]:
     }
 
 
-# Optional-extra → import probe. Each entry is (extra-name, module-to-import).
-# The extra is informational; the import is what actually decides ok/!ok.
-# Keep in lockstep with ``[project.optional-dependencies]`` in pyproject.toml:
-# each probe is the package that *defines* the extra (the one whose absence
-# means the extra is not installed), not a transitive dependency.
-_EXTRA_PROBES: tuple[tuple[str, str], ...] = (
-    ("clean", "shapely"),
-    ("clean", "geopandas"),
-    ("clean", "pyproj"),
-    ("graph", "scipy"),
-    ("server", "fastapi"),
-    ("mcp", "mcp"),
-    ("notebook", "ipywidgets"),
-    ("osm", "requests"),
-    ("reports", "openpyxl"),
-    ("reports", "jinja2"),
-    ("nl", "jsonschema"),
-    ("nl", "keyring"),
-    ("bench", "psutil"),
-)
-
-
 def _check_optional_extras() -> list[dict[str, object]]:
     """Probe each optional [extra] for importability. Adds ``installed: bool`` to each check.
 
@@ -115,9 +93,9 @@ def _check_optional_extras() -> list[dict[str, object]]:
     presence/absence signal previously hidden inside the ``detail`` string).
     """
     out: list[dict[str, object]] = []
-    for extra, module in _EXTRA_PROBES:
-        try:
-            importlib.import_module(module)
+    for extra, module in EXTRA_PROBES:
+        installed, error = probe_extra(module)
+        if installed:
             out.append(
                 {
                     "name": f"extra:{extra}[{module}]",
@@ -126,13 +104,13 @@ def _check_optional_extras() -> list[dict[str, object]]:
                     "detail": "importable",
                 }
             )
-        except ImportError as exc:
+        else:
             out.append(
                 {
                     "name": f"extra:{extra}[{module}]",
                     "ok": True,  # optional — absence is not a failure
                     "installed": False,
-                    "detail": f"not installed ({exc.__class__.__name__}); install with `uv sync --extra {extra}`",
+                    "detail": f"not installed ({error}); install with `uv sync --extra {extra}`",
                 }
             )
     return out

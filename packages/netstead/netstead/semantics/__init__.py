@@ -14,7 +14,7 @@ Three loosely-coupled submodules, one concern each:
   ``link_tod`` overrides for a given time period;
   :func:`tod_coverage` audits which periods have TOD data.
 
-All three materialise through pyarrow (via the underlying engine's
+All three materialize through pyarrow (via the underlying engine's
 ``to_pandas`` then ``pa.Table.from_pandas``) — consistent with
 :mod:`netstead.indexes` and chosen for legibility over an ibis-only API
 that would require an ibis-backed engine.

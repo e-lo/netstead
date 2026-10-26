@@ -27,6 +27,8 @@ from typing import Any, Literal
 
 import requests
 
+from netstead.network_types import NetworkTypes
+
 from . import tags
 
 __all__ = [
@@ -59,8 +61,8 @@ def point_buffer_bbox(lat: float, lon: float, buffer_m: float) -> tuple[float, f
     """Return a ``(west, south, east, north)`` bbox around a point.
 
     Args:
-        lat: Latitude of the centre point.
-        lon: Longitude of the centre point.
+        lat: Latitude of the center point.
+        lon: Longitude of the center point.
         buffer_m: Half-width of the box in metres (added on every side).
 
     Returns:
@@ -121,7 +123,7 @@ def build_overpass_query(
     *,
     bbox: tuple[float, float, float, float] | None = None,
     polygon: Sequence[tuple[float, float]] | None = None,
-    network_type: str = "drive",
+    network_type: NetworkTypes = "roads",
     timeout: int = 180,
     out: Literal["body", "count"] = "body",
 ) -> str:
@@ -129,7 +131,7 @@ def build_overpass_query(
 
     Exactly one of ``bbox`` or ``polygon`` must be supplied. The way filter is
     derived from the ``network_type`` allow-list (see
-    :func:`netstead.osm.tags.allowed_highways`); ``all`` applies no class filter.
+    :func:`netstead.osm.tags.allowed_highways`).
     With ``out="body"`` the query recurses to member nodes (``(._;>;)``) so
     whole ways are returned; ``out="count"`` asks only for the number of
     matching ways (one ``count`` element), the cheap pre-query a build
@@ -138,7 +140,7 @@ def build_overpass_query(
     Args:
         bbox: ``(west, south, east, north)`` bounding box.
         polygon: Boundary as a sequence of ``(lat, lon)`` vertices.
-        network_type: One of ``drive``/``walk``/``bike``/``all``.
+        network_type: One of ``roads``/``paths``, or a list of them (legacy names map).
         timeout: Overpass server-side timeout, seconds.
         out: ``"body"`` for the full ways + nodes, ``"count"`` for the way count only.
 
@@ -392,7 +394,7 @@ def fetch_network_elements(
     area: str | Sequence[float],
     *,
     buffer_m: float = 0.0,
-    network_type: str = "drive",
+    network_type: NetworkTypes = "roads",
     endpoint: str = OVERPASS_URL,
     session: Any = None,
     user_agent: str = USER_AGENT,
@@ -406,7 +408,7 @@ def fetch_network_elements(
         area: Place string, ``(lat, lon)`` point, or
             ``(west, south, east, north)`` bbox.
         buffer_m: Buffer in metres applied when ``area`` is a point.
-        network_type: One of ``drive``/``walk``/``bike``/``all``.
+        network_type: One of ``roads``/``paths``, or a list of them (legacy names map).
         endpoint: Overpass API endpoint URL.
         session: HTTP session (injectable for tests). Defaults to ``requests``.
         user_agent: ``User-Agent`` header value.

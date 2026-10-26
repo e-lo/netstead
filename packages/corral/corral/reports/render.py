@@ -48,7 +48,7 @@ __all__ = ["render_html", "render_json", "render_rich"]
 
 
 # ---------------------------------------------------------------------------
-# Colour + label mapping (inline by design — these are tiny, only used here,
+# Color + label mapping (inline by design — these are tiny, only used here,
 # and clearer next to the rendering code than imported from a constants
 # module).
 # ---------------------------------------------------------------------------
@@ -79,7 +79,7 @@ def render_rich(report: ValidationReport) -> str:
     - Header panel: ``source`` + ``spec_version`` + per-severity counts.
     - One section per severity in canonical order (ERROR, WARNING, INFO).
       Within each section, issues are grouped by table.
-      Each issue is one row: ``[code] message`` with the severity colour;
+      Each issue is one row: ``[code] message`` with the severity color;
       a second indented line shows ``table:column[row]`` plus the
       ``fix_hint`` when present.
     - Footer: totals + the ``is_clean`` verdict.
@@ -92,7 +92,7 @@ def render_rich(report: ValidationReport) -> str:
         report: The report to render.
 
     Returns:
-        The rendered string. Includes ANSI colour codes — strip with
+        The rendered string. Includes ANSI color codes — strip with
         ``rich.text.Text.from_ansi(s).plain`` if a plaintext copy is
         needed.
 
@@ -114,8 +114,8 @@ def render_rich(report: ValidationReport) -> str:
     """
     # `record=True` captures the rich output into an internal buffer so
     # callers get a plain Python string back. force_terminal=True keeps
-    # the ANSI colour codes in the export so tests can assert on them
-    # and the CLI displays colour even when stdout isn't a TTY.
+    # the ANSI color codes in the export so tests can assert on them
+    # and the CLI displays color even when stdout isn't a TTY.
     buffer = StringIO()
     console = Console(
         file=buffer,
@@ -287,7 +287,7 @@ def render_json(report: ValidationReport, *, indent: int = 2) -> str:
         }
 
     Args:
-        report: The report to serialise.
+        report: The report to serialize.
         indent: ``json.dumps`` indent setting (default 2).
 
     Returns:
@@ -435,7 +435,7 @@ def render_html(
         vega_cdn_urls=list(_VEGA_CDN_URLS) if has_geo else [],
         css=css,
         js=js,
-        # Embedded for the Export JSON button. Re-serialise without indent
+        # Embedded for the Export JSON button. Re-serialize without indent
         # so the inline blob is compact; the download button will save it
         # as-is. (Tests parse it back to dict for equality.)
         report_json=json.dumps(payload),
@@ -495,7 +495,7 @@ def _any_geo(issues: Iterable[dict[str, Any]]) -> bool:
 def _build_map_spec_json(issues: Iterable[dict[str, Any]]) -> str:
     """Build a Vega-Lite v5 spec (as JSON) for the located issues.
 
-    Each located issue becomes one circle, coloured by severity. Tooltips
+    Each located issue becomes one circle, colored by severity. Tooltips
     surface ``code`` + ``message`` so a reader can hover for context.
     Returns an empty string if no issues are located — callers should
     gate on :func:`_any_geo` first.
@@ -532,7 +532,7 @@ def _build_map_spec_json(issues: Iterable[dict[str, Any]]) -> str:
                 "field": "severity",
                 "type": "nominal",
                 # Severity palette matches the report CSS so the map keys
-                # to the same colours readers see in the badges + tables.
+                # to the same colors readers see in the badges + tables.
                 "scale": {
                     "domain": [
                         Severity.ERROR.value,

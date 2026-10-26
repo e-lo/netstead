@@ -19,7 +19,7 @@ import { onHistoryEntry, onLLMEvent, onLLMJob, refreshLLM, renderLLMPanel, wireL
 import { layerRegistry } from "./layers.js";
 import { fitBbox, fitLinks, fitNetwork, flyToNode, initMap, render, setBasemap } from "./map.js";
 import { decodeNetwork } from "./netbuf.js";
-import { populateColorby, populateNodeColorby, renderFilter, renderLegend, renderPluginLayers, syncControls, wireFilter, wirePanels } from "./panels.js";
+import { populateColorby, registerViewPanel, populateNodeColorby, renderFilter, renderLegend, renderPluginLayers, syncControls, wireFilter, wirePanels } from "./panels.js";
 import { commandReporters } from "./pluginload.js";
 import { loadPlugins, reportPluginError } from "./plugins.js";
 import { renderPluginsPanel, wirePluginsPanel } from "./pluginspanel.js";
@@ -74,7 +74,7 @@ async function loadColorProperty() {
   if (now.server.style.color_by === name && now.netKey === netKey) store.set({ prop: { ...p, netKey } });
 }
 
-// `style.node_color_by`'s column of the node table, fetched like the links' colour property.
+// `style.node_color_by`'s column of the node table, fetched like the links' color property.
 async function loadNodeColorProperty() {
   const { server, net, netKey, nodeProp, nodeProperties } = store.get();
   const name = server.style.node_color_by || "none";
@@ -85,7 +85,7 @@ async function loadNodeColorProperty() {
   if (now.server.style.node_color_by === name && now.netKey === netKey) store.set({ nodeProp: { ...p, netKey } });
 }
 
-// `style.width_by`'s column, fetched like the colour property (kept per decoded network version).
+// `style.width_by`'s column, fetched like the color property (kept per decoded network version).
 async function loadWidthProperty() {
   const { server, net, netKey, widthProp } = store.get();
   const name = server.style.width_by || "none";
@@ -267,6 +267,7 @@ async function boot() {
   mountIcons();
   registerCoreSlots();
   registerSelectionPanel();
+  registerViewPanel();
   registerEditPanels();
   registerAssistantPanel();
   wireWorkspaces({ onError: reportPluginError });

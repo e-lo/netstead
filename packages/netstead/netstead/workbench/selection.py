@@ -7,7 +7,9 @@ import logging
 from dataclasses import replace
 from typing import Any
 
-from netstead.select.emit import load_schema, to_fragment, to_projectcard
+from netstead.select.emit import STRICT_FORMS, load_schema, segment_problem, to_fragment, to_projectcard
+from netstead.select.errors import SelectError
+from netstead.select.idsystems import ID_SYSTEMS, MappedIds, map_ids
 from netstead.select.intent import SelectionIntent
 from netstead.select.parse import intent_from_payload, payload_from_intent
 from netstead.select.result import AnchorMatch, SelectionResult
@@ -17,9 +19,11 @@ from .registry import NetworkHandle
 
 __all__ = [
     "MAX_CANDIDATES",
+    "export_options",
     "export_selection",
     "facility_forms",
     "fragment_problems",
+    "id_captions",
     "payload_facility_forms",
     "payload_keeping_links",
     "selection_payload",
@@ -47,8 +51,10 @@ def facility_forms(result: Any) -> dict[str, Any]:
     return json.loads(json.dumps(forms, default=json_scalar))  # numpy ids -> plain JSON
 
 
-def payload_facility_forms(payload: dict[str, Any]) -> dict[str, Any] | None:
+def payload_facility_forms(payload: dict[str, Any], handle: NetworkHandle | None = None) -> dict[str, Any] | None:
     """:func:`facility_forms` rebuilt from a selection payload (``None`` unless it is resolved).
+
+    ``handle`` (the selection's network) adds the strict forms in OpenStreetMap ids; see :func:`strict_facility_forms`.
 
     The payload keeps what the forms need (its link ids, a query's ``intent``, the anchors' nodes, placed on
     the map or not), so the shared state does not carry the id list three more times; ``host.selection`` adds
@@ -58,7 +64,7 @@ def payload_facility_forms(payload: dict[str, Any]) -> dict[str, Any] | None:
     if payload.get("status") != "resolved":
         return None
     try:
-        return _payload_facility_forms(payload)
+        return {**_payload_facility_forms(payload), **strict_facility_forms(payload, handle)}
     except Exception:  # boundary: an odd payload (an old intent, a malformed anchor) only loses the forms
         logger.exception("rebuilding the selection's facility forms failed")
         return None
@@ -85,28 +91,132 @@ def _result_from_payload(payload: dict[str, Any]) -> SelectionResult:
     )
 
 
+def strict_facility_forms(payload: dict[str, Any], handle: NetworkHandle | None = None) -> dict[str, Any]:
+    """The Find tab's two strict forms as ProjectCard facilities, for plugins (in ``host.selection["projectcard"]``).
+
+    ``segment`` and ``link_list`` each map an id system (``gmns``, ``osm``) to the facility written in it; a system
+    the selection cannot be written in (see ``id_systems``) is left out, and so is ``segment`` when the selection has
+    no named segment (``segment_problem`` says why). ``id_systems`` maps every system (``gmns``, ``osm``, ``gers``) to
+    ``None`` when it works or the reason it does not (ProjectCard has no key for GERS ids). ``id_captions`` lists,
+    per id system, the notes on ids that several links share (an OSM way covering links outside the selection).
+    Without ``handle`` only GMNS ids can be written.
+    """
+    options = export_options(payload, handle, what="projectcard")
+    systems = dict(options["id_systems"])
+    out: dict[str, Any] = {
+        "segment": {},
+        "link_list": {},
+        "segment_problem": options["forms"]["segment"],
+        "id_systems": systems,
+        "id_captions": {},
+    }
+    for key, reason in systems.items():
+        if reason is not None:
+            continue
+        for form in STRICT_FORMS:
+            if options["forms"][form] is None:
+                out[form][key] = export_selection(payload, what="projectcard", form=form, id_system=key, handle=handle)
+        if key != "gmns":
+            out["id_captions"][key] = id_captions(payload, handle, key, "link_list")
+    return out
+
+
 def _payload_facility_forms(payload: dict[str, Any]) -> dict[str, Any]:
     return facility_forms(_result_from_payload(payload))
 
 
-def export_selection(payload: dict[str, Any], *, what: str, form: str) -> dict[str, Any]:
+def _mapped(payload: dict[str, Any], handle: NetworkHandle | None, id_system: str) -> MappedIds | None:
+    """The payload's ids in ``id_system`` (``None`` for GMNS, the ids it already has).
+
+    Raises ``ValueError`` when the network lacks the system's columns or a selected link or anchor has no id there.
+    """
+    if id_system == "gmns":
+        return None
+    if handle is None:
+        raise ValueError(f"the network is not open, so the selection cannot be written in {id_system!r} ids")
+    result = _result_from_payload(payload)
+    nodes = [m.node_id if m is not None else None for m in (result.from_match, result.to_match)]
+    try:
+        return map_ids(id_system, result.link_ids, nodes[0], nodes[1], handle.links_df(), handle.nodes_df())
+    except SelectError as exc:
+        raise ValueError(str(exc)) from None
+
+
+def export_selection(
+    payload: dict[str, Any],
+    *,
+    what: str,
+    form: str,
+    id_system: str = "gmns",
+    handle: NetworkHandle | None = None,
+) -> dict[str, Any]:
     """A resolved selection payload as a GMNS fragment or a ProjectCard facility object, in ``form``.
 
-    Raises ``ValueError`` when the payload is not resolved, or for ``form="query"`` on a selection made by ids.
+    ``form`` is ``segment`` or ``link_list`` (the Find tab's two), or the older ``resolved`` / ``query``. The
+    Find tab's forms can be written in ``id_system`` (``gmns``, ``osm``, ``gers``; ``handle`` is the network, to
+    look the ids up in).
+
+    Raises ``ValueError`` when the payload is not resolved, for a query form on a selection made by ids or with a
+    stale pin, for a segment of a selection with no named facility, or for ids the network does not have.
     """
     if payload.get("status") != "resolved":
         raise ValueError("only a resolved selection can be exported; pin its ambiguous anchors first")
     if form == "query" and payload.get("intent") is None:
         raise ValueError("a selection made by ids has no query form; export the resolved form")
     stale = _stale_roles(payload)
-    if form == "query" and stale:  # the query no longer gives these links: it would export something else
+    if form in ("query", "segment") and stale:  # the query no longer gives these links: it would export something else
         raise ValueError(
-            f"the {' and '.join(stale)} anchor's pinned node is no longer on the facility, so the query form would "
-            f"not give these links; re-pin the {' and '.join(stale)} anchor first, or export the resolved form"
+            f"the {' and '.join(stale)} anchor's pinned node is no longer on the facility, so the {form} form would "
+            f"not give these links; re-pin the {' and '.join(stale)} anchor first, or export the link list"
         )
+    if id_system != "gmns" and form not in STRICT_FORMS:
+        raise ValueError(f"the {form!r} form is written in GMNS ids only; use segment or link_list")
     result = _result_from_payload(payload)
-    content = to_fragment(result, form=form) if what == "fragment" else to_projectcard(result, form=form)
+    ids = _mapped(payload, handle, id_system)
+    try:
+        content = (
+            to_fragment(result, form=form, ids=ids)
+            if what == "fragment"
+            else to_projectcard(result, form=form, ids=ids)
+        )
+    except SelectError as exc:
+        raise ValueError(str(exc)) from None
     return json.loads(json.dumps(content, default=json_scalar))
+
+
+def export_options(payload: dict[str, Any], handle: NetworkHandle | None, *, what: str) -> dict[str, Any]:
+    """What the Find tab may offer for a resolved selection: ``forms`` and ``id_systems``, each ``{key: reason|None}``.
+
+    A ``None`` reason means the choice works; otherwise it is the tooltip that says why not. Id systems are judged
+    for the selection itself (a system whose column exists but is empty for these links is unavailable) and for
+    ``what`` (ProjectCard has no key for GERS ids).
+    """
+    result = _result_from_payload(payload)
+    forms: dict[str, str | None] = {"segment": segment_problem(result), "link_list": None}
+    if forms["segment"] is None and _stale_roles(payload):
+        forms["segment"] = "A pinned anchor is no longer on the facility; re-pin it, or use Link list"
+    systems: dict[str, str | None] = {}
+    for key, system in ID_SYSTEMS.items():
+        try:
+            _mapped(payload, handle, key)
+        except ValueError as exc:
+            systems[key] = str(exc)
+            continue
+        systems[key] = (
+            "ProjectCard has no key for GERS ids" if what == "projectcard" and system.pc_link_key is None else None
+        )
+    return {"forms": forms, "id_systems": systems}
+
+
+def id_captions(payload: dict[str, Any], handle: NetworkHandle | None, id_system: str, form: str) -> list[str]:
+    """Notes on ids shared by several links in ``id_system`` (e.g. ``"3 links share OSM way 5847010"``).
+
+    Only a link list is written in those ids; a segment names its facility, so it has nothing to note.
+    """
+    if form == "segment":
+        return []
+    mapped = _mapped(payload, handle, id_system)
+    return [] if mapped is None else mapped.captions()
 
 
 def _stale_roles(payload: dict[str, Any]) -> list[str]:

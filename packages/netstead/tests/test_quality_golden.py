@@ -4,9 +4,9 @@ Pins every field of every finding (code, severity, table, column, row, message, 
 original rules emit on the committed fixtures and on a synthetic network built to hit each rule's edge cases
 (nulls, threshold equality, case and whitespace in ``facility_type``, zero capacity, 3-D and multi-part
 geometries, a lane row with no ``link_id``). The rule implementations can change how they read the tables
-(predicate pushdown through ibis instead of materialising them) but not what they report.
+(predicate pushdown through ibis instead of materializing them) but not what they report.
 
-Regenerate after an intended behaviour change with::
+Regenerate after an intended behavior change with::
 
     NETSTEAD_REGEN_QUALITY_GOLDEN=1 uv run --frozen pytest packages/netstead/tests/test_quality_golden.py
 

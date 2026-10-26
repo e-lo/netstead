@@ -60,7 +60,7 @@ map and three things agree on which record you mean: the map outlines it, the ta
 its row, and the **Inspect** tab comes forward and lists its attributes. Click a row and the map flies to it.
 
 What the linked table gives you is the half of a network that a map can't show. A speed, a lane count, a
-time-of-day override or a foreign key are table facts; the map can colour by one of them at a time (**Find →
+time-of-day override or a foreign key are table facts; the map can color by one of them at a time (**Find →
 View → Color links by**), but the table shows them all, sortable and pageable, with the key columns (`from_node_id`,
 `geometry_id`) as links you can follow into the other tables. Rows a foreign key away from the focused record,
 such as the link's two end nodes or its lanes, are tinted in every table and on the map. GMNS is a relational
@@ -81,10 +81,11 @@ things worth reading:
 - The **status**, `resolved`: the phrase mapped to one unambiguous set of links. Other statuses are
   `ambiguous` (next step) and the empty result when nothing matched.
 - The **diagnostics**: how it got there (`facility ['Ski Hill Drive']: 20 link(s)`).
-- The **fragment**: a JSON document listing the `link_id`s, in the GMNS selection schema. This is the
-  portable form of the selection. **Export** writes it (or a ProjectCard facility) to a file, and in **query**
-  form it keeps the name and conditions instead of the ids, so another tool, or a later version of this
-  network, can resolve it again.
+- The **fragment**: a JSON document in the GMNS selection schema, the portable form of the selection. As a
+  **Link list** it holds only the `link_id`s; as a **Segment** it keeps the street name and the from/to nodes
+  instead, so another tool, or a later version of this network, can resolve it again. Pick the form and the
+  ID system (GMNS, OpenStreetMap or Overture GERS) under **Export**, or a ProjectCard facility instead, and use
+  the copy button on the box.
 
 Why it matters: a selection made by name is reproducible in a way a hand-drawn box is not. The strip at the
 bottom already shows it as `app.do(Select(utterance='Ski Hill Drive'))`; after an edit, a query selection is
@@ -118,27 +119,26 @@ didn't check by hand.
 ### 5. What validation severities mean
 
 ![The Validate panel after Run validation](assets/screenshots/workbench-05-issues.png){ .screenshot }
-*After Run validation: 272 warnings and 16 info, and a dot on the map for every issue with a place. (screenshot predates the panel restructure)*
+*After Run validation: 271 warnings and 16 info, and a dot on the map for every issue with a place. (screenshot predates the panel restructure)*
 
 **Run validation** (the play icon in the **Validate** tab) runs two kinds of check and lists them together,
 each with a severity:
 
 - **error** — the network breaks the spec in a way a consumer can't work around: a required table or field is
   missing, a value has the wrong type, a foreign key points at a row that doesn't exist. Leavenworth has none.
-- **warning** — something is wrong or can't be shown to be right. The spec check finds one: `fk.unverifiable`,
-  because `node.zone_id` references a `zone` table the fixture doesn't ship, so the key can't be checked. The
-  quality rules add 271: `quality.high_speed_residential`, a residential link whose `free_speed` (40) is above
+- **warning** — something is wrong or can't be shown to be right. The spec check finds none on Leavenworth.
+  The quality rules add 271: `quality.high_speed_residential`, a residential link whose `free_speed` (40) is above
   the 35 mph threshold. The spec allows it; the rule says it is probably a coding mistake, and its `fix_hint`
   says what to do if the speed is right (raise the facility class instead).
 - **info** — worth knowing, not wrong: 16 `structural.missing_optional_resource` findings, one per optional
   GMNS table (`movement`, `segment`, `signal_*`, `zone`, ...) that this network doesn't include.
 
-The status line sums them: `Validated v0: 272 warnings, 16 info`, the `v0` being the version of the network
+The status line sums them: `Validated v0: 271 warnings, 16 info`, the `v0` being the version of the network
 that was checked. Spec checks are about whether the file is valid GMNS; quality rules are about whether the
 network is plausible, and they are configurable (**Settings → Validation**, keyed by rule code), so a region
 with 40 mph residential streets can raise the threshold instead of silencing the rule.
 
-Each located issue is a dot on the map, coloured by severity; click one in the list (or its crosshair "zoom
+Each located issue is a dot on the map, colored by severity; click one in the list (or its crosshair "zoom
 to" icon) and the map flies to its link, Inspect shows the record, and the table scrolls to the row. Findings
 about a whole table, like the missing-resource notes, have no place on the map; findings that share a code and
 differ only by resource are grouped into one row under a collapsed **Unlocated findings** block. The filters

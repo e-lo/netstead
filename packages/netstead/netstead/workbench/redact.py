@@ -61,7 +61,7 @@ def safe_scrub(text: str, limit: int | None = MAX_ERROR_LEN) -> str:
 def scrub_source(source: str) -> str:
     """A user-typed source made safe to show, even when it is not a well-formed URL.
 
-    :func:`scrub` only recognises ``scheme://`` URLs, but rejected sources are often malformed
+    :func:`scrub` only recognizes ``scheme://`` URLs, but rejected sources are often malformed
     (``https:/nohost?sig=...``, ``s3://b::https://u:p@h``). So strip by hand: every
     ``user[:password]@`` token anywhere, then everything from the first ``?`` or ``#``.
     """

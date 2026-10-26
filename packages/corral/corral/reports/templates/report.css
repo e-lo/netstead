@@ -1,8 +1,8 @@
 /* corral ValidationReport — single-file HTML renderer styles.
  *
  * Inlined into the produced report at render time (no external links).
- * Severity colours match the rich console renderer (red/yellow/blue/magenta).
- * Aimed at ~150 lines; favour clarity over compactness so the rendered
+ * Severity colors match the rich console renderer (red/yellow/blue/magenta).
+ * Aimed at ~150 lines; favor clarity over compactness so the rendered
  * report's <style> block is grep-friendly when someone inspects it.
  */
 

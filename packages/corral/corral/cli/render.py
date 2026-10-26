@@ -37,7 +37,7 @@ console = Console(stderr=True)
 def render_dict(data: dict[str, Any], *, json_out: bool, title: str | None = None) -> None:
     """Render a flat dict as a 2-column rich table OR a JSON document.
 
-    ``data`` values must be JSON-serialisable when ``json_out=True``.
+    ``data`` values must be JSON-serializable when ``json_out=True``.
     The function emits to stdout for JSON (so it's pipeable) and to
     stderr for rich (so it doesn't collide with --json on stdout).
     """

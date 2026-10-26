@@ -96,7 +96,7 @@ class FakeEngine:
 
 
 class IncompleteEngine:
-    """Missing the read primitives — should NOT be recognised as an Engine."""
+    """Missing the read primitives — should NOT be recognized as an Engine."""
 
     name: str = "incomplete"
 

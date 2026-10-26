@@ -18,7 +18,7 @@
       <nav id="ws-tabs" role="tablist" aria-label="Workspaces" hidden></nav>
       <select id="net-select" aria-label="Active network"></select>
       <span id="open-wrap">
-        <button id="open-wizard" class="mini" aria-haspopup="menu" aria-controls="open-menu" aria-expanded="false"><span data-icon="folder-open"></span>Open…<span class="caret" data-icon="chevron-down"></span></button>
+        <button id="open-wizard" class="iconbtn" data-tip="Open a network (recent, browse, import)" aria-label="Open a network" aria-haspopup="menu" aria-controls="open-menu" aria-expanded="false"><span data-icon="folder-open"></span><span class="caret" data-icon="chevron-down"></span></button>
         <div id="open-menu" role="menu" aria-label="Open a network" hidden>
           <div id="open-recents"></div>
           <div class="menu-sep" role="separator"></div>
@@ -34,6 +34,15 @@
       <button id="valid-light" class="iconbtn vl-unknown" data-tip="Not validated yet" aria-label="Validation: not validated yet"></button>
       <span id="count"></span>
       <span class="spacer" id="cmd-slot"><button id="cmd-btn" class="iconbtn" data-icon="terminal" data-tip="Commands (⌘K / Ctrl+K)" aria-label="Commands" aria-keyshortcuts="Control+K Meta+K"></button></span>
+      <span id="nl-wrap">
+        <button id="nl-btn" class="iconbtn llm-offline" data-tip="Language model: Offline (pattern) — offline pattern parser only." aria-label="Language model: Offline (pattern) — offline pattern parser only." aria-haspopup="dialog" aria-controls="nl-picker" aria-expanded="false"><span data-icon="bot"></span><span id="nl-dot" class="dot llm-offline" aria-hidden="true"></span></button>
+        <div id="nl-picker" role="dialog" aria-label="Language model" hidden>
+          <select id="nl-provider" aria-label="Language model provider (this session)"></select>
+          <select id="nl-model" aria-label="Language model (this session)"></select>
+          <div class="row"><button id="nl-default" class="mini ghost" title="Save this provider and model as your default" disabled>Make default</button>
+          <button id="nl-manage" class="mini ghost" aria-label="Manage language models">Models…</button></div>
+        </div>
+      </span>
       <button id="jobs-btn" class="mini ghost" data-tip="Background jobs" aria-label="Background jobs"><span data-icon="play"></span><span id="jobs-count" class="pcount">0</span></button>
       <button id="settings-btn" class="iconbtn" data-icon="gear" data-tip="Settings" aria-label="Settings"></button>
     </div>
@@ -67,7 +76,11 @@
             <option value="related">Related</option>
             <option value="filtered">Filtered</option>
           </select>
-          <button class="mini ghost" id="tbl-hops" title="Follow keys one more step">Expand a hop</button></div>
+          <span id="tbl-hops-wrap" hidden><label for="tbl-hops">Related</label>
+            <select id="tbl-hops" aria-label="Related records: how many steps to follow">
+              <option value="1">1 step</option><option value="2">2 steps</option></select>
+            <button id="tbl-hops-info" class="iconbtn" data-icon="info" data-tip="What is Related?" aria-label="What is Related?" aria-haspopup="dialog" aria-controls="tbl-hops-pop" aria-expanded="false"></button>
+            <div id="tbl-hops-pop" role="dialog" aria-label="What is Related?" hidden></div></span></div>
         <div id="tbl-chips" aria-label="Active column filters" hidden></div>
         <div id="tbl-grid-wrap"><table id="tbl-grid"></table></div>
         <datalist id="cell-opts"></datalist>
@@ -82,17 +95,28 @@
     <div id="dock-tabs" role="tablist" aria-label="Panels" hidden></div>
     <section class="dock-pane" id="dock-find" data-panel="find" role="tabpanel" aria-labelledby="dtab-find">
     <div id="find-bar">
+      <div id="find-form" role="group" aria-label="Build a selection" hidden>
+        <label class="ff-row" for="find-pattern"><span>Find</span>
+          <select id="find-pattern"></select></label>
+        <label class="ff-row" data-blank="street"><span>Street</span>
+          <input id="find-street" list="find-streets" autocomplete="off" spellcheck="false" placeholder="e.g. Pine Street" /></label>
+        <label class="ff-row" data-blank="from"><span>From cross street</span>
+          <input id="find-from" list="find-cross" autocomplete="off" spellcheck="false" placeholder="e.g. Orchard Street" /></label>
+        <label class="ff-row" data-blank="to"><span>To cross street</span>
+          <input id="find-to" list="find-cross" autocomplete="off" spellcheck="false" placeholder="e.g. Central Avenue" /></label>
+        <label class="ff-row" data-blank="type"><span>Facility type</span>
+          <input id="find-type" list="find-types" autocomplete="off" spellcheck="false" placeholder="e.g. residential" /></label>
+        <label class="ff-row" data-blank="ids"><span>Ids</span>
+          <input id="find-ids" autocomplete="off" spellcheck="false" placeholder="e.g. 59, 60" /></label>
+        <datalist id="find-streets"></datalist><datalist id="find-cross"></datalist><datalist id="find-types"></datalist>
+        <div id="find-sentence" class="diag" aria-live="polite"></div>
+        <div id="find-missing" class="diag warn-note" role="status"></div>
+      </div>
       <input id="utterance" placeholder='e.g. "I-40 EB between South Miami Boulevard and Airport Boulevard"' aria-label="Selection utterance" />
       <div class="row wrap" id="find-go"><button id="go">Select</button>
         <button id="ask" class="ghost" title="Ask the assistant (Ctrl+Enter, ⌘Enter on a Mac)" aria-keyshortcuts="Control+Enter Meta+Enter">Ask</button></div>
-      <span id="nl-picker">
-        <span id="nl-dot" class="dot off" aria-hidden="true"></span>
-        <select id="nl-provider" aria-label="Language model provider (this session)"></select>
-        <select id="nl-model" aria-label="Language model (this session)"></select>
-        <button id="nl-default" class="mini ghost" title="Save this provider and model as your default" disabled>Make default</button>
-        <button id="nl-manage" class="mini ghost" aria-label="Manage language models">Models…</button>
-      </span>
     </div>
+    <div id="thinking" class="diag" role="status" aria-live="polite" hidden></div>
     <div id="status-wrap"></div>
     <div id="sel-stale" class="warnbox" role="alert" hidden></div>
     <div id="sel-cmds-wrap" hidden><button class="mini ghost" id="sel-cmds" aria-haspopup="menu" aria-expanded="false">Selection actions &#9662;</button></div>
@@ -103,12 +127,19 @@
     <div class="label">Export</div>
     <div id="sel-export" class="row">
       <select id="sel-export-what" aria-label="Export as"><option value="fragment">GMNS fragment</option><option value="projectcard">ProjectCard facility</option></select>
-      <select id="sel-export-form" aria-label="Form"><option value="resolved">Resolved (link ids)</option><option value="query">Query (re-resolvable)</option></select>
-      <button class="mini" id="sel-export-go">Download</button>
+      <select id="sel-export-form" aria-label="Form"><option value="link_list">Link list</option><option value="segment">Segment</option></select>
+      <select id="sel-export-ids" aria-label="IDs">
+        <option value="gmns">GMNS (link_id, node_id)</option>
+        <option value="osm">OpenStreetMap (osm_way_id, osm_node_id)</option>
+        <option value="gers">Overture GERS (gers ids)</option></select>
     </div>
     <div id="sel-export-note" class="diag" role="status"></div>
     <div class="label">Fragment</div>
-    <pre id="fragment">—</pre>
+    <div id="fragment-box">
+      <button id="fragment-copy" class="iconbtn" data-icon="copy" data-tip="Copy" aria-label="Copy the fragment" disabled></button>
+      <pre id="fragment">—</pre>
+    </div>
+    <div id="fragment-caption" class="diag" aria-live="polite"></div>
     <div class="label">Saved selections <button class="mini ghost" id="sel-save">Save selection…</button></div>
     <div id="sel-saved" tabindex="-1"><span class="empty">None saved.</span></div>
     <div class="label">Highlighted links <span id="hl-count" class="pcount">0</span></div>
@@ -119,34 +150,40 @@
         <button class="mini ghost" id="hl-clear">Clear highlights</button>
       </div>
     </div>
-    <details id="view-section">
-      <summary class="label">View</summary>
-      <h4>Layers</h4>
+    </section>
+    <section class="dock-pane" id="dock-view" data-panel="view" role="tabpanel" aria-labelledby="dtab-view" hidden>
+      <details class="vsec" data-sec="layers" open><summary>Layers</summary>
       <div class="row"><label class="sw"><input type="checkbox" id="tg-links"><span></span></label>
-        <span class="lbl">Links</span><input type="color" class="swatch" id="col-links" aria-label="Link colour"></div>
+        <span class="lbl">Links</span><input type="color" class="swatch" id="col-links" aria-label="Link color"></div>
       <div class="row"><label class="sw"><input type="checkbox" id="tg-nodes"><span></span></label>
-        <span class="lbl">Nodes</span><input type="color" class="swatch" id="col-nodes" aria-label="Node colour"></div>
+        <span class="lbl">Nodes</span><input type="color" class="swatch" id="col-nodes" aria-label="Node color"></div>
       <div class="row"><label class="sw"><input type="checkbox" id="tg-selection"><span></span></label>
-        <span class="lbl">Selection</span><input type="color" class="swatch" id="col-selection" aria-label="Selection colour"></div>
+        <span class="lbl">Selection</span><input type="color" class="swatch" id="col-selection" aria-label="Selection color"></div>
       <div class="row"><label class="sw"><input type="checkbox" id="tg-labels"><span></span></label>
         <span class="lbl">Basemap labels</span></div>
+      </details>
       <div id="plugin-layers"></div>
-      <h4>Color links by</h4>
+      <details class="vsec" data-sec="color" open><summary>Color</summary>
+      <div class="sub">Links by</div>
       <div class="row"><select id="colorby" aria-label="Color links by"><option value="none">None (single color)</option></select></div>
-      <h4>Color nodes by</h4>
+      <div class="sub">Nodes by</div>
       <div class="row"><select id="node-colorby" aria-label="Color nodes by"><option value="none">None (single color)</option></select></div>
       <div class="row" id="ramp-row" style="display:none"><span class="lbl">Ramp</span>
-        <select id="ramp" aria-label="Colour ramp"><option>YlOrRd</option><option>Blues</option><option>Viridis</option></select></div>
-      <h4>Width by</h4>
+        <select id="ramp" aria-label="Color ramp"><option>YlOrRd</option><option>Blues</option><option>Viridis</option></select></div>
+      <div class="row"><span class="lbl">Show legend</span>
+        <label class="sw"><input type="checkbox" id="tg-legend"><span></span></label></div>
+      </details>
+      <details class="vsec" data-sec="width" open><summary>Width</summary>
       <div class="row"><select id="widthby" aria-label="Width links by"><option value="none">Lane count</option></select></div>
-      <h4>Direction</h4>
+      </details>
+      <details class="vsec" data-sec="direction" open><summary>Direction</summary>
       <div class="row"><span class="lbl">Show direction</span>
         <label class="sw"><input type="checkbox" id="tg-direction"><span></span></label></div>
       <div class="row"><span class="lbl">Offset directions</span>
         <label class="sw"><input type="checkbox" id="tg-offset"><span></span></label></div>
-      <div class="row"><span class="lbl">Show legend</span>
-        <label class="sw"><input type="checkbox" id="tg-legend"><span></span></label></div>
-      <h4>Filter links</h4>
+      </details>
+      <details class="vsec" data-sec="filter" open><summary>Show only links where…</summary>
+      <div class="diag">Hides other links on the map and in the table's Filtered view; the data is not changed. Recorded in the session history.</div>
       <div class="row"><select id="flt-col" aria-label="Filter column"></select></div>
       <div class="row flt-cond"><select id="flt-op" aria-label="Filter operator">
           <option value="eq">=</option><option value="ne">≠</option><option value="lt">&lt;</option>
@@ -157,15 +194,17 @@
       <div class="row"><button class="mini" id="flt-apply">Apply</button><button class="mini ghost" id="flt-clear">Clear</button>
         <span id="flt-count" class="diag" role="status"></span></div>
       <div id="flt-note" class="diag" hidden></div>
-    </details>
+      </details>
     </section>
     <section class="dock-pane" id="dock-inspect" data-panel="inspect" role="tabpanel" aria-labelledby="dtab-inspect" hidden>
     <div class="label">Details</div>
     <div id="details"><span class="empty">Click a link or node on the map, or a row in the table.</span></div>
     </section>
     <section class="dock-pane" id="dock-edit" data-panel="edit" role="tabpanel" aria-labelledby="dtab-edit" hidden>
-      <p class="diag">Every change to this network since it was opened, newest first: your edits, Python's and any
-        plugin's. Undo reverses your newest edit. The strip at the bottom is the session history (every action).</p>
+      <div class="label">Changes <button class="iconbtn" id="ed-help-show" data-icon="info" data-tip="About this tab" aria-label="About this tab" hidden></button></div>
+      <p class="diag help" id="ed-help">Every change to this network since it was opened, newest first: your edits, Python's and any
+        plugin's. Undo reverses your newest edit. The strip at the bottom is the session history (every action).
+        <button class="iconbtn" id="ed-help-hide" data-icon="x" data-tip="Hide this help" aria-label="Hide this help"></button></p>
       <div class="row wrap"><button class="iconbtn" id="ed-undo" data-icon="undo" data-tip="Undo last edit" aria-label="Undo last edit" disabled></button>
         <button class="iconbtn" id="ed-redo" data-icon="redo" data-tip="Redo" aria-label="Redo" disabled></button>
         <span class="diag" id="ed-undo-why"></span></div>
@@ -182,22 +221,19 @@
         <a class="iconbtn off" id="iss-report" data-icon="download" data-tip="Export report (HTML)" aria-label="Export report (HTML)" href="#" aria-disabled="true" tabindex="-1"></a>
         <span id="iss-status" class="diag" role="status">Not validated yet.</span></div>
       <div class="iss-filters">
-        <select id="iss-sev" aria-label="Severity"></select>
-        <select id="iss-table" aria-label="Table"></select>
-        <select id="iss-code" aria-label="Issue code"></select>
+        <label class="iss-facet"><span>Severity</span><select id="iss-sev"></select></label>
+        <label class="iss-facet"><span>Table</span><select id="iss-table"></select></label>
+        <label class="iss-facet"><span>Type</span><select id="iss-code"></select></label>
         <label><input type="checkbox" id="iss-this"> This record</label>
       </div>
+      <div class="iss-pager"><span id="iss-range" role="status"></span></div>
       <div id="iss-list"><span class="empty">Run validation to list issues.</span></div>
-      <div class="iss-pager"><button class="mini ghost" id="iss-prev" aria-label="Previous issues" disabled>&#8592;</button><span id="iss-range"></span>
-        <button class="mini ghost" id="iss-next" aria-label="Next issues" disabled>&#8594;</button></div>
-      <div class="label">Unlocated <span id="iss-unloc-count" class="pcount">0</span></div>
-      <div id="iss-unlocated"></div>
     </section>
     <section class="dock-pane" id="dock-assistant" data-panel="assistant" role="tabpanel" aria-labelledby="dtab-assistant" hidden>
       <div id="as-note" class="diag"></div>
-      <div id="as-log" role="log" aria-live="polite"><span class="empty">Ask for what you want done, e.g. “colour by lanes and zoom to the selection”.</span></div>
+      <div id="as-log" role="log" aria-live="polite"><span class="empty">Ask for what you want done, e.g. “color by lanes and zoom to the selection”.</span></div>
       <div id="as-draft"></div>
-      <div class="row"><textarea id="as-input" rows="2" aria-label="Ask the assistant" placeholder="e.g. colour by lanes and zoom to the selection"></textarea></div>
+      <div class="row"><textarea id="as-input" rows="2" aria-label="Ask the assistant" placeholder="e.g. color by lanes and zoom to the selection"></textarea></div>
       <div class="row wrap"><button class="mini" id="as-send">Ask</button><button class="mini ghost" id="as-clear">Clear</button>
         <span id="as-usage" class="diag"></span></div>
     </section>
@@ -248,6 +284,7 @@
 <div id="wizard" class="modal" role="dialog" aria-modal="true" aria-labelledby="wz-title" hidden>
   <div class="modal-card">
     <div class="modal-head">
+      <button class="iconbtn" id="wz-back" data-icon="chevron-left" data-tip="Back" aria-label="Back" hidden></button>
       <h3 id="wz-title">Open / Import</h3>
       <button class="mini ghost" id="wz-close" aria-label="Close">&#10005;</button>
     </div>
@@ -256,7 +293,10 @@
         <button class="wz-choice" data-src="local"><b>GMNS on this machine</b><span>A folder, .zip, .duckdb, or datapackage.json</span></button>
         <button class="wz-choice" data-src="url"><b>GMNS at a URL</b><span>s3://, gs://, az://, or https://</span></button>
         <button class="wz-choice" data-src="osm"><b>Build from OpenStreetMap</b><span>Draw an area, search a place, or use a local .osm / Overpass .json file</span></button>
+        <div class="ex-slot" data-for="osm"></div>
         <button class="wz-choice" data-src="overture"><b>Build from Overture</b><span>Draw an area, search a place, or use a local snapshot folder</span></button>
+        <div class="ex-slot" data-for="overture"></div>
+        <div id="wz-examples" hidden></div>
       </section>
       <section class="wz-step" data-step="local" hidden>
         <p class="wz-note">Pick a GMNS folder, .zip, .duckdb, or datapackage.json. It opens in place; nothing is uploaded.</p>
@@ -289,6 +329,7 @@
         <div class="ap-pane" data-pane="place" hidden>
           <div class="row"><input id="ap-q" class="grow" placeholder="Durham, North Carolina" aria-label="Place" />
             <button class="mini" id="ap-search">Search</button></div>
+          <div id="ap-place-note"></div>
           <div id="ap-cands"></div>
         </div>
         <div class="ap-pane" data-pane="file" hidden>
@@ -300,8 +341,11 @@
       </section>
       <section class="wz-step" data-step="options" hidden>
         <div class="form">
-          <label for="opt-network-type">Network type</label>
-          <select id="opt-network-type"><option>drive</option><option>walk</option><option>bike</option><option>all</option></select>
+          <span class="form-lbl" id="opt-modes-lbl">Network types</span>
+          <div id="opt-modes" role="group" aria-labelledby="opt-modes-lbl">
+            <label title="Motorway, trunk, primary, secondary and tertiary roads and their links, unclassified, residential, living streets, service roads, other roads and busways."><input type="checkbox" data-mode="roads" /> Roads</label>
+            <label title="Footways, paths, steps, tracks, cycleways and bridleways."><input type="checkbox" data-mode="paths" /> Paths</label>
+          </div>
           <label for="opt-extra-tags">Extra tags</label><input id="opt-extra-tags" placeholder="surface, maxheight" />
           <label for="opt-spec">GMNS spec version</label><input id="opt-spec" />
           <label for="opt-release" class="ovt-only">Overture release</label><input id="opt-release" class="ovt-only" />
@@ -309,17 +353,17 @@
           <label for="opt-format">Output format</label>
           <select id="opt-format"><option value="parquet">Parquet folder</option><option value="csv">CSV folder</option>
             <option value="duckdb">DuckDB file</option><option value="zip">Zip</option></select>
-          <label>Output folder</label><code id="opt-outdir">choose below</code>
+          <span class="form-lbl">Output folder</span><code id="opt-outdir" class="unset">not chosen yet</code>
         </div>
         <div id="opt-name-err" class="wz-note err" role="alert"></div>
+        <div class="wz-note" id="opt-out-hint">Choose the output folder: open a folder, then press <b>Use this folder</b> (or <b>Use</b> beside one).</div>
         <div class="fb" id="opt-out-fb"></div>
       </section>
       <section class="wz-step" data-step="run" hidden>
         <div id="wz-estimate" class="wz-note"></div>
       </section>
     </div>
-    <div class="modal-foot">
-      <button class="mini ghost" id="wz-back">Back</button>
+    <div class="modal-foot" id="wz-foot">
       <button class="mini" id="wz-next">Next</button>
     </div>
   </div>

@@ -21,6 +21,7 @@ from typing import Any
 
 from netstead._network_build import network_from_records as _network_from_records
 from netstead.network import Network
+from netstead.network_types import NetworkTypes
 from netstead.spec import DEFAULT_SPEC
 
 from . import convert, local, query
@@ -49,7 +50,7 @@ def network_from_records(
         link_records: GMNS ``link`` rows.
         spec_version: GMNS spec version to validate against
             (default :data:`netstead.spec.DEFAULT_SPEC`).
-        engine: Engine to materialise through. Defaults to the corral
+        engine: Engine to materialize through. Defaults to the corral
             default (ibis).
 
     Returns:
@@ -69,7 +70,7 @@ def build_network_from_osm(
     area: str | Sequence[float],
     *,
     buffer_m: float = 0.0,
-    network_type: str = "drive",
+    network_type: NetworkTypes = "roads",
     extra_tags: list[str] | None = None,
     spec_version: str = DEFAULT_SPEC,
     engine: Any = None,
@@ -86,10 +87,10 @@ def build_network_from_osm(
         area: A place string, a ``(lat, lon)`` point, or a
             ``(west, south, east, north)`` bbox.
         buffer_m: Buffer in metres applied when ``area`` is a point.
-        network_type: One of ``drive``/``walk``/``bike``/``all``.
+        network_type: One of ``roads``/``paths``, or a list of them (legacy names map).
         extra_tags: OSM tag keys to carry onto each link as extra columns.
         spec_version: GMNS spec version (default :data:`netstead.spec.DEFAULT_SPEC`).
-        engine: Engine to materialise through (default: corral ibis).
+        engine: Engine to materialize through (default: corral ibis).
         endpoint: Overpass API endpoint URL.
         session: HTTP session (injectable for tests). Defaults to ``requests``.
         user_agent: ``User-Agent`` header value.
@@ -123,7 +124,7 @@ def build_network_from_osm(
 def build_network_from_osm_file(
     path: str | Path,
     *,
-    network_type: str = "drive",
+    network_type: NetworkTypes = "roads",
     extra_tags: list[str] | None = None,
     spec_version: str = DEFAULT_SPEC,
     engine: Any = None,
@@ -132,10 +133,10 @@ def build_network_from_osm_file(
 
     Args:
         path: The local OSM file (see :func:`netstead.osm.local.read_osm_file` for formats).
-        network_type: One of ``drive``/``walk``/``bike``/``all``; applied locally to the ``highway`` tag.
+        network_type: ``roads``/``paths`` or a list of them (legacy names map); applied locally to ``highway``.
         extra_tags: OSM tag keys to carry onto each link as extra columns.
         spec_version: GMNS spec version (default :data:`netstead.spec.DEFAULT_SPEC`).
-        engine: Engine to materialise through (default: corral ibis).
+        engine: Engine to materialize through (default: corral ibis).
 
     Returns:
         A populated :class:`~netstead.network.Network`.

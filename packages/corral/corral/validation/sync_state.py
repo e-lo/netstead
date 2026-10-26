@@ -31,7 +31,7 @@ Hash algorithm
 Both helpers route the expression through
 :func:`corral.validation._ibis.to_ibis` (pass-through for the
 default ibis engine; ``ibis.memtable`` wrap for pandas/polars) and
-materialise via ``.to_pyarrow()``. We then hash each column by walking
+materialize via ``.to_pyarrow()``. We then hash each column by walking
 its pyarrow buffers and sha256-ing the concatenated bytes:
 
 .. code-block:: python
@@ -51,7 +51,7 @@ Properties of this choice:
   ``string`` / ``bool``) regardless of source engine. The cross-engine
   parity test pins this.
 - **Pandas-free** — the validators in this package no longer
-  materialise tables to pandas; the only place pandas appears here is
+  materialize tables to pandas; the only place pandas appears here is
   the legacy ``hash_column`` raising ``KeyError`` on missing columns
   (a no-pandas error type).
 - **Value-sensitive** — different bytes in the buffer → different
@@ -82,7 +82,7 @@ Code                          When emitted
 v0.3 regression
 ---------------
 
-The v0.3 behaviour we're locking out: a stale FK silently passing
+The v0.3 behavior we're locking out: a stale FK silently passing
 because there was no hash record to compare against. The
 :func:`test_v03_silent_failure_regression` test pins the inverse — a
 stale FK MUST surface an Issue, not silently pass.
@@ -228,7 +228,7 @@ def _hash_arrow_array(array: pa.Array | pa.ChunkedArray) -> str:
 def hash_table(expr: TableExpr, engine: Engine) -> str:
     """Compute the content hash of an entire table.
 
-    Normalises ``expr`` to ibis, materialises to pyarrow, then hashes
+    Normalizes ``expr`` to ibis, materializes to pyarrow, then hashes
     the rows column-by-column and combines the per-column digests into
     a single stable hex digest. Column order affects the hash; this is
     a deliberate choice — a reordered schema IS a different table for
@@ -272,10 +272,10 @@ def hash_column(expr: TableExpr, column: str, engine: Engine) -> str:
     doesn't invalidate the stamp.
 
     The column projection happens at the ibis layer (``ibis_table
-    .select(column).to_pyarrow()``) so duckdb materialises a
+    .select(column).to_pyarrow()``) so duckdb materializes a
     one-column arrow array, not the entire table. At Bay-Area scale
     this turns a single-column hash from a multi-gigabyte
-    materialisation into a sub-second projection.
+    materialization into a sub-second projection.
 
     Args:
         expr: Engine-native table expression.
@@ -313,7 +313,7 @@ def _column_hash_from_expr(expr: TableExpr, field_spec: str, engine: Engine) -> 
     list (the same convention :class:`FKStamp` stores). For the
     single-column case we delegate straight to :func:`hash_column`,
     which projects to just that column at the ibis layer — so duckdb
-    materialises a one-column arrow array instead of the whole table.
+    materializes a one-column arrow array instead of the whole table.
     For composite specs we project each component column separately
     and combine the digests, matching :func:`hash_table`'s combine
     step so the result is column-order aware and any single-column
@@ -440,7 +440,7 @@ class DirtyTracker:
         """Record an FK validation, given precomputed column hashes.
 
         The hashes are supplied by the caller — typically the FK
-        validator, which has already materialised both sides at
+        validator, which has already materialized both sides at
         validation time. Composite FKs join their field names with
         ``","`` so :class:`FKStamp` stays trivially hashable.
         """
@@ -614,7 +614,7 @@ class DirtyTracker:
                 continue
 
             # Both tables present — recompute hashes (column-scoped at
-            # the ibis layer so we don't materialise the whole table
+            # the ibis layer so we don't materialize the whole table
             # just to fingerprint one column).
             try:
                 current_src = _column_hash_from_expr(src_expr, stamp.source_field, engine)

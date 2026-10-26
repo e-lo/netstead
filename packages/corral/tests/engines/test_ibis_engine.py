@@ -397,13 +397,13 @@ def test_write_duckdb_roundtrip(engine: IbisEngine, link_csv: Path, tmp_path: Pa
 def test_write_duckdb_streams_instead_of_materialising(
     engine: IbisEngine, link_parquet: Path, tmp_path: Path, monkeypatch
 ):
-    """#128: the duckdb write streams record batches; it never materialises the whole table in Python."""
+    """#128: the duckdb write streams record batches; it never materializes the whole table in Python."""
     import ibis.expr.types as ir
 
     expected = engine.to_arrow(engine.scan(link_parquet))
 
     def _refuse(*_a, **_kw):
-        raise AssertionError("write_duckdb_table materialised the whole table")
+        raise AssertionError("write_duckdb_table materialized the whole table")
 
     out = tmp_path / "out.duckdb"
     with monkeypatch.context() as m:
