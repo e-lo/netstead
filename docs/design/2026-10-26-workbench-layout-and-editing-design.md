@@ -1,6 +1,8 @@
 # Workbench layout, editing states and cards-from-changes: design
 
-Status: **proposed** · Date: 2026-10-26 · Owner: Elizabeth Sall
+Status: **accepted** · Date: 2026-10-26 · Owner: Elizabeth Sall
+
+> **2026-10-26:** accepted with the decisions in "Decisions" below (Staged, year tags, a git-repository card registry, panels on both sides).
 
 Responds to the beta UX notes of 2026-10-26: map settings belong to the map, not a side-panel pane; panes
 are crowded; Inspect doubles as the editor; the state of an applied-but-unsaved edit is unclear; the pencil
@@ -11,6 +13,10 @@ and edits should be checked before they are staged and again before they become 
 
 - **KISS.** Rearrange what exists before adding anything. No new framework, no new state store.
 - **The map owns map settings; the side panel owns work.** A control lives next to the thing it changes.
+- **Pillar's workflow** ([pillar.codes](https://www.pillar.codes/), land-acquisition software): plain-English
+  search over a map, with the records, notes and status of the work kept in one workspace. It supports keeping
+  natural-language Find as the primary entry point; its public pages do not show panel layout, so Felt is the
+  layout reference.
 - **Felt's shape, where it fits:** a top toolbar, a left list of what is on the map, a right detail panel
   that opens on selection, and a bottom table ([Felt interface tour](https://help.felt.com/getting-started/tour-the-interface),
   [Felt layer list](https://help.felt.com/layers/list)). Felt edits save as you go; netstead keeps an explicit
@@ -66,12 +72,12 @@ and edits should be checked before they are staged and again before they become 
 | State | Meaning | Where it shows | Undo |
 |---|---|---|---|
 | **Typing** | a value in a field, not applied | the field itself | Escape |
-| **Pending** | applied to this session's working copy of the network; visible on the map, in the table, to validation; not written anywhere | yellow outline on the field/cell with a tooltip "Pending: applied in this session, not saved. Save a copy or put it in a card." and a count on the Changes rail icon | Undo / redo |
+| **Staged** | applied to this session's working copy of the network; visible on the map, in the table, to validation; not written anywhere | yellow outline on the field/cell with a tooltip "Staged: applied in this session, not saved. Save a copy or put it in a card." and a count on the Changes rail icon | Undo / redo |
 | **Saved** | written to a file with Save a copy | the change log row shows the file; the outline clears | n/a (it is on disk) |
 | **In a card** | included in a ProjectCard file | the change log row shows the card | n/a |
 
-"Pending" is preferred over "staged" (git's word, which implies a later commit step) and "applied" (which
-users read as "done"). The header's save icon shows the pending count, like an unsaved-document dot.
+"Staged" follows git: a change is staged until it is saved or put in a card (the commit). The header's save
+icon shows the staged count, like an unsaved-document dot.
 
 ### 2b. Details is where you edit
 
@@ -79,13 +85,13 @@ users read as "done"). The header's save icon shows the pending count, like an u
   Enter) switches a field to editing. Header icons: undo, redo (both with tooltips "Undo last change",
   "Redo"), and close.
 - **Cmd/Ctrl+Enter applies** in every edit form (Details, cell editor, card forms); Escape cancels.
-- A field that has a pending change keeps the yellow outline in Details and the table until saved or undone.
+- A field that has a staged change keeps the yellow outline in Details and the table until saved or undone.
 - Before a value is applied it is checked (2d); the field shows allowed values and the check's verdict inline.
 
 ### 2c. The change log
 
 - The pencil tab becomes **Changes** (history icon: a clock with a counter-clockwise arrow).
-- It lists pending changes newest first, each with what changed, its check result and checkboxes.
+- It lists staged changes newest first, each with what changed, its check result and checkboxes.
 - With changes selected: **Undo selected** (only the newest contiguous run is undoable; others are disabled
   with a tooltip), **Make a card…** (2e), **Save a copy…**.
 - The "help" paragraph stays dismissible; the "last change was made by …" line stays.
@@ -94,12 +100,12 @@ users read as "done"). The header's save icon shows the pending count, like an u
 
 - **Before applying** a value: the same schema / enum / foreign-key / quality checks the edit-warning system
   runs today, but on the proposed value, shown inline as a hint ("free_speed 40 > 35 for residential; use
-  ≤ 35 or set facility_type to tertiary"). Applying a value that warns is allowed; it is pending with a
+  ≤ 35 or set facility_type to tertiary"). Applying a value that warns is allowed; it is staged with a
   warning badge.
 - **Fix from Validate** opens the record in Details with the finding's field focused and the rule's
   suggested values listed (each quality rule provides `suggest(row)`: e.g. high_speed_residential suggests
   `free_speed ≤ threshold` or the facility types whose speed range fits).
-- **Transient problems:** a change set (the changes selected for a card, or all pending) is checked as a whole,
+- **Transient problems:** a change set (the changes selected for a card, or all staged) is checked as a whole,
   so a foreign key that the next change satisfies (add a node, then the link that uses it) is shown as
   "resolved within these changes", not as an error. Only problems left after the whole set count.
 - **Before a card is written:** validation runs on a derived copy with exactly the chosen changes applied,
@@ -110,31 +116,48 @@ users read as "done"). The header's save icon shows the pending count, like an u
 
 A dialog of its own, separate from browsing the catalog:
 
-1. **Changes:** the selected pending changes (adjustable), each with its facility form (Segment or Link list)
+1. **Changes:** the selected staged changes (adjustable), each with its facility form (Segment or Link list)
    and id system (from the strict forms already built).
 2. **About the card:** a form generated from the ProjectCard schema: `project` (required), `tags`,
-   `dependencies` (prerequisites, corequisites, conflicts), `notes`. The schema has no year field;
-   "year" is a tag convention (e.g. `year:2030`) unless we add a netstead extension field.
+   `dependencies` (prerequisites, corequisites, conflicts), `notes`, and a **Year** field written as a tag
+   (`year:2030`); a bare four-digit tag (`2030`) is read as a year too. The schema has no year field.
 3. **Check:** the finding difference from 2d.
-4. **Where:** an existing catalog folder, a new catalog folder, download the `.yml`, or copy the YAML.
-   A remote registry is a later option, behind an interface (`CardDestination`) so a registry can plug in.
+4. **Where:** an existing catalog folder, a new catalog folder, a card registry, download the `.yml`, or copy
+   the YAML. Destinations sit behind one interface (`CardDestination`).
+
+### 2f. Card registries
+
+A registry is a git repository shaped like
+[network-wrangler/project_card_registry_template](https://github.com/network-wrangler/project_card_registry_template):
+cards in `projects/`, allowed id ranges in `registry_config.yml`, and CI that checks new node and link ids and
+renumbers conflicts into `registry.csv` on commit.
+
+- **Read:** a registry is browsed like a local catalog (a shallow clone or the GitHub contents API, cached),
+  so the fit pill, Inspect and the table view work on it unchanged.
+- **Contribute:** "Send to registry" opens a pull request adding `projects/<file>.yml`, through `gh` when it is
+  installed and signed in, else the GitHub API with a token from the existing credential cascade. Before
+  sending, new node and link ids in an addition are assigned from `registry_config.yml`'s ranges, avoiding ids
+  already in `registry.csv`, so the registry's CI rarely needs to renumber.
+- **Settings:** `[plugins.project_cards] registries = [{name, url}]`. No registry is contacted unless one is set.
 
 The Cards pane keeps only browsing the catalog (fit pill, inspect, edit, file actions, table view).
 
 ## Phases
 
 1. **Layout:** left rail, right detail panel, Layers & legend card, tooltip layer. No behavior change.
-2. **Editing states:** Pending wording and outlines, Details as the editor, Cmd/Ctrl+Enter, undo/redo icons,
+2. **Editing states:** Staged wording and outlines, Details as the editor, Cmd/Ctrl+Enter, undo/redo icons,
    Changes pane with selection.
-3. **Cards from changes:** the dialog in 2e, reusing the plugin's draft and commit code underneath.
+3. **Cards from changes:** the dialog in 2e, reusing the plugin's draft and commit code underneath; local,
+   download and copy destinations.
 4. **Checks:** pre-apply checks and hints, rule `suggest()`, change-set evaluation, finding difference.
+5. **Registries:** read and contribute (2f).
 
 Each phase is one PR, browser-checked, with the docs and screenshots updated in the same PR.
 
-## Open questions
+## Decisions
 
-1. **Pillar:** which product is meant (a link)? Felt is the main reference above.
-2. **"Pending"** as the state word (alternatives: "staged", "unsaved")?
-3. **Remote registry:** which one (a GitHub repo of cards, network-wrangler's registry, something else)?
-4. **Year:** a `year:NNNN` tag convention, or a netstead extension field on the card?
-5. **Details on the right:** acceptable to have panes on both sides (rail drawer left, details right)?
+1. Pillar's workflow informs Find; Felt informs the layout.
+2. The state word is **Staged** (git's convention); saving or carding is the commit.
+3. Card registries are git repositories shaped like network-wrangler's registry template (2f).
+4. Year is a tag: `year:2030`, and a bare four-digit tag is read as a year.
+5. Panels on both sides (rail drawer on the left, Details on the right), as in Felt.
