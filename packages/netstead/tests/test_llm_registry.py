@@ -98,12 +98,19 @@ def test_ollama_provider_gets_the_catalog_thinking_models(make):
     assert provider._thinking_models == frozenset({"qwen3:4b", "qwen3:8b"})
 
 
+def test_the_anthropic_adapter_gets_its_catalog_models(make, fake_keyring):
+    """Likewise for Anthropic: the catalog says which models reject temperature or a forced tool."""
+    fake_keyring.set_password(KEYRING_SERVICE, "anthropic", "k")
+    provider = make().provider("anthropic")
+    assert provider._models["claude-haiku-5-5"].effort == "low"
+
+
 def test_models_catalog_and_discovered(make, fake_api):
     fake_api.add("GET", "/api/tags", body={"models": [{"name": "qwen3:8b"}, {"name": "phi4:14b"}]})
     reg = make()
     assert [m["id"] for m in reg.models("anthropic")] == [
-        "claude-haiku-4-5-20251001",
-        "claude-sonnet-5",
+        "claude-haiku-5-5",
+        "claude-sonnet-5-5",
         "claude-opus-5-5",
     ]
     assert reg.models("ollama") == [
@@ -114,11 +121,11 @@ def test_models_catalog_and_discovered(make, fake_api):
 
 def test_connection_test_reports_catalog_drift_and_missing_model(make, fake_keyring, fake_api):
     fake_keyring.set_password(KEYRING_SERVICE, "anthropic", "k")
-    fake_api.add("GET", "/v1/models", body={"data": [{"id": "claude-sonnet-5"}]})
+    fake_api.add("GET", "/v1/models", body={"data": [{"id": "claude-sonnet-5-5"}]})
     reg = make()
     ok = reg.test("anthropic")
     assert ok["ok"] and ok["models_served"] == 1
-    assert ok["catalog_missing"] == ["claude-haiku-4-5-20251001", "claude-opus-5-5"]
+    assert ok["catalog_missing"] == ["claude-haiku-5-5", "claude-opus-5-5"]
     bad_model = reg.test("anthropic", "claude-nope")
     assert (bad_model["ok"], bad_model["error_type"]) == (False, "ModelNotFound")
 

@@ -148,7 +148,9 @@ Measured on an Apple M3 laptop (16 GB) with an OpenStreetMap Raleigh–Durham ro
 - **Looking up names is fast in both cases.** The network's street names are indexed once per network version
   (0.16 s for this network) and then each lookup takes well under a millisecond, where the previous release spent
   0.2–0.8 s per request re-reading every link's name.
-- **A cloud model** skips the load wait but adds a network round trip; we haven't measured one here.
+- **A cloud model** skips the load wait but adds a network round trip; we haven't measured one here. It costs
+  little: a Find or Ask call sends about 5,000 tokens and gets a few hundred back, about $0.0007 on Haiku 5.5
+  (Anthropic's default) and $0.013 on Sonnet 5.5, less when the shared start of the prompt is cached.
 
 ## Pitfalls
 

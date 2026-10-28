@@ -46,6 +46,10 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Fixed
 
+- **Anthropic's newest models no longer reject netstead's requests.** Sonnet 5.5 and Opus 5.5 refuse a
+  temperature and a forced tool call, and Haiku 5.5 refuses a temperature; netstead sent both. Catalog models
+  now say which they accept (`sampling`, `forced_tools`), and get a low `effort` so their thinking stays short.
+
 - **"X between A and B" finds segments it used to miss.** A street that is partly `trunk` (a signalized
   arterial such as Glenwood Avenue) was treated as a freeway, so an at-grade cross street never matched; when no
   interchange path exists the resolver now tries its at-grade intersections. A street whose own name breaks off
@@ -70,6 +74,10 @@ This file is for the **netstead** package only. The underlying generic engine `c
   a settings error.
 
 ### Changed
+
+- **Anthropic's default model is now Haiku 5.5** (`claude-haiku-5-5`, $0.10 / $0.50 per million input /
+  output tokens, a tenth of Haiku 4.5's price), and the catalog offers Sonnet 5.5 (`claude-sonnet-5-5`) in place
+  of Sonnet 5. A `select.model` you set yourself is unchanged.
 
 - **Workbench Find tab: with the offline parser, Select is a fill-in-the-blanks form.** No more guessing the
   grammar. Pick a pattern (Street; Street between two cross streets; All links of a type; Link ids) and fill its

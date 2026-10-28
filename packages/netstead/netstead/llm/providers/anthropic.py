@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any
 
 from ..types import Completion, CompletionRequest, ToolCall
 from ._base import HTTPProvider
+
+if TYPE_CHECKING:
+    from ..catalog import ModelInfo
 
 __all__ = ["API_VERSION", "AnthropicProvider"]
 
@@ -14,39 +18,56 @@ API_VERSION = "2023-06-01"
 
 
 class AnthropicProvider(HTTPProvider):
-    """``POST {base_url}/v1/messages`` with ``tools`` and a forced ``tool_choice``."""
+    """``POST {base_url}/v1/messages`` with ``tools`` and, where the model allows it, a forced ``tool_choice``."""
 
     name = "anthropic"
     label = "Anthropic"
     DEFAULT_BASE_URL = "https://api.anthropic.com"
+
+    def __init__(self, *, models: Mapping[str, ModelInfo] | None = None, **kwargs: Any) -> None:
+        """``models`` are the catalog entries, to learn which models reject ``temperature`` or a forced tool.
+
+        A model not in it (one the user typed) gets the classic request: temperature and a forced tool as asked.
+        """
+        super().__init__(**kwargs)
+        self._models = dict(models or {})
 
     def _headers(self) -> dict[str, str]:
         return {"x-api-key": self._key, "anthropic-version": API_VERSION}
 
     def complete(self, request: CompletionRequest) -> Completion:
         """Run one Messages call; tool-use blocks become :class:`~netstead.llm.types.ToolCall`."""
+        info = self._models.get(request.model)
         body: dict[str, Any] = {
             "model": request.model,
             "max_tokens": request.max_tokens,
             "messages": [{"role": m.role, "content": m.content} for m in request.messages],
         }
+        system = request.system
+        forced = request.force_tool if request.tools else None
+        if forced and info is not None and not info.forced_tools:
+            # The model rejects a forced tool_choice: offer the tools freely and ask for this one in words.
+            system = "\n\n".join(p for p in (system, f"Reply by calling the {forced} tool.") if p)
+            forced = None
         if request.context:
             # The stable prefix gets a cache breakpoint (Anthropic prompt caching). Below the model's
             # minimum cacheable length the marker is simply ignored: no error, no saving.
             blocks = [{"type": "text", "text": request.context, "cache_control": {"type": "ephemeral"}}]
-            if request.system:
-                blocks.append({"type": "text", "text": request.system})
+            if system:
+                blocks.append({"type": "text", "text": system})
             body["system"] = blocks
-        elif request.system:
-            body["system"] = request.system
-        if request.temperature is not None:
+        elif system:
+            body["system"] = system
+        if request.temperature is not None and (info is None or info.sampling):
             body["temperature"] = request.temperature
+        if info is not None and info.effort:
+            body["output_config"] = {"effort": info.effort}
         if request.tools:
             body["tools"] = [
                 {"name": t.name, "description": t.description, "input_schema": t.input_schema} for t in request.tools
             ]
-            if request.force_tool:
-                body["tool_choice"] = {"type": "tool", "name": request.force_tool}
+            if forced:
+                body["tool_choice"] = {"type": "tool", "name": forced}
         data = self._call("POST", "/v1/messages", body)
         try:
             blocks = data["content"]
