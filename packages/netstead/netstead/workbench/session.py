@@ -61,9 +61,10 @@ from netstead.llm.context import assistant_context, find_project_context, read_c
 from netstead.llm.secrets import redact_settings
 from netstead.select.errors import IntentError
 from netstead.select.intent import SelectionIntent
-from netstead.select.parse import LLMParser, intent_from_payload, make_parser, payload_from_intent
+from netstead.select.parse import LLMParser, StubParser, intent_from_payload, make_parser, payload_from_intent
 from netstead.select.prompt import PromptContext, close_match_hint, vocabulary_from_links
 from netstead.select.resolve import resolve_frames
+from netstead.select.streets import StreetIndex, grammar_first
 from netstead.viz.styling import json_scalar, styleable_columns
 from netstead.viz.tables import FilterError, KeyTypeError, coerce_filter_value, coerce_keys, filter_frame
 
@@ -1381,7 +1382,7 @@ class Session:
         if not kept:
             self.selection = None
             return
-        result = resolve_frames(SelectionIntent(link_ids=kept), handle.links_df(), handle.nodes_df())
+        result = _resolve(handle, SelectionIntent(link_ids=kept))
         self.selection = selection_payload(handle, result)
 
     def _resolve_again(self, handle: NetworkHandle, sel: dict[str, Any]) -> dict[str, Any] | None:
@@ -1394,7 +1395,7 @@ class Session:
         kept = [i for i in sel["link_ids"] if i in present]
         if sel.get("intent") is not None:
             intent = intent_from_payload(sel["intent"], sel["utterance"] or "")
-            result = resolve_frames(intent, handle.links_df(), handle.nodes_df())
+            result = _resolve(handle, intent)
             lost = _lost_pins(intent, result)
             if not lost:
                 return selection_payload(handle, result, utterance=sel["utterance"], parsed_by=sel["parsed_by"])
@@ -1404,7 +1405,7 @@ class Session:
             return payload_keeping_links(handle, sel, kept, diagnostics=notes, stale_pins=lost)
         if not kept:
             return None
-        result = resolve_frames(SelectionIntent(link_ids=kept), handle.links_df(), handle.nodes_df())
+        result = _resolve(handle, SelectionIntent(link_ids=kept))
         return selection_payload(handle, result)
 
     def _record_outside_action(self, net_id: str, note: str, origin: str, *, kind: str = "mutate") -> None:
@@ -1735,7 +1736,7 @@ class Session:
         if action.utterance is None:
             handle = self._handle(action.net_id)
             intent = SelectionIntent(link_ids=list(action.link_ids or []))
-            result = resolve_frames(intent, handle.links_df(), handle.nodes_df())
+            result = _resolve(handle, intent)
             self.selection = selection_payload(handle, result)
             return self.selection
         if action.query is not None:  # already parsed (the assistant, or a replay of it): no parser, exact
@@ -1746,7 +1747,7 @@ class Session:
                 raise ActionError(f"the query is not a valid selection: {exc}") from None
             except (AttributeError, TypeError):  # a field of the wrong shape (``facility`` not an object)
                 raise ActionError("the query is not a valid selection: a field has the wrong shape") from None
-            result = resolve_frames(intent, handle.links_df(), handle.nodes_df())
+            result = _resolve(handle, intent)
             parsed_by = {"provider": None, "model": None, "mode": "query"}
             self.selection = selection_payload(handle, result, utterance=action.utterance, parsed_by=parsed_by)
             return self.selection
@@ -1782,18 +1783,27 @@ class Session:
     ) -> tuple[SelectionIntent, Any, dict[str, Any] | None]:
         """Parse (an LLM parser gets the prompt context), resolve, and retry once with close matches if none.
 
+        With ``select.grammar_first`` on, a language-model parser is called only when the offline
+        grammar can't read the utterance with names the network has, or its reading selects nothing
+        (see :func:`~netstead.select.streets.grammar_first`); ``parsed_by`` then names the pattern
+        parser and carries ``grammar_first: true``.
+
         Runs without the session lock: everything it reads is a snapshot or the handle's own
         thread-safe cache.
         """
         if not isinstance(parser, LLMParser):
             intent, mode = _parse(parser, utterance, None)
             parsed_by = {**_parser_info(parser), "mode": mode}
-            return intent, resolve_frames(intent, handle.links_df(), handle.nodes_df()), parsed_by
+            return intent, _resolve(handle, intent), parsed_by
+        if settings.select.grammar_first and (quick := grammar_first(utterance, street_index(handle))) is not None:
+            result = _resolve(handle, quick)
+            if result.status != "not_found":
+                return quick, result, {**StubParser().describe(), "grammar_first": True}
         provider = parser.provider.name
         endpoint_local = is_local_url(getattr(parser.provider, "base_url", "") or "")
         context = self._prompt_context(handle, provider, registry, settings, examples, endpoint_local=endpoint_local)
         intent, mode = _parse(parser, utterance, context)
-        result = resolve_frames(intent, handle.links_df(), handle.nodes_df())
+        result = _resolve(handle, intent)
         parsed_by = {**_parser_info(parser), "mode": mode}
         quality = settings.llm.quality
         # ``match_retry`` is auto/on/off: always resolve it through the registry, never by truthiness.
@@ -1813,7 +1823,7 @@ class Session:
                 except _Unparsed:
                     retry = None  # keep the first, honest "not found"
                 if retry is not None:
-                    intent, result = retry, resolve_frames(retry, handle.links_df(), handle.nodes_df())
+                    intent, result = retry, _resolve(handle, retry)
                     parsed_by = {**_parser_info(parser), "mode": mode, "match_retry": True}
         return intent, result, parsed_by
 
@@ -1863,7 +1873,7 @@ class Session:
             intent = intent_from_payload(args, sel["utterance"] or "")
         except IntentError as exc:
             raise ActionError(str(exc)) from None
-        result = resolve_frames(intent, handle.links_df(), handle.nodes_df())
+        result = _resolve(handle, intent)
         if action.node_id is not None:  # a pin that resolves nothing is refused; the selection stays as it was
             match = result.from_match if action.role == "from" else result.to_match
             if match is None or match.node_id is None:
@@ -2461,6 +2471,19 @@ def vocabulary(handle: NetworkHandle, limit: int) -> tuple[str, ...]:
     Package-internal (not in ``__all__``): the assistant's grounding sends the same vocabulary.
     """
     return handle.cached(f"vocabulary:{limit}", lambda: vocabulary_from_links(handle.links_df(), limit))
+
+
+def street_index(handle: NetworkHandle) -> StreetIndex:
+    """The network's street names and route numbers, normalized once (cached per network version).
+
+    Package-internal (not in ``__all__``): the Find tab's cross-street list reads it too.
+    """
+    return handle.cached("street-index", lambda: StreetIndex.build(handle.links_df()))
+
+
+def _resolve(handle: NetworkHandle, intent: SelectionIntent) -> Any:
+    """Resolve ``intent`` on the network's current tables with its cached :func:`street_index`."""
+    return resolve_frames(intent, handle.links_df(), handle.nodes_df(), index=street_index(handle))
 
 
 #: The old private names, kept for one release.

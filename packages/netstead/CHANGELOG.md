@@ -8,11 +8,49 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Added
 
+- **Find answers common requests without calling the model.** With a language model selected, the Workbench's
+  Find tab now reads a request with the offline pattern parser first ("Glenwood Ave between Peace St and Wade
+  Ave", "I-40 EB", "all residential links", "links 5, 6") and calls the model only when that reading names a
+  street, route number or road type the network doesn't have, or selects nothing. Such a selection records
+  `parsed_by: {"provider": "stub", "mode": "pattern", "grammar_first": true}`. Turn it off with
+  `select.grammar_first = false`. On an OSM Raleigh–Durham network (303k links) with `qwen2.5:7b` in Ollama,
+  four of eight test requests went from 2.8–6.7 s to under 30 ms.
+- **Street names are indexed once per network version** (`netstead.select.StreetIndex`), so resolving a
+  selection no longer re-normalizes every link's name for each street and anchor. On the Raleigh–Durham network,
+  resolving drops from 230–770 ms to 0.2–4 ms after a 0.16 s build (and from 36 ms to 11 ms for "all
+  residential links"). Names now also match when the request abbreviates a street type or direction
+  ("Hillsborough St" finds Hillsborough Street), leaves out a direction the network has ("Peace Street" finds
+  West and East Peace Street, but "W Six Forks Rd" never finds East Six Forks Road), or misspells it ("Hilsborough
+  Street" and "Glenwod Ave" find the closest name at least 85% alike; names under 5 letters are never guessed).
+  An exact match still wins, and a looser one is noted in the selection's diagnostics. The Find tab's
+  cross-street list reads the same index.
+- **Faster shortest paths with an S2 cell overlay.** `GMNSGraph.build_overlay()` partitions the routing graph
+  by S2 cells at nested levels (default 13, 11 and 9, about 1, 4 and 16 km across) and replaces each cell's
+  interior with shortcut edges between the nodes where roads cross its edge, in the style of Customizable Route
+  Planning. `GMNSGraph.shortest_path` then uses it automatically. Costs are the same as plain Dijkstra (when
+  paths tie, a different one may come back). On an OSM Raleigh–Durham roads network (129k nodes) queries drop
+  from 10.6 ms to 2.0 ms after a 0.8 s build; on the wider Triangle (824k links) from 34 ms to 3.9 ms after
+  2.2 s. Small networks such as Leavenworth are faster without it. `build_overlay(cache=<network path>)` keeps
+  the overlay in a `_netstead_indexes/` sidecar keyed on the graph's content and levels, which
+  `netstead index drop` removes. Node coordinates must be lon/lat, or pass `crs=` to reproject (needs
+  `pyproj`). S2 cell ids are computed in numpy (`netstead.graph.s2`); there is no new dependency.
 - **Market Street, San Francisco example network (Overture).** `netstead.fixtures.market_street` ships a
   129-node, 186-link roads network around Lotta's Fountain, built with `netstead build --source overture`
   (release 2026-09-23.1) with Overture GERS ids on every link and node, as csv, parquet, zip and
   `datapackage.json`. It is listed under **Included examples** in the Workbench and exercises the Find tab's
   Overture GERS id system on real data. Data (c) OpenStreetMap contributors, ODbL; data from TomTom.
+
+### Fixed
+
+- **"X between A and B" finds segments it used to miss.** A street that is partly `trunk` (a signalized
+  arterial such as Glenwood Avenue) was treated as a freeway, so an at-grade cross street never matched; when no
+  interchange path exists the resolver now tries its at-grade intersections. A street whose own name breaks off
+  (a roundabout with no name, or, on a divided road, the few meters of a cross street spanning the median) left
+  "no path between" its anchors; when the street's own links don't connect them, the path may now cross unnamed
+  links and named links up to 20 m long within 3 links of the street, at three times their length so the street
+  is preferred. Service roads, paths and tracks never bridge. The selection's diagnostics say when either
+  happened. On the Raleigh–Durham network, "Glenwood Avenue between Peace Street and Wade Avenue" and
+  "Hillsborough St between Oberlin Rd and Gorman St" now resolve.
 
 ### Security
 

@@ -139,6 +139,7 @@ Each `RuleSettings` value has `enabled: bool = true`, `severity_override: "error
 |---|---|---|---|---|
 | `select.provider` | `"stub" \| "anthropic" \| "openai" \| "gemini" \| "ollama"` | `"stub"` | Which provider parses utterances (`stub` is the offline pattern parser). The old name `claude` is accepted and stored as `anthropic`. | live |
 | `select.model` | `str \| None` | `None` | Model name (`None`: the provider's catalog default; for Ollama, an installed tool-capable model). | live |
+| `select.grammar_first` | `bool` | `true` | Read a request with the offline pattern parser first and call the model only when that reading names a street, route number or road type the network doesn't have, or selects nothing. `false` sends every request to the model. | live |
 
 ### `[llm]` — language-model endpoints and quality knobs
 

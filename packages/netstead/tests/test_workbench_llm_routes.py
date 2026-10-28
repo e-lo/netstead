@@ -36,6 +36,12 @@ TOOL_REPLY = {
 
 
 @pytest.fixture
+def isolated_env(isolated_env):
+    """These tests drive the language-model parser: the offline grammar must not answer first."""
+    return {**isolated_env, "NETSTEAD_SELECT__GRAMMAR_FIRST": "false"}
+
+
+@pytest.fixture
 def session(tmp_path, isolated_env, fake_keyring, fake_api):
     return Session(project_dir=tmp_path, environ=isolated_env, keyring=fake_keyring, llm_transport=fake_api.transport())
 

@@ -5,14 +5,19 @@ ProjectCard-select-links parity. Pipeline (engine-agnostic; pandas frames):
   2. direction filter — facility bearing within +-75 deg of the cardinal
   3. modes/conditions — AND-filters on link attributes
   4. segment or whole — if from/to anchors: shortest path along the facility
-     (freeway gore/merge); else the whole filtered set
+     (freeway gore/merge, or at-grade intersections); else the whole filtered set.
+     Names match exactly, then by spelling, direction or a close misspelling
+     (:class:`~netstead.select.streets.StreetIndex`). A partly-freeway facility
+     (a trunk road with signals) that has no interchange path tries its at-grade
+     intersections, and a street whose own name breaks off (a nameless
+     roundabout, a median crossing) is bridged by short links.
 """
 
 from __future__ import annotations
 
 import collections
 
-import pandas as pd
+import numpy as np
 
 from . import anchors as _anchors
 from ._support import (
@@ -20,61 +25,68 @@ from ._support import (
     dijkstra_links,
     link_length,
     matches_direction,
-    norm_name,
-    norm_ref,
     to_py,
 )
 from .intent import SelectionIntent
 from .modes import mode_uses, split_uses
 from .result import SelectionResult
+from .streets import StreetIndex
 
 __all__ = ["resolve", "resolve_frames"]
 
 _FREEWAY_TYPES = ("motorway", "trunk")
+#: Bridging links cost this many times their length, so a path keeps to the street when it can.
+_BRIDGE_PENALTY = 3.0
 
 
-def _node_coords(nodes):
+def _node_coords(nodes, needed):
+    """``(x, y)`` dicts for the ``needed`` node ids only (a network has far more nodes than a selection)."""
+    near = nodes[nodes["node_id"].isin(needed)]
     return (
-        dict(zip(nodes["node_id"], nodes["x_coord"], strict=False)),
-        dict(zip(nodes["node_id"], nodes["y_coord"], strict=False)),
+        dict(zip(near["node_id"], near["x_coord"], strict=False)),
+        dict(zip(near["node_id"], near["y_coord"], strict=False)),
     )
 
 
-def _facility_links(links, facility):
-    """Links whose normalized ref or name matches the facility (any road class), plus fallback notes.
+def _facility_links(links, facility, index: StreetIndex):
+    """Links whose ref or name matches the facility (any road class), plus fallback notes.
 
-    ``ref``/``name`` may each be a single value or a list (OR-matched). A value that matches
-    nothing in its own column is tried against the other one (small models put "Capital Blvd" in
-    ``ref`` or "US 1" in ``name``), with the same normalization; each such fallback that hits adds
-    a note for the result's diagnostics. A value that matches its own column never falls back.
-    ``ref`` and ``name`` are optional GMNS fields; a missing column matches nothing.
+    ``ref``/``name`` may each be a single value or a list (OR-matched). A name matches the way
+    :meth:`StreetIndex.lookup_name` says (exact, then spelling, then directional); a match that is
+    not exact adds a note naming the streets it stood for. A value that matches nothing in its own
+    column is tried against the other one (small models put "Capital Blvd" in ``ref`` or "US 1" in
+    ``name``); each such fallback that hits adds a note. A value that matches its own column never
+    falls back. ``ref`` and ``name`` are optional GMNS fields; a missing column matches nothing.
     """
-    blank = pd.Series(None, index=links.index, dtype="object")
-    ref_sets = links.get("ref", blank).apply(norm_ref)
-    names = links.get("name", blank).fillna("").astype("string").str.lower().str.replace(r"[^a-z0-9]", "", regex=True)
-
-    def by_ref(value):
-        want = norm_ref(value)
-        return ref_sets.apply(lambda have: bool(want & have)).astype(bool)
+    notes = []
 
     def by_name(value):
-        want = norm_name(value)  # a blank/symbols-only name must match nothing, not blank links
-        return (names == want).fillna(False).astype(bool) if want else pd.Series(False, index=links.index)
+        rows, match = index.name_rows(value)
+        notes.extend(_loose_match_note(value, match))
+        return rows
 
-    hit = pd.Series(False, index=links.index)
-    notes = []
+    hit = []
     for field, values, own, other, as_other in (
-        ("ref", facility.refs(), by_ref, by_name, "a street name"),
-        ("name", facility.names(), by_name, by_ref, "a route number"),
+        ("ref", facility.refs(), index.ref_rows, by_name, "a street name"),
+        ("name", facility.names(), by_name, index.ref_rows, "a route number"),
     ):
         for value in values:
-            match = own(value)
-            if not match.any():
-                match = other(value)
-                if match.any():
+            rows = own(value)
+            if not rows.size:
+                rows = other(value)
+                if rows.size:
                     notes.append(f"treated {field} {value!r} as {as_other}")
-            hit = hit | match
-    return links[hit], notes
+            hit.append(rows)
+    rows = np.unique(np.concatenate(hit)) if hit else np.array([], dtype=np.int64)
+    return links.iloc[rows], notes
+
+
+def _loose_match_note(value, match) -> list[str]:
+    """A diagnostic naming the streets ``value`` stood for, when it didn't match one exactly."""
+    if match.how in (None, "exact"):
+        return []
+    misspelled = " (a close spelling)" if match.how == "fuzzy" else ""
+    return [f"matched {value!r} to {', '.join(repr(n) for n in match.names)}{misspelled}"]
 
 
 def _filter_direction(mainline, direction, nx, ny):
@@ -130,13 +142,13 @@ def _apply_modes(base, modes, use_groups=None):
     return base, False, []  # no mode data: selection unfiltered (modes still emitted)
 
 
-def _base_selection(intent, links):
+def _base_selection(intent, links, index):
     """``(links, source label, notes)`` for the primary selector; notes record any ref/name fallback."""
     if intent.link_ids:
         return links[links["link_id"].isin(list(intent.link_ids))], "explicit link_ids", []
     if intent.select_all:
         return links, "all links", []
-    base, notes = _facility_links(links, intent.facility)
+    base, notes = _facility_links(links, intent.facility, index)
     return base, "facility " + repr(list(intent.facility.refs()) + list(intent.facility.names())), notes
 
 
@@ -183,14 +195,16 @@ def _resolve_anchors(intent, allowed: set, resolve_unpinned):
     return matches[0], matches[1]
 
 
-def _freeway_segment(intent, base, links, nx, ny, diags):
+def _freeway_segment(intent, base, links, index, nx, ny, diags):
     """Gore/merge anchors + shortest directed path along the carriageway."""
-    facility_all = _facility_links(links, intent.facility)[0] if intent.facility else base
+    facility_all = _facility_links(links, intent.facility, index)[0] if intent.facility else base
     directed_nodes = set(base["from_node_id"]) | set(base["to_node_id"])
     mainline_nodes = set(facility_all["from_node_id"]) | set(facility_all["to_node_id"])
-    interchanges = _anchors.classify_interchanges(links, directed_nodes, mainline_nodes)
+    interchanges = _anchors.classify_interchanges(links, directed_nodes, mainline_nodes, index=index)
     from_m, to_m = _resolve_anchors(
-        intent, directed_nodes, lambda text, role: _anchors.resolve_anchor(text, role, links, interchanges)
+        intent,
+        directed_nodes,
+        lambda text, role: _anchors.resolve_anchor(text, role, links, interchanges, index=index),
     )
     diags = [*diags, from_m.detail, to_m.detail]
     if from_m.node_id is None or to_m.node_id is None:
@@ -209,45 +223,76 @@ def _freeway_segment(intent, base, links, nx, ny, diags):
     )
 
 
-def _surface_segment(intent, base, links, nx, ny, diags):
-    """At-grade intersection (or freeway-ramp) anchors + undirected path along the facility."""
+def _surface_segment(intent, base, links, nodes, index, nx, ny, diags):
+    """At-grade intersection (or freeway-ramp) anchors + undirected path along the facility.
+
+    When the facility's own links don't join the two anchors, short links next to it may bridge
+    the gaps (:meth:`StreetIndex.bridge_rows_near`), at a penalty so the facility is preferred.
+    """
     facility_nodes = set(base["from_node_id"]) | set(base["to_node_id"])
     from_m, to_m = _resolve_anchors(
-        intent, facility_nodes, lambda text, _role: _anchors.resolve_surface_anchor(text, facility_nodes, links)
+        intent,
+        facility_nodes,
+        lambda text, _role: _anchors.resolve_surface_anchor(text, facility_nodes, links, index=index),
     )
     diags = [*diags, from_m.detail, to_m.detail]
     if from_m.node_id is None or to_m.node_id is None:
         return SelectionResult("not_found", intent, from_match=from_m, to_match=to_m, diagnostics=diags)
     adj = collections.defaultdict(list)  # undirected: surface streets are usually two-way
-    for row in base.itertuples():
-        w = _row_len(nx, ny, row)
-        adj[row.from_node_id].append((row.to_node_id, w, row.link_id))
-        adj[row.to_node_id].append((row.from_node_id, w, row.link_id))
+    _add_undirected(adj, base, nx, ny)
+    path = dijkstra_links(adj, from_m.node_id, to_m.node_id)
+    if path is None:
+        bridges = links.iloc[index.bridge_rows_near(facility_nodes)]
+        bridges = bridges[~bridges["link_id"].isin(base["link_id"])]
+        bx, by = _node_coords(nodes, set(bridges["from_node_id"]) | set(bridges["to_node_id"]))
+        _add_undirected(adj, bridges, {**nx, **bx}, {**ny, **by}, penalty=_BRIDGE_PENALTY)
+        path = dijkstra_links(adj, from_m.node_id, to_m.node_id)
+        if path is not None:
+            crossed = set(path[0]) & set(bridges["link_id"])
+            diags = [*diags, f"bridged gaps in the facility with {len(crossed)} short or unnamed link(s)"]
     return _result_from_path(
         intent,
         base,
         from_m,
         to_m,
-        dijkstra_links(adj, from_m.node_id, to_m.node_id),
+        path,
         diags,
         cand_note="multiple intersection candidates; picked nearest (see candidates)",
     )
 
 
-def resolve_frames(intent: SelectionIntent, links, nodes, use_groups=None) -> SelectionResult:
+def _add_undirected(adj, frame, nx, ny, *, penalty: float = 1.0) -> None:
+    """Add each link of ``frame`` to ``adj`` both ways, weighted by its length times ``penalty``."""
+    for row in frame.itertuples():
+        w = _row_len(nx, ny, row) * penalty
+        adj[row.from_node_id].append((row.to_node_id, w, row.link_id))
+        adj[row.to_node_id].append((row.from_node_id, w, row.link_id))
+
+
+def resolve_frames(
+    intent: SelectionIntent, links, nodes, use_groups=None, *, index: StreetIndex | None = None
+) -> SelectionResult:
     """Resolve against materialized pandas link/node frames (the testable core).
 
     ``use_groups`` (use_group name -> member uses) widens mode filters; see :func:`_apply_modes`.
+    ``index`` is a :class:`~netstead.select.streets.StreetIndex` of ``links``: pass one built once
+    per network version, or each call builds its own.
     """
-    nx, ny = _node_coords(nodes)
+    if index is None:
+        index = StreetIndex.build(links)
+    else:
+        index.check(links)
 
     # 1. base selection
-    base, source, notes = _base_selection(intent, links)
+    base, source, notes = _base_selection(intent, links, index)
     if base.empty:
         return SelectionResult("not_found", intent, diagnostics=[f"{source}: no links matched"])
 
     # 2. direction filter (facility only)
     direction = intent.facility.direction if intent.facility else None
+    nx, ny = {}, {}  # bearings and segment lengths need coordinates; a whole selection does not
+    if direction or (intent.from_anchor and intent.to_anchor):
+        nx, ny = _node_coords(nodes, set(base["from_node_id"]) | set(base["to_node_id"]))
     if direction:
         base = _filter_direction(base, direction, nx, ny)
         if base.empty:
@@ -269,9 +314,19 @@ def resolve_frames(intent: SelectionIntent, links, nodes, use_groups=None) -> Se
         return _whole(intent, base, diags)
 
     # --- segment (from/to): freeway gore/merge, or surface at-grade ---
-    if intent.facility is not None and bool(base["facility_type"].isin(_FREEWAY_TYPES).any()):
-        return _freeway_segment(intent, base, links, nx, ny, diags)
-    return _surface_segment(intent, base, links, nx, ny, diags)
+    for anchor in (intent.from_anchor, intent.to_anchor):
+        diags.extend(_loose_match_note(anchor, index.lookup_name(anchor)))
+    freeway = base["facility_type"].isin(_FREEWAY_TYPES)
+    if intent.facility is None or not freeway.any():
+        return _surface_segment(intent, base, links, nodes, index, nx, ny, diags)
+    result = _freeway_segment(intent, base, links, index, nx, ny, diags)
+    if result.status != "not_found" or freeway.all():
+        return result
+    # Partly freeway (a trunk road with signals): its anchors may be at-grade intersections instead.
+    surface = _surface_segment(
+        intent, base, links, nodes, index, nx, ny, [*diags, "no interchange path; tried at-grade intersections"]
+    )
+    return surface if surface.status != "not_found" else result
 
 
 def resolve(intent: SelectionIntent, net) -> SelectionResult:
