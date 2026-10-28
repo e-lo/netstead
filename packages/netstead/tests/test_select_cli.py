@@ -62,6 +62,37 @@ def test_cli_resolved_emits_fragment_json(patched_net):
     assert frag["from"]["node_id"] == 170505098
 
 
+class _CountingParser:
+    """Stands in for a language-model parser: records each call, answers like the grammar would."""
+
+    def __init__(self):
+        self.calls = []
+
+    def parse(self, utterance):
+        self.calls.append(utterance)
+        return select_cmd.StubParser().parse(utterance.replace("the interstate", "I-40"))
+
+
+@pytest.mark.parametrize(
+    ("grammar_first", "utterance", "model_calls"),
+    [
+        ("true", "I-40 EB between South Miami Boulevard and Airport Boulevard", 0),  # every name is in the network
+        ("true", "the interstate EB between South Miami Boulevard and Airport Boulevard", 1),  # not a street here
+        ("false", "I-40 EB between South Miami Boulevard and Airport Boulevard", 1),
+    ],
+)
+def test_cli_calls_the_model_only_when_the_grammar_cannot_answer(
+    patched_net, monkeypatch, grammar_first, utterance, model_calls
+):
+    parser = _CountingParser()
+    monkeypatch.setattr(select_cmd, "make_parser", lambda *a, **k: parser)
+    monkeypatch.setenv("NETSTEAD_SELECT__GRAMMAR_FIRST", grammar_first)
+    res = _run(["select", utterance, "dummy", "--provider", "ollama", "--json"])
+    assert res.exit_code == 0, res.output
+    assert json.loads(res.stdout)["links"]["link_id"][0] == 5021
+    assert len(parser.calls) == model_calls
+
+
 def test_cli_not_found_exits_nonzero(patched_net):
     res = _run(
         ["select", "I-40 EB between Nowhere Street and Airport Boulevard", "dummy", "--provider", "stub", "--json"]

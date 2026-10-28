@@ -25,6 +25,12 @@ UTTERANCE = "I-40 EB between South Miami Boulevard and Airport Boulevard"
 
 
 @pytest.fixture
+def isolated_env(isolated_env):
+    """These tests drive the language-model parser: the offline grammar must not answer first."""
+    return {**isolated_env, "NETSTEAD_SELECT__GRAMMAR_FIRST": "false"}
+
+
+@pytest.fixture
 def session(tmp_path, isolated_env):
     return Session(project_dir=tmp_path, environ=isolated_env, parser=StubParser())
 
@@ -316,10 +322,11 @@ ANTHROPIC_SELECT_REPLY = {
     "usage": {"input_tokens": 700, "output_tokens": 60},
 }
 
+# A typo too far off for the resolver's own close-spelling match, so only the model's retry fixes it.
 TYPO_INTENT = {
     "facility": {"ref": "I 40", "direction": "EB"},
     "from_anchor": "S Miami Blvd",
-    "to_anchor": "Airprt Blvd",
+    "to_anchor": "Airfield Blvd",
 }
 FIXED_INTENT = {
     "facility": {"ref": "I 40", "direction": "EB"},
@@ -341,6 +348,26 @@ def llm_session(tmp_path, isolated_env, rdu_source, fake_keyring, fake_api, no_n
 
 def _anthropic_key(session):
     session.llm.secrets.set(session.llm.slot("anthropic"), "sk-ant-test-0000")
+
+
+def test_grammar_first_skips_the_model_only_when_the_network_knows_every_name(
+    tmp_path, isolated_env, rdu_source, fake_keyring, fake_api, no_network
+):
+    environ = {**isolated_env, "NETSTEAD_SELECT__GRAMMAR_FIRST": "true"}
+    s = Session(project_dir=tmp_path, environ=environ, keyring=fake_keyring, llm_transport=fake_api.transport())
+    s.dispatch(OpenNetwork(source=rdu_source))
+    _anthropic_key(s)
+    s.dispatch(SetSetting(key="select.provider", value="anthropic"))
+
+    sel = s.dispatch(Select(utterance=UTTERANCE))
+    assert sel["status"] == "resolved" and fake_api.requests == []
+    assert sel["parsed_by"] == {"provider": "stub", "model": None, "mode": "pattern", "grammar_first": True}
+
+    # The grammar reads this as a facility called "the eastbound interstate": not a street here, so ask the model.
+    fake_api.add("POST", "/v1/messages", body=ANTHROPIC_SELECT_REPLY)
+    sel = s.dispatch(Select(utterance="the eastbound interstate between South Miami Boulevard and Airport Boulevard"))
+    assert sel["status"] == "resolved" and len(fake_api.requests) == 1
+    assert sel["parsed_by"]["provider"] == "anthropic"
 
 
 def test_select_with_anthropic_records_parsed_by(llm_session, fake_api):
@@ -488,7 +515,7 @@ def test_no_match_retries_once_with_the_closest_real_names(llm_session, fake_api
     fake_api.add("POST", "/api/chat", body=_ollama_reply(FIXED_INTENT))
     llm_session.dispatch(SetSetting(key="select.provider", value="ollama"))
     llm_session.dispatch(SetSetting(key="select.model", value="qwen3:4b"))  # explicit: no /api/tags probe
-    sel = llm_session.dispatch(Select(utterance="I-40 EB between S Miami Blvd and Airprt Blvd"))
+    sel = llm_session.dispatch(Select(utterance="I-40 EB between S Miami Blvd and Airfield Blvd"))
     assert sel["status"] == "resolved" and sel["parsed_by"]["match_retry"] is True
     assert 'Closest names: <close_matches>["Airport Boulevard"' in _system_text(fake_api.body())
     assert len(fake_api.requests) == 2
@@ -499,7 +526,7 @@ def test_match_retry_off_is_respected_even_for_a_local_provider(llm_session, fak
     llm_session.dispatch(SetSetting(key="select.provider", value="ollama"))
     llm_session.dispatch(SetSetting(key="select.model", value="qwen3:4b"))  # explicit: no /api/tags probe
     llm_session.dispatch(SetSetting(key="llm.quality.match_retry", value="off"))  # "off" is a truthy string
-    sel = llm_session.dispatch(Select(utterance="I-40 EB between S Miami Blvd and Airprt Blvd"))
+    sel = llm_session.dispatch(Select(utterance="I-40 EB between S Miami Blvd and Airfield Blvd"))
     assert sel["status"] == "not_found" and "match_retry" not in sel["parsed_by"]
     assert len(fake_api.requests) == 1
 

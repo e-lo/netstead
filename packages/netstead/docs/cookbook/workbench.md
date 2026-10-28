@@ -395,6 +395,9 @@ written to, and a copy inside the source folder is refused.
 
 ## Find: the offline form and the language-model box
 
+For everything you can type, which requests need a language model, and how fast each is, see
+[Find links by describing them](find-links.md).
+
 With **Offline (pattern)** chosen, the **Find** tab is a form, so you never have to guess the phrasing:
 
 | Pattern | Blanks | Sentence sent to Select |
@@ -576,6 +579,10 @@ maintained in `netstead/llm/models.toml`:
 | `ollama` | `qwen3:4b`, or an installed tool-capable model such as `qwen2.5:7b` when `qwen3:4b` isn't installed |
 
 Pick a larger model from the picker if parses go wrong.
+
+Requests the offline pattern parser can read with names the network has are answered without calling the model,
+in milliseconds instead of seconds (`select.grammar_first`, on by default). See
+[When the model is called](find-links.md#when-the-model-is-called).
 
 ### Keys are write-only
 
