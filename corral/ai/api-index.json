@@ -1,0 +1,144 @@
+{
+  "schema_version": "1",
+  "generated_at": "2026-10-28T19:47:01.415017+00:00",
+  "packages": {
+    "corral": {
+      "version": "",
+      "symbols": [
+        {
+          "name": "OutOfSyncError",
+          "kind": "class",
+          "module": "corral.dataset.package",
+          "signature": "OutOfSyncError",
+          "docstring": "Promoted version of :class:`OutOfSyncWarning`.\n\nRaised by :meth:`Package.write` when ``strict_sync=True`` and the\nsync-state check detects at least one stale table.",
+          "stability": "alpha"
+        },
+        {
+          "name": "OutOfSyncWarning",
+          "kind": "class",
+          "module": "corral.dataset.package",
+          "signature": "OutOfSyncWarning",
+          "docstring": "Raised when :meth:`Package.write` runs against a stale package.\n\nDemoted from an error to a warning by default so a routine save\nafter an unintentional edit still produces a file (with a loud\nwarning). Promote to :class:`OutOfSyncError` via\n``strict_sync=True``.",
+          "stability": "alpha"
+        },
+        {
+          "name": "Package",
+          "kind": "class",
+          "module": "corral.dataset.package",
+          "signature": "Package(spec: 'DataPackage', tables: 'dict[str, Table]' = <factory>, engine: 'Engine | None' = None, source: 'str | None' = None, dirty_tracker: 'Any' = None, metadata: 'dict[str, Any]' = <factory>, spec_missing: 'bool' = False) -> None",
+          "docstring": "Lazy wrapper around a multi-table Frictionless data package.\n\nComposes the spec, the table mapping, the engine, the source\nlocator, and (optionally) the sync-state :class:`DirtyTracker`. The\nprimary constructors are :meth:`from_source` (load from a path/URL)\nand :meth:`from_tables` (compose from already-built\n:class:`~corral.dataset.Table` instances).\n\nAttributes:\n    spec: The parsed :class:`~corral.spec.model.DataPackage`.\n    tables: Mapping ``{name: Table}``. Insertion order is preserved\n        (Python 3.7+) so iteration is deterministic.\n    engine: The :class:`~corral.engines.base.Engine` that\n        produced the table expressions. All materialization routes\n        back through this same engine.\n    source: Original source identifier (path / URL). ``None`` for\n        in-memory packages built via :meth:`from_tables`.\n    dirty_tracker: Optional sync-state tracker. When ``None``, the\n        sync-state validation pass is a no-op and :meth:`write`\n        consults only the per-table ``dirty`` flag.\n    metadata: Free-form bag of extras (engine name, write\n        timestamp, etc.); echoed into the JSON validation report.\n    spec_missing: ``True`` when :meth:`from_source` found no spec\n        (no ``spec=`` and no ``datapackage.json`` beside the source)\n        and used an empty one. :meth:`validate` then reports\n        ``structural.spec_missing`` so the gap is not mistaken for a\n        clean pass.\n\nExamples:\n    Load the bundled generic sample fixture, validate, then\n    write to a fresh parquet directory::\n\n        >>> import tempfile, pathlib\n        >>> from corral.fixtures import sample\n        >>> from corral.dataset import Package\n        >>> from corral.engines.ibis_engine import IbisEngine\n        >>> pkg = Package.from_source(\n        ...     sample.csv_dir(),\n        ...     engine=IbisEngine(),\n        ...     spec=sample.DATAPACKAGE,\n        ...     tables=[\"book\", \"author\"],\n        ... )\n        >>> \"book\" in pkg\n        True\n        >>> report = pkg.validate()\n        >>> isinstance(report.issues, list)\n        True",
+          "stability": "alpha"
+        },
+        {
+          "name": "Table",
+          "kind": "class",
+          "module": "corral.dataset.table",
+          "signature": "Table(name: 'str', expr: 'TableExpr', engine: 'Engine', schema: 'Schema | None' = None, source: 'str | None' = None, format: 'str | None' = None, dirty: 'bool' = False, metadata: 'dict[str, Any]' = <factory>) -> None",
+          "docstring": "Lazy wrapper around one table in a data package.\n\nThe wrapper is *mutable* (its ``expr`` may be replaced \u2014 for\nexample by an editing op or a scoped view), but each underlying\n``TableExpr`` is *immutable* per the engine's semantics. Lazy ops\n(:meth:`filter`, :meth:`select`, :meth:`head`) therefore return a\nnew :class:`Table`, leaving the original unchanged.\n\nMutation: this class intentionally does not expose an in-place\n``update`` shim. For row-level edits with full diff / rollback /\naudit, use :class:`corral.editing.Edit` +\n:class:`corral.editing.Session`. For low-level mutations that\nbypass the editing framework, build a new expression directly and\ncall :meth:`invalidate` on the table to flip its ``dirty`` flag so\nthe sync-state tracker sees the change.\n\nAttributes:\n    name: Logical resource name. Matches\n        :attr:`corral.spec.model.Resource.name` and is used as\n        the dict key inside a :class:`~corral.dataset.Package`.\n    expr: Engine-native lazy expression. Concrete type depends on\n        the engine (``ibis.expr.types.Table`` for ibis,\n        ``polars.LazyFrame`` for polars, ``pandas.DataFrame`` for\n        pandas \u2014 pandas is eager by design).\n    engine: The engine that produced ``expr``. Materialization\n        always routes back through this same engine to preserve\n        the cross-engine dtype contract.\n    schema: Optional resolved Frictionless schema. Carried so the\n        validation layer can run per-field checks without\n        re-loading the spec.\n    source: Optional source locator (path / URL / sub-locator\n        like ``\"net.duckdb::link\"``). Set by\n        :meth:`Package.from_source`; ``None`` for tables\n        constructed inline.\n    format: Optional short format identifier (``\"csv\"``,\n        ``\"parquet\"``, ``\"duckdb\"``). Mirrors\n        :attr:`corral.io.base.ResourceRef.format`.\n    dirty: True when the table has been mutated (or its source\n        hash differs from a sync-state stamp). Read by the\n        sync-state tracker (task 2.6) before any write.\n    metadata: Free-form bag of extras. Carried through writes via\n        the package-level metadata sidecar in Phase 3.\n\nExamples:\n    Construct directly from in-memory records via an engine::\n\n        >>> from corral.engines.ibis_engine import IbisEngine\n        >>> from corral.dataset import Table\n        >>> e = IbisEngine()\n        >>> expr = e.from_records([{\"a\": 1}, {\"a\": 2}, {\"a\": 3}])\n        >>> t = Table(name=\"t\", expr=expr, engine=e)\n        >>> t.count()\n        3\n        >>> t.dirty\n        False",
+          "stability": "alpha"
+        },
+        {
+          "name": "read",
+          "kind": "function",
+          "module": "corral",
+          "signature": "read(source: 'str | Path', *, format: 'str | None' = None, credentials: 'dict[str, str] | None' = None, engine: 'Engine | None' = None, scope: 'dict[str, Any] | None' = None, spec: 'DataPackage | str | Path | None' = None, tables: 'Any | None' = None, **kwargs: 'Any') -> 'Package'",
+          "docstring": "Load a Frictionless data package from ``source``. The I/O front door.\n\nThin convenience wrapper around :meth:`Package.from_source` \u2014 exists\nso the documented top-level form ``corral.read(...)`` works\nwithout callers needing to know which class to import. Matches the\nsignature documented in ``docs/architecture.md`` \u00a76.1.\n\nArgs:\n    source: Local path, ``s3://`` / ``https://`` / ``duckdb://`` URL,\n        or directory of CSV / Parquet / DuckDB / zipped-CSV files.\n    format: Optional explicit adapter name (``\"csv\"``, ``\"parquet\"``,\n        ``\"duckdb\"``, ``\"zipcsv\"``, ``\"remote\"``). Short-circuits the\n        extension-sniff / probe chain \u2014 useful for extensionless URLs\n        or sources whose extension lies about the inner format.\n    credentials: Optional explicit credentials dict forwarded to\n        :class:`~corral.io.remote.RemoteAdapter` (e.g.\n        ``{\"token\": \"...\"}`` or ``{\"key\": \"...\", \"secret\": \"...\"}``).\n        Only consulted for URL sources; merges with the env / keyring /\n        netrc cascade per :func:`corral.io.credentials.resolve_credentials`\n        (explicit wins).\n    engine: Engine to materialize through. Defaults to the registry\n        default (typically the ibis + DuckDB engine).\n    scope: Optional dict of :meth:`Package.scope` kwargs applied to\n        the loaded package before returning \u2014 lets callers chain\n        scope inline without an extra ``.scope(...)`` call. Keys are\n        forwarded verbatim, so e.g. ``scope={\"tables\": [\"link\"]}``\n        or ``scope={\"bbox\": (xmin, ymin, xmax, ymax)}`` work.\n    spec: A :class:`~corral.spec.DataPackage` instance, or a\n        path to a ``datapackage.json`` to load. When omitted,\n        :meth:`Package.from_source` looks for one alongside\n        ``source``.\n    tables: Optional iterable of table names to partial-load.\n    **kwargs: Forwarded to :meth:`Package.from_source` \u2014 see that\n        method for the full signature.\n\nReturns:\n    A :class:`Package` whose tables are lazy engine expressions.\n\nExamples:\n    >>> from corral import read\n    >>> from corral.fixtures import sample\n    >>> pkg = read(sample.parquet_dir())\n    >>> len(pkg.tables)\n    3\n\n    Scope inline \u2014 only the ``book`` table is loaded into the\n    returned :class:`Package`::\n\n        >>> from corral import read\n        >>> from corral.fixtures import sample\n        >>> pkg = read(sample.parquet_dir(), scope={\"tables\": [\"book\"]})\n        >>> pkg.keys()\n        ['book']",
+          "stability": "alpha"
+        }
+      ]
+    },
+    "corral.reports": {
+      "version": "",
+      "symbols": [
+        {
+          "name": "Category",
+          "kind": "class",
+          "module": "corral.reports.types",
+          "signature": "Category(*values)",
+          "docstring": "Broad category of a validation finding.\n\nUsed to group findings in reports and to filter the JSON / HTML\noutput by rule family. Categories map to the validation modules\nthat produce them \u2014 schema checks emit ``SCHEMA``, FK checks emit\n``FOREIGN_KEY``, and so on.\n\nAttributes:\n    SCHEMA: Field-level constraints \u2014 type, required, enum, regex,\n        min/max. Produced by :mod:`corral.validation.schema_check`.\n    STRUCTURAL: Package-level structure \u2014 missing required table,\n        extra unknown table, missing file on disk. Produced by\n        :mod:`corral.validation.structural`.\n    FOREIGN_KEY: Cross-table referential integrity. Produced by\n        :mod:`corral.validation.foreign_keys`.\n    SYNC_STATE: A previously validated FK is now stale because one\n        side has been mutated since the last check. Produced by\n        :mod:`corral.validation.sync_state`.\n    DATA_QUALITY: A configurable quality rule (e.g. ``high-speed\n        on residential road``). Produced by quality plugins\n        registered under the ``corral.quality.rules`` entry\n        point \u2014 see :mod:`corral.quality`.\n\nExamples:\n    >>> Category(\"foreign_key\") is Category.FOREIGN_KEY\n    True",
+          "stability": "alpha"
+        },
+        {
+          "name": "Issue",
+          "kind": "class",
+          "module": "corral.reports.types",
+          "signature": "Issue(severity: 'Severity', category: 'Category', code: 'str', message: 'str', table: 'str | None' = None, column: 'str | None' = None, row: 'int | None' = None, fix_hint: 'str | None' = None, extra: 'dict[str, Any]' = <factory>) -> None",
+          "docstring": "A single validation finding.\n\nFrozen so a report can be safely held by callers (or shown in a UI)\nafter the underlying data changes \u2014 once an issue is recorded, it\nsnapshots the failure. Hashable for the same reason, so consumers\ncan dedupe via set membership without writing a custom ``__hash__``.\n\nThe ``code`` field is a stable, dotted, namespaced identifier \u2014 the\nstring callers grep tracebacks for and filter reports by. Examples:\n``\"schema.required\"``, ``\"schema.enum\"``, ``\"fk.missing_target\"``,\n``\"structural.missing_table\"``, ``\"sync.fk_stale\"``,\n``\"quality.high_speed_residential\"``. The leading namespace\n(``schema.``, ``fk.``, ``structural.``, ``sync.``, ``quality.``)\nmirrors :class:`Category` and keeps codes greppable per rule family.\n\nThe ``message`` field MUST name the input that broke \u2014 table,\ncolumn, row, value \u2014 not a generic phrase. The v0.3 line of bugs\nwhere \"FK violation\" was the entire user-facing string is what this\ncontract is designed to avoid.\n\nThe optional ``fix_hint`` is a single short sentence telling the\nuser what to do. Renderers display it on a second line when present.\n\nAttributes:\n    severity: How bad it is.\n    category: Which rule family produced it.\n    code: Stable dotted identifier (e.g. ``\"schema.required\"``).\n    message: Human-readable, names the input that broke.\n    table: Table name, or ``None`` for cross-cutting / structural\n        issues that don't belong to a single table.\n    column: Column / field name, or ``None`` if not field-specific.\n    row: Zero-based row index, or ``None`` if not row-specific.\n    fix_hint: Optional one-sentence remediation hint.\n    extra: Adapter-specific extras \u2014 geo coordinates, target table\n        for FK violations, etc. Renderers may surface known keys.\n\nExamples:\n    >>> issue = Issue(\n    ...     severity=Severity.ERROR,\n    ...     category=Category.FOREIGN_KEY,\n    ...     code=\"fk.missing_target\",\n    ...     message=\"link row 12: from_node_id=99 not found in node.node_id\",\n    ...     table=\"link\",\n    ...     column=\"from_node_id\",\n    ...     row=12,\n    ...     fix_hint=\"Add a node row with node_id=99, or remove the link.\",\n    ... )\n    >>> issue.severity\n    <Severity.ERROR: 'error'>\n    >>> issue.row\n    12",
+          "stability": "alpha"
+        },
+        {
+          "name": "IssueGroup",
+          "kind": "class",
+          "module": "corral.reports.grouping",
+          "signature": "IssueGroup(code: 'str', severity: 'Severity', table_names: 'list[str]', issues: 'list[Issue]', groupable: 'bool') -> None",
+          "docstring": "One row of a grouped report: a code, its severity, and the findings behind it.\n\n``groupable`` is ``True`` when the group collapsed two or more\nfindings; a group of one carries ``groupable=False`` so a renderer\nknows to print the finding's own message. ``table_names`` holds\nthe ``table`` of each member that has one, in first-seen order.",
+          "stability": "alpha"
+        },
+        {
+          "name": "Severity",
+          "kind": "class",
+          "module": "corral.reports.types",
+          "signature": "Severity(*values)",
+          "docstring": "Severity of a single validation finding.\n\nThe order matters: renderers display issues grouped\n``ERROR -> WARNING -> INFO``. The ``str`` base (rather than ``int``)\nwas chosen for JSON-serialisability \u2014 a validation report dumped to\nJSON is the same on Python 3.11 and Python 3.13 with no custom\nencoder, and ``severity == \"error\"`` works for users who read the\nJSON without re-importing the enum.\n\nFor ordering, use :func:`severity_rank`.\n\nSeverity is *orthogonal* to :class:`Category`. A data-quality\nfinding carries ``Category.DATA_QUALITY`` AND one of the three\nseverity values \u2014 a missing speed limit is typically ``INFO``,\nwhile a 70mph residential street is ``WARNING``. The pre-1.0\n``Severity.DATA_QUALITY`` value conflated the two dimensions and\nwas removed; quality rules now pick the real severity that matches\nhow urgently the finding wants attention.\n\nAttributes:\n    ERROR: Spec or contract violation. The data is wrong; downstream\n        consumers should not trust it.\n    WARNING: Likely problem that does not break correctness. The\n        ``OutOfSyncWarning`` family lives here. Also the default\n        severity for a suspicious data-quality finding.\n    INFO: Informational only. No action required. Also the default\n        severity for an awareness-only data-quality finding.\n\nExamples:\n    >>> Severity(\"error\") is Severity.ERROR\n    True\n    >>> Severity.WARNING.value\n    'warning'",
+          "stability": "alpha"
+        },
+        {
+          "name": "ValidationReport",
+          "kind": "class",
+          "module": "corral.reports.types",
+          "signature": "ValidationReport(spec_version: 'str | None' = None, source: 'str | None' = None, issues: 'list[Issue]' = <factory>, metadata: 'dict[str, Any]' = <factory>, created_at: 'datetime' = <factory>) -> None",
+          "docstring": "Result of one or more validation passes over a data package.\n\nMutable \u2014 multiple checks (schema + FK + structural + sync_state +\ndata_quality) build it up over a single run by calling\n:meth:`add_issue` or :meth:`add`. When the run is complete, hand it\nto a renderer (:func:`~corral.validation.render_rich`,\n:func:`~corral.validation.render_json`, or the HTML renderer in\n:mod:`corral.reports.render`).\n\nThe report carries the spec version and source identifier so the\nrendered output is self-describing \u2014 a saved JSON or HTML report\ntells you which spec it was validated against and where the data\ncame from.\n\nAttributes:\n    spec_version: The spec version this run was validated against\n        (e.g. ``\"0.97\"``). Optional \u2014 populated by the caller.\n    source: Path / URL identifier of the package being validated.\n        Used by renderers in the header.\n    issues: All findings recorded so far. Order is insertion order;\n        renderers re-sort by severity.\n    metadata: Free-form metadata about the run \u2014 engine name,\n        scope, timestamps. Echoed in the JSON output.\n    created_at: When the report was constructed (timezone-naive\n        local time, matching ``datetime.now()``).\n\nExamples:\n    >>> report = ValidationReport(spec_version=\"0.97\", source=\"leavenworth.gmns\")\n    >>> issue = report.add(\n    ...     severity=Severity.ERROR,\n    ...     category=Category.SCHEMA,\n    ...     code=\"schema.required\",\n    ...     message=\"link.from_node_id row 0: value is null\",\n    ...     table=\"link\",\n    ... )\n    >>> report.has_errors\n    True\n    >>> report.count(Severity.ERROR)\n    1",
+          "stability": "alpha"
+        },
+        {
+          "name": "group_issues",
+          "kind": "function",
+          "module": "corral.reports.grouping",
+          "signature": "group_issues(issues: 'list[Issue]') -> 'list[IssueGroup]'",
+          "docstring": "Fold findings that share a structural code into one group each.\n\nTwo or more findings group when they share ``code`` and\n``severity``, are ``Category.STRUCTURAL`` and have ``row is None``.\nEvery other finding becomes a group of one with ``groupable=False``.\nGroups come back in the order their first finding appeared, so a\nrenderer that iterates the result preserves the report's ordering.\n\nExamples:\n    >>> issues = [\n    ...     Issue(Severity.INFO, Category.STRUCTURAL, \"structural.missing_optional_resource\", \"m\", table=t)\n    ...     for t in (\"zone\", \"config\")\n    ... ]\n    >>> [(g.count, g.groupable, g.table_names) for g in group_issues(issues)]\n    [(2, True, ['zone', 'config'])]",
+          "stability": "alpha"
+        },
+        {
+          "name": "render_html",
+          "kind": "function",
+          "module": "corral.reports.render",
+          "signature": "render_html(report: 'ValidationReport', *, title: 'str | None' = None, include_map: 'bool' = True) -> 'str'",
+          "docstring": "Render the report as a self-contained interactive HTML file.\n\nReturns one HTML string with CSS + JS + data embedded \u2014 no external\ndependencies, no network calls. Open in a browser as-is, or save with\n``Path.write_text()``.\n\nFeatures:\n\n- Header with ``spec_version``, ``source``, ``created_at``, and\n  per-severity badge counts plus a clean/unclean verdict chip.\n- Severity-ordered issue tables (ERROR \u2192 WARNING \u2192 INFO)\n  with filter controls (severity, category, table, code substring).\n- Click any row to expand a detail panel showing ``fix_hint`` and the\n  raw ``extra`` payload.\n- If ``include_map=True`` AND at least one issue carries geo coords\n  in ``extra`` (``lon``/``lat`` *or* ``x``/``y``), embed a Vega-Lite\n  map view of the located issues.\n- \"Export JSON\" button downloads the underlying ``report.to_dict()``.\n\n**Offline-mode trade-off:** the map section pulls Vega-Lite from a\npublic CDN at view time. Everything else \u2014 data, filtering, expand,\nexport \u2014 works fully offline. Inlining Vega-Lite's ~250KB into every\nemailed report was rejected as too heavy; the rest of the report is\nself-contained. For fully offline viewing, pass ``include_map=False``.\n\nArgs:\n    report: The :class:`ValidationReport` to render.\n    title: Optional override for the ``<title>`` tag and the page\n        ``<h1>``. Defaults to ``\"Validation Report\"``, suffixed with\n        the report's source when present.\n    include_map: If ``False``, skip the map section even when geo\n        data is available. Use this for offline-only contexts.\n\nReturns:\n    A single HTML string suitable for ``write_text()`` or embedding.\n\nExamples:\n    >>> from corral.reports import (\n    ...     ValidationReport, Severity, Category,\n    ... )\n    >>> r = ValidationReport(source=\"x.gmns\", spec_version=\"0.97\")\n    >>> _ = r.add(severity=Severity.ERROR, category=Category.SCHEMA,\n    ...           code=\"schema.required\",\n    ...           message=\"link.from_node_id row 0: value is null\",\n    ...           table=\"link\")\n    >>> html = render_html(r)\n    >>> html.lstrip().startswith(\"<!DOCTYPE html>\")\n    True\n    >>> \"schema.required\" in html\n    True",
+          "stability": "alpha"
+        },
+        {
+          "name": "render_json",
+          "kind": "function",
+          "module": "corral.reports.render",
+          "signature": "render_json(report: 'ValidationReport', *, indent: 'int' = 2) -> 'str'",
+          "docstring": "Render the report as a JSON string with a stable schema.\n\nThe schema (frozen as ``report_version=\"1\"``):\n\n.. code-block:: json\n\n    {\n        \"report_version\": \"1\",\n        \"spec_version\": \"0.97\",\n        \"source\": \"leavenworth.gmns\",\n        \"created_at\": \"2026-05-18T12:34:56.789012\",\n        \"metadata\": {},\n        \"summary\": {\n            \"error\": 1, \"warning\": 0, \"info\": 0,\n            \"data_quality\": 0, \"is_clean\": false\n        },\n        \"issues\": [\n            {\n                \"severity\": \"error\",\n                \"category\": \"schema\",\n                \"code\": \"schema.required\",\n                \"message\": \"link.from_node_id row 0: value is null\",\n                \"table\": \"link\",\n                \"column\": \"from_node_id\",\n                \"row\": 0,\n                \"fix_hint\": \"Provide a value for from_node_id.\",\n                \"extra\": {}\n            }\n        ]\n    }\n\nArgs:\n    report: The report to serialize.\n    indent: ``json.dumps`` indent setting (default 2).\n\nReturns:\n    A JSON string. Free of ANSI codes; safe to write to disk or\n    return from an HTTP endpoint.\n\nExamples:\n    >>> import json\n    >>> from corral.reports import ValidationReport\n    >>> r = ValidationReport(source=\"empty.gmns\")\n    >>> json.loads(render_json(r))[\"report_version\"]\n    '1'",
+          "stability": "alpha"
+        },
+        {
+          "name": "render_rich",
+          "kind": "function",
+          "module": "corral.reports.render",
+          "signature": "render_rich(report: 'ValidationReport') -> 'str'",
+          "docstring": "Render the report as a rich-formatted string.\n\nLayout:\n\n- Header panel: ``source`` + ``spec_version`` + per-severity counts.\n- One section per severity in canonical order (ERROR, WARNING, INFO).\n  Within each section, issues are grouped by table.\n  Each issue is one row: ``[code] message`` with the severity color;\n  a second indented line shows ``table:column[row]`` plus the\n  ``fix_hint`` when present.\n- Footer: totals + the ``is_clean`` verdict.\n\nThe function returns the rendered string; the caller decides whether\nto ``print()`` it, write it to a file, or stream it elsewhere \u2014 so\nthe same renderer works for the CLI, the notebook, and tests.\n\nArgs:\n    report: The report to render.\n\nReturns:\n    The rendered string. Includes ANSI color codes \u2014 strip with\n    ``rich.text.Text.from_ansi(s).plain`` if a plaintext copy is\n    needed.\n\nExamples:\n    >>> from corral.reports import (\n    ...     ValidationReport, Severity, Category,\n    ... )\n    >>> r = ValidationReport(source=\"x.gmns\", spec_version=\"0.97\")\n    >>> r.add(severity=Severity.ERROR, category=Category.SCHEMA,\n    ...       code=\"schema.required\",\n    ...       message=\"link.from_node_id row 0: value is null\",\n    ...       table=\"link\")\n    Issue(...)\n    >>> out = render_rich(r)\n    >>> \"schema.required\" in out\n    True\n    >>> \"x.gmns\" in out\n    True",
+          "stability": "alpha"
+        },
+        {
+          "name": "resource_inventory",
+          "kind": "function",
+          "module": "corral.reports.grouping",
+          "signature": "resource_inventory(package_or_report: 'Any', spec: 'Any | None' = None) -> 'list[dict[str, Any]]'",
+          "docstring": "List every spec-declared resource with whether it is required and present.\n\nReturns one ``{\"name\", \"required\", \"present\", \"rows\"}`` dict per\nresource of the spec, in spec order. ``required`` follows the\nstructural pass's opt-in policy (only ``required=True`` counts; see\n:mod:`corral.validation.structural`).\n\nArgs:\n    package_or_report: A :class:`~corral.dataset.Package` (or\n        subclass such as ``netstead.Network``) \u2014 presence comes from\n        its loaded ``tables`` and ``rows`` from each table's\n        ``count()`` \u2014 or a :class:`ValidationReport`, in which case\n        presence is read off its ``structural.missing_*_resource``\n        findings and ``rows`` is ``None``.\n    spec: The :class:`~corral.spec.model.DataPackage` to inventory.\n        Defaults to the package's own ``spec``; required for a\n        report.\n\nRaises:\n    TypeError: when a report is given without a ``spec``.\n\nExamples:\n    >>> from corral.spec.model import DataPackage, Resource\n    >>> spec = DataPackage(name=\"d\", resources=[Resource(name=\"link\", required=True), Resource(name=\"zone\")])\n    >>> report = ValidationReport()\n    >>> report.add_issue(Issue(Severity.INFO, Category.STRUCTURAL, \"structural.missing_optional_resource\",\n    ...     \"m\", table=\"zone\"))\n    >>> [(e[\"name\"], e[\"required\"], e[\"present\"]) for e in resource_inventory(report, spec)]\n    [('link', True, True), ('zone', False, False)]",
+          "stability": "alpha"
+        },
+        {
+          "name": "severity_rank",
+          "kind": "function",
+          "module": "corral.reports.types",
+          "signature": "severity_rank(severity: 'Severity') -> 'int'",
+          "docstring": "Return the display rank for ``severity`` (0 = highest priority).\n\nArgs:\n    severity: The severity to rank.\n\nReturns:\n    Integer index in the canonical display order\n    (ERROR=0, WARNING=1, INFO=2).\n\nExamples:\n    >>> severity_rank(Severity.ERROR)\n    0\n    >>> severity_rank(Severity.INFO)\n    2",
+          "stability": "alpha"
+        }
+      ]
+    }
+  }
+}

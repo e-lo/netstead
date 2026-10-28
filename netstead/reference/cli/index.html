@@ -1,0 +1,4999 @@
+<!DOCTYPE html><html lang="en" class="no-js"><head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Python toolkit for the General Modeling Network Specification — load, validate, scope, edit GMNS networks at regional scale, with CLI / notebook / HTTP / MCP surfaces.">
+      
+      
+      
+        <link rel="canonical" href="https://e-lo.github.io/netstead/netstead/reference/cli/">
+      
+      
+        <link rel="prev" href="../api/">
+      
+      
+        <link rel="next" href="../spec/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>CLI reference - netstead documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  <link href="../../assets/stylesheets/glightbox.min.css" rel="stylesheet"><script src="../../assets/javascripts/glightbox.min.js"></script><style id="glightbox-style">
+            html.glightbox-open { overflow: initial; height: 100%; }
+            .gslide-title { margin-top: 0px; user-select: text; }
+            .gslide-desc { color: #666; user-select: text; }
+            .gslide-image img { background: white; }
+            .gscrollbar-fixer { padding-right: 15px; }
+            .gdesc-inner { font-size: 0.75rem; }
+            body[data-md-color-scheme="slate"] .gdesc-inner { background: var(--md-default-bg-color); }
+            body[data-md-color-scheme="slate"] .gslide-title { color: var(--md-default-fg-color); }
+            body[data-md-color-scheme="slate"] .gslide-desc { color: var(--md-default-fg-color); }
+        </style></head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="green">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#cli-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="netstead documentation" class="md-header__button md-logo" aria-label="netstead documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"></path></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"></path></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            netstead documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              CLI reference
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="green" aria-label="Switch to dark mode" type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden="">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 6H7c-3.31 0-6 2.69-6 6s2.69 6 6 6h10c3.31 0 6-2.69 6-6s-2.69-6-6-6m0 10H7c-2.21 0-4-1.79-4-4s1.79-4 4-4h10c2.21 0 4 1.79 4 4s-1.79 4-4 4M7 9c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3"></path></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="green" data-md-color-accent="green" aria-label="Switch to light mode" type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden="">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 7H7a5 5 0 0 0-5 5 5 5 0 0 0 5 5h10a5 5 0 0 0 5-5 5 5 0 0 0-5-5m0 8a3 3 0 0 1-3-3 3 3 0 0 1 3-3 3 3 0 0 1 3 3 3 3 0 0 1-3 3"></path></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required="">
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"></path></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard="" data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"></path></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix="">
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/e-lo/netstead" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"></path></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../quickstart/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Quickstart: Python
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../quickstart-workbench/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Quickstart: Workbench
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../install/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Install and troubleshoot
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../what-is-gmns/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  What is GMNS?
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../visual-tour/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Visual tour
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../python-tour/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Python tour
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../workbench-and-other-tools/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  The Workbench and other tools
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../roadmap/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Status and roadmap
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../changelog/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Changelog
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../cookbook/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Cookbook
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../api/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../migration/v0.3-to-v1.0/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Migration v0.3 → v1.0
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="https://e-lo.github.io/netstead/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  « Netstead umbrella
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="https://e-lo.github.io/netstead/corral/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  corral site »
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="netstead documentation" class="md-nav__button md-logo" aria-label="netstead documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"></path></svg>
+
+    </a>
+    netstead documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/e-lo/netstead" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"></path></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix="">
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart: Python
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart-workbench/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart: Workbench
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Install and troubleshoot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../what-is-gmns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What is GMNS?
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../visual-tour/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visual tour
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python-tour/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python tour
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../workbench-and-other-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Workbench and other tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Status and roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11">
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../cookbook/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cookbook
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_11" id="__nav_11_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Cookbook
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11_1">
+        
+          
+          <label class="md-nav__link" for="__nav_11_1" id="__nav_11_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Validate and fix
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_11_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Validate and fix
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cookbook/validate-network/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Validate a network
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cookbook/customize-quality/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Customize quality rules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cookbook/fix-findings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Triage and fix findings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11_2">
+        
+          
+          <label class="md-nav__link" for="__nav_11_2" id="__nav_11_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build and scope
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_11_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Build and scope
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cookbook/build-from-osm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Build from OpenStreetMap or Overture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cookbook/scope-from-nodes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scope from seed nodes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11_3">
+        
+          
+          <label class="md-nav__link" for="__nav_11_3" id="__nav_11_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Query and edit
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_11_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Query and edit
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cookbook/query-and-update/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Query and update linked tables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cookbook/edit-with-rollback/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Edit with rollback
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11_4">
+        
+          
+          <label class="md-nav__link" for="__nav_11_4" id="__nav_11_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workbench
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_11_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Workbench
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cookbook/workbench/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Explore in the Workbench
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cookbook/find-links/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Find links by describing them
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cookbook/workbench-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Write a Workbench plugin
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cookbook/workbench-project-cards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Author ProjectCards
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cookbook/local-llm-ollama/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local language models (Ollama)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11_5">
+        
+          
+          <label class="md-nav__link" for="__nav_11_5" id="__nav_11_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Maps and reports
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_11_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Maps and reports
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cookbook/view-your-network/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    View a network on a map
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11_6">
+        
+          
+          <label class="md-nav__link" for="__nav_11_6" id="__nav_11_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Serve and automate
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_11_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Serve and automate
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cookbook/serve-http/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Self-host the HTTP server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cookbook/serve-mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Wire up the MCP server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cookbook/run-bench/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run the bench
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" checked="">
+        
+          
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_12">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+      
+        <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Commands
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Commands">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#netstead-validate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead validate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-info" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead info
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-convert" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead convert
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-quality" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead quality
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-doctor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead doctor
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-bench" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead bench
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-bench-suite" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead bench-suite
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-build" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead build
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-select" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead select
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-select-serve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead select-serve
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-viz" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead viz
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead app
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-spec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead spec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead server
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-mcp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead mcp
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-clean" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead clean
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead scope
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-index" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead index
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-llm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead llm
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../spec-versions/development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GMNS development branch
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../spec-versions/local/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GMNS local spec (0.97)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../table-of-tables/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Table of tables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Settings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../workbench-actions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workbench Actions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../workbench-http-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workbench HTTP API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ai/mcp-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../gmns-data-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GMNS data model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../migration/v0.3-to-v1.0/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migration v0.3 → v1.0
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://e-lo.github.io/netstead/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    « Netstead umbrella
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://e-lo.github.io/netstead/corral/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    corral site »
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+      
+        <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Commands
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Commands">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#netstead-validate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead validate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-info" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead info
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-convert" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead convert
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-quality" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead quality
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-doctor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead doctor
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-bench" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead bench
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-bench-suite" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead bench-suite
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-build" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead build
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-select" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead select
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-select-serve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead select-serve
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-viz" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead viz
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead app
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-spec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead spec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead server
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-mcp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead mcp
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-clean" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead clean
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead scope
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-index" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead index
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#netstead-llm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        netstead llm
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/e-lo/netstead/edit/main/packages/netstead/docs/reference/cli.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75z"></path></svg>
+    </a>
+  
+  
+    
+      
+    
+    <a href="https://github.com/e-lo/netstead/raw/main/packages/netstead/docs/reference/cli.md" title="View source of this page" class="md-content__button md-icon">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0 8a5 5 0 0 1-5-5 5 5 0 0 1 5-5 5 5 0 0 1 5 5 5 5 0 0 1-5 5m0-12.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5"></path></svg>
+    </a>
+  
+
+
+<h1 id="cli-reference">CLI reference<a class="headerlink" href="#cli-reference" title="Permanent link"> ¶</a></h1>
+<h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link"> ¶</a></h2>
+<p><code>netstead</code> is the command-line front door to the library: inspect, validate, convert, build, scope,
+clean and benchmark GMNS networks, and start the HTTP, MCP and Workbench servers. The command tree
+below is generated from the live typer app (<code>netstead.cli.app</code>) on every docs build, so it cannot
+drift from the installed version; <code>netstead --help</code> and <code>netstead &lt;command&gt; --help</code> print the same
+text in the terminal.</p>
+<p>Three conventions apply across the tree:</p>
+<ul>
+<li><strong><code>--json</code>.</strong> Every data command accepts <code>--json</code> and then writes exactly one JSON document to
+  stdout, so the result pipes into <code>jq</code> or straight into an agent. The index table marks which
+  commands take it.</li>
+<li><strong><code>netstead doctor</code></strong> is an <em>install</em> doctor: Python version, optional extras, vendored spec
+  versions, and whether the bundled Leavenworth fixture loads. To diagnose a network, use
+  <code>netstead validate</code> (spec, schema and foreign-key checks) or <code>netstead quality</code> (data-quality rules).</li>
+<li><strong>Optional extras.</strong> Commands that need an extra (<code>server</code>, <code>mcp</code>, <code>clean</code>, <code>osm</code>, <code>reports</code>, …)
+  are always listed in <code>--help</code>. When the extra is missing they exit with code 1 and one line on
+  stderr, <code>netstead.&lt;module&gt; requires the [&lt;extra&gt;] extra: pip install 'netstead[&lt;extra&gt;]'</code>, which
+  names the extra to install; <code>netstead doctor</code> shows which extras are present.</li>
+</ul>
+<h2 id="commands">Commands<a class="headerlink" href="#commands" title="Permanent link"> ¶</a></h2>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Usage: netstead [OPTIONS] COMMAND [ARGS]...
+</span></code></pre></div>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--install-completion</code></td>
+<td>flag</td>
+<td></td>
+<td>Install completion for the current shell.</td>
+</tr>
+<tr>
+<td><code>--show-completion</code></td>
+<td>flag</td>
+<td></td>
+<td>Show completion for the current shell, to copy it or customize the installation.</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>What it does</th>
+<th><code>--json</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="#netstead-validate"><code>netstead validate</code></a></td>
+<td>Validate <code>source</code> against the GMNS spec.</td>
+<td>yes</td>
+</tr>
+<tr>
+<td><a href="#netstead-info"><code>netstead info</code></a></td>
+<td>Print GMNS-aware metadata about <code>source</code> — spec version + table summary.</td>
+<td>yes</td>
+</tr>
+<tr>
+<td><a href="#netstead-convert"><code>netstead convert</code></a></td>
+<td>Convert a data package from any supported format to another.</td>
+<td>yes</td>
+</tr>
+<tr>
+<td><a href="#netstead-quality"><code>netstead quality</code></a></td>
+<td>Run the GMNS data-quality rule pack against <code>source</code>.</td>
+<td>yes</td>
+</tr>
+<tr>
+<td><a href="#netstead-doctor"><code>netstead doctor</code></a></td>
+<td>Check your netstead install — Python version, extras, vendored specs.</td>
+<td>yes</td>
+</tr>
+<tr>
+<td><a href="#netstead-bench"><code>netstead bench</code></a></td>
+<td>Run read/validate/connectivity benchmarks; print timings.</td>
+<td>yes</td>
+</tr>
+<tr>
+<td><a href="#netstead-bench-suite"><code>netstead bench-suite</code></a></td>
+<td>Run the DuckDB-path benchmark suite (create / selection / viz-pack).</td>
+<td></td>
+</tr>
+<tr>
+<td><a href="#netstead-build"><code>netstead build</code></a></td>
+<td>Build a GMNS network from OpenStreetMap or Overture and write it to <code>DEST</code>.</td>
+<td>yes</td>
+</tr>
+<tr>
+<td><a href="#netstead-select"><code>netstead select</code></a></td>
+<td>Resolve a natural-language selection to GMNS link/node ids.</td>
+<td>yes</td>
+</tr>
+<tr>
+<td><a href="#netstead-select-serve"><code>netstead select-serve</code></a></td>
+<td>Serve the interactive selection map: now an alias of <code>netstead app SOURCE</code>.</td>
+<td></td>
+</tr>
+<tr>
+<td><a href="#netstead-viz"><code>netstead viz</code></a></td>
+<td>Serve the network viewer: now an alias of <code>netstead app SOURCE</code>.</td>
+<td></td>
+</tr>
+<tr>
+<td><a href="#netstead-app"><code>netstead app</code></a></td>
+<td>Serve the Netstead Workbench: open, inspect, and select on GMNS networks in the browser.</td>
+<td></td>
+</tr>
+<tr>
+<td><a href="#netstead-spec"><code>netstead spec</code></a></td>
+<td>GMNS spec utilities — list and diff vendored versions.</td>
+<td>per sub-command</td>
+</tr>
+<tr>
+<td><a href="#netstead-server"><code>netstead server</code></a></td>
+<td>Run the netstead self-hostable HTTP server.</td>
+<td>per sub-command</td>
+</tr>
+<tr>
+<td><a href="#netstead-mcp"><code>netstead mcp</code></a></td>
+<td>Run the netstead MCP server for AI-agent access.</td>
+<td>per sub-command</td>
+</tr>
+<tr>
+<td><a href="#netstead-clean"><code>netstead clean</code></a></td>
+<td>GMNS network-editing ops (requires the ‘clean’ extra).</td>
+<td>per sub-command</td>
+</tr>
+<tr>
+<td><a href="#netstead-scope"><code>netstead scope</code></a></td>
+<td>Build a NetworkScope and print its (links, nodes) sets.</td>
+<td>per sub-command</td>
+</tr>
+<tr>
+<td><a href="#netstead-index"><code>netstead index</code></a></td>
+<td>Spatial + graph index build/status/drop.</td>
+<td>per sub-command</td>
+</tr>
+<tr>
+<td><a href="#netstead-llm"><code>netstead llm</code></a></td>
+<td>Language-model providers for natural-language features.</td>
+<td>per sub-command</td>
+</tr>
+</tbody>
+</table>
+<h3 id="netstead-validate"><code>netstead validate</code><a class="headerlink" href="#netstead-validate" title="Permanent link"> ¶</a></h3>
+<p>Validate <code>source</code> against the GMNS spec.</p>
+<p>Runs the four-pass validator (structural / schema / foreign-key
+/ sync-state) with the GMNS spec auto-loaded — so reading a
+CSV directory without a <code>datapackage.json</code> gets the real
+per-table schema checks, not the empty “every table is
+unexpected” output of the generic <code>corral validate</code>.</p>
+<p>Exit code is non-zero iff any ERROR-severity issue is recorded.</p>
+<p>Examples:
+    Validate the bundled Leavenworth fixture as CSVs::</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>        $ netstead validate path/to/leavenworth/csv
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    Write the interactive map+table HTML viewer::
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>        $ netstead validate path/to/network --html report.html
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    Export findings to a spreadsheet::
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>        $ netstead validate path/to/network --csv f.csv --xlsx f.xlsx
+</span></code></pre></div>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>Usage: netstead validate [OPTIONS] SOURCE
+</span></code></pre></div>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SOURCE</code></td>
+<td>path</td>
+<td>yes</td>
+<td>Path / URL to a GMNS network (datapackage.json or CSV/Parquet/DuckDB directory).</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--spec</code></td>
+<td>text</td>
+<td></td>
+<td>Override the default GMNS spec version (e.g. ‘0.96’). Defaults to netstead.DEFAULT_SPEC.</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>flag</td>
+<td></td>
+<td>Emit JSON on stdout instead of rich panels.</td>
+</tr>
+<tr>
+<td><code>--all</code></td>
+<td>flag</td>
+<td></td>
+<td>List every finding on its own row instead of folding repeated structural findings into one.</td>
+</tr>
+<tr>
+<td><code>--html</code></td>
+<td>path</td>
+<td></td>
+<td>Write the interactive network-on-map HTML viewer to this path. Falls back to a table-only HTML report when the [reports] extra is not installed.</td>
+</tr>
+<tr>
+<td><code>--csv</code></td>
+<td>path</td>
+<td></td>
+<td>Write the flat findings table to this CSV path.</td>
+</tr>
+<tr>
+<td><code>--xlsx</code></td>
+<td>path</td>
+<td></td>
+<td>Write the flat findings table to this XLSX path (requires [reports] extra).</td>
+</tr>
+<tr>
+<td><code>--yes</code>, <code>-y</code></td>
+<td>flag</td>
+<td></td>
+<td>Auto-approve any gated ops (alternative to CORRAL_AUTO_APPROVE=1).</td>
+</tr>
+</tbody>
+</table>
+<p>Machine-readable: <code>--json</code> writes the result to stdout as JSON.</p>
+<h3 id="netstead-info"><code>netstead info</code><a class="headerlink" href="#netstead-info" title="Permanent link"> ¶</a></h3>
+<p>Print GMNS-aware metadata about <code>source</code> — spec version + table summary.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>Usage: netstead info [OPTIONS] SOURCE
+</span></code></pre></div>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SOURCE</code></td>
+<td>path</td>
+<td>yes</td>
+<td>Path / URL to a GMNS network.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--spec</code></td>
+<td>text</td>
+<td></td>
+<td>Override the default GMNS spec version.</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>flag</td>
+<td></td>
+<td>Emit JSON on stdout instead of rich panels.</td>
+</tr>
+</tbody>
+</table>
+<p>Machine-readable: <code>--json</code> writes the result to stdout as JSON.</p>
+<h3 id="netstead-convert"><code>netstead convert</code><a class="headerlink" href="#netstead-convert" title="Permanent link"> ¶</a></h3>
+<p>Convert a data package from any supported format to another.</p>
+<p>Loads <code>source</code> (any format corral can read) and writes the
+same logical package to <code>dest</code> in the target format. Output
+format is taken from <code>--format</code> when supplied, otherwise
+inferred from the <code>dest</code> extension; an extension-less <code>dest</code>
+defaults to partitioned parquet (architecture §6.1).</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>Usage: netstead convert [OPTIONS] SOURCE DEST
+</span></code></pre></div>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SOURCE</code></td>
+<td>path</td>
+<td>yes</td>
+<td>Source data package path/URL.</td>
+</tr>
+<tr>
+<td><code>DEST</code></td>
+<td>path</td>
+<td>yes</td>
+<td>Destination path.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--format</code>, <code>-f</code></td>
+<td>text</td>
+<td></td>
+<td>Output format (csv/parquet/duckdb/zipcsv). Default: infer from dest extension; fall back to parquet.</td>
+</tr>
+<tr>
+<td><code>--engine</code></td>
+<td>text</td>
+<td></td>
+<td>Engine: DuckDB (the only compute engine).</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>flag</td>
+<td></td>
+<td>Emit JSON on stdout.</td>
+</tr>
+<tr>
+<td><code>--yes</code>, <code>-y</code></td>
+<td>flag</td>
+<td></td>
+<td>Auto-approve gated ops.</td>
+</tr>
+</tbody>
+</table>
+<p>Machine-readable: <code>--json</code> writes the result to stdout as JSON.</p>
+<h3 id="netstead-quality"><code>netstead quality</code><a class="headerlink" href="#netstead-quality" title="Permanent link"> ¶</a></h3>
+<p>Run the GMNS data-quality rule pack against <code>source</code>.</p>
+<p>Each rule emits Severity.WARNING / INFO findings with category
+DATA_QUALITY. The output is a ValidationReport (rendered as a
+rich table or JSON document per <code>--json</code>).</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>Usage: netstead quality [OPTIONS] SOURCE
+</span></code></pre></div>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SOURCE</code></td>
+<td>path</td>
+<td>yes</td>
+<td>Path / URL to a GMNS network.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--spec</code></td>
+<td>text</td>
+<td></td>
+<td>Override the default GMNS spec version.</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>flag</td>
+<td></td>
+<td>Emit JSON on stdout instead of rich panels.</td>
+</tr>
+</tbody>
+</table>
+<p>Machine-readable: <code>--json</code> writes the result to stdout as JSON.</p>
+<h3 id="netstead-doctor"><code>netstead doctor</code><a class="headerlink" href="#netstead-doctor" title="Permanent link"> ¶</a></h3>
+<p>Check your netstead install — Python version, extras, vendored specs.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>This is an INSTALL doctor, not a network doctor. To diagnose a
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>specific GMNS network, use:
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>  netstead validate &lt;path&gt;    spec / schema / FK / sync-state checks
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>  netstead quality  &lt;path&gt;    data-quality rules (high speed on residential, etc.)
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>  netstead info     &lt;path&gt;    table list + row counts
+</span></code></pre></div>
+<p>Exits non-zero on any install failure.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>Usage: netstead doctor [OPTIONS]
+</span></code></pre></div>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--json</code></td>
+<td>flag</td>
+<td></td>
+<td>Emit checks as a JSON array.</td>
+</tr>
+</tbody>
+</table>
+<p>Machine-readable: <code>--json</code> writes the result to stdout as JSON.</p>
+<h3 id="netstead-bench"><code>netstead bench</code><a class="headerlink" href="#netstead-bench" title="Permanent link"> ¶</a></h3>
+<p>Run read/validate/connectivity benchmarks; print timings.</p>
+<p>Phases timed (each via time.perf_counter):</p>
+<ul>
+<li><code>load</code> — <code>Network.from_source</code>.</li>
+<li><code>validate</code> — <code>Network.validate</code> (structural/schema only).</li>
+<li><code>links_count</code> + <code>nodes_count</code> — trivial materialization sanity.</li>
+<li><code>is_connected</code> — full graph index build + component count
+  (skipped silently when the <code>[graph]</code> extra is missing).</li>
+</ul>
+<p>Output is a dict with <code>phases</code> (list of <code>{phase, seconds}</code>) and
+a <code>total_seconds</code> summary. <code>--json</code> writes the dict to stdout for
+machine consumption; otherwise rendered via the standard rich panel.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>Usage: netstead bench [OPTIONS] SOURCE
+</span></code></pre></div>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SOURCE</code></td>
+<td>path</td>
+<td>yes</td>
+<td>Path/URL to a GMNS network.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--engine</code></td>
+<td>text</td>
+<td></td>
+<td>Compute engine (DuckDB is the only one; kept for compatibility).</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>flag</td>
+<td></td>
+<td>Emit JSON on stdout.</td>
+</tr>
+</tbody>
+</table>
+<p>Machine-readable: <code>--json</code> writes the result to stdout as JSON.</p>
+<h3 id="netstead-bench-suite"><code>netstead bench-suite</code><a class="headerlink" href="#netstead-bench-suite" title="Permanent link"> ¶</a></h3>
+<p>Run the DuckDB-path benchmark suite (create / selection / viz-pack).</p>
+<p>Sweeps the requested size tiers over the three operation families from
+the benchmarking-suite scope, capturing wall-time and peak memory, and
+emits one structured document. DuckDB (via ibis) is the single compute
+engine; pandas / polars / pyarrow are I/O formats, so there is no engine
+axis — the suite measures the DuckDB path and the binary store format.</p>
+<p><code>--format json</code> (default) emits the canonical regression document;
+<code>csv</code> flattens the results; <code>md</code> renders the advertising table with
+an environment stamp and the standing honesty caveats. Fixture
+definitions live in <code>benchmarks/fixtures.toml</code>; the L tier is resolved
+from the <code>NETSTEAD_BENCH_LARGE</code> / <code>NETSTEAD_BENCH_LARGE_BBOX</code> env vars
+(never committed).</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>Usage: netstead bench-suite [OPTIONS]
+</span></code></pre></div>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--sizes</code></td>
+<td>text</td>
+<td><code>S,M</code></td>
+<td>Size tiers to sweep (comma-separated: S,M,L).</td>
+</tr>
+<tr>
+<td><code>--operations</code></td>
+<td>text</td>
+<td><code>network_create,selection,viz_pack</code></td>
+<td>Operation families to run (comma-separated).</td>
+</tr>
+<tr>
+<td><code>--format</code></td>
+<td>text</td>
+<td><code>json</code></td>
+<td>Output format: json | csv | md.</td>
+</tr>
+<tr>
+<td><code>--output</code>, <code>-o</code></td>
+<td>path</td>
+<td></td>
+<td>Write to this file instead of stdout.</td>
+</tr>
+<tr>
+<td><code>--repeats</code></td>
+<td>integer</td>
+<td><code>3</code></td>
+<td>Macro timing repeats (reported as median + min).</td>
+</tr>
+<tr>
+<td><code>--warm-repeats</code></td>
+<td>integer</td>
+<td><code>20</code></td>
+<td>Repeats for the warm selection number.</td>
+</tr>
+<tr>
+<td><code>--run-osm</code></td>
+<td>flag</td>
+<td></td>
+<td>Include live OSM builds (hits Overpass).</td>
+</tr>
+<tr>
+<td><code>--fixtures</code></td>
+<td>path</td>
+<td></td>
+<td>Override path to a fixtures.toml.</td>
+</tr>
+<tr>
+<td><code>--commit</code></td>
+<td>text</td>
+<td></td>
+<td>Git SHA to stamp into the env block.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="netstead-build"><code>netstead build</code><a class="headerlink" href="#netstead-build" title="Permanent link"> ¶</a></h3>
+<p>Build a GMNS network from OpenStreetMap or Overture and write it to <code>DEST</code>.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>Usage: netstead build [OPTIONS] DEST
+</span></code></pre></div>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DEST</code></td>
+<td>path</td>
+<td>yes</td>
+<td>Output path for the GMNS network (dir or file).</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--place</code></td>
+<td>text</td>
+<td></td>
+<td>Place name to geocode (city/county/etc.).</td>
+</tr>
+<tr>
+<td><code>--bbox</code></td>
+<td>text</td>
+<td></td>
+<td>Bounding box ‘west,south,east,north’ (EPSG:4326).</td>
+</tr>
+<tr>
+<td><code>--point</code></td>
+<td>text</td>
+<td></td>
+<td>Center ‘lat,lon’; use with –buffer.</td>
+</tr>
+<tr>
+<td><code>--buffer</code></td>
+<td>float</td>
+<td><code>0.0</code></td>
+<td>Buffer in metres around –point.</td>
+</tr>
+<tr>
+<td><code>--network-type</code></td>
+<td>text</td>
+<td><code>roads</code></td>
+<td>roads and/or paths; repeat the option or comma-separate (e.g. roads,paths). Deprecated: drive = roads; walk, bike, all = roads,paths.</td>
+</tr>
+<tr>
+<td><code>--extra-tags</code></td>
+<td>text</td>
+<td></td>
+<td>Comma-separated extra source properties/tags to carry.</td>
+</tr>
+<tr>
+<td><code>--source</code></td>
+<td>text</td>
+<td><code>osm</code></td>
+<td>Data source: ‘osm’ or ‘overture’.</td>
+</tr>
+<tr>
+<td><code>--overture-release</code></td>
+<td>text</td>
+<td></td>
+<td>Overture release string (overture source only).</td>
+</tr>
+<tr>
+<td><code>--data-root</code></td>
+<td>text</td>
+<td></td>
+<td>Override Overture data base URI / local snapshot dir (overture source only).</td>
+</tr>
+<tr>
+<td><code>--engine</code></td>
+<td>text</td>
+<td></td>
+<td>Compute engine (DuckDB is the only one; kept for compatibility).</td>
+</tr>
+<tr>
+<td><code>--spec-version</code></td>
+<td>text</td>
+<td></td>
+<td>GMNS spec version (default: latest).</td>
+</tr>
+<tr>
+<td><code>--format</code></td>
+<td>text</td>
+<td></td>
+<td>Output format: csv / parquet / duckdb / zip.</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>flag</td>
+<td></td>
+<td>Emit a JSON summary on stdout.</td>
+</tr>
+</tbody>
+</table>
+<p>Machine-readable: <code>--json</code> writes the result to stdout as JSON.</p>
+<h3 id="netstead-select"><code>netstead select</code><a class="headerlink" href="#netstead-select" title="Permanent link"> ¶</a></h3>
+<p>Resolve a natural-language selection to GMNS link/node ids.</p>
+<p>Prints the validated selection fragment on success (exit 0). On an
+ambiguous result it prints the status, the provisional link ids, each
+anchor with the other nodes it could be, and diagnostics (exit 3); on
+not-found it prints diagnostics (exit 1).</p>
+<p>With a language model chosen and <code>select.grammar_first</code> on (the default),
+the offline grammar is tried first and the model is called only when it
+can’t read the request with names the network has, as in the Workbench.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>Usage: netstead select [OPTIONS] UTTERANCE SOURCE
+</span></code></pre></div>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>UTTERANCE</code></td>
+<td>text</td>
+<td>yes</td>
+<td>e.g. “I-40 EB between Harrison Ave and NC 54”.</td>
+</tr>
+<tr>
+<td><code>SOURCE</code></td>
+<td>text</td>
+<td>yes</td>
+<td>Path/URL to a GMNS network.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--provider</code></td>
+<td>text</td>
+<td></td>
+<td>Parser: stub | anthropic | openai | gemini | ollama (default: settings).</td>
+</tr>
+<tr>
+<td><code>--model</code></td>
+<td>text</td>
+<td></td>
+<td>Model id (default: settings, else the provider default; see <code>netstead llm status</code>).</td>
+</tr>
+<tr>
+<td><code>--engine</code></td>
+<td>text</td>
+<td></td>
+<td>Compute engine (DuckDB is the only one; kept for compatibility).</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>flag</td>
+<td></td>
+<td>Emit JSON on stdout.</td>
+</tr>
+</tbody>
+</table>
+<p>Machine-readable: <code>--json</code> writes the result to stdout as JSON.</p>
+<h3 id="netstead-select-serve"><code>netstead select-serve</code><a class="headerlink" href="#netstead-select-serve" title="Permanent link"> ¶</a></h3>
+<p>Serve the interactive selection map: now an alias of <code>netstead app SOURCE</code>.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>Usage: netstead select-serve [OPTIONS] SOURCE
+</span></code></pre></div>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SOURCE</code></td>
+<td>text</td>
+<td>yes</td>
+<td>Path/URL to a GMNS network.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--provider</code></td>
+<td>text</td>
+<td></td>
+<td>NL parser: stub | anthropic | openai | gemini | ollama (default: settings).</td>
+</tr>
+<tr>
+<td><code>--engine</code></td>
+<td>text</td>
+<td></td>
+<td>Ignored: DuckDB is the only engine (kept for compatibility).</td>
+</tr>
+<tr>
+<td><code>--host</code></td>
+<td>text</td>
+<td></td>
+<td>Bind host.</td>
+</tr>
+<tr>
+<td><code>--port</code></td>
+<td>integer</td>
+<td></td>
+<td>Bind port.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="netstead-viz"><code>netstead viz</code><a class="headerlink" href="#netstead-viz" title="Permanent link"> ¶</a></h3>
+<p>Serve the network viewer: now an alias of <code>netstead app SOURCE</code>.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>Usage: netstead viz [OPTIONS] SOURCE
+</span></code></pre></div>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SOURCE</code></td>
+<td>text</td>
+<td>yes</td>
+<td>Path/URL to a GMNS network.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--provider</code></td>
+<td>text</td>
+<td></td>
+<td>NL parser: stub | anthropic | openai | gemini | ollama (default: settings).</td>
+</tr>
+<tr>
+<td><code>--engine</code></td>
+<td>text</td>
+<td></td>
+<td>Ignored: DuckDB is the only engine (kept for compatibility).</td>
+</tr>
+<tr>
+<td><code>--basemap</code></td>
+<td>text</td>
+<td></td>
+<td>Basemap: positron | esri (both keyless).</td>
+</tr>
+<tr>
+<td><code>--host</code></td>
+<td>text</td>
+<td></td>
+<td>Bind host.</td>
+</tr>
+<tr>
+<td><code>--port</code></td>
+<td>integer</td>
+<td></td>
+<td>Bind port.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="netstead-app"><code>netstead app</code><a class="headerlink" href="#netstead-app" title="Permanent link"> ¶</a></h3>
+<p>Serve the Netstead Workbench: open, inspect, and select on GMNS networks in the browser.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>Usage: netstead app [OPTIONS] [SOURCES]...
+</span></code></pre></div>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SOURCES</code></td>
+<td>text</td>
+<td>no</td>
+<td>GMNS network paths/URLs to open.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--provider</code></td>
+<td>text</td>
+<td></td>
+<td>NL parser: stub | anthropic | openai | gemini | ollama (default: settings).</td>
+</tr>
+<tr>
+<td><code>--model</code></td>
+<td>text</td>
+<td></td>
+<td>NL model id (default: settings, else the provider default; see <code>netstead llm status</code>).</td>
+</tr>
+<tr>
+<td><code>--basemap</code></td>
+<td>text</td>
+<td></td>
+<td>Basemap: positron | esri (default: settings).</td>
+</tr>
+<tr>
+<td><code>--host</code></td>
+<td>text</td>
+<td></td>
+<td>Bind host (default: settings, 127.0.0.1).</td>
+</tr>
+<tr>
+<td><code>--port</code></td>
+<td>integer</td>
+<td></td>
+<td>Bind port (default: settings, 8850).</td>
+</tr>
+</tbody>
+</table>
+<h3 id="netstead-spec"><code>netstead spec</code><a class="headerlink" href="#netstead-spec" title="Permanent link"> ¶</a></h3>
+<p>GMNS spec utilities — list and diff vendored versions.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>Usage: netstead spec [OPTIONS] COMMAND [ARGS]...
+</span></code></pre></div>
+<p><strong>Sub-commands</strong></p>
+<ul>
+<li><a href="#netstead-spec-list"><code>netstead spec list</code></a> — List the GMNS spec versions vendored in this build of netstead.</li>
+<li><a href="#netstead-spec-diff"><code>netstead spec diff</code></a> — Diff two vendored GMNS spec versions resource-by-resource.</li>
+</ul>
+<h4 id="netstead-spec-list"><code>netstead spec list</code><a class="headerlink" href="#netstead-spec-list" title="Permanent link"> ¶</a></h4>
+<p>List the GMNS spec versions vendored in this build of netstead.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>Usage: netstead spec list [OPTIONS]
+</span></code></pre></div>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--json</code></td>
+<td>flag</td>
+<td></td>
+<td>Emit JSON instead of a rich table.</td>
+</tr>
+</tbody>
+</table>
+<p>Machine-readable: <code>--json</code> writes the result to stdout as JSON.</p>
+<h4 id="netstead-spec-diff"><code>netstead spec diff</code><a class="headerlink" href="#netstead-spec-diff" title="Permanent link"> ¶</a></h4>
+<p>Diff two vendored GMNS spec versions resource-by-resource.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>Usage: netstead spec diff [OPTIONS] V1 V2
+</span></code></pre></div>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>V1</code></td>
+<td>text</td>
+<td>yes</td>
+<td>Baseline GMNS spec version (e.g. 0.96).</td>
+</tr>
+<tr>
+<td><code>V2</code></td>
+<td>text</td>
+<td>yes</td>
+<td>Comparison GMNS spec version (e.g. 0.97).</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--json</code></td>
+<td>flag</td>
+<td></td>
+<td>Emit JSON instead of a rich summary.</td>
+</tr>
+</tbody>
+</table>
+<p>Machine-readable: <code>--json</code> writes the result to stdout as JSON.</p>
+<h3 id="netstead-server"><code>netstead server</code><a class="headerlink" href="#netstead-server" title="Permanent link"> ¶</a></h3>
+<p>Run the netstead self-hostable HTTP server.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>Usage: netstead server [OPTIONS] COMMAND [ARGS]...
+</span></code></pre></div>
+<p><strong>Sub-commands</strong></p>
+<ul>
+<li><a href="#netstead-server-run"><code>netstead server run</code></a> — Start the netstead HTTP server with config from <code>--config</code>.</li>
+</ul>
+<h4 id="netstead-server-run"><code>netstead server run</code><a class="headerlink" href="#netstead-server-run" title="Permanent link"> ¶</a></h4>
+<p>Start the netstead HTTP server with config from <code>--config</code>.</p>
+<p>Reads <code>corral.api.ServerSettings</code> from the config
+file (or uses defaults — localhost, no packages, auth=bearer
+with no token, which fails fast on first request).</p>
+<p>The CLI <code>--bind</code> / <code>--port</code> flags override the matching
+config keys for one-off testing without editing the file.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>Usage: netstead server run [OPTIONS]
+</span></code></pre></div>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--config</code>, <code>-c</code></td>
+<td>path</td>
+<td></td>
+<td>Path to server config (YAML/JSON).</td>
+</tr>
+<tr>
+<td><code>--bind</code></td>
+<td>text</td>
+<td></td>
+<td>Override config bind address (default 127.0.0.1).</td>
+</tr>
+<tr>
+<td><code>--port</code></td>
+<td>integer</td>
+<td></td>
+<td>Override config port (default 8000).</td>
+</tr>
+</tbody>
+</table>
+<h3 id="netstead-mcp"><code>netstead mcp</code><a class="headerlink" href="#netstead-mcp" title="Permanent link"> ¶</a></h3>
+<p>Run the netstead MCP server for AI-agent access.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>Usage: netstead mcp [OPTIONS] COMMAND [ARGS]...
+</span></code></pre></div>
+<p><strong>Sub-commands</strong></p>
+<ul>
+<li><a href="#netstead-mcp-serve"><code>netstead mcp serve</code></a> — Start the netstead MCP server on stdio (for Claude Desktop / Claude Code).</li>
+</ul>
+<h4 id="netstead-mcp-serve"><code>netstead mcp serve</code><a class="headerlink" href="#netstead-mcp-serve" title="Permanent link"> ¶</a></h4>
+<p>Start the netstead MCP server on stdio (for Claude Desktop / Claude Code).</p>
+<p>Configure your MCP client to launch <code>netstead mcp serve</code> as a
+subprocess (typical example:</p>
+<p>.. code-block:: json</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>    {"mcpServers": {"netstead": {"command": "netstead", "args": ["mcp", "serve"]}}}
+</span></code></pre></div>
+<p>). Tools exposed: <code>describe_network</code>, <code>validate_package</code>,
+<code>quality_check</code>, <code>connected_components</code>, <code>scope_from_nodes</code>,
+plus the generic corral tools.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>Usage: netstead mcp serve [OPTIONS]
+</span></code></pre></div>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--name</code></td>
+<td>text</td>
+<td><code>netstead</code></td>
+<td>MCP server display name.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="netstead-clean"><code>netstead clean</code><a class="headerlink" href="#netstead-clean" title="Permanent link"> ¶</a></h3>
+<p>GMNS network-editing ops (requires the ‘clean’ extra).</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>Usage: netstead clean [OPTIONS] COMMAND [ARGS]...
+</span></code></pre></div>
+<p><strong>Sub-commands</strong></p>
+<ul>
+<li><a href="#netstead-clean-simplify-geometry"><code>netstead clean simplify-geometry</code></a> — Simplify link geometries on the network at <code>source</code>.</li>
+<li><a href="#netstead-clean-merge-close-nodes"><code>netstead clean merge-close-nodes</code></a> — Merge node pairs within <code>--threshold-m</code> of each other; rewrite incident links.</li>
+<li><a href="#netstead-clean-remove-orphans"><code>netstead clean remove-orphans</code></a> — Drop nodes with no incident links.</li>
+<li><a href="#netstead-clean-recompute-lengths"><code>netstead clean recompute-lengths</code></a> — Recompute <code>link.length</code> from the inline geometry column.</li>
+</ul>
+<h4 id="netstead-clean-simplify-geometry"><code>netstead clean simplify-geometry</code><a class="headerlink" href="#netstead-clean-simplify-geometry" title="Permanent link"> ¶</a></h4>
+<p>Simplify link geometries on the network at <code>source</code>.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-24-1"><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>Usage: netstead clean simplify-geometry [OPTIONS] SOURCE
+</span></code></pre></div>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SOURCE</code></td>
+<td>path</td>
+<td>yes</td>
+<td>Path to the GMNS network to edit.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--dest</code></td>
+<td>path</td>
+<td></td>
+<td>Where to write the modified network. Default: overwrite source.</td>
+</tr>
+<tr>
+<td><code>--mode</code></td>
+<td>text</td>
+<td><code>redundant_only</code></td>
+<td>redundant_only or douglas_peucker.</td>
+</tr>
+<tr>
+<td><code>--tolerance</code></td>
+<td>float</td>
+<td><code>0.0</code></td>
+<td>Tolerance in CRS units (douglas_peucker only).</td>
+</tr>
+<tr>
+<td><code>--engine</code></td>
+<td>text</td>
+<td></td>
+<td>Compute engine (DuckDB is the only one; kept for compatibility).</td>
+</tr>
+<tr>
+<td><code>--dry-run</code></td>
+<td>flag</td>
+<td></td>
+<td>Print what would change; do not write.</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>flag</td>
+<td></td>
+<td>Emit JSON on stdout.</td>
+</tr>
+</tbody>
+</table>
+<p>Machine-readable: <code>--json</code> writes the result to stdout as JSON.</p>
+<h4 id="netstead-clean-merge-close-nodes"><code>netstead clean merge-close-nodes</code><a class="headerlink" href="#netstead-clean-merge-close-nodes" title="Permanent link"> ¶</a></h4>
+<p>Merge node pairs within <code>--threshold-m</code> of each other; rewrite incident links.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-25-1"><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>Usage: netstead clean merge-close-nodes [OPTIONS] SOURCE
+</span></code></pre></div>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SOURCE</code></td>
+<td>path</td>
+<td>yes</td>
+<td>Path to the GMNS network to edit.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--dest</code></td>
+<td>path</td>
+<td></td>
+<td>Where to write the modified network. Default: overwrite source.</td>
+</tr>
+<tr>
+<td><code>--threshold-m</code></td>
+<td>float</td>
+<td><code>5.0</code></td>
+<td>Distance threshold in node CRS units.</td>
+</tr>
+<tr>
+<td><code>--engine</code></td>
+<td>text</td>
+<td></td>
+<td>Compute engine (DuckDB is the only one; kept for compatibility).</td>
+</tr>
+<tr>
+<td><code>--dry-run</code></td>
+<td>flag</td>
+<td></td>
+<td>Print what would change; do not write.</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>flag</td>
+<td></td>
+<td>Emit JSON on stdout.</td>
+</tr>
+</tbody>
+</table>
+<p>Machine-readable: <code>--json</code> writes the result to stdout as JSON.</p>
+<h4 id="netstead-clean-remove-orphans"><code>netstead clean remove-orphans</code><a class="headerlink" href="#netstead-clean-remove-orphans" title="Permanent link"> ¶</a></h4>
+<p>Drop nodes with no incident links.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-26-1"><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>Usage: netstead clean remove-orphans [OPTIONS] SOURCE
+</span></code></pre></div>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SOURCE</code></td>
+<td>path</td>
+<td>yes</td>
+<td>Path to the GMNS network to edit.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--dest</code></td>
+<td>path</td>
+<td></td>
+<td>Where to write the modified network. Default: overwrite source.</td>
+</tr>
+<tr>
+<td><code>--engine</code></td>
+<td>text</td>
+<td></td>
+<td>Compute engine (DuckDB is the only one; kept for compatibility).</td>
+</tr>
+<tr>
+<td><code>--dry-run</code></td>
+<td>flag</td>
+<td></td>
+<td>Print what would change; do not write.</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>flag</td>
+<td></td>
+<td>Emit JSON on stdout.</td>
+</tr>
+</tbody>
+</table>
+<p>Machine-readable: <code>--json</code> writes the result to stdout as JSON.</p>
+<h4 id="netstead-clean-recompute-lengths"><code>netstead clean recompute-lengths</code><a class="headerlink" href="#netstead-clean-recompute-lengths" title="Permanent link"> ¶</a></h4>
+<p>Recompute <code>link.length</code> from the inline geometry column.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-27-1"><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>Usage: netstead clean recompute-lengths [OPTIONS] SOURCE
+</span></code></pre></div>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SOURCE</code></td>
+<td>path</td>
+<td>yes</td>
+<td>Path to the GMNS network to edit.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--dest</code></td>
+<td>path</td>
+<td></td>
+<td>Where to write the modified network. Default: overwrite source.</td>
+</tr>
+<tr>
+<td><code>--geodesic</code></td>
+<td>flag</td>
+<td></td>
+<td>Compute haversine length in meters (WGS84).</td>
+</tr>
+<tr>
+<td><code>--engine</code></td>
+<td>text</td>
+<td></td>
+<td>Compute engine (DuckDB is the only one; kept for compatibility).</td>
+</tr>
+<tr>
+<td><code>--dry-run</code></td>
+<td>flag</td>
+<td></td>
+<td>Print what would change; do not write.</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>flag</td>
+<td></td>
+<td>Emit JSON on stdout.</td>
+</tr>
+</tbody>
+</table>
+<p>Machine-readable: <code>--json</code> writes the result to stdout as JSON.</p>
+<h3 id="netstead-scope"><code>netstead scope</code><a class="headerlink" href="#netstead-scope" title="Permanent link"> ¶</a></h3>
+<p>Build a NetworkScope and print its (links, nodes) sets.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-28-1"><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>Usage: netstead scope [OPTIONS] COMMAND [ARGS]...
+</span></code></pre></div>
+<p><strong>Sub-commands</strong></p>
+<ul>
+<li><a href="#netstead-scope-from-nodes"><code>netstead scope from-nodes</code></a> — Build a scope from seed node ids and print its (links, nodes) sets.</li>
+<li><a href="#netstead-scope-from-node"><code>netstead scope from-node</code></a> — Scope = all nodes within <code>--network-buffer</code> network-distance of <code>node_id</code>.</li>
+<li><a href="#netstead-scope-connected-component"><code>netstead scope connected-component</code></a> — Scope = the weakly-connected component containing <code>seed_node_id</code>.</li>
+<li><a href="#netstead-scope-from-zone"><code>netstead scope from-zone</code></a> — Scope = all nodes with <code>zone_id</code> in <code>zone_ids</code> plus their incident links.</li>
+</ul>
+<h4 id="netstead-scope-from-nodes"><code>netstead scope from-nodes</code><a class="headerlink" href="#netstead-scope-from-nodes" title="Permanent link"> ¶</a></h4>
+<p>Build a scope from seed node ids and print its (links, nodes) sets.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-29-1"><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>Usage: netstead scope from-nodes [OPTIONS] SOURCE NODE_IDS...
+</span></code></pre></div>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SOURCE</code></td>
+<td>path</td>
+<td>yes</td>
+<td>Path to the GMNS network.</td>
+</tr>
+<tr>
+<td><code>NODE_IDS</code></td>
+<td>integer</td>
+<td>yes</td>
+<td>Seed node ids.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--path-between</code>, <code>--no-path-between</code></td>
+<td>flag</td>
+<td>on</td>
+<td></td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>flag</td>
+<td></td>
+<td>Emit JSON on stdout.</td>
+</tr>
+</tbody>
+</table>
+<p>Machine-readable: <code>--json</code> writes the result to stdout as JSON.</p>
+<h4 id="netstead-scope-from-node"><code>netstead scope from-node</code><a class="headerlink" href="#netstead-scope-from-node" title="Permanent link"> ¶</a></h4>
+<p>Scope = all nodes within <code>--network-buffer</code> network-distance of <code>node_id</code>.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-30-1"><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>Usage: netstead scope from-node [OPTIONS] SOURCE NODE_ID
+</span></code></pre></div>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SOURCE</code></td>
+<td>path</td>
+<td>yes</td>
+<td>Path to the GMNS network.</td>
+</tr>
+<tr>
+<td><code>NODE_ID</code></td>
+<td>integer</td>
+<td>yes</td>
+<td>Seed node id.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--network-buffer</code></td>
+<td>text</td>
+<td><code>0.5mi</code></td>
+<td>Distance with unit (e.g. ‘0.5mi’, ‘800m’).</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>flag</td>
+<td></td>
+<td>Emit JSON on stdout.</td>
+</tr>
+</tbody>
+</table>
+<p>Machine-readable: <code>--json</code> writes the result to stdout as JSON.</p>
+<h4 id="netstead-scope-connected-component"><code>netstead scope connected-component</code><a class="headerlink" href="#netstead-scope-connected-component" title="Permanent link"> ¶</a></h4>
+<p>Scope = the weakly-connected component containing <code>seed_node_id</code>.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-31-1"><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>Usage: netstead scope connected-component [OPTIONS] SOURCE SEED_NODE_ID
+</span></code></pre></div>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SOURCE</code></td>
+<td>path</td>
+<td>yes</td>
+<td>Path to the GMNS network.</td>
+</tr>
+<tr>
+<td><code>SEED_NODE_ID</code></td>
+<td>integer</td>
+<td>yes</td>
+<td>Seed node id whose component to return.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--json</code></td>
+<td>flag</td>
+<td></td>
+<td>Emit JSON on stdout.</td>
+</tr>
+</tbody>
+</table>
+<p>Machine-readable: <code>--json</code> writes the result to stdout as JSON.</p>
+<h4 id="netstead-scope-from-zone"><code>netstead scope from-zone</code><a class="headerlink" href="#netstead-scope-from-zone" title="Permanent link"> ¶</a></h4>
+<p>Scope = all nodes with <code>zone_id</code> in <code>zone_ids</code> plus their incident links.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-32-1"><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>Usage: netstead scope from-zone [OPTIONS] SOURCE ZONE_IDS...
+</span></code></pre></div>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SOURCE</code></td>
+<td>path</td>
+<td>yes</td>
+<td>Path to the GMNS network.</td>
+</tr>
+<tr>
+<td><code>ZONE_IDS</code></td>
+<td>integer</td>
+<td>yes</td>
+<td>Zone ids whose nodes (+ incident links) to include.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--json</code></td>
+<td>flag</td>
+<td></td>
+<td>Emit JSON on stdout.</td>
+</tr>
+</tbody>
+</table>
+<p>Machine-readable: <code>--json</code> writes the result to stdout as JSON.</p>
+<h3 id="netstead-index"><code>netstead index</code><a class="headerlink" href="#netstead-index" title="Permanent link"> ¶</a></h3>
+<p>Spatial + graph index build/status/drop.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-33-1"><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>Usage: netstead index [OPTIONS] COMMAND [ARGS]...
+</span></code></pre></div>
+<p><strong>Sub-commands</strong></p>
+<ul>
+<li><a href="#netstead-index-build"><code>netstead index build</code></a> — Build spatial + graph indexes for the network at <code>source</code>; cache to disk.</li>
+<li><a href="#netstead-index-status"><code>netstead index status</code></a> — Report which index sidecars exist next to <code>source</code>.</li>
+<li><a href="#netstead-index-drop"><code>netstead index drop</code></a> — Delete cached spatial + graph sidecars next to <code>source</code>.</li>
+</ul>
+<h4 id="netstead-index-build"><code>netstead index build</code><a class="headerlink" href="#netstead-index-build" title="Permanent link"> ¶</a></h4>
+<p>Build spatial + graph indexes for the network at <code>source</code>; cache to disk.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-34-1"><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>Usage: netstead index build [OPTIONS] SOURCE
+</span></code></pre></div>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SOURCE</code></td>
+<td>path</td>
+<td>yes</td>
+<td>Path to the GMNS network.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--spatial</code>, <code>--no-spatial</code></td>
+<td>flag</td>
+<td>on</td>
+<td></td>
+</tr>
+<tr>
+<td><code>--graph</code>, <code>--no-graph</code></td>
+<td>flag</td>
+<td>on</td>
+<td></td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>flag</td>
+<td></td>
+<td>Emit JSON on stdout.</td>
+</tr>
+</tbody>
+</table>
+<p>Machine-readable: <code>--json</code> writes the result to stdout as JSON.</p>
+<h4 id="netstead-index-status"><code>netstead index status</code><a class="headerlink" href="#netstead-index-status" title="Permanent link"> ¶</a></h4>
+<p>Report which index sidecars exist next to <code>source</code>.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-35-1"><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>Usage: netstead index status [OPTIONS] SOURCE
+</span></code></pre></div>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SOURCE</code></td>
+<td>path</td>
+<td>yes</td>
+<td>Path to the GMNS network.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--json</code></td>
+<td>flag</td>
+<td></td>
+<td>Emit JSON on stdout.</td>
+</tr>
+</tbody>
+</table>
+<p>Machine-readable: <code>--json</code> writes the result to stdout as JSON.</p>
+<h4 id="netstead-index-drop"><code>netstead index drop</code><a class="headerlink" href="#netstead-index-drop" title="Permanent link"> ¶</a></h4>
+<p>Delete cached spatial + graph sidecars next to <code>source</code>.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-36-1"><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>Usage: netstead index drop [OPTIONS] SOURCE
+</span></code></pre></div>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SOURCE</code></td>
+<td>path</td>
+<td>yes</td>
+<td>Path to the GMNS network.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--json</code></td>
+<td>flag</td>
+<td></td>
+<td>Emit JSON on stdout.</td>
+</tr>
+</tbody>
+</table>
+<p>Machine-readable: <code>--json</code> writes the result to stdout as JSON.</p>
+<h3 id="netstead-llm"><code>netstead llm</code><a class="headerlink" href="#netstead-llm" title="Permanent link"> ¶</a></h3>
+<p>Language-model providers for natural-language features.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-37-1"><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>Usage: netstead llm [OPTIONS] COMMAND [ARGS]...
+</span></code></pre></div>
+<p><strong>Sub-commands</strong></p>
+<ul>
+<li><a href="#netstead-llm-status"><code>netstead llm status</code></a> — Show which providers are usable and where each key comes from (never the key).</li>
+<li><a href="#netstead-llm-set-key"><code>netstead llm set-key</code></a> — Store an API key for PROVIDER’s endpoint: prompted and hidden, never an argument.</li>
+<li><a href="#netstead-llm-remove-key"><code>netstead llm remove-key</code></a> — Delete PROVIDER’s key from the OS keyring. Env vars are yours to unset.</li>
+<li><a href="#netstead-llm-test"><code>netstead llm test</code></a> — Make an authenticated call that spends no tokens (list models); exit 1 on failure.</li>
+<li><a href="#netstead-llm-models"><code>netstead llm models</code></a> — List the models offered for PROVIDER: the catalog, or the installed models for Ollama.</li>
+<li><a href="#netstead-llm-pull"><code>netstead llm pull</code></a> — Download MODEL into the configured Ollama server (llm.ollama.base_url), with progress.</li>
+</ul>
+<h4 id="netstead-llm-status"><code>netstead llm status</code><a class="headerlink" href="#netstead-llm-status" title="Permanent link"> ¶</a></h4>
+<p>Show which providers are usable and where each key comes from (never the key).</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-38-1"><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>Usage: netstead llm status [OPTIONS]
+</span></code></pre></div>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--json</code></td>
+<td>flag</td>
+<td></td>
+<td>Emit JSON on stdout.</td>
+</tr>
+</tbody>
+</table>
+<p>Machine-readable: <code>--json</code> writes the result to stdout as JSON.</p>
+<h4 id="netstead-llm-set-key"><code>netstead llm set-key</code><a class="headerlink" href="#netstead-llm-set-key" title="Permanent link"> ¶</a></h4>
+<p>Store an API key for PROVIDER’s endpoint: prompted and hidden, never an argument.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-39-1"><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>Usage: netstead llm set-key [OPTIONS] PROVIDER
+</span></code></pre></div>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PROVIDER</code></td>
+<td>text</td>
+<td>yes</td>
+<td>anthropic | openai | gemini</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--stdin</code></td>
+<td>flag</td>
+<td></td>
+<td>Read the key from stdin instead of a hidden prompt.</td>
+</tr>
+</tbody>
+</table>
+<h4 id="netstead-llm-remove-key"><code>netstead llm remove-key</code><a class="headerlink" href="#netstead-llm-remove-key" title="Permanent link"> ¶</a></h4>
+<p>Delete PROVIDER’s key from the OS keyring. Env vars are yours to unset.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-40-1"><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>Usage: netstead llm remove-key [OPTIONS] PROVIDER
+</span></code></pre></div>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PROVIDER</code></td>
+<td>text</td>
+<td>yes</td>
+<td>anthropic | openai | gemini</td>
+</tr>
+</tbody>
+</table>
+<h4 id="netstead-llm-test"><code>netstead llm test</code><a class="headerlink" href="#netstead-llm-test" title="Permanent link"> ¶</a></h4>
+<p>Make an authenticated call that spends no tokens (list models); exit 1 on failure.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-41-1"><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>Usage: netstead llm test [OPTIONS] PROVIDER
+</span></code></pre></div>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PROVIDER</code></td>
+<td>text</td>
+<td>yes</td>
+<td>anthropic | openai | gemini | ollama</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--model</code></td>
+<td>text</td>
+<td></td>
+<td>Also check that this model is served.</td>
+</tr>
+</tbody>
+</table>
+<h4 id="netstead-llm-models"><code>netstead llm models</code><a class="headerlink" href="#netstead-llm-models" title="Permanent link"> ¶</a></h4>
+<p>List the models offered for PROVIDER: the catalog, or the installed models for Ollama.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-42-1"><a id="__codelineno-42-1" name="__codelineno-42-1" href="#__codelineno-42-1"></a>Usage: netstead llm models [OPTIONS] PROVIDER
+</span></code></pre></div>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PROVIDER</code></td>
+<td>text</td>
+<td>yes</td>
+<td>anthropic | openai | gemini | ollama</td>
+</tr>
+</tbody>
+</table>
+<h4 id="netstead-llm-pull"><code>netstead llm pull</code><a class="headerlink" href="#netstead-llm-pull" title="Permanent link"> ¶</a></h4>
+<p>Download MODEL into the configured Ollama server (llm.ollama.base_url), with progress.</p>
+<p>Exit 1 if Ollama can’t be reached or the pull fails; exit 2 for a bad model name or provider setup.</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-43-1"><a id="__codelineno-43-1" name="__codelineno-43-1" href="#__codelineno-43-1"></a>Usage: netstead llm pull [OPTIONS] MODEL
+</span></code></pre></div>
+<p><strong>Arguments</strong></p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Required</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>MODEL</code></td>
+<td>text</td>
+<td>yes</td>
+<td>An Ollama model, e.g. qwen3:4b</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Options</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Help</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--yes</code>, <code>-y</code></td>
+<td>flag</td>
+<td></td>
+<td>Download without asking first.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link"> ¶</a></h2>
+<p>Check the install, then summarize and validate a network. <code>--json</code> turns the summary into one
+JSON document; <code>--html</code> writes the interactive validation report next to the terminal output.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-44-1"><a id="__codelineno-44-1" name="__codelineno-44-1" href="#__codelineno-44-1"></a>netstead<span class="w"> </span>doctor
+</span><span id="__span-44-2"><a id="__codelineno-44-2" name="__codelineno-44-2" href="#__codelineno-44-2"></a>netstead<span class="w"> </span>info<span class="w"> </span>./my-network<span class="w"> </span>--json
+</span><span id="__span-44-3"><a id="__codelineno-44-3" name="__codelineno-44-3" href="#__codelineno-44-3"></a>netstead<span class="w"> </span>validate<span class="w"> </span>./my-network<span class="w"> </span>--html<span class="w"> </span>report.html
+</span></code></pre></div>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link"> ¶</a></h2>
+<ul>
+<li><a href="../api/">API reference</a> — the Python surface the commands wrap.</li>
+<li><a href="../settings/">Settings reference</a> — <code>netstead.toml</code> keys the CLI and Workbench read.</li>
+<li><a href="../../cookbook/run-bench/">Run the bench</a>, <a href="../../cookbook/serve-http/">Self-host the HTTP server</a>,
+  <a href="../../cookbook/serve-mcp/">Wire up the MCP server</a>.</li>
+<li><a href="../../ai/mcp-tools/">MCP tools</a> — the same operations exposed to AI agents.</li>
+</ul>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden="">
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"></path></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.sections", "navigation.indexes", "navigation.top", "navigation.tracking", "toc.follow", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.tooltips", "content.action.edit", "content.action.view", "search.suggest", "search.highlight", "search.share"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  
+<script id="init-glightbox">const lightbox = GLightbox({"touchNavigation": true, "loop": false, "zoomable": true, "draggable": true, "openEffect": "zoom", "closeEffect": "zoom", "slideEffect": "slide"});
+document$.subscribe(()=>{ lightbox.reload(); });
+</script></body></html>
