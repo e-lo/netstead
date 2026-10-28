@@ -71,10 +71,15 @@ plugins:
       # computes a page's first and last timestamps back to back, so an
       # uncommitted page gets one fallback timestamp for both instead of
       # two pool runs seconds apart ("First revision timestamp is older
-      # than last revision timestamp"). In CI every page is tracked, so
-      # neither path is taken there.
+      # than last revision timestamp").
       strict: false
       enable_parallel_processing: false
+      # Generated at build time (main.py), so never in git: CI would take the
+      # fallback path above for them, and the two fallback timestamps can still
+      # come out in the wrong order and fail the strict build.
+      exclude:
+        - reference/cli.md
+        - reference/workbench-http-api.md
   - mkdocstrings:
       handlers:
         python:
@@ -174,6 +179,7 @@ nav:
           - Edit with rollback: cookbook/edit-with-rollback.md
       - Workbench:
           - Explore in the Workbench: cookbook/workbench.md
+          - Find links by describing them: cookbook/find-links.md
           - Write a Workbench plugin: cookbook/workbench-plugins.md
           - Author ProjectCards: cookbook/workbench-project-cards.md
           - Local language models (Ollama): cookbook/local-llm-ollama.md

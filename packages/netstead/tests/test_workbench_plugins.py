@@ -656,9 +656,14 @@ def test_installed_hello_example_is_discovered_through_its_entry_point(tmp_path,
         distribution("netstead-hello")
     except PackageNotFoundError:
         pytest.skip("examples/workbench-plugin-hello is not installed (CI installs it)")
+    import netstead_hello
+    from netstead.workbench.buildid import plugin_build_id
+
     session = Session(project_dir=tmp_path, environ=isolated_env, parser=StubParser())  # plugins=None: discover
     assert _status(session, "hello").state == "loaded"
-    assert _status(session, "hello").frontend == "/plugins/hello/main.js"
+    plugin = netstead_hello.plugin()
+    build_id = plugin_build_id(plugin.static_dir, plugin.id, plugin.version)  # the front end's URL is versioned
+    assert _status(session, "hello").frontend == f"/plugins/hello/b/{build_id}/main.js"
     assert session.dispatch({"type": "hello.greet", "name": "Ada"}) == "Hello, Ada!"
 
 

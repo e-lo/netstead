@@ -11,7 +11,7 @@ from functools import cache
 from pathlib import Path
 from typing import Any
 
-import duckdb
+import pyarrow.parquet as pq
 
 from netstead.fixtures import leavenworth, market_street, rdu_i40
 
@@ -21,10 +21,7 @@ _RDU_DESCRIPTION = "I-40 interchanges in Research Triangle Park, NC (ramp and ma
 
 
 def _parquet_count(directory: Path, table: str) -> int:
-    path = (directory / f"{table}.parquet").as_posix()
-    with duckdb.connect() as con:
-        row = con.execute("SELECT count(*) FROM read_parquet(?)", [path]).fetchone()
-    return int(row[0]) if row else 0
+    return pq.ParquetFile(directory / f"{table}.parquet").metadata.num_rows  # the footer: no rows read
 
 
 @cache
