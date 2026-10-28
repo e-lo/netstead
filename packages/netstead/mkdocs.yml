@@ -71,10 +71,15 @@ plugins:
       # computes a page's first and last timestamps back to back, so an
       # uncommitted page gets one fallback timestamp for both instead of
       # two pool runs seconds apart ("First revision timestamp is older
-      # than last revision timestamp"). In CI every page is tracked, so
-      # neither path is taken there.
+      # than last revision timestamp").
       strict: false
       enable_parallel_processing: false
+      # Generated at build time (main.py), so never in git: CI would take the
+      # fallback path above for them, and the two fallback timestamps can still
+      # come out in the wrong order and fail the strict build.
+      exclude:
+        - reference/cli.md
+        - reference/workbench-http-api.md
   - mkdocstrings:
       handlers:
         python:
