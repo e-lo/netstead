@@ -349,6 +349,8 @@ class Assistant:
             stub = StubPlanner().plan(text)
             calls = self._check(stub.calls, specs)
             return Plan([c.action for c in calls], stub.text, "stub", None, True, calls=calls)
+        if settings.select.grammar_first and (offline := self._offline_plan(text, specs)) is not None:
+            return offline
         grounding = build_grounding(
             session, provider=endpoint.name, endpoint_local=endpoint.local, registry=endpoint.registry
         )
@@ -401,6 +403,43 @@ class Assistant:
             list(ignored),
             list(split),
         )
+
+    def _offline_plan(self, text: str, specs: dict[str, ToolSpec]) -> Plan | None:
+        """The offline planner's plan for ``text`` when it reads all of it with names the network has, else ``None``.
+
+        As Find does (``select.grammar_first``): a request the grammar fully understands, whose streets and
+        columns are all in the active network, needs no model call. ``None`` means: ask the model.
+        """
+        stub = StubPlanner().plan(text)
+        if not stub.calls or not self._names_known(stub.calls):
+            return None
+        try:
+            calls = self._check(stub.calls, specs)
+        except ValueError:
+            return None
+        return Plan([c.action for c in calls], stub.text, "stub", None, True, mode="pattern", calls=calls)
+
+    def _names_known(self, calls: tuple[ToolCall, ...]) -> bool:
+        """Whether every street and column ``calls`` name is in the network each one targets."""
+        from ..session import street_index  # the session module imports this one
+
+        session = self._session
+        for call in calls:
+            args = call.arguments
+            net_id = args.get("net_id") or session.active
+            handle = session.registry.get(net_id) if net_id else None
+            if handle is None:
+                return False
+            if call.name == "select":
+                index = street_index(handle)
+                names = [(args.get("facility") or {}).get("name"), args.get("from_anchor"), args.get("to_anchor")]
+                if not all(index.knows(name) for name in names if name):
+                    return False
+            columns = [args.get("color_by"), args.get("width_by"), *(w.get("col") for w in args.get("where", []))]
+            columns += list((args.get("values") or {}).keys())
+            if any(col and col not in handle.links_df().columns for col in columns):
+                return False
+        return True
 
     def _check(self, calls: tuple[ToolCall, ...], specs: dict[str, ToolSpec]) -> list[_Call]:
         """Each call as an Action, checked against one snapshot of the session; ``ValueError`` names the bad call.

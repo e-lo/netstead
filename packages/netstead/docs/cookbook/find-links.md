@@ -113,8 +113,14 @@ With a language model chosen, every request is first read by the pattern parser.
 - its reading selects nothing.
 
 A request answered this way records `parsed_by: {"provider": "stub", "mode": "pattern", "grammar_first": true}`
-in the history, so you can tell which requests went to the model. Turn this off to send every request to the
-model:
+in the history, so you can tell which requests went to the model.
+
+**Ask** (the assistant) works the same way. A question the offline assistant reads in full (`select Cedar St
+between Central Ave and Price Ave and color by lanes`, `filter lanes >= 2`, `zoom to the selection`, `save the
+selection as downtown`), naming only streets and columns the network has, is planned without the model. Anything
+else (`color by speed` when the column is `free_speed`, `which streets have the most lanes?`) goes to the model.
+
+Turn this off to send every request to the model:
 
 ```toml
 # netstead.toml, or ~/.config/netstead/config.toml
