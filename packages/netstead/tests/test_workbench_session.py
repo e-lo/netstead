@@ -376,8 +376,8 @@ def test_select_with_anthropic_records_parsed_by(llm_session, fake_api):
     llm_session.dispatch(SetSetting(key="select.provider", value="anthropic"))
     sel = llm_session.dispatch(Select(utterance=UTTERANCE))
     assert sel["status"] == "resolved"
-    assert sel["parsed_by"] == {"provider": "anthropic", "model": "claude-haiku-4-5-20251001", "mode": "tools"}
-    assert fake_api.body()["model"] == "claude-haiku-4-5-20251001"
+    assert sel["parsed_by"] == {"provider": "anthropic", "model": "claude-haiku-5-5", "mode": "tools"}
+    assert fake_api.body()["model"] == "claude-haiku-5-5"
     assert llm_session.history[-1].result["parsed_by"]["provider"] == "anthropic"
 
 

@@ -13,9 +13,9 @@ def test_packaged_catalog_has_the_four_providers_in_order():
 
 def test_anthropic_models_are_the_current_ids():
     anthropic = load_catalog()["anthropic"]
-    assert [m.id for m in anthropic.models] == ["claude-haiku-4-5-20251001", "claude-sonnet-5", "claude-opus-5-5"]
+    assert [m.id for m in anthropic.models] == ["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"]
     assert [m.tier for m in anthropic.models] == ["fast", "balanced", "best"]
-    assert anthropic.default_model == "claude-haiku-4-5-20251001"
+    assert anthropic.default_model == "claude-haiku-5-5"
 
 
 def test_gpt_6_1_sol_has_no_tool_calling_but_gpt_6_luna_does():
@@ -32,7 +32,7 @@ def test_qwen3_models_are_marked_thinking_and_others_default_to_false():
     assert ollama.model("qwen3:8b").thinking is True
     assert ollama.model("qwen2.5:7b").thinking is False and ollama.model("qwen2.5:7b").tools is True
     anthropic = load_catalog()["anthropic"]
-    assert anthropic.model("claude-haiku-4-5-20251001").thinking is False
+    assert anthropic.model("claude-haiku-5-5").thinking is False
 
 
 def test_every_default_model_is_listed_and_every_model_has_a_label():
@@ -100,3 +100,11 @@ def test_overlay_invalid_tier_becomes_none(tmp_path):
     (tmp_path / CATALOG_OVERLAY).write_text('[[openai.models]]\nid = "gpt-4.1-mini"\ntier = "legendary"\n')
     cat = load_catalog(tmp_path)
     assert cat["openai"].model("gpt-4.1-mini").tier is None
+
+
+def test_anthropic_models_say_what_their_requests_may_carry():
+    anthropic = load_catalog()["anthropic"]
+    haiku, sonnet = anthropic.model("claude-haiku-5-5"), anthropic.model("claude-sonnet-5-5")
+    assert (haiku.sampling, haiku.forced_tools, haiku.effort) == (False, True, "low")
+    assert (sonnet.sampling, sonnet.forced_tools, sonnet.effort) == (False, False, "low")
+    assert load_catalog()["ollama"].model("qwen2.5:7b").sampling is True  # the default elsewhere

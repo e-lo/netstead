@@ -180,7 +180,13 @@ def test_make_parser_still_uses_tools_for_a_catalog_model_with_tool_calling(
 
 
 def test_quality_settings_reach_the_request(tmp_path, isolated_env, fake_keyring, fake_api):
-    overrides = {"select.provider": "anthropic", "llm.quality.max_repairs": 0, "llm.quality.temperature": 0.3}
+    # A model the catalog doesn't list gets the temperature as set (catalog models that reject it don't).
+    overrides = {
+        "select.provider": "anthropic",
+        "select.model": "claude-haiku-4-5",
+        "llm.quality.max_repairs": 0,
+        "llm.quality.temperature": 0.3,
+    }
     settings = load_settings(project_dir=tmp_path, environ=isolated_env, overrides=overrides).settings
     registry = build_registry(settings, environ=isolated_env, keyring=fake_keyring, transport=fake_api.transport())
     fake_keyring.set_password(KEYRING_SERVICE, "anthropic", "k")

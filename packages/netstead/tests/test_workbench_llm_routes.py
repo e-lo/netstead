@@ -100,9 +100,9 @@ def test_delete_key(client, fake_keyring):
 
 def test_connection_test_reports_catalog_drift(client, fake_api):
     client.put("/api/llm/keys/anthropic", json={"key": KEY}, headers=SECRETS)
-    fake_api.add("GET", "/v1/models", body={"data": [{"id": "claude-sonnet-5"}]})
+    fake_api.add("GET", "/v1/models", body={"data": [{"id": "claude-sonnet-5-5"}]})
     result = client.post("/api/llm/test", json={"provider": "anthropic"}, headers=SECRETS).json()
-    assert result["ok"] and result["catalog_missing"] == ["claude-haiku-4-5-20251001", "claude-opus-5-5"]
+    assert result["ok"] and result["catalog_missing"] == ["claude-haiku-5-5", "claude-opus-5-5"]
 
 
 def test_connection_test_invalid_key(client, fake_api):
@@ -129,8 +129,8 @@ def test_exposed_bind_refuses_key_writes(tmp_path, isolated_env, fake_keyring, f
 def test_models_route(client, fake_api):
     fake_api.add("GET", "/api/tags", body={"models": [{"name": "qwen3:8b"}]})
     assert [m["id"] for m in client.get("/api/llm/models", params={"provider": "anthropic"}).json()["models"]] == [
-        "claude-haiku-4-5-20251001",
-        "claude-sonnet-5",
+        "claude-haiku-5-5",
+        "claude-sonnet-5-5",
         "claude-opus-5-5",
     ]
     assert client.get("/api/llm/models", params={"provider": "ollama"}).json()["models"][0]["label"] == "Qwen 3 8B"
@@ -158,7 +158,7 @@ def test_canary_key_never_leaves_the_secret_store(
     canary = "sk-ant-api03-CANARYabcdefghijklmnopqrst"
     replacement = "sk-ant-api03-CANARYsecondkeyabcdefghij"
     fake_api.add("POST", "/v1/messages", body=TOOL_REPLY)
-    fake_api.add("GET", "/v1/models", body={"data": [{"id": "claude-sonnet-5"}]})
+    fake_api.add("GET", "/v1/models", body={"data": [{"id": "claude-sonnet-5-5"}]})
     published = []
     real_publish = session.events.publish
     monkeypatch.setattr(

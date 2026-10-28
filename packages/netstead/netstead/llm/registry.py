@@ -194,6 +194,9 @@ class ProviderRegistry:
             # catalog itself, so the set of thinking-capable model ids is resolved here and
             # threaded in, to decide whether "think": false is sent (see OllamaProvider.complete).
             kwargs["thinking_models"] = frozenset(m.id for m in info.models if m.thinking)
+        elif name == "anthropic":
+            # Likewise: which catalog models reject temperature or a forced tool, and the effort each gets.
+            kwargs["models"] = {m.id: m for m in info.models}
         return ADAPTERS[name](**kwargs)
 
     def status(self) -> list[dict[str, Any]]:
