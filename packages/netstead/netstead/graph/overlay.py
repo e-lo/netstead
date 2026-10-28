@@ -44,14 +44,16 @@ Examples:
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 from scipy.sparse import csr_array
 from scipy.sparse.csgraph import dijkstra
 
 from . import s2
-from .build import ShortestPathResult
+from .build import GMNSGraph, ShortestPathResult
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +142,7 @@ class S2Overlay:
     the graph it was built from.
     """
 
-    def __init__(self, graph, levels=DEFAULT_LEVELS, *, crs=None):
+    def __init__(self, graph: GMNSGraph, levels: Iterable[int] = DEFAULT_LEVELS, *, crs: Any = None) -> None:
         """Partition ``graph`` by S2 cells at ``levels`` and build the shortcut graphs.
 
         Args:

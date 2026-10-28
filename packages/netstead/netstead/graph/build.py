@@ -13,12 +13,17 @@ from __future__ import annotations
 import ast
 import hashlib
 import logging
+from collections.abc import Iterable
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
 
 from .source import NetworkSource, as_source
+
+if TYPE_CHECKING:
+    from .overlay import S2Overlay
 
 logger = logging.getLogger(__name__)
 
@@ -447,7 +452,9 @@ class GMNSGraph:
 
         return shortest_path(self, source_node, target_node)
 
-    def build_overlay(self, levels=None, *, crs=None, cache: str | Path | None = None):
+    def build_overlay(
+        self, levels: Iterable[int] | None = None, *, crs: Any = None, cache: str | Path | None = None
+    ) -> S2Overlay:
         """Precompute an S2 cell overlay and attach it so :meth:`shortest_path` uses it.
 
         A one-time cost (about a second for a 130k-node metro network) that makes
