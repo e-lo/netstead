@@ -92,6 +92,7 @@ Records on a branch go here, then move to the tables above when they merge.
 
 | Record | Kind | Branch | Status | Notes |
 |---|---|---|---|---|
+| [Workbench layout, editing states and cards-from-changes](2026-10-26-workbench-layout-and-editing-design.md) | design | `design/workbench-layout-and-editing` | accepted | map-attached Layers & legend card, left rail, right detail panel, Staged edits, change log with selection, card dialog, checks before applying, git-repository card registries |
 
 ## Gaps to close
 

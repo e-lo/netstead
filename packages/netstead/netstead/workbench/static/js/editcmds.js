@@ -39,7 +39,6 @@ function recordFixTarget(t) {
 
 // Focus the record (Details shows it), then open the record editor in Details.
 async function editRecord(table, id) {
-  showPanel("inspect");
   const f = store.get().focus;
   if (!f || f.table !== table || f.id !== id) store.set({ focus: { table, id, from: "table" } });
   await detailsSettled();

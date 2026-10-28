@@ -236,21 +236,31 @@ Focus is a view. Clicking never changes the selection.
   selection's ("Selection (3 links)"). Arrow keys pick, Enter runs, Escape closes.
 - **Right-click** a link or node on the map, or a table row, for its commands. Core puts one command there:
   **Fix…**, on a record that has an issue or an edit warning (see [Validate and fix](#validate-and-fix)). Edit
-  and Delete are in the palette (**Edit record…**, **Delete record…**) and in Inspect, not in the menu. With no
+  and Delete are in the palette (**Edit record…**, **Delete record…**) and in the Details panel, not in the menu. With no
   command for a record (no issue, and no plugin command), right-click opens no menu: the map keeps its right-drag
   rotate and the row the browser's own menu.
-- **Workspaces and the dock.** When a plugin adds a workspace, tabs for each appear in the header; each keeps the
-  map / split / table view you left it in. The right drawer is a dock, with a tab per panel at its top, in order:
-  The tabs are icons (hover for the name; counts stay as a badge on the icon): **Find** (magnifier; the selection form or box, anchors, diagnostics, export, saved selections and highlighted links), **View** (sliders; the layers, color and width, direction and
-  filter controls), **Inspect** (info; the focused record; comes forward
-  automatically when you click a map feature or a table row), **Edit** (pencil; the edit list, undo/redo, edit warnings and
-  "Save selection as card…"), **Cards** (stacked cards; the project-cards plugin's panel, when it's installed) and **Validate**
-  (shield with a check; run / export, status, facets and the grouped findings list), then **Assistant** (chat bubble), then any panel another plugin
-  adds. The map itself keeps only its zoom/highlight/fit buttons and the legend; the old Layers and Map display
-  popovers are gone, and their controls live in the **View** tab. A tab's badge is one pill at its icon's corner (orange while
-  edits are unsaved) and the tooltip says what it counts. The Edit tab's help paragraph hides behind its **×**; the **ⓘ** beside the heading brings it back.
-  Draggable handles between the map and the table, and between the map/table and the side panel, resize them
-  (double-click a handle to reset; sizes are remembered per browser).
+- **The layout: a left rail, a drawer, the map, and a Details panel.** When a plugin adds a workspace, tabs for each
+  appear in the header; each keeps the map / split / table view you left it in.
+  - **The rail** is a vertical strip of icons at the far left (hover for the name; counts stay as a badge on the
+    icon), in order: **Find** (magnifier; the selection form or box, anchors, diagnostics, export, saved selections
+    and highlighted links), **Changes** (clock with a counter-clockwise arrow; the edit list, undo/redo, edit
+    warnings and "Save selection as card…"), **Validate** (shield with a check; run / export, status, facets and the
+    grouped findings list), **Cards** (stacked cards; the project-cards plugin's panel, when it's installed) and
+    **Assistant** (chat bubble). Panels another plugin adds sit below a divider. Click an icon to open its pane in
+    the **drawer** beside the rail; click the open icon again to close the drawer, and the map takes the width. With
+    the keyboard, the Up and Down arrows move between icons and Enter or Space opens or closes the drawer. A badge is
+    one pill at its icon's corner (orange while edits are unsaved). The Changes pane's help paragraph hides behind its
+    **×**; the **ⓘ** beside the heading brings it back.
+  - **Details** is a panel on the right that opens when you focus a record: click a link or node on the map, click a
+    table row, zoom to a finding in Validate, or pick a result in Find. It lists the record's fields and has
+    **Edit…** and **Delete…**. Close it with its **×** or Escape (which also clears the focus); the map takes the width
+    back.
+  - **Layers & legend** is a card at the map's top-left, below the zoom control (see
+    [Style, filter and navigate](#style-filter-and-navigate)). The old View tab is gone.
+  - **Tooltips** appear above everything after a short pause on hover or keyboard focus, flipped to stay on screen,
+    and hide on Escape. Any button with a tooltip, a plugin's included, gets one.
+  - Draggable handles between the map and the table, between the drawer and the map, and between the map and Details
+    resize them (double-click a handle to reset; sizes are remembered per browser).
 - **Settings → Plugins** lists the installed [Workbench plugins](workbench-plugins.md): version, the plugin API
   each needs and whether it fits, and any error loading it. Its switch turns a plugin on or off; that applies the
   next time `netstead app` starts.
@@ -316,13 +326,13 @@ Edits change the network you opened **in memory**. Nothing is written to disk un
   column cannot hold (`1.5` lanes) is refused with a toast, and nothing changes; a value outside the spec's
   allowed list (an out-of-enum categorical, such as `facility_type = "boulevard"`) is **kept**, not dropped,
   and the cell is outlined in red with a warning icon, the reason as its tooltip.
-- **A record.** **Edit…** in Inspect, or **Edit record…** in the palette for the focused record, opens a form
+- **A record.** **Edit…** in the Details panel, or **Edit record…** in the palette for the focused record, opens a form
   for every editable column. When the record is a link in a multi-link selection, a checkbox applies the same
   values to every selected link. The note you type is kept with the edit.
 - **Fix…** opens the same editor from an issue, or from right-clicking a record that has one.
-- **Delete…** (Inspect, the record editor, or **Delete record…** in the palette) first runs a dry run and says
+- **Delete…** (the Details panel, the record editor, or **Delete record…** in the palette) first runs a dry run and says
   what goes with the record: a link takes its lanes and time-of-day rows (`Delete 1 link row? This also deletes
-  2 lane rows, 1 link_tod row. Undo is in the Edit tab.`). Confirm to delete. A node a link still uses cannot
+  2 lane rows, 1 link_tod row. Undo is in the Changes tab.`). Confirm to delete. A node a link still uses cannot
   be deleted: the refusal names the links. The delete runs against the network version the dry run planned on:
   if another Workbench action (or a plugin's or your Python's `mutate`) changed the network in between, it is
   refused and you confirm again. A replayed delete has no dry run: it deletes the ids and whatever depends on
@@ -333,7 +343,7 @@ Edits change the network you opened **in memory**. Nothing is written to disk un
 
 ### Undo and redo
 
-The undo icon in the **Edit** tab (tooltip "Undo last edit"; also in Inspect, or **Undo last edit** in the
+The undo icon in the **Changes** tab (tooltip "Undo last edit"; also in the Details panel, or **Undo last edit** in the
 palette) reverses your newest edit. Undo is last-in, first-out across everything that changed the network, and
 the Workbench only undoes **its own** edits:
 
@@ -386,7 +396,7 @@ written to, and a copy inside the source folder is refused.
   proves nothing) and asks the same. Saving anyway is recorded as `SaveNetwork(..., accept_warnings=True)`. The
   server checks again when the job runs, and asks again if something changed.
 - When the job ends, a toast says where the copy went and which tables differ from the source. The badge on the
-  Edit tab and in the network switcher (`• 1 unsaved`) counts edits no saved copy holds yet, and clears. If
+  Changes tab and in the network switcher (`• 1 unsaved`) counts edits no saved copy holds yet, and clears. If
   the network was edited while saving, the copy holds the version the save started from and the later edits stay
   unsaved; if it was closed while saving, nothing is marked saved.
 - **Replay.** A replayed `SaveNetwork` writes the copy again (and fails if it is still there), and its
@@ -453,8 +463,8 @@ cross-street names the resolver uses for `between`.
 
 ## Style, filter and navigate
 
-The map's style and link filter are set from the **View** tab (its layer toggles, color
-and width pickers, direction controls and **Filter links** replace the old map popovers).
+The map's style and link filter are set from the **Layers & legend** card on the map (its layer eyes, color
+and width pickers, direction controls and **Show only links where…** replace the old View tab and map popovers).
 Nodes colored by `ctrl_type` use a fixed style where size carries meaning too (signals large and red, stop signs orange or amber, yield yellow, uncontrolled nodes small and grey) and signals draw on top; other columns use the generic palette.
 
 - **Color links by** / **Color nodes by** pick a categorical or numeric column for links and nodes
@@ -464,13 +474,18 @@ Nodes colored by `ctrl_type` use a fixed style where size carries meaning too (s
 - The color swatches beside **Links**, **Nodes** and **Selection** set a single color. Picking the Links or Nodes
   swatch while that layer is colored by a column turns **Color links by** / **Color nodes by** off in the same
   recorded action (`Style(colors=..., node_color_by="none")`), since a column coloring would hide the swatch.
-- Each section of the View tab (Layers, Overlays, Color, Width, Direction, **Show only links where...**) folds open and
-  closed; the tab remembers which are folded in this browser. **Overlays** lists a plugin's or core's map layers
-  (issue markers, anchor candidates) with a switch and an info tooltip saying what each draws.
+- **The Layers & legend card** floats at the map's top-left. It is the legend: one row per layer (**Links**,
+  **Nodes**, **Selection**, then the overlays), each with an eye that shows or hides the layer, its color swatch,
+  and, for Links and Nodes, a **by** picker with the legend under it (the categories with their colors, or a
+  gradient with its minimum and maximum). The chevron on the Links row opens its other options: **Width by**,
+  **Show direction**, **Offset directions** and **Show only links where…**. **Overlays** lists a plugin's or core's
+  map layers (issue markers, anchor candidates) the same way, with an info tooltip saying what each draws. The footer
+  has **Basemap labels**, a **Ramp** choice while a numeric column colors a layer, and **Show legend**. The card
+  collapses to one **Layers** button (remembered in this browser), is hidden in Table view, and scrolls in Split view.
 - On the map, a click, right-click or hover picks only layers that are switched on, and when a node and a link are
   both under the pointer the node wins (so nodes can be inspected where links run through them).
 - **Width by** sizes links by a numeric column (`app.do(Style(width_by="lanes"))`).
-- **Show only links where...** (the View tab's filter; it hides the other links on the map and in the table's Filtered view and never changes the data) dims every link that doesn't match
+- **Show only links where...** (the Layers card's filter; it hides the other links on the map and in the table's Filtered view and never changes the data) dims every link that doesn't match
   (`app.do(Filter(where=[{"col": "lanes", "op": "gte", "val": 2}]))`); the table's **Filtered** scope lists the
   matching links (the filter applies to links: on the node table it lists every node). `Filter(where=None)`
   clears it. Filters are fields and operators only, never free text or SQL: `contains` matches a plain

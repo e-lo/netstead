@@ -81,9 +81,10 @@ network with GERS ids (`overture_segment_id`, `overture_connector_id`) for tryin
 You should see the **Netstead Workbench** header with the network picker showing `leavenworth`, the count
 **339 links · 121 nodes**, the **Map / Split / Table** view buttons, and the map below. If the map opens zoomed
 out, press the map's **Zoom to full network** button (the second of the small buttons on the map) and the
-downtown Leavenworth grid fills the view. The side panel on the right has five tabs — **Find**, **Inspect**,
-**Edit**, **Cards**, **Validate** — plus **Assistant**; the selection box with **Select** and **Ask** lives in
-the **Find** tab, not the header.
+downtown Leavenworth grid fills the view. The rail of icons on the left opens the panes — **Find**,
+**Changes**, **Validate**, **Cards** and **Assistant** — in a drawer (click an icon again to close it); the selection
+box with **Select** and **Ask** lives in the **Find** pane, not the header. Map settings are in the **Layers**
+card on the map, and a record's fields open in the **Details** panel on the right.
 
 ![The Workbench with the Leavenworth network open](assets/screenshots/workbench-01-open.png){ .screenshot }
 *The Workbench with the Leavenworth network open: header, network picker, counts, and the map. (screenshot predates the panel restructure)*
@@ -93,7 +94,7 @@ the **Find** tab, not the header.
 Press **Split** in the header. The map stays on the left and the `link` table opens on the right, with a rail
 listing every table in the network and its row count.
 
-Click a link on the map. The **Inspect** tab comes forward in the dock and shows that link's record (its
+Click a link on the map. The **Details** panel opens on the right and shows that link's record (its
 `facility_type`, `free_speed`, `lanes`, and so on), and the table outlines its row and scrolls to it, on
 whichever page it sits. Now click a different row in the table: it becomes the focused record and the map flies
 to it.
@@ -102,7 +103,7 @@ Clicking never changes the selection; focus is just a view. That matters in step
 thing the Workbench records.
 
 ![Split view: a link picked on the map, its row focused in the table](assets/screenshots/workbench-02-split.png){ .screenshot }
-*Split view: a link picked on the map, its row focused in the table, its record in Inspect. (screenshot predates the panel restructure)*
+*Split view: a link picked on the map, its row focused in the table, its record in Details. (screenshot predates the panel restructure)*
 
 ### 3. Select a street by name
 
@@ -145,7 +146,7 @@ recorded selection, not a one-off click.
 
 ### 5. Validate the network
 
-Open the **Validate** tab in the dock and press the run icon (**Run validation**). It runs as a background job (the **Jobs**
+Open the **Validate** pane from the rail and press the run icon (**Run validation**). It runs as a background job (the **Jobs**
 count in the header ticks while it works) and takes a few seconds on Leavenworth.
 
 When it finishes the status line reads `Validated v0: 271 warnings, 16 info`. That is two reports in one
@@ -156,7 +157,7 @@ default 35 mph threshold. The **Severity**, **Table** and **Code** filters show 
 `quality.high_speed_residential (271)`.
 
 Every located issue is a dot on the map. Click an issue in the list: the map flies to its link (or use the
-crosshair "zoom to" icon on a located finding), Inspect shows the record, and the table scrolls to its row and
+crosshair "zoom to" icon on a located finding), Details shows the record, and the table scrolls to its row and
 marks it. The 16 table-level findings have no place on the map, so they sit grouped under a collapsed
 **Unlocated findings** group at the bottom of the panel (expand with **`--all`**-style grouping, or the group's
 disclosure triangle).
@@ -189,8 +190,8 @@ Press the undo icon and the value goes back to 40, recorded as `app.do(UndoEdit(
 becomes active and would reapply the edit (`app.do(RedoEdit())`); instead, press **Fix** and apply the change
 once more, so there is an edit to save in step 8.
 
-![Fixing a free_speed value from an issue; the Edit tab shows the pending edit](assets/screenshots/workbench-06-fix.png){ .screenshot }
-*Fixing a free_speed value from an issue; the Edit tab shows the pending edit and the undo/redo icons. (screenshot predates the panel restructure)*
+![Fixing a free_speed value from an issue; the Changes tab shows the pending edit](assets/screenshots/workbench-06-fix.png){ .screenshot }
+*Fixing a free_speed value from an issue; the Changes tab shows the pending edit and the undo/redo icons. (screenshot predates the panel restructure)*
 
 ### 7. Replay the session as Python
 
@@ -213,7 +214,7 @@ Press the **Save** icon in the header (tooltip "Save a copy…") to open the sav
 opens; move to a folder inside your home directory and press **Use this folder**, then **Save**.
 
 The save runs as a job. When it finishes, a toast reads `Saved a copy to <folder>/leavenworth-fixed (1 edit).`
-and names the tables that differ from the source (`link`). In the Edit tab the edit is now marked `saved`
+and names the tables that differ from the source (`link`). In the Changes tab the edit is now marked `saved`
 and the unsaved badge clears. The folder you opened in step 1 is untouched: the Workbench never writes to the
 network it opened, and never overwrites an existing copy. A folder outside your home directory is refused
 (`… is outside the allowed folders`), which `io.allowed_roots` can widen: see

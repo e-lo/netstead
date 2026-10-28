@@ -1,15 +1,16 @@
-// Workspace tabs (header) and the dock (the right drawer), rendered from the slots registry. Core's Inspect workspace
-// and Inspect panel register here exactly as a plugin's would (the dock's other core panels register from their own
-// modules: Find in selection.js, Edit and Validate in edits.js, Assistant in assistant.js). Each strip shows only with two or more tabs, so a
-// Workbench with no plugins looks as it always has. Both strips follow the WAI-ARIA tabs pattern (arrows, Home, End).
+// Workspace tabs (header) and the dock (the left rail and its drawer), rendered from the slots registry. Core's Inspect
+// workspace registers here exactly as a plugin's would (the Details panel is not a dock panel: detailspanel.js; the dock's core panels register from their own
+// modules: Find in selection.js, Changes and Validate in edits.js, Assistant in assistant.js). The workspace strip shows only
+// with two or more tabs. The rail is a vertical icon strip: clicking an entry opens its pane in the drawer, clicking the
+// open entry closes the drawer. Both follow the WAI-ARIA tabs pattern (arrows, Home, End).
 import { commandContext } from "./commands.js";
 import { $, esc, toast } from "./dom.js";
 import { hub } from "./hub.js";
-import { ALL_WORKSPACES, CORE, panelsFor, slots } from "./slots.js";
+import { CORE, RESERVED_IDS, panelsFor, slots } from "./slots.js";
 import { store } from "./store.js";
 import { currentViewMode, savedViews, setViewMode } from "./table.js";
 import { ICONS, icon } from "./icons.js";
-import { nextIndex, normalizeBadge, stripVisibility, tabLabel, viewFor, workspaceBadge } from "./tabs.js";
+import { nextIndex, normalizeBadge, openRail, railGroups, stripVisibility, tabLabel, toggleRail, viewFor, workspaceBadge } from "./tabs.js";
 
 const WS_KEY = "netstead.workspace";
 const rendered = new Set(); // panels whose render(el) has run (once, the first time each shows)
@@ -21,7 +22,6 @@ const paneFor = id => document.getElementById(`dock-${id}`);
 
 export function registerCoreSlots() {
   slots.addWorkspace(CORE, { id: "inspect", title: "Inspect", order: 0 });
-  slots.addPanel(CORE, { id: "inspect", title: "Inspect", icon: "info", workspace: ALL_WORKSPACES, order: 10 }); // adopts #dock-inspect
 }
 
 export function addWorkspace(owner, spec) {
@@ -77,8 +77,14 @@ export function showPanel(id) {
   const p = slots.panels.get(id);
   if (!p) return;
   if (!panelsFor([p], store.get().workspace).length) showWorkspace([].concat(p.workspace)[0]);
-  const s = store.get();
-  store.set({ dockPanel: { ...s.dockPanel, [s.workspace]: id } });
+  const s = store.get(), next = openRail(id);
+  store.set({ dockPanel: { ...s.dockPanel, [s.workspace]: next.current }, drawerOpen: next.open });
+}
+
+// A click on a rail entry: open its pane, or close the drawer when it is the open one.
+function toggleDock(id) {
+  const s = store.get(), next = toggleRail({ open: s.drawerOpen, current: (selectedPanel(currentPanels()) || {}).id }, id);
+  store.set({ dockPanel: { ...s.dockPanel, [s.workspace]: next.current }, drawerOpen: next.open });
 }
 
 // After plugins load: reopen the workspace this browser last used, if it still exists.
@@ -103,16 +109,23 @@ function badgeOf(item) {
 const badgeTone = b => (b.tone === "error" ? " error" : b.dirty || b.tone === "warn" ? " warn" : "");
 const badgeHTML = b => (b && !b.quiet ? ` <span class="pcount${badgeTone(b)}" aria-hidden="true">${esc(b.text)}</span>` : "");
 
-// Every plugin-supplied string (id, title, badge) is escaped.
-function tabHTML(prefix, item, selected, badge, controls) {
-  const iconic = prefix === "dtab" && typeof item.icon === "string" && Object.hasOwn(ICONS, item.icon);
+// Every plugin-supplied string (id, title, badge) is escaped. A rail entry (prefix "dtab") is an icon with its title as
+// the tooltip (the title's first letter when the panel has no known icon); `selected` marks the open pane, `tabbable`
+// the one entry the Tab key reaches (the others take arrows).
+function tabHTML(prefix, item, selected, badge, controls, tabbable = selected) {
+  const rail = prefix === "dtab";
+  const iconic = rail && typeof item.icon === "string" && Object.hasOwn(ICONS, item.icon);
   const label = tabLabel(String(item.title), badge);
-  const body = iconic ? `${icon(item.icon, { size: 18 })}${badgeHTML(badge)}` : `${esc(item.title)}${badgeHTML(badge)}`;
+  const glyph = iconic ? icon(item.icon, { size: 20 }) : `<span class="railtxt" aria-hidden="true">${esc(String(item.title).slice(0, 1).toUpperCase())}</span>`;
+  const body = rail ? `${glyph}${badgeHTML(badge)}` : `${esc(item.title)}${badgeHTML(badge)}`;
+  const classes = [selected ? "on" : "", rail ? "icontab" : ""].join(" ").trim();
   return `<button role="tab" id="${prefix}-${esc(item.id)}" data-id="${esc(item.id)}" aria-selected="${selected}" ` +
-    `aria-controls="${esc(controls)}" tabindex="${selected ? 0 : -1}" aria-label="${esc(label)}"` +
-    `${iconic ? ` data-tip="${esc(label)}"` : ""}${selected || iconic ? ` class="${[selected ? "on" : "", iconic ? "icontab" : ""].join(" ").trim()}"` : ""}>` +
+    `aria-controls="${esc(controls)}" tabindex="${tabbable ? 0 : -1}" aria-label="${esc(label)}"` +
+    `${rail ? ` data-tip="${esc(label)}" data-tip-side="right"` : ""}${classes ? ` class="${classes}"` : ""}>` +
     `${body}</button>`;
 }
+
+const isPluginPanel = p => p.owner !== CORE && RESERVED_IDS[p.id] !== p.owner;
 
 // Redraw a strip without losing keyboard focus from the tab that had it (state arrives while a user tabs around).
 function redraw(el, html) {
@@ -135,13 +148,15 @@ export function renderStrips() {
   redraw($("ws-tabs"), show.workspaces ? workspaces.map(w => tabHTML("wtab", w, w.id === s.workspace,
     workspaceBadge(badgeOf(w), panelsFor(slots.panels.list(), w.id).map(badgeOf)), "stage")).join("") : "");
   setPanelRole($("stage"), show.workspaces ? `wtab-${s.workspace}` : null);
-  $("dock-tabs").hidden = !show.dock;
-  redraw($("dock-tabs"), show.dock ? panels.map(p => tabHTML("dtab", p, p === current, badgeOf(p), `dock-${p.id}`)).join("") : "");
+  const open = s.drawerOpen && Boolean(current);
+  $("app").dataset.drawer = open ? "open" : "closed";
+  redraw($("dock-tabs"), railGroups(panels, isPluginPanel).map(p => p.divider ? '<div class="rail-sep" aria-hidden="true"></div>'
+    : tabHTML("dtab", p, open && p === current, badgeOf(p), `dock-${p.id}`, p === current)).join(""));
   for (const pane of $("side").querySelectorAll(".dock-pane")) {
-    pane.hidden = !current || pane.dataset.panel !== current.id;
-    setPanelRole(pane, show.dock ? `dtab-${pane.dataset.panel}` : null);
+    pane.hidden = !open || pane.dataset.panel !== current.id;
+    setPanelRole(pane, `dtab-${pane.dataset.panel}`);
   }
-  if (current) showPane(current);
+  if (open) showPane(current);
   hub.emit("core.panels", slots.panels.list().map(p => p.id)); // core controls that need a plugin's panel listen
 }
 
@@ -166,12 +181,11 @@ function failed(p, pane, e) {
   pane.innerHTML = `<p class="empty">This panel failed to load: ${esc((e && e.message) || e)}</p>`;
 }
 
-// Arrow keys, Home and End move along a strip from the focused tab. The dock's tabs activate as focus moves (a
-// panel is cheap to show); workspace tabs only move focus, and Enter or Space (the button's click) switches, because
-// a switch can change the whole stage's layout.
-function onStripKey(e, items, activate, prefix, { manual = false } = {}) {
+// Arrow keys, Home and End move along a strip from the focused tab. Both strips only move focus: Enter or Space (the
+// button's click) switches a workspace or toggles a rail entry, because either changes the page's layout.
+function onStripKey(e, items, activate, prefix, { manual = false, axis = "horizontal" } = {}) {
   const from = e.target.closest('[role="tab"]');
-  const n = nextIndex(items.findIndex(x => from && x.id === from.dataset.id), e.key, items.length);
+  const n = nextIndex(items.findIndex(x => from && x.id === from.dataset.id), e.key, items.length, axis);
   if (n === null) return;
   e.preventDefault();
   if (!manual) activate(items[n].id);
@@ -182,9 +196,9 @@ function onStripKey(e, items, activate, prefix, { manual = false } = {}) {
 export function wireWorkspaces({ onError } = {}) {
   if (onError) report = onError;
   $("ws-tabs").onclick = e => { const b = e.target.closest('[role="tab"]'); if (b) showWorkspace(b.dataset.id); };
-  $("dock-tabs").onclick = e => { const b = e.target.closest('[role="tab"]'); if (b) showPanel(b.dataset.id); };
+  $("dock-tabs").onclick = e => { const b = e.target.closest('[role="tab"]'); if (b) toggleDock(b.dataset.id); };
   $("ws-tabs").onkeydown = e => onStripKey(e, slots.workspaces.list(), showWorkspace, "wtab", { manual: true });
-  $("dock-tabs").onkeydown = e => onStripKey(e, currentPanels(), showPanel, "dtab");
-  store.subscribe(["workspace", "dockPanel", "server"], () => renderStrips());
+  $("dock-tabs").onkeydown = e => onStripKey(e, currentPanels(), toggleDock, "dtab", { manual: true, axis: "vertical" });
+  store.subscribe(["workspace", "dockPanel", "drawerOpen", "server"], () => renderStrips());
   renderStrips();
 }
