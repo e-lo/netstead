@@ -13,7 +13,9 @@ This file is for the **netstead** package only. The underlying generic engine `c
   Ave", "I-40 EB", "all residential links", "links 5, 6") and calls the model only when that reading names a
   street, route number or road type the network doesn't have, or selects nothing. Such a selection records
   `parsed_by: {"provider": "stub", "mode": "pattern", "grammar_first": true}`. Turn it off with
-  `select.grammar_first = false`. On an OSM Raleigh–Durham network (303k links) with `qwen2.5:7b` in Ollama,
+  `select.grammar_first = false`. `netstead select` does the same. The new cookbook page
+  [Find links by describing them](https://e-lo.github.io/netstead/netstead/cookbook/find-links/) lists what you
+  can type, when the model is called, and timings. On an OSM Raleigh–Durham network (303k links) with `qwen2.5:7b` in Ollama,
   four of eight test requests went from 2.8–6.7 s to under 30 ms.
 - **Street names are indexed once per network version** (`netstead.select.StreetIndex`), so resolving a
   selection no longer re-normalizes every link's name for each street and anchor. On the Raleigh–Durham network,

@@ -174,6 +174,7 @@ nav:
           - Edit with rollback: cookbook/edit-with-rollback.md
       - Workbench:
           - Explore in the Workbench: cookbook/workbench.md
+          - Find links by describing them: cookbook/find-links.md
           - Write a Workbench plugin: cookbook/workbench-plugins.md
           - Author ProjectCards: cookbook/workbench-project-cards.md
           - Local language models (Ollama): cookbook/local-llm-ollama.md

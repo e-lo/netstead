@@ -146,6 +146,11 @@ bound to this machine (the default, `127.0.0.1`). Otherwise, pull from a termina
    If that isn't the default because the default isn't installed, hovering over the model says so.
 3. That choice applies to this session. Click **Make default** to save it to your user config.
 
+Common requests ("Cedar St between Central Ave and Price Ave", "all residential links") are answered by the
+offline pattern parser without calling the model; the model is called for the rest. A local 7B model takes a few
+seconds per call on a laptop, plus the time to load it into memory on the first call
+([timings](find-links.md#performance)).
+
 Or set it in a config file:
 
 ```toml
@@ -229,5 +234,7 @@ constrained to the same schema. You don't need to do anything.
 
 ## See also
 
+- [Find links by describing them](find-links.md) — what to type, which requests skip the model entirely, and
+  timings with `qwen2.5:7b`.
 - [Explore networks in the Netstead Workbench](workbench.md#language-models-natural-language-selection) — every provider, keys, quality settings.
 - [Ollama documentation](https://docs.ollama.com) — install, the CLI, and the API.

@@ -18,6 +18,7 @@ from __future__ import annotations
 import collections
 
 import numpy as np
+import pandas as pd
 
 from . import anchors as _anchors
 from ._support import (
@@ -331,13 +332,19 @@ def resolve_frames(
 
 def resolve(intent: SelectionIntent, net) -> SelectionResult:
     """Resolve against a netstead Network (materializes link/node tables)."""
+    links, nodes, use_groups = network_frames(net)
+    return resolve_frames(intent, links, nodes, use_groups=use_groups)
+
+
+def network_frames(net) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, set[str]]]:
+    """``(links, nodes, use_groups)`` of a netstead Network, materialized for :func:`resolve_frames`."""
 
     def _pd(table):
         return table.to_pandas() if hasattr(table, "to_pandas") else table.execute()
 
     groups = getattr(net, "use_group", None)
     group_df = _pd(groups) if groups is not None else None
-    return resolve_frames(intent, _pd(net.links), _pd(net.nodes), use_groups=_use_groups(group_df))
+    return _pd(net.links), _pd(net.nodes), _use_groups(group_df)
 
 
 def _use_groups(df) -> dict[str, set[str]]:

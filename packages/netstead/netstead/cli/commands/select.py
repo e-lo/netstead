@@ -23,9 +23,10 @@ from netstead import Network
 from ...config import SettingsError, load_settings
 from ...llm import LLMError, build_registry
 from ...select.emit import to_fragment
-from ...select.parse import make_parser
-from ...select.resolve import resolve
+from ...select.parse import StubParser, make_parser
+from ...select.resolve import network_frames, resolve_frames
 from ...select.result import SelectionResult
+from ...select.streets import StreetIndex, grammar_first
 from .._helpers import resolve_engine
 
 __all__ = ["EXIT_AMBIGUOUS", "EXIT_NOT_FOUND", "register"]
@@ -36,12 +37,15 @@ EXIT_NOT_FOUND = 1
 EXIT_AMBIGUOUS = 3
 
 
-def _make_parser(provider: str | None, model: str | None) -> Any:
-    """The parser for ``--provider``/``--model`` over the layered settings (exit 2: bad settings; 1: no key)."""
+def _make_parser(provider: str | None, model: str | None) -> tuple[Any, bool]:
+    """``(parser, grammar_first)`` for ``--provider``/``--model`` over the layered settings.
+
+    Exits 2 on bad settings and 1 on a missing key.
+    """
     overrides = {k: v for k, v in {"select.provider": provider, "select.model": model}.items() if v is not None}
     try:
         settings = load_settings(overrides=overrides).settings
-        return make_parser(settings.select, build_registry(settings))
+        return make_parser(settings.select, build_registry(settings)), settings.select.grammar_first
     except SettingsError as exc:
         typer.echo(f"error: {exc}", err=True)
         raise typer.Exit(2) from None
@@ -75,16 +79,29 @@ def register(app: typer.Typer) -> None:
         ambiguous result it prints the status, the provisional link ids, each
         anchor with the other nodes it could be, and diagnostics (exit 3); on
         not-found it prints diagnostics (exit 1).
-        """
-        parser = _make_parser(provider, model)
-        try:
-            intent = parser.parse(utterance)
-        except LLMError as exc:
-            typer.echo(f"error: {exc}", err=True)
-            raise typer.Exit(1) from None
 
+        With a language model chosen and ``select.grammar_first`` on (the default),
+        the offline grammar is tried first and the model is called only when it
+        can't read the request with names the network has, as in the Workbench.
+        """
+        parser, grammar_on = _make_parser(provider, model)
         net = Network.from_source(source, engine=resolve_engine(engine))
-        result = resolve(intent, net)
+        links, nodes, use_groups = network_frames(net)
+        index = StreetIndex.build(links)
+        result = None
+        if grammar_on and not isinstance(parser, StubParser):
+            quick = grammar_first(utterance, index)
+            if quick is not None:
+                result = resolve_frames(quick, links, nodes, use_groups, index=index)
+                if result.status == "not_found":
+                    result = None
+        if result is None:
+            try:
+                intent = parser.parse(utterance)
+            except LLMError as exc:
+                typer.echo(f"error: {exc}", err=True)
+                raise typer.Exit(1) from None
+            result = resolve_frames(intent, links, nodes, use_groups, index=index)
 
         if result.status == "not_found":
             _emit({"status": result.status, "diagnostics": result.diagnostics}, json_out)
