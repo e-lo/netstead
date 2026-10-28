@@ -98,6 +98,8 @@ The rule classes:
 
 ::: netstead.graph.GMNSGraph
 
+::: netstead.graph.S2Overlay
+
 ## Clean (optional `[clean]` extra)
 
 ::: netstead.clean.simplify_geometry
@@ -143,6 +145,10 @@ The rule classes:
 ::: netstead.select.SelectionResult
 
 ::: netstead.select.StubParser
+
+::: netstead.select.StreetIndex
+
+::: netstead.select.grammar_first
 
 ## Map
 

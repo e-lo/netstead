@@ -181,6 +181,9 @@ class SelectSettings(_Section):
 
     provider: Literal["stub", "anthropic", "openai", "gemini", "ollama"] = "stub"
     model: str | None = None
+    #: Try the offline grammar first and call the model only when it can't read the request with
+    #: names the network has (or its reading selects nothing). Off: every request goes to the model.
+    grammar_first: bool = True
 
     @field_validator("provider", mode="before")
     @classmethod
