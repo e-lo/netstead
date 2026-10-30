@@ -12,7 +12,9 @@ A name the network doesn't spell the same way still matches, in this order (firs
    (``"Hillsborough St"`` -> ``Hillsborough Street``, ``"N Main St"`` -> ``North Main Street``);
 3. **directional**: the same once a leading or trailing direction is dropped from both
    (``"Peace Street"`` -> ``West Peace Street`` and ``East Peace Street``);
-4. **fuzzy**: a misspelling, the closest name at least 85% similar once directions are dropped
+4. **bare**: the street type left out (``"Central"`` -> ``Central Avenue``), every street of that
+   name if there are several;
+5. **fuzzy**: a misspelling, the closest name at least 85% similar once directions are dropped
    (``"Hillsboro St"`` -> ``Hillsborough Street``); names shorter than 5 letters never match this way.
 
 A direction the request names never picks up a street on another side ("W Six Forks Rd" is not
@@ -84,6 +86,8 @@ _DIRECTIONS = {
     "sw": "southwest",
 }
 _DIRECTION_WORDS = frozenset(_DIRECTIONS.values())
+#: Words that can end a street's name as its type; a request may leave them out.
+_TYPE_WORDS = frozenset(_STREET_TYPES.values()) | {"loop", "pike", "row", "run", "walk", "way"}
 #: How alike (difflib ratio) a misspelled name must be to the network's, and the shortest it may be.
 _FUZZY_CUTOFF = 0.85
 _FUZZY_MIN_LENGTH = 5
@@ -97,7 +101,7 @@ class NameMatch(NamedTuple):
     """The network's spellings of a name, and which rule found them (``None``: not in the network)."""
 
     names: tuple[str, ...]
-    how: Literal["exact", "spelling", "directional", "fuzzy"] | None
+    how: Literal["exact", "spelling", "directional", "bare", "fuzzy"] | None
 
 
 def _words(text: str) -> list[str]:
@@ -128,19 +132,37 @@ def spelling_key(text: str) -> str:
     return "".join(_words(text))
 
 
-def _split_directions(text: str) -> tuple[str, frozenset[str]]:
-    """``(spelling key without a leading/trailing direction, those directions)``.
-
-    >>> _split_directions("W Peace St")
-    ('peacestreet', frozenset({'west'}))
-    """
+def _split_words(text: str) -> tuple[list[str], frozenset[str]]:
+    """``(the words of ``text`` without a leading/trailing direction, those directions)``."""
     words = _words(text)
     dirs = set()
     if len(words) > 1 and words[0] in _DIRECTION_WORDS:
         dirs.add(words.pop(0))
     if len(words) > 1 and words[-1] in _DIRECTION_WORDS:
         dirs.add(words.pop())
-    return "".join(words), frozenset(dirs)
+    return words, frozenset(dirs)
+
+
+def _split_directions(text: str) -> tuple[str, frozenset[str]]:
+    """``(spelling key without a leading/trailing direction, those directions)``.
+
+    >>> _split_directions("W Peace St")
+    ('peacestreet', frozenset({'west'}))
+    """
+    words, dirs = _split_words(text)
+    return "".join(words), dirs
+
+
+def _bare_key(text: str) -> str | None:
+    """The key of a street's name without its direction and type; ``None`` when it has no type to drop.
+
+    >>> _bare_key("W Central Ave")
+    'central'
+    >>> _bare_key("Broadway") is None
+    True
+    """
+    words, _ = _split_words(text)
+    return "".join(words[:-1]) if len(words) > 1 and words[-1] in _TYPE_WORDS else None
 
 
 def _group_rows(values: pd.Series, normalize) -> dict[str, np.ndarray]:
@@ -172,6 +194,7 @@ class StreetIndex:
     rows_by_ref: dict[str, np.ndarray]  # norm_ref token -> rows
     names_by_key: dict[str, tuple[str, ...]]  # spelling_key -> norm_names
     names_by_base: dict[str, tuple[str, ...]]  # spelling key without directions -> norm_names
+    names_by_bare: dict[str, tuple[str, ...]]  # that key without the street type too -> norm_names
     directions: dict[str, frozenset[str]]  # norm_name -> its leading/trailing direction words
     spelled: dict[str, str]  # norm_name -> the network's own spelling
     ramp_rows: np.ndarray  # rows whose facility_type is a ramp/connector (``*_link``)
@@ -196,11 +219,14 @@ class StreetIndex:
                 spelled.setdefault(name, str(value))
         by_key: dict[str, set[str]] = {}
         by_base: dict[str, set[str]] = {}
+        by_bare: dict[str, set[str]] = {}
         directions: dict[str, frozenset[str]] = {}
         for name, text in spelled.items():
             by_key.setdefault(spelling_key(text), set()).add(name)
             base, directions[name] = _split_directions(text)
             by_base.setdefault(base, set()).add(name)
+            if bare := _bare_key(text):
+                by_bare.setdefault(bare, set()).add(name)
 
         if "facility_type" in links.columns:
             kinds = links["facility_type"].astype("string")
@@ -223,6 +249,7 @@ class StreetIndex:
             rows_by_ref=rows_by_ref,
             names_by_key={k: tuple(sorted(v)) for k, v in by_key.items()},
             names_by_base={k: tuple(sorted(v)) for k, v in by_base.items()},
+            names_by_bare={k: tuple(sorted(v)) for k, v in by_bare.items()},
             directions=directions,
             spelled=spelled,
             ramp_rows=ramp_rows,
@@ -237,7 +264,7 @@ class StreetIndex:
             raise ValueError("this StreetIndex was built from a different links frame; rebuild it")
 
     def lookup_name(self, text: Any) -> NameMatch:
-        """The network's names that ``text`` stands for: exact, spelling, directional, then fuzzy (see module)."""
+        """The network's names that ``text`` stands for: exact, spelling, directional, bare, fuzzy (see module)."""
         exact = norm_name(text)
         if not exact:
             return NameMatch((), None)
@@ -248,6 +275,8 @@ class StreetIndex:
         base, asked = _split_directions(text)
         if found := self._same_side(self.names_by_base.get(base, ()), asked):
             return NameMatch(found, "directional")
+        if found := self._same_side(self.names_by_bare.get(base, ()), asked):
+            return NameMatch(found, "bare")
         if len(base) >= _FUZZY_MIN_LENGTH and (found := self._same_side(self._closest(base), asked)):
             return NameMatch(found, "fuzzy")
         return NameMatch((), None)

@@ -24,7 +24,8 @@ This file is for the **netstead** package only. The underlying generic engine `c
   resolving drops from 230–770 ms to 0.2–4 ms after a 0.16 s build (and from 36 ms to 11 ms for "all
   residential links"). Names now also match when the request abbreviates a street type or direction
   ("Hillsborough St" finds Hillsborough Street), leaves out a direction the network has ("Peace Street" finds
-  West and East Peace Street, but "W Six Forks Rd" never finds East Six Forks Road), or misspells it ("Hilsborough
+  West and East Peace Street, but "W Six Forks Rd" never finds East Six Forks Road), leaves out the street type
+  ("Central" finds Central Avenue, so "Cedar Street from Central to Price" works), or misspells it ("Hilsborough
   Street" and "Glenwod Ave" find the closest name at least 85% alike; names under 5 letters are never guessed).
   An exact match still wins, and a looser one is noted in the selection's diagnostics. The Find tab's
   cross-street list reads the same index.
@@ -46,6 +47,9 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Fixed
 
+- **Ask's prompt cache is reused on Anthropic.** The Workbench's state (selection, filter, map style) sat inside
+  the cached part of the prompt, so any action rewrote all of it. It is now sent after the cached part. On Haiku
+  5.5 with Leavenworth, an Ask within five minutes of another costs $0.0002–0.0003 instead of $0.0012.
 - **Anthropic's newest models no longer reject netstead's requests.** Sonnet 5.5 and Opus 5.5 refuse a
   temperature and a forced tool call, and Haiku 5.5 refuses a temperature; netstead sent both. Catalog models
   now say which they accept (`sampling`, `forced_tools`), and get a low `effort` so their thinking stays short.
