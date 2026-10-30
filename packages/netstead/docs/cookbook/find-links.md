@@ -80,6 +80,7 @@ that finds something wins:
 | Exact | `cedar street` | Cedar Street | case, spaces and punctuation ignored |
 | Abbreviation | `Cedar St`, `N Main St` | Cedar Street, North Main Street | street types (St, Ave, Rd, Blvd, Dr, Ln, Ct, Pl, Pkwy, Hwy, …) and directions (N, S, E, W, NE, …) |
 | Direction left out | `Peace Street` | West Peace Street, East Peace Street | selects every side; `W Peace St` selects only the West side |
+| Type left out | `Central`, `W Peace` | Central Avenue, West Peace Street | every street of that name, so `Oak` selects both Oak Street and Oak Road |
 | Close spelling | `Ceder Street`, `Hilsborough St` | Cedar Street, Hillsborough Street | the closest name at least 85% alike; never for names under 5 letters |
 
 Whenever a rule other than the exact one was used, the selection's diagnostics say so, for example
@@ -148,9 +149,10 @@ Measured on an Apple M3 laptop (16 GB) with an OpenStreetMap Raleigh–Durham ro
 - **Looking up names is fast in both cases.** The network's street names are indexed once per network version
   (0.16 s for this network) and then each lookup takes well under a millisecond, where the previous release spent
   0.2–0.8 s per request re-reading every link's name.
-- **A cloud model** skips the load wait but adds a network round trip; we haven't measured one here. It costs
-  little: a Find or Ask call sends about 5,000 tokens and gets a few hundred back, about $0.0007 on Haiku 5.5
-  (Anthropic's default) and $0.013 on Sonnet 5.5, less when the shared start of the prompt is cached.
+- **A cloud model** skips the load wait but adds a network round trip: 1–2.5 s per call on Haiku 5.5 (Anthropic's
+  default), measured with Leavenworth. It costs little, because the unchanging start of the prompt is cached for
+  five minutes after each use: about $0.0001 per Find, and per Ask about $0.0012 for the first in five minutes and
+  $0.0002–0.0003 after that.
 
 ## Pitfalls
 
@@ -158,6 +160,7 @@ Measured on an Apple M3 laptop (16 GB) with an OpenStreetMap Raleigh–Durham ro
   selects only Center Street. Likewise a misspelling that happens to be another street's real name finds that
   street, not the one you meant.
 - **A close spelling is a guess.** When the diagnostics say `(a close spelling)`, check the map.
+- **A name without its type can mean several streets.** The diagnostics list each one it matched.
 - **Route numbers need a `ref` column.** Without one, `I-40` goes to the model, which can't find it either.
 
 ## See also

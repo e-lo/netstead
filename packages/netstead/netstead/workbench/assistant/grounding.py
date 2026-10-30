@@ -86,10 +86,16 @@ _MIN_PART = 200
 
 @dataclass(frozen=True)
 class Grounding:
-    """The cacheable ``context`` (guide, then state), the guide on its own (for size checks), and the tiers used."""
+    """What the model is told about the session, and the tiers used.
+
+    ``context`` (guide, street names, project notes) only changes with the network, so its prompt cache is reused.
+    ``state`` (the selection, filter and map style right now) changes with every action, so it stays out of it.
+    ``guide`` is the guide on its own (for size checks).
+    """
 
     context: str
     guide: str
+    state: str = ""
     grounded: bool = False
     notes: bool = False
 
@@ -295,10 +301,14 @@ def build_grounding(
             part, more = _fit("project_notes", "", body, cap - sum(len(p) + 2 for p in parts))
             cut |= more
             parts += [part] if part else []
-    if cut:
-        parts.append(TRUNCATED)
-    body = "\n\n".join(parts)
-    return Grounding(context="\n\n".join(p for p in (guide, body) if p), guide=guide, grounded=grounded, notes=notes)
+    state_text, *stable = parts
+    return Grounding(
+        context="\n\n".join(p for p in (guide, *stable) if p),
+        guide=guide,
+        state=f"{state_text}\n\n{TRUNCATED}" if cut else state_text,
+        grounded=grounded,
+        notes=notes,
+    )
 
 
 def assistant_disclosure(

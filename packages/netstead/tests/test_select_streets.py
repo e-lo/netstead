@@ -49,6 +49,12 @@ def index(net):
         ("Glenwod Ave", ("Glenwood Avenue",), "fuzzy"),
         ("Peece Street", ("East Peace Street", "West Peace Street"), "fuzzy"),
         ("W Peece St", ("West Peace Street",), "fuzzy"),  # a misspelling still keeps to its side
+        ("Glenwood", ("Glenwood Avenue",), "bare"),
+        ("Peace", ("East Peace Street", "West Peace Street"), "bare"),
+        ("W Peace", ("West Peace Street",), "bare"),
+        ("Six Forks", ("East Six Forks Road", "Six Forks Road"), "bare"),
+        ("St Marys", ("St Marys Street",), "bare"),
+        ("Glenwood Road", (), None),  # a type the request does name has to agree
         ("Wde", (), None),  # too short to guess at
         ("Oak Road", (), None),
         ("", (), None),
@@ -80,6 +86,14 @@ def test_resolve_matches_spelling_variants_and_says_so(net, index):
     assert "matched 'Glenwood Ave' to 'Glenwood Avenue'" in result.diagnostics
 
 
+def test_cross_streets_may_leave_out_their_type(net, index):
+    links, nodes = net
+    intent = SelectionIntent(facility=Facility(name="Glenwood Avenue"), from_anchor="Peace", to_anchor="Wade")
+    result = resolve_frames(intent, links, nodes, index=index)
+    assert result.status == "resolved" and result.link_ids == [2, 3]
+    assert "matched 'Wade' to 'Wade Avenue'" in result.diagnostics
+
+
 def test_resolve_builds_its_own_index_and_refuses_a_stale_one(net, index):
     links, nodes = net
     intent = SelectionIntent(facility=Facility(name="Wade Avenue"))
@@ -106,6 +120,7 @@ def test_a_network_without_name_or_ref_columns(net):
         "Glenwood Avenue",
         "Glenwood Ave northbound",
         "Glenwood Ave between Peace St and Wade Avenue",
+        "Glenwood from Peace to Wade",
         "I-40 EB",
         "all links",
         "all secondary links",

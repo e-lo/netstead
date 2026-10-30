@@ -362,6 +362,17 @@ def test_unreported_usage_is_counted_as_characters_over_four(tmp_path, isolated_
     assert s.assistant.used["ollama"] == sent // 4 + 10
 
 
+def test_the_session_state_stays_out_of_the_cached_context(tmp_path, isolated_env):
+    p = Scripted(Completion(text="x"), Completion(text="y"))
+    s = _session(tmp_path, isolated_env, p)
+    s.assistant.ask("hi")
+    s.dispatch({"type": "style", "color_by": "lanes"})
+    s.assistant.ask("hi again")
+    first, second = p.requests
+    assert "<workbench_state>" in first.system and "<workbench_state>" not in first.context
+    assert first.context == second.context and first.system != second.system
+
+
 def test_consistent_holds_the_session_lock_so_no_action_runs_meanwhile(tmp_path, isolated_env):
     import threading
 
