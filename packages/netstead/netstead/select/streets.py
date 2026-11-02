@@ -15,7 +15,9 @@ A name the network doesn't spell the same way still matches, in this order (firs
 4. **bare**: the street type left out (``"Central"`` -> ``Central Avenue``), every street of that
    name if there are several;
 5. **fuzzy**: a misspelling, the closest name at least 85% similar once directions are dropped
-   (``"Hillsboro St"`` -> ``Hillsborough Street``); names shorter than 5 letters never match this way.
+   (``"Hillsboro St"`` -> ``Hillsborough Street``), or against names without their type when the
+   request gives none, at 80% (``"Centrl"`` -> ``Central Avenue``); names shorter than 5 letters
+   never match this way.
 
 A direction the request names never picks up a street on another side ("W Six Forks Rd" is not
 East Six Forks Road).
@@ -90,6 +92,8 @@ _DIRECTION_WORDS = frozenset(_DIRECTIONS.values())
 _TYPE_WORDS = frozenset(_STREET_TYPES.values()) | {"loop", "pike", "row", "run", "walk", "way"}
 #: How alike (difflib ratio) a misspelled name must be to the network's, and the shortest it may be.
 _FUZZY_CUTOFF = 0.85
+#: A name without its type is shorter, so one wrong letter counts for more ("Ceder" is 80% like "Cedar").
+_BARE_FUZZY_CUTOFF = 0.8
 _FUZZY_MIN_LENGTH = 5
 #: Road types that never bridge a gap in a street (parking aisles, driveways, paths).
 _NO_BRIDGE_TYPES = frozenset({"service", "footway", "path", "cycleway", "pedestrian", "steps", "track"})
@@ -200,7 +204,7 @@ class StreetIndex:
     ramp_rows: np.ndarray  # rows whose facility_type is a ramp/connector (``*_link``)
     bridge_rows: np.ndarray  # rows that may bridge a gap in a street (see :meth:`bridge_rows_near`)
     facility_types: frozenset[str]
-    _fuzzy: dict[str, tuple[str, ...]] = field(default_factory=dict, repr=False)  # memo: base key -> names
+    _fuzzy: dict[tuple[str, bool], tuple[str, ...]] = field(default_factory=dict, repr=False)  # see _closest
 
     @classmethod
     def build(cls, links: pd.DataFrame) -> StreetIndex:
@@ -277,8 +281,13 @@ class StreetIndex:
             return NameMatch(found, "directional")
         if found := self._same_side(self.names_by_bare.get(base, ()), asked):
             return NameMatch(found, "bare")
-        if len(base) >= _FUZZY_MIN_LENGTH and (found := self._same_side(self._closest(base), asked)):
-            return NameMatch(found, "fuzzy")
+        if len(base) >= _FUZZY_MIN_LENGTH:
+            # A type the request names has to agree, so only a request without one is compared with bare names.
+            found = self._same_side(self._closest(base), asked)
+            if not found and _bare_key(text) is None:
+                found = self._same_side(self._closest(base, bare=True), asked)
+            if found:
+                return NameMatch(found, "fuzzy")
         return NameMatch((), None)
 
     def _same_side(self, names, asked: frozenset[str]) -> tuple[str, ...]:
@@ -290,12 +299,16 @@ class StreetIndex:
         keep = [n for n in names if not asked or not self.directions[n] or self.directions[n] == asked]
         return tuple(self.spelled[n] for n in keep)
 
-    def _closest(self, base: str) -> tuple[str, ...]:
-        """The names whose direction-free key is most like ``base`` (ties all kept), if any reach the cutoff."""
-        if base not in self._fuzzy:
+    def _closest(self, base: str, *, bare: bool = False) -> tuple[str, ...]:
+        """The names whose direction-free key is most like ``base`` (ties all kept), if any reach the cutoff.
+
+        ``bare`` compares against the keys without a street type instead.
+        """
+        table = self.names_by_bare if bare else self.names_by_base
+        if (base, bare) not in self._fuzzy:
             matcher = difflib.SequenceMatcher(b=base, autojunk=False)
-            best, keys = _FUZZY_CUTOFF, []
-            for key in self.names_by_base:
+            best, keys = _BARE_FUZZY_CUTOFF if bare else _FUZZY_CUTOFF, []
+            for key in table:
                 matcher.set_seq1(key)
                 if matcher.real_quick_ratio() < best or matcher.quick_ratio() < best:
                     continue
@@ -304,8 +317,8 @@ class StreetIndex:
                     best, keys = score, [key]
                 elif score == best:
                     keys.append(key)
-            self._fuzzy[base] = tuple(sorted({n for key in keys for n in self.names_by_base[key]}))
-        return self._fuzzy[base]
+            self._fuzzy[base, bare] = tuple(sorted({n for key in keys for n in table[key]}))
+        return self._fuzzy[base, bare]
 
     def name_rows(self, text: Any) -> tuple[np.ndarray, NameMatch]:
         """Rows of the links ``text`` names (see :meth:`lookup_name`), and the match."""

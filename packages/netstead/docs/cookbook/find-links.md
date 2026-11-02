@@ -81,7 +81,7 @@ that finds something wins:
 | Abbreviation | `Cedar St`, `N Main St` | Cedar Street, North Main Street | street types (St, Ave, Rd, Blvd, Dr, Ln, Ct, Pl, Pkwy, Hwy, …) and directions (N, S, E, W, NE, …) |
 | Direction left out | `Peace Street` | West Peace Street, East Peace Street | selects every side; `W Peace St` selects only the West side |
 | Type left out | `Central`, `W Peace` | Central Avenue, West Peace Street | every street of that name, so `Oak` selects both Oak Street and Oak Road |
-| Close spelling | `Ceder Street`, `Hilsborough St` | Cedar Street, Hillsborough Street | the closest name at least 85% alike; never for names under 5 letters |
+| Close spelling | `Ceder Street`, `Hilsborough St`, `Centrl` | Cedar Street, Hillsborough Street, Central Avenue | the closest name at least 85% alike (80% with no street type typed); never for names under 5 letters |
 
 Whenever a rule other than the exact one was used, the selection's diagnostics say so, for example
 `matched 'Ceder Street' to 'Cedar Street' (a close spelling)`. Cross-street names match the same way.
