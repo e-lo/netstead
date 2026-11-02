@@ -55,6 +55,9 @@ def index(net):
         ("Six Forks", ("East Six Forks Road", "Six Forks Road"), "bare"),
         ("St Marys", ("St Marys Street",), "bare"),
         ("Glenwood Road", (), None),  # a type the request does name has to agree
+        ("Glenwod", ("Glenwood Avenue",), "fuzzy"),  # misspelled, and no street type either
+        ("Peece", ("East Peace Street", "West Peace Street"), "fuzzy"),
+        ("W Peece", ("West Peace Street",), "fuzzy"),
         ("Wde", (), None),  # too short to guess at
         ("Oak Road", (), None),
         ("", (), None),
@@ -92,6 +95,15 @@ def test_cross_streets_may_leave_out_their_type(net, index):
     result = resolve_frames(intent, links, nodes, index=index)
     assert result.status == "resolved" and result.link_ids == [2, 3]
     assert "matched 'Wade' to 'Wade Avenue'" in result.diagnostics
+
+
+def test_a_misspelled_name_with_a_type_never_matches_a_bare_name():
+    links = pd.DataFrame(
+        {"link_id": [1], "from_node_id": [1], "to_node_id": [2], "name": ["Massachusetts Avenue"]},
+    )
+    index = StreetIndex.build(links)
+    assert index.lookup_name("Massachusets").names == ("Massachusetts Avenue",)
+    assert index.lookup_name("Massachusetts Rd").names == ()  # alike the bare name, but another type
 
 
 def test_resolve_builds_its_own_index_and_refuses_a_stale_one(net, index):

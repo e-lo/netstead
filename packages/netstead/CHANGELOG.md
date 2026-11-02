@@ -26,7 +26,8 @@ This file is for the **netstead** package only. The underlying generic engine `c
   ("Hillsborough St" finds Hillsborough Street), leaves out a direction the network has ("Peace Street" finds
   West and East Peace Street, but "W Six Forks Rd" never finds East Six Forks Road), leaves out the street type
   ("Central" finds Central Avenue, so "Cedar Street from Central to Price" works), or misspells it ("Hilsborough
-  Street" and "Glenwod Ave" find the closest name at least 85% alike; names under 5 letters are never guessed).
+  Street" and "Glenwod Ave" find the closest name at least 85% alike, and "Centrl", with no street type, at least
+  80% alike; names under 5 letters are never guessed).
   An exact match still wins, and a looser one is noted in the selection's diagnostics. The Find tab's
   cross-street list reads the same index.
 - **Faster shortest paths with an S2 cell overlay.** `GMNSGraph.build_overlay()` partitions the routing graph
