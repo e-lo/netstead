@@ -122,15 +122,26 @@ class OllamaProvider(HTTPProvider):
     label = "Ollama"
     DEFAULT_BASE_URL = "http://localhost:11434"
 
-    def __init__(self, *, thinking_models: frozenset[str] = frozenset(), **kwargs: Any) -> None:
+    def __init__(
+        self,
+        *,
+        thinking_models: frozenset[str] = frozenset(),
+        num_ctx: int | None = None,
+        keep_alive: str | None = None,
+        **kwargs: Any,
+    ) -> None:
         """Like :class:`HTTPProvider`, plus the catalog's thinking-capable model ids (see :mod:`netstead.llm.registry`).
 
         A model in ``thinking_models`` gets ``"think": false`` sent, so its hidden reasoning can't
         exhaust ``num_predict``. A model not in the set (unknown to the catalog, or non-thinking)
         gets no ``think`` key at all: Ollama errors with "does not support thinking" if sent one.
+        ``num_ctx`` (context window, tokens) and ``keep_alive`` are sent on every chat when set
+        (``llm.ollama.num_ctx`` / ``llm.ollama.keep_alive``); ``None`` leaves Ollama's defaults.
         """
         super().__init__(**kwargs)
         self._thinking_models = thinking_models
+        self._num_ctx = num_ctx
+        self._keep_alive = keep_alive
 
     def complete(self, request: CompletionRequest) -> Completion:
         """Run one chat turn; ``message.tool_calls`` become :class:`~netstead.llm.types.ToolCall`.
@@ -144,6 +155,10 @@ class OllamaProvider(HTTPProvider):
             "stream": False,
             "options": {"num_predict": request.max_tokens},
         }
+        if self._num_ctx is not None:
+            body["options"]["num_ctx"] = self._num_ctx
+        if self._keep_alive is not None:
+            body["keep_alive"] = self._keep_alive
         if request.model in self._thinking_models:
             body["think"] = False
         if request.tools:

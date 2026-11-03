@@ -101,6 +101,13 @@ def test_thinking_model_sends_think_false(fake_api):
     assert fake_api.body()["think"] is False
 
 
+def test_context_window_and_keep_alive_are_sent_when_set(fake_api):
+    fake_api.add("POST", "/api/chat", body=REPLY)
+    _provider(fake_api, num_ctx=16384, keep_alive="30m").complete(REQUEST)
+    assert fake_api.body()["options"] == {"num_predict": 300, "num_ctx": 16384}
+    assert fake_api.body()["keep_alive"] == "30m"
+
+
 def test_unknown_model_sends_no_think_key(fake_api):
     """A model not in thinking_models (the default: none) gets no "think" key at all -- Ollama
     errors with "does not support thinking" if sent one for a non-thinking model."""

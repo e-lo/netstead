@@ -98,6 +98,11 @@ def test_ollama_provider_gets_the_catalog_thinking_models(make):
     assert provider._thinking_models == frozenset({"qwen3:4b", "qwen3:8b"})
 
 
+def test_ollama_provider_gets_the_context_window_and_keep_alive(make):
+    provider = make().provider("ollama")
+    assert (provider._num_ctx, provider._keep_alive) == (16384, "30m")
+
+
 def test_the_anthropic_adapter_gets_its_catalog_models(make, fake_keyring):
     """Likewise for Anthropic: the catalog says which models reject temperature or a forced tool."""
     fake_keyring.set_password(KEYRING_SERVICE, "anthropic", "k")

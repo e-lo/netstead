@@ -48,6 +48,11 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Fixed
 
+- **Local models now see the assistant's whole prompt.** Ollama's default context window (4,096 tokens on
+  recent versions) cut the Ask prompt to about 2,050 tokens. netstead now asks for 16,384 (new setting
+  `llm.ollama.num_ctx`) and keeps the model loaded for 30 minutes after each call instead of Ollama's 5 (new
+  setting `llm.ollama.keep_alive`). With `qwen2.5:7b`, "color by speed" and "select Cedar Street and zoom to
+  it" now plan correctly. `qwen2.5:7b` takes about 0.7 GB more memory (5.0 GB loaded).
 - **Ask's prompt cache is reused on Anthropic.** The Workbench's state (selection, filter, map style) sat inside
   the cached part of the prompt, so any action rewrote all of it. It is now sent after the cached part. On Haiku
   5.5 with Leavenworth, an Ask within five minutes of another costs $0.0002–0.0003 instead of $0.0012.
