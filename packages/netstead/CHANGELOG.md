@@ -24,10 +24,13 @@ This file is for the **netstead** package only. The underlying generic engine `c
   resolving drops from 230–770 ms to 0.2–4 ms after a 0.16 s build (and from 36 ms to 11 ms for "all
   residential links"). Names now also match when the request abbreviates a street type or direction
   ("Hillsborough St" finds Hillsborough Street), leaves out a direction the network has ("Peace Street" finds
-  West and East Peace Street, but "W Six Forks Rd" never finds East Six Forks Road), leaves out the street type
-  ("Central" finds Central Avenue, so "Cedar Street from Central to Price" works), or misspells it ("Hilsborough
-  Street" and "Glenwod Ave" find the closest name at least 85% alike, and "Centrl", with no street type, at least
-  80% alike; names under 5 letters are never guessed).
+  West and East Peace Street, but "W Six Forks Rd" never finds East Six Forks Road), or misspells it ("Hilsborough
+  Street" and "Glenwod Ave" find the closest name at least 85% alike; names under 5 letters are never guessed).
+  A cross street may also leave out its type, misspelled or not ("Cedar Street from Centrl to Price" finds Central
+  and Price Avenue), but only among the streets that meet the street it crosses: on its own, a word like
+  "parking" is close to some street in any large network. On the Raleigh–Durham network, 481 of 500 cross streets
+  typed without their type and with one typo found the right street, and none of 2,000 dictionary words matched a
+  street.
   An exact match still wins, and a looser one is noted in the selection's diagnostics. The Find tab's
   cross-street list reads the same index.
 - **Faster shortest paths with an S2 cell overlay.** `GMNSGraph.build_overlay()` partitions the routing graph

@@ -19,11 +19,11 @@ import numpy as np
 
 from ._support import bounded_bfs, to_py
 from .result import AnchorMatch
-from .streets import StreetIndex
+from .streets import _RAMP_HOPS, StreetIndex
 
 __all__ = ["Interchanges", "classify_interchanges", "pinned_anchor", "resolve_anchor", "resolve_surface_anchor"]
 
-_MAX_RAMP_HOPS = 8
+_MAX_RAMP_HOPS = _RAMP_HOPS
 
 
 @dataclass
@@ -64,9 +64,9 @@ def pinned_anchor(anchor: str, node_id, allowed: set) -> AnchorMatch:
     return AnchorMatch(anchor, None, [], 0.0, "unresolved", f"node {node_id} is not on the facility for {anchor!r}")
 
 
-def _surface_links(links, anchor: str, index: StreetIndex):
+def _surface_links(links, anchor: str, index: StreetIndex, among: frozenset[str] | None = None):
     """Links whose name OR ref matches the anchor (excluding motorway/ramps)."""
-    surf = links.iloc[index.street_rows(anchor)]
+    surf = links.iloc[index.street_rows(anchor, among=among)]
     return surf[~surf["facility_type"].isin(["motorway", "motorway_link"])]
 
 
@@ -84,27 +84,34 @@ def _ramp_adjacency(links, index: StreetIndex, anchor_rows: np.ndarray) -> dict:
 
 
 def resolve_anchor(
-    anchor: str, role: str, links, interchanges: Interchanges, *, index: StreetIndex | None = None
+    anchor: str,
+    role: str,
+    links,
+    interchanges: Interchanges,
+    *,
+    index: StreetIndex | None = None,
+    among: frozenset[str] | None = None,
 ) -> AnchorMatch:
     """Resolve ``anchor`` to a mainline node for ``role`` in {"from","to"}.
 
     ``from`` targets gore (off-ramp diverge) nodes; ``to`` targets merge
     (on-ramp) nodes. Nearest match wins; the rest are ranked candidates
     (ambiguity signal for the caller). ``index`` is a :class:`StreetIndex` of ``links`` (built if omitted).
+    ``among`` lets the anchor leave out its type (see :meth:`StreetIndex.lookup_name`).
     """
     index = index or StreetIndex.build(links)
     targets = interchanges.gore if role == "from" else interchanges.merge
     kind = "gore" if role == "from" else "merge"
     detail_kind = "off-ramp diverge" if role == "from" else "on-ramp merge"
 
-    surf = _surface_links(links, anchor, index)
+    surf = _surface_links(links, anchor, index, among)
     if surf.empty:
         return AnchorMatch(
             anchor, None, [], 0.0, "unresolved", f"anchor {anchor!r} not found as a street/route in this network"
         )
 
     seeds = set(surf["from_node_id"]) | set(surf["to_node_id"])
-    adj = _ramp_adjacency(links, index, index.street_rows(anchor))
+    adj = _ramp_adjacency(links, index, index.street_rows(anchor, among=among))
     reached = bounded_bfs(adj, seeds, targets, _MAX_RAMP_HOPS)
     if not reached:
         return AnchorMatch(
@@ -125,17 +132,25 @@ def resolve_anchor(
     )
 
 
-def resolve_surface_anchor(anchor: str, facility_nodes: set, links, *, index: StreetIndex | None = None) -> AnchorMatch:
+def resolve_surface_anchor(
+    anchor: str,
+    facility_nodes: set,
+    links,
+    *,
+    index: StreetIndex | None = None,
+    among: frozenset[str] | None = None,
+) -> AnchorMatch:
     """Resolve an anchor to a node ON a (surface) facility.
 
     First tries an **at-grade intersection** — a node shared by the facility and
     a link named/ref'd by the anchor. Falls back to a **ramp path** (for a
     freeway anchor like "I-40" crossing a surface street): BFS from the anchor's
     nodes over ramp/connector links to the nearest facility node. ``index`` is a
-    :class:`StreetIndex` of ``links`` (built if omitted).
+    :class:`StreetIndex` of ``links`` (built if omitted). ``among`` lets the anchor leave out its type
+    (see :meth:`StreetIndex.lookup_name`).
     """
     index = index or StreetIndex.build(links)
-    anchor_rows = index.street_rows(anchor)
+    anchor_rows = index.street_rows(anchor, among=among)
     if not anchor_rows.size:
         return AnchorMatch(
             anchor, None, [], 0.0, "unresolved", f"anchor {anchor!r} not found as a street/route in this network"

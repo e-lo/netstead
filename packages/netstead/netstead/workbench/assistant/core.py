@@ -432,8 +432,8 @@ class Assistant:
                 return False
             if call.name == "select":
                 index = street_index(handle)
-                names = [(args.get("facility") or {}).get("name"), args.get("from_anchor"), args.get("to_anchor")]
-                if not all(index.knows(name) for name in names if name):
+                street = (args.get("facility") or {}).get("name")
+                if not index.knows_stretch([street], (args.get("from_anchor"), args.get("to_anchor"))):
                     return False
             columns = [args.get("color_by"), args.get("width_by"), *(w.get("col") for w in args.get("where", []))]
             columns += list((args.get("values") or {}).keys())

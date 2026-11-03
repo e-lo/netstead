@@ -196,7 +196,7 @@ def _resolve_anchors(intent, allowed: set, resolve_unpinned):
     return matches[0], matches[1]
 
 
-def _freeway_segment(intent, base, links, index, nx, ny, diags):
+def _freeway_segment(intent, base, links, index, nx, ny, diags, among):
     """Gore/merge anchors + shortest directed path along the carriageway."""
     facility_all = _facility_links(links, intent.facility, index)[0] if intent.facility else base
     directed_nodes = set(base["from_node_id"]) | set(base["to_node_id"])
@@ -205,7 +205,7 @@ def _freeway_segment(intent, base, links, index, nx, ny, diags):
     from_m, to_m = _resolve_anchors(
         intent,
         directed_nodes,
-        lambda text, role: _anchors.resolve_anchor(text, role, links, interchanges, index=index),
+        lambda text, role: _anchors.resolve_anchor(text, role, links, interchanges, index=index, among=among),
     )
     diags = [*diags, from_m.detail, to_m.detail]
     if from_m.node_id is None or to_m.node_id is None:
@@ -224,7 +224,7 @@ def _freeway_segment(intent, base, links, index, nx, ny, diags):
     )
 
 
-def _surface_segment(intent, base, links, nodes, index, nx, ny, diags):
+def _surface_segment(intent, base, links, nodes, index, nx, ny, diags, among):
     """At-grade intersection (or freeway-ramp) anchors + undirected path along the facility.
 
     When the facility's own links don't join the two anchors, short links next to it may bridge
@@ -234,7 +234,7 @@ def _surface_segment(intent, base, links, nodes, index, nx, ny, diags):
     from_m, to_m = _resolve_anchors(
         intent,
         facility_nodes,
-        lambda text, _role: _anchors.resolve_surface_anchor(text, facility_nodes, links, index=index),
+        lambda text, _role: _anchors.resolve_surface_anchor(text, facility_nodes, links, index=index, among=among),
     )
     diags = [*diags, from_m.detail, to_m.detail]
     if from_m.node_id is None or to_m.node_id is None:
@@ -288,6 +288,7 @@ def resolve_frames(
     base, source, notes = _base_selection(intent, links, index)
     if base.empty:
         return SelectionResult("not_found", intent, diagnostics=[f"{source}: no links matched"])
+    found = base  # before the filters: its cross streets are where an anchor may leave out its type
 
     # 2. direction filter (facility only)
     direction = intent.facility.direction if intent.facility else None
@@ -315,17 +316,19 @@ def resolve_frames(
         return _whole(intent, base, diags)
 
     # --- segment (from/to): freeway gore/merge, or surface at-grade ---
-    for anchor in (intent.from_anchor, intent.to_anchor):
-        diags.extend(_loose_match_note(anchor, index.lookup_name(anchor)))
     freeway = base["facility_type"].isin(_FREEWAY_TYPES)
+    rows = np.flatnonzero(np.isin(index.link_ids, found["link_id"].to_numpy()))
+    among = index.names_meeting(rows, ramp_hops=_anchors._MAX_RAMP_HOPS if freeway.any() else 0)
+    for anchor in (intent.from_anchor, intent.to_anchor):
+        diags.extend(_loose_match_note(anchor, index.lookup_name(anchor, among=among)))
     if intent.facility is None or not freeway.any():
-        return _surface_segment(intent, base, links, nodes, index, nx, ny, diags)
-    result = _freeway_segment(intent, base, links, index, nx, ny, diags)
+        return _surface_segment(intent, base, links, nodes, index, nx, ny, diags, among)
+    result = _freeway_segment(intent, base, links, index, nx, ny, diags, among)
     if result.status != "not_found" or freeway.all():
         return result
     # Partly freeway (a trunk road with signals): its anchors may be at-grade intersections instead.
     surface = _surface_segment(
-        intent, base, links, nodes, index, nx, ny, [*diags, "no interchange path; tried at-grade intersections"]
+        intent, base, links, nodes, index, nx, ny, [*diags, "no interchange path; tried at-grade intersections"], among
     )
     return surface if surface.status != "not_found" else result
 

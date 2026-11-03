@@ -80,11 +80,16 @@ that finds something wins:
 | Exact | `cedar street` | Cedar Street | case, spaces and punctuation ignored |
 | Abbreviation | `Cedar St`, `N Main St` | Cedar Street, North Main Street | street types (St, Ave, Rd, Blvd, Dr, Ln, Ct, Pl, Pkwy, Hwy, …) and directions (N, S, E, W, NE, …) |
 | Direction left out | `Peace Street` | West Peace Street, East Peace Street | selects every side; `W Peace St` selects only the West side |
-| Type left out | `Central`, `W Peace` | Central Avenue, West Peace Street | every street of that name, so `Oak` selects both Oak Street and Oak Road |
-| Close spelling | `Ceder Street`, `Hilsborough St`, `Centrl` | Cedar Street, Hillsborough Street, Central Avenue | the closest name at least 85% alike (80% with no street type typed); never for names under 5 letters |
+| Close spelling | `Ceder Street`, `Hilsborough St` | Cedar Street, Hillsborough Street | the closest name at least 85% alike; never for names under 5 letters |
 
 Whenever a rule other than the exact one was used, the selection's diagnostics say so, for example
-`matched 'Ceder Street' to 'Cedar Street' (a close spelling)`. Cross-street names match the same way.
+`matched 'Ceder Street' to 'Cedar Street' (a close spelling)`.
+
+Cross-street names match the same way, and may also leave out the street type: `Cedar Street from Central to
+Price` and `Cedar Street from Centrl to Pirce` both find Central Avenue and Price Avenue. A cross street without its
+type is looked for only among the streets that meet the one it crosses: a misspelling may be 80% alike (one wrong
+letter in five), and a name shared by several of them (`Oak` for Oak Street and Oak Road) matches them all. The
+street itself needs its type: `Cedar from Central to Price` goes to the model.
 
 A route number matches the network's `ref` column, so `I-40` finds a link whose `ref` is `I 40;US 64`.
 Networks without a `ref` column (including those `netstead build` makes from OpenStreetMap today) can only be
@@ -160,7 +165,7 @@ Measured on an Apple M3 laptop (16 GB) with an OpenStreetMap Raleigh–Durham ro
   selects only Center Street. Likewise a misspelling that happens to be another street's real name finds that
   street, not the one you meant.
 - **A close spelling is a guess.** When the diagnostics say `(a close spelling)`, check the map.
-- **A name without its type can mean several streets.** The diagnostics list each one it matched.
+- **A cross street without its type can mean several streets.** The diagnostics list each one it matched.
 - **Route numbers need a `ref` column.** Without one, `I-40` goes to the model, which can't find it either.
 
 ## See also

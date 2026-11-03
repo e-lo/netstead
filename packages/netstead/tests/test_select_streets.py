@@ -49,15 +49,8 @@ def index(net):
         ("Glenwod Ave", ("Glenwood Avenue",), "fuzzy"),
         ("Peece Street", ("East Peace Street", "West Peace Street"), "fuzzy"),
         ("W Peece St", ("West Peace Street",), "fuzzy"),  # a misspelling still keeps to its side
-        ("Glenwood", ("Glenwood Avenue",), "bare"),
-        ("Peace", ("East Peace Street", "West Peace Street"), "bare"),
-        ("W Peace", ("West Peace Street",), "bare"),
-        ("Six Forks", ("East Six Forks Road", "Six Forks Road"), "bare"),
-        ("St Marys", ("St Marys Street",), "bare"),
-        ("Glenwood Road", (), None),  # a type the request does name has to agree
-        ("Glenwod", ("Glenwood Avenue",), "fuzzy"),  # misspelled, and no street type either
-        ("Peece", ("East Peace Street", "West Peace Street"), "fuzzy"),
-        ("W Peece", ("West Peace Street",), "fuzzy"),
+        ("Glenwood", (), None),  # a type left out only counts for a cross street (see below)
+        ("Glenwod", (), None),
         ("Wde", (), None),  # too short to guess at
         ("Oak Road", (), None),
         ("", (), None),
@@ -65,6 +58,30 @@ def index(net):
 )
 def test_lookup_name(index, text, names, how):
     assert index.lookup_name(text) == (names, how)
+
+
+@pytest.mark.parametrize(
+    ("text", "names", "how"),
+    [
+        ("Wade", ("Wade Avenue",), "bare"),
+        ("Peace", ("East Peace Street", "West Peace Street"), "bare"),
+        ("W Peace", ("West Peace Street",), "bare"),
+        ("Peece", ("East Peace Street", "West Peace Street"), "fuzzy"),  # misspelled, and no type either
+        ("W Peece", ("West Peace Street",), "fuzzy"),
+        ("Six Forks", (), None),  # in the network, but it doesn't meet Glenwood Avenue
+        ("Wade Road", (), None),  # a type the request does name has to agree
+        ("Wde", (), None),  # too short to guess at
+    ],
+)
+def test_a_cross_street_may_leave_out_its_type(index, text, names, how):
+    among = index.names_meeting(index.name_rows("Glenwood Avenue")[0])
+    assert index.lookup_name(text, among=among) == (names, how)
+
+
+def test_names_meeting_follows_ramps_only_when_asked(index):
+    freeway = index.ref_rows("I-40")
+    assert index.names_meeting(freeway) == frozenset()  # its only neighbor is an unnamed ramp
+    assert "wadeavenue" in index.names_meeting(freeway, ramp_hops=2)
 
 
 def test_spelling_key_expands_only_types_and_directions_at_the_ends():
@@ -99,11 +116,17 @@ def test_cross_streets_may_leave_out_their_type(net, index):
 
 def test_a_misspelled_name_with_a_type_never_matches_a_bare_name():
     links = pd.DataFrame(
-        {"link_id": [1], "from_node_id": [1], "to_node_id": [2], "name": ["Massachusetts Avenue"]},
+        {
+            "link_id": [1, 2],
+            "from_node_id": [1, 2],
+            "to_node_id": [2, 3],
+            "name": ["Main Street", "Massachusetts Avenue"],
+        },
     )
     index = StreetIndex.build(links)
-    assert index.lookup_name("Massachusets").names == ("Massachusetts Avenue",)
-    assert index.lookup_name("Massachusetts Rd").names == ()  # alike the bare name, but another type
+    among = index.names_meeting(index.name_rows("Main Street")[0])
+    assert index.lookup_name("Massachusets", among=among).names == ("Massachusetts Avenue",)
+    assert index.lookup_name("Massachusetts Rd", among=among).names == ()  # alike the bare name, but another type
 
 
 def test_resolve_builds_its_own_index_and_refuses_a_stale_one(net, index):
@@ -132,7 +155,8 @@ def test_a_network_without_name_or_ref_columns(net):
         "Glenwood Avenue",
         "Glenwood Ave northbound",
         "Glenwood Ave between Peace St and Wade Avenue",
-        "Glenwood from Peace to Wade",
+        "Glenwood Avenue from Peace to Wade",
+        "Glenwod Avenue between Peece and Wade",
         "I-40 EB",
         "all links",
         "all secondary links",
@@ -148,6 +172,8 @@ def test_grammar_first_accepts_requests_whose_names_are_all_in_the_network(index
     [
         "bike lanes on Glenwood Avenue",  # the grammar would read it all as one street name
         "Glenwood Avenue between Peace Street and Oak Road",  # an anchor the network doesn't have
+        "Glenwood Avenue between Peace and Six Forks",  # Six Forks Road doesn't meet it
+        "Glenwood from Peace to Wade",  # the street itself needs its type
         "Glenwood Avenue where there are 2 lanes",
         "all cycleway links",  # a facility_type that never occurs
         "???",  # the grammar can't read it at all
