@@ -573,7 +573,7 @@ maintained in `netstead/llm/models.toml`:
 
 | Provider | Default model |
 |---|---|
-| `anthropic` | Haiku 4.5 (`claude-haiku-4-5-20251001`) |
+| `anthropic` | Haiku 5.5 (`claude-haiku-5-5`) |
 | `openai` | small/fast tier |
 | `gemini` | small/fast tier |
 | `ollama` | `qwen3:4b`, or an installed tool-capable model such as `qwen2.5:7b` when `qwen3:4b` isn't installed |
@@ -643,7 +643,7 @@ for a remote provider.
 # ~/.config/netstead/config.toml: endpoints, choices and quality only, never keys
 [select]
 provider = "anthropic"
-model = "claude-haiku-4-5-20251001"
+model = "claude-haiku-5-5"
 
 [llm.ollama]
 base_url = "http://localhost:11434"

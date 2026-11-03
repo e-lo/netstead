@@ -83,7 +83,13 @@ that finds something wins:
 | Close spelling | `Ceder Street`, `Hilsborough St` | Cedar Street, Hillsborough Street | the closest name at least 85% alike; never for names under 5 letters |
 
 Whenever a rule other than the exact one was used, the selection's diagnostics say so, for example
-`matched 'Ceder Street' to 'Cedar Street' (a close spelling)`. Cross-street names match the same way.
+`matched 'Ceder Street' to 'Cedar Street' (a close spelling)`.
+
+Cross-street names match the same way, and may also leave out the street type: `Cedar Street from Central to
+Price` and `Cedar Street from Centrl to Pirce` both find Central Avenue and Price Avenue. A cross street without its
+type is looked for only among the streets that meet the one it crosses: a misspelling may be 80% alike (one wrong
+letter in five), and a name shared by several of them (`Oak` for Oak Street and Oak Road) matches them all. The
+street itself needs its type: `Cedar from Central to Price` goes to the model.
 
 A route number matches the network's `ref` column, so `I-40` finds a link whose `ref` is `I 40;US 64`.
 Networks without a `ref` column (including those `netstead build` makes from OpenStreetMap today) can only be
@@ -148,7 +154,10 @@ Measured on an Apple M3 laptop (16 GB) with an OpenStreetMap Raleigh–Durham ro
 - **Looking up names is fast in both cases.** The network's street names are indexed once per network version
   (0.16 s for this network) and then each lookup takes well under a millisecond, where the previous release spent
   0.2–0.8 s per request re-reading every link's name.
-- **A cloud model** skips the load wait but adds a network round trip; we haven't measured one here.
+- **A cloud model** skips the load wait but adds a network round trip: 1–2.5 s per call on Haiku 5.5 (Anthropic's
+  default), measured with Leavenworth. It costs little, because the unchanging start of the prompt is cached for
+  five minutes after each use: about $0.0001 per Find, and per Ask about $0.0012 for the first in five minutes and
+  $0.0002–0.0003 after that.
 
 ## Pitfalls
 
@@ -156,6 +165,7 @@ Measured on an Apple M3 laptop (16 GB) with an OpenStreetMap Raleigh–Durham ro
   selects only Center Street. Likewise a misspelling that happens to be another street's real name finds that
   street, not the one you meant.
 - **A close spelling is a guess.** When the diagnostics say `(a close spelling)`, check the map.
+- **A cross street without its type can mean several streets.** The diagnostics list each one it matched.
 - **Route numbers need a `ref` column.** Without one, `I-40` goes to the model, which can't find it either.
 
 ## See also

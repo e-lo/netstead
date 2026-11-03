@@ -26,6 +26,11 @@ This file is for the **netstead** package only. The underlying generic engine `c
   ("Hillsborough St" finds Hillsborough Street), leaves out a direction the network has ("Peace Street" finds
   West and East Peace Street, but "W Six Forks Rd" never finds East Six Forks Road), or misspells it ("Hilsborough
   Street" and "Glenwod Ave" find the closest name at least 85% alike; names under 5 letters are never guessed).
+  A cross street may also leave out its type, misspelled or not ("Cedar Street from Centrl to Price" finds Central
+  and Price Avenue), but only among the streets that meet the street it crosses: on its own, a word like
+  "parking" is close to some street in any large network. On the Raleigh–Durham network, 481 of 500 cross streets
+  typed without their type and with one typo found the right street, and none of 2,000 dictionary words matched a
+  street.
   An exact match still wins, and a looser one is noted in the selection's diagnostics. The Find tab's
   cross-street list reads the same index.
 - **Faster shortest paths with an S2 cell overlay.** `GMNSGraph.build_overlay()` partitions the routing graph
@@ -45,6 +50,18 @@ This file is for the **netstead** package only. The underlying generic engine `c
   Overture GERS id system on real data. Data (c) OpenStreetMap contributors, ODbL; data from TomTom.
 
 ### Fixed
+
+- **Local models now see the assistant's whole prompt.** Ollama's default context window (4,096 tokens on
+  recent versions) cut the Ask prompt to about 2,050 tokens. netstead now asks for 16,384 (new setting
+  `llm.ollama.num_ctx`) and keeps the model loaded for 30 minutes after each call instead of Ollama's 5 (new
+  setting `llm.ollama.keep_alive`). With `qwen2.5:7b`, "color by speed" and "select Cedar Street and zoom to
+  it" now plan correctly. `qwen2.5:7b` takes about 0.7 GB more memory (5.0 GB loaded).
+- **Ask's prompt cache is reused on Anthropic.** The Workbench's state (selection, filter, map style) sat inside
+  the cached part of the prompt, so any action rewrote all of it. It is now sent after the cached part. On Haiku
+  5.5 with Leavenworth, an Ask within five minutes of another costs $0.0002–0.0003 instead of $0.0012.
+- **Anthropic's newest models no longer reject netstead's requests.** Sonnet 5.5 and Opus 5.5 refuse a
+  temperature and a forced tool call, and Haiku 5.5 refuses a temperature; netstead sent both. Catalog models
+  now say which they accept (`sampling`, `forced_tools`), and get a low `effort` so their thinking stays short.
 
 - **"X between A and B" finds segments it used to miss.** A street that is partly `trunk` (a signalized
   arterial such as Glenwood Avenue) was treated as a freeway, so an at-grade cross street never matched; when no
@@ -70,6 +87,10 @@ This file is for the **netstead** package only. The underlying generic engine `c
   a settings error.
 
 ### Changed
+
+- **Anthropic's default model is now Haiku 5.5** (`claude-haiku-5-5`, $0.10 / $0.50 per million input /
+  output tokens, a tenth of Haiku 4.5's price), and the catalog offers Sonnet 5.5 (`claude-sonnet-5-5`) in place
+  of Sonnet 5. A `select.model` you set yourself is unchanged.
 
 - **Workbench Find tab: with the offline parser, Select is a fill-in-the-blanks form.** No more guessing the
   grammar. Pick a pattern (Street; Street between two cross streets; All links of a type; Link ids) and fill its

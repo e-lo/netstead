@@ -15,6 +15,17 @@ A name the network doesn't spell the same way still matches, in this order (firs
 4. **fuzzy**: a misspelling, the closest name at least 85% similar once directions are dropped
    (``"Hillsboro St"`` -> ``Hillsborough Street``); names shorter than 5 letters never match this way.
 
+A cross street may also leave out its type, when the caller passes ``among``, the streets that meet
+the street it crosses (:meth:`StreetIndex.names_meeting`):
+
+5. **bare**: the same name without its type (``"Central"`` -> ``Central Avenue``), every street of
+   that name if several meet it;
+6. **fuzzy** again, without types, at 80% (``"Centrl"`` -> ``Central Avenue``): only when the
+   request names no type, and still never under 5 letters.
+
+Only among those streets: on their own, a word like "parking" or "residential" is close to some street
+in any large network (Parkington Lane, Presidential Drive).
+
 A direction the request names never picks up a street on another side ("W Six Forks Rd" is not
 East Six Forks Road).
 
@@ -84,20 +95,26 @@ _DIRECTIONS = {
     "sw": "southwest",
 }
 _DIRECTION_WORDS = frozenset(_DIRECTIONS.values())
+#: Words that can end a street's name as its type; a request may leave them out.
+_TYPE_WORDS = frozenset(_STREET_TYPES.values()) | {"loop", "pike", "row", "run", "walk", "way"}
 #: How alike (difflib ratio) a misspelled name must be to the network's, and the shortest it may be.
 _FUZZY_CUTOFF = 0.85
+#: A name without its type is shorter, so one wrong letter counts for more ("Ceder" is 80% like "Cedar").
+_BARE_FUZZY_CUTOFF = 0.8
 _FUZZY_MIN_LENGTH = 5
 #: Road types that never bridge a gap in a street (parking aisles, driveways, paths).
 _NO_BRIDGE_TYPES = frozenset({"service", "footway", "path", "cycleway", "pedestrian", "steps", "track"})
 #: A named link at most this long (meters) may bridge a gap: a cross street spanning a median.
 _BRIDGE_MAX_LENGTH = 20.0
+#: How many ramp/connector links out a freeway's cross streets may be (as anchors.resolve_anchor searches).
+_RAMP_HOPS = 8
 
 
 class NameMatch(NamedTuple):
     """The network's spellings of a name, and which rule found them (``None``: not in the network)."""
 
     names: tuple[str, ...]
-    how: Literal["exact", "spelling", "directional", "fuzzy"] | None
+    how: Literal["exact", "spelling", "directional", "bare", "fuzzy"] | None
 
 
 def _words(text: str) -> list[str]:
@@ -128,19 +145,37 @@ def spelling_key(text: str) -> str:
     return "".join(_words(text))
 
 
-def _split_directions(text: str) -> tuple[str, frozenset[str]]:
-    """``(spelling key without a leading/trailing direction, those directions)``.
-
-    >>> _split_directions("W Peace St")
-    ('peacestreet', frozenset({'west'}))
-    """
+def _split_words(text: str) -> tuple[list[str], frozenset[str]]:
+    """``(the words of ``text`` without a leading/trailing direction, those directions)``."""
     words = _words(text)
     dirs = set()
     if len(words) > 1 and words[0] in _DIRECTION_WORDS:
         dirs.add(words.pop(0))
     if len(words) > 1 and words[-1] in _DIRECTION_WORDS:
         dirs.add(words.pop())
-    return "".join(words), frozenset(dirs)
+    return words, frozenset(dirs)
+
+
+def _split_directions(text: str) -> tuple[str, frozenset[str]]:
+    """``(spelling key without a leading/trailing direction, those directions)``.
+
+    >>> _split_directions("W Peace St")
+    ('peacestreet', frozenset({'west'}))
+    """
+    words, dirs = _split_words(text)
+    return "".join(words), dirs
+
+
+def _bare_key(text: str) -> str | None:
+    """The key of a street's name without its direction and type; ``None`` when it has no type to drop.
+
+    >>> _bare_key("W Central Ave")
+    'central'
+    >>> _bare_key("Broadway") is None
+    True
+    """
+    words, _ = _split_words(text)
+    return "".join(words[:-1]) if len(words) > 1 and words[-1] in _TYPE_WORDS else None
 
 
 def _group_rows(values: pd.Series, normalize) -> dict[str, np.ndarray]:
@@ -172,6 +207,8 @@ class StreetIndex:
     rows_by_ref: dict[str, np.ndarray]  # norm_ref token -> rows
     names_by_key: dict[str, tuple[str, ...]]  # spelling_key -> norm_names
     names_by_base: dict[str, tuple[str, ...]]  # spelling key without directions -> norm_names
+    names_by_bare: dict[str, tuple[str, ...]]  # that key without the street type too -> norm_names
+    bare_of: dict[str, str]  # norm_name -> its key without direction and type (names that have a type)
     directions: dict[str, frozenset[str]]  # norm_name -> its leading/trailing direction words
     spelled: dict[str, str]  # norm_name -> the network's own spelling
     ramp_rows: np.ndarray  # rows whose facility_type is a ramp/connector (``*_link``)
@@ -196,11 +233,16 @@ class StreetIndex:
                 spelled.setdefault(name, str(value))
         by_key: dict[str, set[str]] = {}
         by_base: dict[str, set[str]] = {}
+        by_bare: dict[str, set[str]] = {}
+        bare_of: dict[str, str] = {}
         directions: dict[str, frozenset[str]] = {}
         for name, text in spelled.items():
             by_key.setdefault(spelling_key(text), set()).add(name)
             base, directions[name] = _split_directions(text)
             by_base.setdefault(base, set()).add(name)
+            if bare := _bare_key(text):
+                by_bare.setdefault(bare, set()).add(name)
+                bare_of[name] = bare
 
         if "facility_type" in links.columns:
             kinds = links["facility_type"].astype("string")
@@ -223,6 +265,8 @@ class StreetIndex:
             rows_by_ref=rows_by_ref,
             names_by_key={k: tuple(sorted(v)) for k, v in by_key.items()},
             names_by_base={k: tuple(sorted(v)) for k, v in by_base.items()},
+            names_by_bare={k: tuple(sorted(v)) for k, v in by_bare.items()},
+            bare_of=bare_of,
             directions=directions,
             spelled=spelled,
             ramp_rows=ramp_rows,
@@ -236,8 +280,12 @@ class StreetIndex:
         if len(ids) != len(self.link_ids) or not np.array_equal(ids, self.link_ids):
             raise ValueError("this StreetIndex was built from a different links frame; rebuild it")
 
-    def lookup_name(self, text: Any) -> NameMatch:
-        """The network's names that ``text`` stands for: exact, spelling, directional, then fuzzy (see module)."""
+    def lookup_name(self, text: Any, *, among: frozenset[str] | None = None) -> NameMatch:
+        """The network's names that ``text`` stands for: exact, spelling, directional, fuzzy (see module).
+
+        ``among`` (normalized names, from :meth:`names_meeting`) also lets a cross street leave out its type,
+        matching only those names.
+        """
         exact = norm_name(text)
         if not exact:
             return NameMatch((), None)
@@ -248,8 +296,20 @@ class StreetIndex:
         base, asked = _split_directions(text)
         if found := self._same_side(self.names_by_base.get(base, ()), asked):
             return NameMatch(found, "directional")
-        if len(base) >= _FUZZY_MIN_LENGTH and (found := self._same_side(self._closest(base), asked)):
-            return NameMatch(found, "fuzzy")
+        bare = {}
+        if among:
+            for name in among:
+                if name in self.bare_of:
+                    bare.setdefault(self.bare_of[name], []).append(name)
+        if found := self._same_side(sorted(bare.get(base, ())), asked):
+            return NameMatch(found, "bare")
+        if len(base) >= _FUZZY_MIN_LENGTH:
+            found = self._same_side(self._closest(base), asked)
+            # A type the request names has to agree, so only a request without one is compared with bare names.
+            if not found and bare and _bare_key(text) is None:
+                found = self._same_side(self._closest(base, bare, _BARE_FUZZY_CUTOFF), asked)
+            if found:
+                return NameMatch(found, "fuzzy")
         return NameMatch((), None)
 
     def _same_side(self, names, asked: frozenset[str]) -> tuple[str, ...]:
@@ -261,35 +321,59 @@ class StreetIndex:
         keep = [n for n in names if not asked or not self.directions[n] or self.directions[n] == asked]
         return tuple(self.spelled[n] for n in keep)
 
-    def _closest(self, base: str) -> tuple[str, ...]:
-        """The names whose direction-free key is most like ``base`` (ties all kept), if any reach the cutoff."""
-        if base not in self._fuzzy:
-            matcher = difflib.SequenceMatcher(b=base, autojunk=False)
-            best, keys = _FUZZY_CUTOFF, []
-            for key in self.names_by_base:
-                matcher.set_seq1(key)
-                if matcher.real_quick_ratio() < best or matcher.quick_ratio() < best:
-                    continue
-                score = matcher.ratio()
-                if score > best:
-                    best, keys = score, [key]
-                elif score == best:
-                    keys.append(key)
-            self._fuzzy[base] = tuple(sorted({n for key in keys for n in self.names_by_base[key]}))
-        return self._fuzzy[base]
+    def _closest(self, base: str, table=None, cutoff: float = _FUZZY_CUTOFF) -> tuple[str, ...]:
+        """The names whose key is most like ``base`` (ties all kept), if any reach ``cutoff``.
 
-    def name_rows(self, text: Any) -> tuple[np.ndarray, NameMatch]:
+        ``table`` maps keys to names (default: every name's direction-free key, memoized).
+        """
+        if table is None and base in self._fuzzy:
+            return self._fuzzy[base]
+        matcher = difflib.SequenceMatcher(b=base, autojunk=False)
+        best, keys = cutoff, []
+        for key in table if table is not None else self.names_by_base:
+            matcher.set_seq1(key)
+            if matcher.real_quick_ratio() < best or matcher.quick_ratio() < best:
+                continue
+            score = matcher.ratio()
+            if score > best:
+                best, keys = score, [key]
+            elif score == best:
+                keys.append(key)
+        found = tuple(sorted({n for key in keys for n in (table or self.names_by_base)[key]}))
+        if table is None:
+            self._fuzzy[base] = found
+        return found
+
+    def name_rows(self, text: Any, *, among: frozenset[str] | None = None) -> tuple[np.ndarray, NameMatch]:
         """Rows of the links ``text`` names (see :meth:`lookup_name`), and the match."""
-        match = self.lookup_name(text)
+        match = self.lookup_name(text, among=among)
         return self._rows(self.rows_by_name, [norm_name(n) for n in match.names]), match
 
     def ref_rows(self, text: Any) -> np.ndarray:
         """Rows of the links whose route number shares a token with ``text`` (``"I-40"`` ~ ``"I 40;US 64"``)."""
         return self._rows(self.rows_by_ref, norm_ref(text))
 
-    def street_rows(self, text: Any) -> np.ndarray:
+    def street_rows(self, text: Any, *, among: frozenset[str] | None = None) -> np.ndarray:
         """Rows of the links ``text`` names as a street or as a route number (how an anchor matches)."""
-        return np.union1d(self.name_rows(text)[0], self.ref_rows(text))
+        return np.union1d(self.name_rows(text, among=among)[0], self.ref_rows(text))
+
+    def names_meeting(self, rows: np.ndarray, *, ramp_hops: int = 0) -> frozenset[str]:
+        """Normalized names of the links that share a node with the links at ``rows``: their cross streets.
+
+        ``ramp_hops`` first follows ramps and connectors that far out from those links (a freeway's cross
+        streets are reached by its ramps).
+        """
+        reached = np.fromiter(self.nodes_of(rows), dtype=self.from_nodes.dtype)
+        if ramp_hops and reached.size:
+            tails, heads = self.from_nodes[self.ramp_rows], self.to_nodes[self.ramp_rows]
+            for _ in range(ramp_hops):
+                touching = np.isin(tails, reached) | np.isin(heads, reached)
+                grown = np.union1d(reached, np.concatenate([tails[touching], heads[touching]]))
+                if grown.size == reached.size:
+                    break
+                reached = grown
+        near = np.isin(self.from_nodes, reached) | np.isin(self.to_nodes, reached)
+        return frozenset(self.row_names[near].tolist()) - {""}
 
     def bridge_rows_near(self, nodes: set, hops: int = 3) -> np.ndarray:
         """Rows of the links that may bridge a gap in a street, up to ``hops`` links out from ``nodes``.
@@ -315,9 +399,25 @@ class StreetIndex:
         """The end nodes of the links at ``rows``."""
         return set(self.from_nodes[rows].tolist()) | set(self.to_nodes[rows].tolist())
 
-    def knows(self, text: Any) -> bool:
-        """Whether ``text`` names a street or route number in the network."""
-        return bool(self.lookup_name(text).names) or bool(norm_ref(text) & self.rows_by_ref.keys())
+    def knows(self, text: Any, *, among: frozenset[str] | None = None) -> bool:
+        """Whether ``text`` names a street or route number in the network (``among``: see :meth:`lookup_name`)."""
+        return bool(self.lookup_name(text, among=among).names) or bool(norm_ref(text) & self.rows_by_ref.keys())
+
+    def knows_stretch(self, streets, anchors=()) -> bool:
+        """Whether every one of ``streets`` is in the network, and every one of ``anchors`` meets one of them.
+
+        An anchor may leave out its type or misspell it (it is looked for among the streets that meet them).
+        """
+        streets, anchors = [s for s in streets if s], [a for a in anchors if a]
+        if not all(self.knows(s) for s in streets):
+            return False
+        if not anchors:
+            return True
+        rows = [self.street_rows(s) for s in streets]
+        among = self.names_meeting(
+            np.unique(np.concatenate(rows)) if rows else np.array([], dtype=np.int64), ramp_hops=_RAMP_HOPS
+        )
+        return all(self.knows(a, among=among) for a in anchors)
 
     def cross_streets(self, street: str) -> list[str]:
         """Sorted names of the other streets that share a node with ``street`` (the Find form's cross-street list).
@@ -372,5 +472,5 @@ def grammar_first(utterance: str, index: StreetIndex) -> SelectionIntent | None:
     if intent.select_all:
         kinds = intent.conditions.get("facility_type", [])
         return intent if all(str(k).lower() in index.facility_types for k in kinds) else None
-    names = [*intent.facility.refs(), *intent.facility.names(), intent.from_anchor, intent.to_anchor]
-    return intent if all(index.knows(name) for name in names if name) else None
+    streets = [*intent.facility.refs(), *intent.facility.names()]
+    return intent if index.knows_stretch(streets, (intent.from_anchor, intent.to_anchor)) else None

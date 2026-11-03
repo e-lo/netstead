@@ -40,6 +40,12 @@ class ModelInfo:
     thinking: bool = False
     #: Approximate download size in GB (Ollama models only, for the pull confirmation); ``None`` = unknown.
     size_gb: float | None = None
+    #: Whether the model accepts ``temperature`` (Anthropic only; the newest models reject it).
+    sampling: bool = True
+    #: Whether the model accepts a forced tool choice (Anthropic only).
+    forced_tools: bool = True
+    #: ``output_config.effort`` to send (Anthropic only); ``None`` leaves the model's default.
+    effort: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """JSON-safe copy for the API."""
@@ -151,6 +157,9 @@ def _provider(name: str, body: dict[str, Any]) -> ProviderInfo:
                     tools=bool(m.get("tools", True)),
                     thinking=bool(m.get("thinking", False)),
                     size_gb=float(m["size_gb"]) if m.get("size_gb") is not None else None,
+                    sampling=bool(m.get("sampling", True)),
+                    forced_tools=bool(m.get("forced_tools", True)),
+                    effort=str(m["effort"]) if m.get("effort") is not None else None,
                 )
                 for m in body.get("models", [])
             ),

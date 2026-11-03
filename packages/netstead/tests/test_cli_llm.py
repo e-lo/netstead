@@ -85,7 +85,7 @@ def test_test_exit_codes(ring, fake_api):
 
 def test_models_lists_the_catalog(ring):
     result = _llm("models", "anthropic")
-    assert result.exit_code == 0 and "claude-haiku-4-5-20251001" in result.output and "fast" in result.output
+    assert result.exit_code == 0 and "claude-haiku-5-5" in result.output and "fast" in result.output
 
 
 def test_status_text_shows_source_not_key(ring, fake_api):

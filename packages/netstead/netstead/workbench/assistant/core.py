@@ -49,7 +49,7 @@ __all__ = ["ASSISTANT_PROMPT", "Assistant", "AssistantBusy", "Plan", "compact_on
 
 logger = logging.getLogger(__name__)
 
-#: The assistant's per-call instructions (the guide and the session state are the cacheable context).
+#: The assistant's per-call instructions, sent before the session state (the guide is the cacheable context).
 ASSISTANT_PROMPT = (
     "You operate the Netstead Workbench for a transportation modeller. Do what they ask by calling the tools you are "
     "given, one call for each part of the request, in order, and add at most one short sentence for them. Never "
@@ -377,7 +377,7 @@ class Assistant:
             model=endpoint.model or "default",
             tools=tuple(s.tool for s in specs.values()),
             messages=(*(p.message(grounding.grounded, grounding.notes) for p in history), Message("user", text)),
-            system=ASSISTANT_PROMPT,
+            system=f"{ASSISTANT_PROMPT}\n\n{grounding.state}",
             context=grounding.context,
             validate=validate,
             prepare=prepare,
@@ -432,8 +432,8 @@ class Assistant:
                 return False
             if call.name == "select":
                 index = street_index(handle)
-                names = [(args.get("facility") or {}).get("name"), args.get("from_anchor"), args.get("to_anchor")]
-                if not all(index.knows(name) for name in names if name):
+                street = (args.get("facility") or {}).get("name")
+                if not index.knows_stretch([street], (args.get("from_anchor"), args.get("to_anchor"))):
                     return False
             columns = [args.get("color_by"), args.get("width_by"), *(w.get("col") for w in args.get("where", []))]
             columns += list((args.get("values") or {}).keys())

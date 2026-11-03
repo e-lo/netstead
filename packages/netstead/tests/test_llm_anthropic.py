@@ -144,3 +144,33 @@ def test_unforced_tools_send_no_tool_choice(fake_api):
     body = fake_api.body()
     assert "tool_choice" not in body and [t["name"] for t in body["tools"]] == ["emit"]
     assert done.tool_calls[0].name == "emit" and done.text == "Sure."
+
+
+def _rules_provider(fake_api):
+    from netstead.llm.catalog import load_catalog
+
+    models = {m.id: m for m in load_catalog()["anthropic"].models}
+    return AnthropicProvider(api_key=KEY, transport=fake_api.transport(), models=models)
+
+
+def test_haiku_5_5_gets_effort_and_a_forced_tool_but_no_temperature(fake_api):
+    fake_api.add("POST", "/v1/messages", body=REPLY)
+    _rules_provider(fake_api).complete(replace(REQUEST, model="claude-haiku-5-5", temperature=0.0))
+    body = fake_api.body()
+    assert "temperature" not in body and body["output_config"] == {"effort": "low"}
+    assert body["tool_choice"] == {"type": "tool", "name": "emit"} and body["system"] == "sys"
+
+
+def test_a_model_that_rejects_forced_tools_is_asked_in_words(fake_api):
+    fake_api.add("POST", "/v1/messages", body=REPLY)
+    _rules_provider(fake_api).complete(replace(REQUEST, model="claude-sonnet-5-5", context="GUIDE"))
+    body = fake_api.body()
+    assert "tool_choice" not in body and "temperature" not in body
+    assert body["system"][1] == {"type": "text", "text": "sys\n\nReply by calling the emit tool."}
+
+
+def test_a_model_outside_the_catalog_gets_the_request_as_asked(fake_api):
+    fake_api.add("POST", "/v1/messages", body=REPLY)
+    _rules_provider(fake_api).complete(replace(REQUEST, model="claude-haiku-4-5", temperature=0.0))
+    body = fake_api.body()
+    assert body["temperature"] == 0.0 and "output_config" not in body and body["tool_choice"]["type"] == "tool"
