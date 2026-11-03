@@ -13,6 +13,8 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
+          # Pinned: the runner's own python3 moves on (3.14 by 2026-11), and duckdb 1.1.3 has no wheel for it.
+          python-version: '3.13'
       - name: Install workspace
         run: uv sync --all-packages
       - name: Ruff (lint + format check)

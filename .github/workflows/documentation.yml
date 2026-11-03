@@ -28,6 +28,8 @@ jobs:
         with:
           fetch-depth: 0  # git-revision-date-localized needs history
       - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: '3.13'  # as tests.yml's lint job: duckdb 1.1.3 has no wheel for the runner's 3.14
       - name: Install packages + docs toolchain
         run: uv sync --all-packages --all-extras --group docs
       - name: Build sites
