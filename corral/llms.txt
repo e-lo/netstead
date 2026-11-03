@@ -1,0 +1,31 @@
+# corral + netstead documentation
+
+Generated from the mkdocs nav for AI-agent consumption. Each link below points at the canonical rendered page.
+
+## corral docs
+
+- [Home](https://e-lo.github.io/netstead/corral/index.md): corral overview + install.
+- [Quickstart](https://e-lo.github.io/netstead/corral/quickstart.md): Install, load any Frictionless package, validate it in 5 minutes.
+
+## Cookbook
+
+- [Cookbook](https://e-lo.github.io/netstead/corral/cookbook/index.md): Generic recipes — S3, format conversion, spatial scope.
+
+## Reference
+
+- [API](https://e-lo.github.io/netstead/corral/reference/api.md): Public corral API symbols.
+
+## Concepts
+
+- [Frictionless data packages](https://e-lo.github.io/netstead/corral/concepts/frictionless.md): The spec both packages build on.
+- [When to use ibis vs pandas vs polars](https://e-lo.github.io/netstead/corral/concepts/engines.md): The compute engine (DuckDB) and pandas/polars/Arrow dataframe formats.
+
+## AI surface
+
+- [Overview](https://e-lo.github.io/netstead/corral/ai/index.md): llms.txt + api-index.json + Skills + MCP.
+- [Drive the CLI from an agent](https://e-lo.github.io/netstead/corral/ai/json-cli.md): --json contract patterns for tool-call loops.
+
+## Project
+
+- [Architecture](https://e-lo.github.io/netstead/corral/architecture.md): Single source of truth for the v1.0 design.
+- [Development](https://e-lo.github.io/netstead/corral/development.md): Contributor workflow for the monorepo.
