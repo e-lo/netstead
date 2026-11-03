@@ -1,5 +1,5 @@
-// The two drag handles: #split-handle (the map's share of the stage in Split view) and #side-handle (the side
-// column's width). Sizes are per-browser conveniences kept in localStorage, never recorded actions. The math and
+// The three drag handles: #split-handle (the map's share of the stage in Split view), #side-handle (the left
+// drawer's width) and #details-handle (the right Details panel's width). Sizes are per-browser conveniences kept in localStorage, never recorded actions. The math and
 // the storage encoding live in resize.js; this module owns the pointer, keyboard and double-click events.
 import { $ } from "./dom.js";
 import { resizeSoon } from "./map.js";
@@ -18,22 +18,25 @@ function writeSizes() {
 function apply() {
   $("stage").style.setProperty("--split", `${sizes.split}%`);
   $("app").style.setProperty("--side-w", `${sizes.side}px`);
+  $("app").style.setProperty("--details-w", `${sizes.details}px`);
   $("split-handle").setAttribute("aria-valuenow", String(sizes.split));
   $("side-handle").setAttribute("aria-valuenow", String(sizes.side));
+  $("details-handle").setAttribute("aria-valuenow", String(sizes.details));
 }
 
 function setSize(kind, value) { sizes = { ...sizes, [kind]: clampSize(kind, value) }; apply(); }
 // MapLibre re-measures on its own ResizeObserver during the drag; this is the final, settled size.
 function commit() { writeSizes(); resizeSoon(); }
 
-// The size under the pointer: the map's share of the stage's height; the side column from the pointer to the
-// app's right edge.
+// The size under the pointer: the map's share of the stage's height; the drawer from the rail's edge to the pointer.
 const MEASURE = {
   split: e => { const r = $("stage").getBoundingClientRect(); return r.height ? ((e.clientY - r.top) / r.height) * 100 : sizes.split; },
-  side: e => $("app").getBoundingClientRect().right - e.clientX,
+  side: e => e.clientX - $("side").getBoundingClientRect().left,
+  details: e => $("app").getBoundingClientRect().right - e.clientX,
 };
-// Arrow keys nudge by one step: down grows the map, left grows the side column (the way the handle would move).
-const KEYS = { split: { ArrowUp: -1, ArrowDown: 1 }, side: { ArrowLeft: 1, ArrowRight: -1 } };
+// Arrow keys nudge by one step: down grows the map, right grows the drawer (the way the handle would move).
+const KEYS = { split: { ArrowUp: -1, ArrowDown: 1 }, side: { ArrowLeft: -1, ArrowRight: 1 },
+  details: { ArrowLeft: 1, ArrowRight: -1 } };
 
 function wireHandle(id, kind) {
   const el = $(id);
@@ -66,4 +69,5 @@ export function wireHandles() {
   apply();
   wireHandle("split-handle", "split");
   wireHandle("side-handle", "side");
+  wireHandle("details-handle", "details");
 }

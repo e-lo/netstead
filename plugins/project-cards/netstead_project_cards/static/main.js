@@ -96,7 +96,7 @@ export function activate(wb) {
     id: PANEL,
     title: "Cards",
     icon: "cards",
-    order: 25,
+    order: 35,
     // On a preview, the draft of the base it stands for (draftOf follows the preview).
     badge: ctx => draftBadge(ctx.state, ctxNet(ctx)),
     render(el) {
