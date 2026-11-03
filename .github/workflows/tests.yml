@@ -49,6 +49,7 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
+          python-version: '3.13'  # as lint: `uv run` below syncs the workspace, and duckdb 1.1.3 has no 3.14 wheel
       - name: Build netstead wheel
         run: |
           rm -rf /tmp/wheel-test
