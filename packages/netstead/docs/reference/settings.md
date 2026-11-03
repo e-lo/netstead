@@ -139,6 +139,7 @@ Each `RuleSettings` value has `enabled: bool = true`, `severity_override: "error
 |---|---|---|---|---|
 | `select.provider` | `"stub" \| "anthropic" \| "openai" \| "gemini" \| "ollama"` | `"stub"` | Which provider parses utterances (`stub` is the offline pattern parser). The old name `claude` is accepted and stored as `anthropic`. | live |
 | `select.model` | `str \| None` | `None` | Model name (`None`: the provider's catalog default; for Ollama, an installed tool-capable model). | live |
+| `select.grammar_first` | `bool` | `true` | Read a request with the offline pattern parser first and call the model only when that reading names a street, route number or road type the network doesn't have, or selects nothing. **Ask** does the same with the offline assistant (streets and columns must be in the network). `false` sends every request to the model. | live |
 
 ### `[llm]` — language-model endpoints and quality knobs
 
@@ -154,6 +155,8 @@ Each `RuleSettings` value has `enabled: bool = true`, `severity_override: "error
 | `llm.gemini.timeout_s` | `float` (0 < x ≤ 600) | `60.0` | As above. | live |
 | `llm.ollama.base_url` | `str \| None` | `"http://localhost:11434"` | The Ollama server. A non-local URL means utterances leave this machine. | live |
 | `llm.ollama.timeout_s` | `float` (0 < x ≤ 600) | `120.0` | Whole-request timeout. | live |
+| `llm.ollama.num_ctx` | `int` (2048 ≤ x ≤ 262144) | `16384` | Context window, in tokens, sent with every request. Ollama's own default (4,096 on recent versions) cuts off the assistant's prompt. Changing it reloads the model. | live |
+| `llm.ollama.keep_alive` | `str` | `"30m"` | How long Ollama keeps the model loaded after a request (`"300s"`, `"1h"`; `"-1"` forever, `"0"` unloads at once). Ollama's own default is 5 minutes. | live |
 
 `llm.quality` controls what the natural-language features send and how hard they try. `"auto"` means on for a local endpoint (Ollama, or any loopback `base_url`) and off for a remote provider.
 

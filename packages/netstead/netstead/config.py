@@ -181,6 +181,9 @@ class SelectSettings(_Section):
 
     provider: Literal["stub", "anthropic", "openai", "gemini", "ollama"] = "stub"
     model: str | None = None
+    #: Try the offline grammar first and call the model only when it can't read the request with
+    #: names the network has (or its reading selects nothing). Off: every request goes to the model.
+    grammar_first: bool = True
 
     @field_validator("provider", mode="before")
     @classmethod
@@ -223,6 +226,11 @@ class OllamaSettings(LLMEndpointSettings):
 
     base_url: str | None = "http://localhost:11434"
     timeout_s: float = Field(default=120.0, gt=0, le=600)
+    #: Ollama's own default (4,096 tokens on recent versions) cuts off the assistant's prompt. One fixed size:
+    #: Ollama reloads a model whenever a request asks for a different one.
+    num_ctx: int = Field(default=16384, ge=2048, le=262144)
+    #: How long Ollama keeps the model loaded after a request ("30m", "1h", "300s"; "-1" forever; "0" unloads).
+    keep_alive: str = Field(default="30m", pattern=r"^(-1|\d+[smh]?)$")
 
 
 class LLMQualitySettings(_Section):

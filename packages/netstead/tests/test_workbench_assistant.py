@@ -180,6 +180,12 @@ class Scripted:
         return []
 
 
+@pytest.fixture
+def isolated_env(isolated_env):
+    """These tests drive the model's plans: the offline planner must not answer first."""
+    return {**isolated_env, "NETSTEAD_SELECT__GRAMMAR_FIRST": "false"}
+
+
 def _session(tmp_path, isolated_env, provider=None):
     s = Session(
         project_dir=tmp_path, environ=isolated_env, parser=StubParser(), plugins=[], assistant_provider=provider
@@ -195,6 +201,24 @@ def _reply(*calls, text="", tokens=(100, 20)):
 
 
 SKI_HILL = ("select", {"utterance": "Ski Hill", "facility": {"name": "Ski Hill Drive"}})
+
+
+@pytest.mark.parametrize(
+    ("question", "model_calls"),
+    [
+        ("select ski hill drive and color by lanes", 0),  # every street and column is in the network
+        ("select Ski Hill Dr between Commercial St and Pine St", 0),  # abbreviations still match
+        ("select ski hill drive and color by speed", 1),  # no "speed" column: the model maps it to free_speed
+        ("select bike lanes on ski hill drive", 1),  # not a street name
+        ("which streets have the most lanes?", 1),  # not a command the offline planner reads
+    ],
+)
+def test_ask_uses_the_model_only_when_the_offline_planner_cannot_answer(tmp_path, isolated_env, question, model_calls):
+    p = Scripted(_reply(SKI_HILL, text="Selected."))
+    environ = {**isolated_env, "NETSTEAD_SELECT__GRAMMAR_FIRST": "true"}
+    plan = _session(tmp_path, environ, p).assistant.plan(question)
+    assert len(p.requests) == model_calls
+    assert plan.provider == ("stub" if model_calls == 0 else "ollama")
 
 
 def test_read_only_steps_run_at_once_and_are_recorded_via_the_assistant(tmp_path, isolated_env):
@@ -336,6 +360,17 @@ def test_unreported_usage_is_counted_as_characters_over_four(tmp_path, isolated_
     req = p.requests[0]
     sent = len(req.system) + len(req.context) + sum(len(m.content) for m in req.messages)
     assert s.assistant.used["ollama"] == sent // 4 + 10
+
+
+def test_the_session_state_stays_out_of_the_cached_context(tmp_path, isolated_env):
+    p = Scripted(Completion(text="x"), Completion(text="y"))
+    s = _session(tmp_path, isolated_env, p)
+    s.assistant.ask("hi")
+    s.dispatch({"type": "style", "color_by": "lanes"})
+    s.assistant.ask("hi again")
+    first, second = p.requests
+    assert "<workbench_state>" in first.system and "<workbench_state>" not in first.context
+    assert first.context == second.context and first.system != second.system
 
 
 def test_consistent_holds_the_session_lock_so_no_action_runs_meanwhile(tmp_path, isolated_env):

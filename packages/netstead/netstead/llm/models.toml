@@ -15,6 +15,9 @@
 #   thinking (optional, Ollama only: the model emits hidden reasoning output, so the adapter sends
 #   "think": false to keep it from exhausting the output budget), size_gb (optional, Ollama only:
 #   approximate download size shown before a pull).
+# Anthropic models may also set: sampling = false (the model rejects temperature, so none is sent),
+#   forced_tools = false (the model rejects a forced tool_choice, so the adapter sends "auto" and names
+#   the tool in the system prompt), effort (output_config.effort: low | medium | high).
 #
 # OpenAI, Gemini and Ollama model ids were checked against official vendor docs on 2026-10-05 (see
 # the per-model comments below for sources and caveats — this landscape moves fast, so re-verify
@@ -26,25 +29,40 @@ label = "Anthropic"
 kind = "remote"
 base_url = "https://api.anthropic.com"
 key_env = ["NETSTEAD_ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY"]
-default_model = "claude-haiku-4-5-20251001"
+default_model = "claude-haiku-5-5"
 
+# Ids, prices and request rules from Anthropic's model migration guide (checked 2026-10-28). All three
+# reject a temperature other than the default; effort "low" keeps their adaptive thinking short, since
+# one tool call per request needs little of it.
+# Haiku 5.5: $0.10 / $0.50 per million input / output tokens (prompts up to 100K tokens). It accepts a
+# forced tool call (and then skips thinking).
 [[anthropic.models]]
-id = "claude-haiku-4-5-20251001"
-label = "Haiku 4.5"
+id = "claude-haiku-5-5"
+label = "Haiku 5.5"
 tier = "fast"
 tools = true
+sampling = false
+effort = "low"
 
+# Sonnet 5.5: $2 / $10. Rejects a forced tool_choice.
 [[anthropic.models]]
-id = "claude-sonnet-5"
-label = "Sonnet 5"
+id = "claude-sonnet-5-5"
+label = "Sonnet 5.5"
 tier = "balanced"
 tools = true
+sampling = false
+forced_tools = false
+effort = "low"
 
+# Opus 5.5: $4 / $20. Rejects a forced tool_choice.
 [[anthropic.models]]
 id = "claude-opus-5-5"
 label = "Opus 5.5"
 tier = "best"
 tools = true
+sampling = false
+forced_tools = false
+effort = "low"
 
 [openai]
 label = "OpenAI"

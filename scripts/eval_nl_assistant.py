@@ -96,7 +96,8 @@ def run_eval(
 ) -> EvalResult:
     """Plan every case ``runs`` times on Leavenworth; ``provider`` (tests) replaces the one the settings name."""
     source = str(leavenworth.parquet_dir())
-    settings = {"io.allowed_roots": [source], **(overrides or {})}
+    # The eval scores the model, so every case must reach it: no offline-planner shortcut.
+    settings = {"io.allowed_roots": [source], "select.grammar_first": False, **(overrides or {})}
     out = EvalResult(runs)
     with tempfile.TemporaryDirectory() as tmp:
         session = Session(

@@ -168,6 +168,7 @@ def test_select_provider_claude_alias_new_providers_and_model_default(tmp_path, 
 def test_llm_section_defaults_env_and_base_url_validation(tmp_path, isolated_env):
     s = load_settings(project_dir=tmp_path, environ=isolated_env).settings
     assert (s.llm.ollama.base_url, s.llm.ollama.timeout_s) == ("http://localhost:11434", 120.0)
+    assert (s.llm.ollama.num_ctx, s.llm.ollama.keep_alive) == (16384, "30m")
     assert (s.llm.openai.base_url, s.llm.openai.timeout_s) == (None, 60.0)
     env = {
         **isolated_env,

@@ -49,7 +49,7 @@ __all__ = ["ASSISTANT_PROMPT", "Assistant", "AssistantBusy", "Plan", "compact_on
 
 logger = logging.getLogger(__name__)
 
-#: The assistant's per-call instructions (the guide and the session state are the cacheable context).
+#: The assistant's per-call instructions, sent before the session state (the guide is the cacheable context).
 ASSISTANT_PROMPT = (
     "You operate the Netstead Workbench for a transportation modeller. Do what they ask by calling the tools you are "
     "given, one call for each part of the request, in order, and add at most one short sentence for them. Never "
@@ -349,6 +349,8 @@ class Assistant:
             stub = StubPlanner().plan(text)
             calls = self._check(stub.calls, specs)
             return Plan([c.action for c in calls], stub.text, "stub", None, True, calls=calls)
+        if settings.select.grammar_first and (offline := self._offline_plan(text, specs)) is not None:
+            return offline
         grounding = build_grounding(
             session, provider=endpoint.name, endpoint_local=endpoint.local, registry=endpoint.registry
         )
@@ -375,7 +377,7 @@ class Assistant:
             model=endpoint.model or "default",
             tools=tuple(s.tool for s in specs.values()),
             messages=(*(p.message(grounding.grounded, grounding.notes) for p in history), Message("user", text)),
-            system=ASSISTANT_PROMPT,
+            system=f"{ASSISTANT_PROMPT}\n\n{grounding.state}",
             context=grounding.context,
             validate=validate,
             prepare=prepare,
@@ -401,6 +403,43 @@ class Assistant:
             list(ignored),
             list(split),
         )
+
+    def _offline_plan(self, text: str, specs: dict[str, ToolSpec]) -> Plan | None:
+        """The offline planner's plan for ``text`` when it reads all of it with names the network has, else ``None``.
+
+        As Find does (``select.grammar_first``): a request the grammar fully understands, whose streets and
+        columns are all in the active network, needs no model call. ``None`` means: ask the model.
+        """
+        stub = StubPlanner().plan(text)
+        if not stub.calls or not self._names_known(stub.calls):
+            return None
+        try:
+            calls = self._check(stub.calls, specs)
+        except ValueError:
+            return None
+        return Plan([c.action for c in calls], stub.text, "stub", None, True, mode="pattern", calls=calls)
+
+    def _names_known(self, calls: tuple[ToolCall, ...]) -> bool:
+        """Whether every street and column ``calls`` name is in the network each one targets."""
+        from ..session import street_index  # the session module imports this one
+
+        session = self._session
+        for call in calls:
+            args = call.arguments
+            net_id = args.get("net_id") or session.active
+            handle = session.registry.get(net_id) if net_id else None
+            if handle is None:
+                return False
+            if call.name == "select":
+                index = street_index(handle)
+                street = (args.get("facility") or {}).get("name")
+                if not index.knows_stretch([street], (args.get("from_anchor"), args.get("to_anchor"))):
+                    return False
+            columns = [args.get("color_by"), args.get("width_by"), *(w.get("col") for w in args.get("where", []))]
+            columns += list((args.get("values") or {}).keys())
+            if any(col and col not in handle.links_df().columns for col in columns):
+                return False
+        return True
 
     def _check(self, calls: tuple[ToolCall, ...], specs: dict[str, ToolSpec]) -> list[_Call]:
         """Each call as an Action, checked against one snapshot of the session; ``ValueError`` names the bad call.

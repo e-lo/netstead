@@ -22,11 +22,70 @@ This file is for the **netstead** package only. The underlying generic engine `c
   everything, placed to stay on screen, so the map and drawers no longer clip them. The project-cards plugin's
   Cards panel moved after Validate in the rail (panel order 35).
 
+- **Find answers common requests without calling the model.** With a language model selected, the Workbench's
+  Find tab now reads a request with the offline pattern parser first ("Glenwood Ave between Peace St and Wade
+  Ave", "I-40 EB", "all residential links", "links 5, 6") and calls the model only when that reading names a
+  street, route number or road type the network doesn't have, or selects nothing. Such a selection records
+  `parsed_by: {"provider": "stub", "mode": "pattern", "grammar_first": true}`. Turn it off with
+  `select.grammar_first = false`. `netstead select` does the same, and so does **Ask**: a question the offline
+  assistant reads in full ("select Cedar St between Central Ave and Price Ave and color by lanes"), naming only
+  streets and columns the network has, is planned without the model. The new cookbook page
+  [Find links by describing them](https://e-lo.github.io/netstead/netstead/cookbook/find-links/) lists what you
+  can type, when the model is called, and timings. On an OSM Raleigh–Durham network (303k links) with `qwen2.5:7b` in Ollama,
+  four of eight test requests went from 2.8–6.7 s to under 30 ms.
+- **Street names are indexed once per network version** (`netstead.select.StreetIndex`), so resolving a
+  selection no longer re-normalizes every link's name for each street and anchor. On the Raleigh–Durham network,
+  resolving drops from 230–770 ms to 0.2–4 ms after a 0.16 s build (and from 36 ms to 11 ms for "all
+  residential links"). Names now also match when the request abbreviates a street type or direction
+  ("Hillsborough St" finds Hillsborough Street), leaves out a direction the network has ("Peace Street" finds
+  West and East Peace Street, but "W Six Forks Rd" never finds East Six Forks Road), or misspells it ("Hilsborough
+  Street" and "Glenwod Ave" find the closest name at least 85% alike; names under 5 letters are never guessed).
+  A cross street may also leave out its type, misspelled or not ("Cedar Street from Centrl to Price" finds Central
+  and Price Avenue), but only among the streets that meet the street it crosses: on its own, a word like
+  "parking" is close to some street in any large network. On the Raleigh–Durham network, 481 of 500 cross streets
+  typed without their type and with one typo found the right street, and none of 2,000 dictionary words matched a
+  street.
+  An exact match still wins, and a looser one is noted in the selection's diagnostics. The Find tab's
+  cross-street list reads the same index.
+- **Faster shortest paths with an S2 cell overlay.** `GMNSGraph.build_overlay()` partitions the routing graph
+  by S2 cells at nested levels (default 13, 11 and 9, about 1, 4 and 16 km across) and replaces each cell's
+  interior with shortcut edges between the nodes where roads cross its edge, in the style of Customizable Route
+  Planning. `GMNSGraph.shortest_path` then uses it automatically. Costs are the same as plain Dijkstra (when
+  paths tie, a different one may come back). On an OSM Raleigh–Durham roads network (129k nodes) queries drop
+  from 10.6 ms to 2.0 ms after a 0.8 s build; on the wider Triangle (824k links) from 34 ms to 3.9 ms after
+  2.2 s. Small networks such as Leavenworth are faster without it. `build_overlay(cache=<network path>)` keeps
+  the overlay in a `_netstead_indexes/` sidecar keyed on the graph's content and levels, which
+  `netstead index drop` removes. Node coordinates must be lon/lat, or pass `crs=` to reproject (needs
+  `pyproj`). S2 cell ids are computed in numpy (`netstead.graph.s2`); there is no new dependency.
 - **Market Street, San Francisco example network (Overture).** `netstead.fixtures.market_street` ships a
   129-node, 186-link roads network around Lotta's Fountain, built with `netstead build --source overture`
   (release 2026-09-23.1) with Overture GERS ids on every link and node, as csv, parquet, zip and
   `datapackage.json`. It is listed under **Included examples** in the Workbench and exercises the Find tab's
   Overture GERS id system on real data. Data (c) OpenStreetMap contributors, ODbL; data from TomTom.
+
+### Fixed
+
+- **Local models now see the assistant's whole prompt.** Ollama's default context window (4,096 tokens on
+  recent versions) cut the Ask prompt to about 2,050 tokens. netstead now asks for 16,384 (new setting
+  `llm.ollama.num_ctx`) and keeps the model loaded for 30 minutes after each call instead of Ollama's 5 (new
+  setting `llm.ollama.keep_alive`). With `qwen2.5:7b`, "color by speed" and "select Cedar Street and zoom to
+  it" now plan correctly. `qwen2.5:7b` takes about 0.7 GB more memory (5.0 GB loaded).
+- **Ask's prompt cache is reused on Anthropic.** The Workbench's state (selection, filter, map style) sat inside
+  the cached part of the prompt, so any action rewrote all of it. It is now sent after the cached part. On Haiku
+  5.5 with Leavenworth, an Ask within five minutes of another costs $0.0002–0.0003 instead of $0.0012.
+- **Anthropic's newest models no longer reject netstead's requests.** Sonnet 5.5 and Opus 5.5 refuse a
+  temperature and a forced tool call, and Haiku 5.5 refuses a temperature; netstead sent both. Catalog models
+  now say which they accept (`sampling`, `forced_tools`), and get a low `effort` so their thinking stays short.
+
+- **"X between A and B" finds segments it used to miss.** A street that is partly `trunk` (a signalized
+  arterial such as Glenwood Avenue) was treated as a freeway, so an at-grade cross street never matched; when no
+  interchange path exists the resolver now tries its at-grade intersections. A street whose own name breaks off
+  (a roundabout with no name, or, on a divided road, the few meters of a cross street spanning the median) left
+  "no path between" its anchors; when the street's own links don't connect them, the path may now cross unnamed
+  links and named links up to 20 m long within 3 links of the street, at three times their length so the street
+  is preferred. Service roads, paths and tracks never bridge. The selection's diagnostics say when either
+  happened. On the Raleigh–Durham network, "Glenwood Avenue between Peace Street and Wade Avenue" and
+  "Hillsborough St between Oberlin Rd and Gorman St" now resolve.
 
 ### Security
 
@@ -42,6 +101,10 @@ This file is for the **netstead** package only. The underlying generic engine `c
   a settings error.
 
 ### Changed
+
+- **Anthropic's default model is now Haiku 5.5** (`claude-haiku-5-5`, $0.10 / $0.50 per million input /
+  output tokens, a tenth of Haiku 4.5's price), and the catalog offers Sonnet 5.5 (`claude-sonnet-5-5`) in place
+  of Sonnet 5. A `select.model` you set yourself is unchanged.
 
 - **Workbench Find tab: with the offline parser, Select is a fill-in-the-blanks form.** No more guessing the
   grammar. Pick a pattern (Street; Street between two cross streets; All links of a type; Link ids) and fill its

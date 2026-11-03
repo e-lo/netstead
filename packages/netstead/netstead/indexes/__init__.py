@@ -20,10 +20,14 @@ Examples:
 
 from __future__ import annotations
 
+import contextlib
 from typing import TYPE_CHECKING, Any
 
 from .cache import cache_path, load_cached, save_cached
-from .spatial import SpatialIndex
+
+# SpatialIndex needs shapely ([clean]); without it the cache helpers still work.
+with contextlib.suppress(ImportError):
+    from .spatial import SpatialIndex
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from corral.dataset import Table
@@ -62,7 +66,11 @@ def build_indexes(
     """
     if graph and nodes is None:
         raise ValueError("build_indexes(graph=True) requires a nodes Table")
-    spatial_idx = SpatialIndex.build(links) if spatial else None
+    spatial_idx = None
+    if spatial:
+        from .spatial import SpatialIndex  # ImportError names shapely when [clean] is missing
+
+        spatial_idx = SpatialIndex.build(links)
     graph_idx: Any = None
     if graph and nodes is not None:
         from netstead.graph import GMNSGraph

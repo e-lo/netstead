@@ -132,8 +132,10 @@ Sizes are the download sizes listed on [ollama.com/library/qwen3](https://ollama
 and [ollama.com/library/qwen2.5](https://ollama.com/library/qwen2.5) (checked 2026-10-05). Both
 library pages mark the models as supporting tools, which netstead uses.
 Ollama doesn't publish memory requirements per model. As a rough guide, you need at least the
-download size free in memory, plus some overhead, to run a model comfortably. If your machine
-starts swapping, use the smaller model.
+download size free in memory, plus some overhead, to run a model comfortably. netstead asks for a
+16,384-token context window (`llm.ollama.num_ctx`), about 0.7 GB more than Ollama's default for `qwen2.5:7b`, which takes
+5.0 GB loaded. If your machine starts swapping, use the smaller model, or lower `num_ctx` to 8192 (the
+assistant's prompt may then be cut off).
 
 The Workbench only pulls into an Ollama on this machine, and only when the Workbench itself is
 bound to this machine (the default, `127.0.0.1`). Otherwise, pull from a terminal.
@@ -145,6 +147,12 @@ bound to this machine (the default, `127.0.0.1`). Otherwise, pull from a termina
    The picker lists the models Ollama has installed, and starts on the model selections will use.
    If that isn't the default because the default isn't installed, hovering over the model says so.
 3. That choice applies to this session. Click **Make default** to save it to your user config.
+
+Common requests ("Cedar St between Central Ave and Price Ave", "all residential links") are answered by the
+offline pattern parser without calling the model; the model is called for the rest. A local 7B model takes a few
+seconds per call on a laptop, plus the time to load it into memory on the first call
+([timings](find-links.md#performance)). netstead asks Ollama to keep the model loaded for 30 minutes after each
+call (`llm.ollama.keep_alive`; Ollama's own default is 5), so the load comes only after a longer pause.
 
 Or set it in a config file:
 
@@ -202,7 +210,9 @@ or isn't installed. Open the app (macOS/Windows), or run `ollama serve` (Linux),
 
 **Slow answers.** Without a supported GPU, Ollama runs on the CPU, and each selection can take
 many seconds. `ollama ps` shows whether a loaded model is on the GPU or CPU. Use `qwen3:4b` rather
-than a larger model. If requests time out, raise `llm.ollama.timeout_s` (default 120 seconds).
+than a larger model. If requests time out, raise `llm.ollama.timeout_s` (default 120 seconds). The
+assistant's prompt is about 5,000 tokens, so an **Ask** waits longer than a **Find** before the model
+starts answering: 5–30 s per call for `qwen2.5:7b` on an M3 laptop.
 
 **A model without tool support.** netstead asks for a tool call first. If Ollama answers that the
 model "does not support tools", netstead automatically retries the same model in JSON mode,
@@ -229,5 +239,7 @@ constrained to the same schema. You don't need to do anything.
 
 ## See also
 
+- [Find links by describing them](find-links.md) — what to type, which requests skip the model entirely, and
+  timings with `qwen2.5:7b`.
 - [Explore networks in the Netstead Workbench](workbench.md#language-models-natural-language-selection) — every provider, keys, quality settings.
 - [Ollama documentation](https://docs.ollama.com) — install, the CLI, and the API.

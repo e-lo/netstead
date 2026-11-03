@@ -405,6 +405,9 @@ written to, and a copy inside the source folder is refused.
 
 ## Find: the offline form and the language-model box
 
+For everything you can type, which requests need a language model, and how fast each is, see
+[Find links by describing them](find-links.md).
+
 With **Offline (pattern)** chosen, the **Find** tab is a form, so you never have to guess the phrasing:
 
 | Pattern | Blanks | Sentence sent to Select |
@@ -585,12 +588,16 @@ maintained in `netstead/llm/models.toml`:
 
 | Provider | Default model |
 |---|---|
-| `anthropic` | Haiku 4.5 (`claude-haiku-4-5-20251001`) |
+| `anthropic` | Haiku 5.5 (`claude-haiku-5-5`) |
 | `openai` | small/fast tier |
 | `gemini` | small/fast tier |
 | `ollama` | `qwen3:4b`, or an installed tool-capable model such as `qwen2.5:7b` when `qwen3:4b` isn't installed |
 
 Pick a larger model from the picker if parses go wrong.
+
+Requests the offline pattern parser can read with names the network has are answered without calling the model,
+in milliseconds instead of seconds (`select.grammar_first`, on by default). See
+[When the model is called](find-links.md#when-the-model-is-called).
 
 ### Keys are write-only
 
@@ -651,7 +658,7 @@ for a remote provider.
 # ~/.config/netstead/config.toml: endpoints, choices and quality only, never keys
 [select]
 provider = "anthropic"
-model = "claude-haiku-4-5-20251001"
+model = "claude-haiku-5-5"
 
 [llm.ollama]
 base_url = "http://localhost:11434"

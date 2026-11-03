@@ -11,12 +11,19 @@ persistent cache or staleness tracking by default.
 from __future__ import annotations
 
 import ast
+import hashlib
 import logging
+from collections.abc import Iterable
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
 
 from .source import NetworkSource, as_source
+
+if TYPE_CHECKING:
+    from .overlay import S2Overlay
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +106,8 @@ class GMNSGraph:
         self._undirected = None  # cached symmetric adjacency for neighbors()
         self._kdtree = None
         self._kdtree_index = None  # graph indices that the kdtree covers
+        self._overlay = None  # S2Overlay used by shortest_path once built
+        self._content_hash = None
 
     # -- construction --------------------------------------------------------
 
@@ -317,6 +326,15 @@ class GMNSGraph:
 
     # -- accessors -----------------------------------------------------------
 
+    def content_hash(self) -> str:
+        """SHA-256 of the graph's edges, costs, and node coordinates (computed once)."""
+        if self._content_hash is None:
+            digest = hashlib.sha256()
+            for array in (self.csr.indptr, self.csr.indices, self.csr.data, self.coords):
+                digest.update(np.ascontiguousarray(array).tobytes())
+            self._content_hash = digest.hexdigest()
+        return self._content_hash
+
     def index_of(self, node_id) -> int:
         """Return the graph (matrix-row) index for ``node_id``, or raise :class:`KeyError`."""
         i = self.node_index.get_indexer([node_id])[0]
@@ -423,10 +441,64 @@ class GMNSGraph:
         return isochrone(self, source_node, cutoff)
 
     def shortest_path(self, source_node, target_node) -> ShortestPathResult:
-        """Return the least-cost path — see :func:`netstead.graph.paths.shortest_path`."""
+        """Return the least-cost path — see :func:`netstead.graph.paths.shortest_path`.
+
+        Uses the S2 cell overlay when one is attached (:meth:`build_overlay` /
+        :meth:`attach_overlay`); the cost is the same either way.
+        """
+        if self._overlay is not None:
+            return self._overlay.shortest_path(self, source_node, target_node)
         from .paths import shortest_path
 
         return shortest_path(self, source_node, target_node)
+
+    def build_overlay(
+        self, levels: Iterable[int] | None = None, *, crs: Any = None, cache: str | Path | None = None
+    ) -> S2Overlay:
+        """Precompute an S2 cell overlay and attach it so :meth:`shortest_path` uses it.
+
+        A one-time cost (about a second for a 130k-node metro network) that makes
+        each point-to-point query several times faster. See
+        :class:`netstead.graph.overlay.S2Overlay`.
+
+        Args:
+            levels: S2 levels to partition at (default
+                :data:`netstead.graph.overlay.DEFAULT_LEVELS`).
+            crs: CRS of the node coordinates if they are not lon/lat degrees.
+            cache: Path of the network this graph was built from. The overlay is
+                then loaded from, or saved to, a sidecar under
+                ``_netstead_indexes/`` next to it, keyed on the graph's content
+                and ``levels`` (``netstead index drop`` removes it).
+        """
+        from .overlay import DEFAULT_LEVELS, S2Overlay
+
+        levels = DEFAULT_LEVELS if levels is None else levels
+        if cache is None:
+            return self.attach_overlay(S2Overlay(self, levels, crs=crs))
+
+        from netstead.indexes.cache import cache_path, load_cached, save_cached
+
+        level_key = sorted({int(level) for level in levels})
+        key = hashlib.sha256(f"{self.content_hash()}:{level_key}:{crs}".encode()).hexdigest()
+        path = cache_path(str(cache), "s2overlay", key)
+        overlay = load_cached(path)
+        if overlay is None:
+            overlay = S2Overlay(self, levels, crs=crs)
+            save_cached(path, overlay)
+        return self.attach_overlay(overlay)
+
+    def attach_overlay(self, overlay):
+        """Attach a previously built (e.g. cached) :class:`~netstead.graph.overlay.S2Overlay`.
+
+        Pass ``None`` to detach and go back to plain Dijkstra.
+
+        Raises:
+            ValueError: If ``overlay`` was built from a different graph.
+        """
+        if overlay is not None and not overlay.matches(self):
+            raise ValueError("This S2Overlay was built from a different graph; rebuild it.")
+        self._overlay = overlay
+        return overlay
 
     def snap(self, x: float, y: float):
         """Return the node id nearest to ``(x, y)`` — see :func:`netstead.graph.paths.snap`."""

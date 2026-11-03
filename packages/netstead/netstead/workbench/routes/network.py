@@ -62,8 +62,7 @@ from ..related import (
     restrict,
     row_vias,
 )
-from ..session import Session
-from ..streets import cross_streets
+from ..session import Session, street_index
 from .common import network_handle
 
 __all__ = ["LocateQuery", "RelatedQuery", "RowsQuery", "network_router"]
@@ -345,7 +344,7 @@ def network_router(session: Session) -> APIRouter:
     def streets_crossing(net_id: str, component: str, name: str) -> dict[str, Any]:
         """The names of the streets that share a node with street ``name`` (the Find form's cross-street list)."""
         h = handle(net_id, component)
-        return {"street": name, "streets": cross_streets(h.links_df(), name)}
+        return {"street": name, "streets": street_index(h).cross_streets(name)}
 
     @router.get("/table/{table_name}/rows")
     def table_rows(

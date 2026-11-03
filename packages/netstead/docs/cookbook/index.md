@@ -36,7 +36,7 @@ For bbox / polygon (non-GMNS-specific) spatial scope, see [corral cookbook: spat
 
 * [View a network on a map](view-your-network.md) — render a self-contained Leaflet map of any GMNS network, with or without validation overlays.
 * [Explore networks in the Netstead Workbench](workbench.md) — linked map + tables, validation with fixes, NL selection, replayable actions.
-* Select links and nodes in plain English — `netstead select` resolves a description to GMNS ids through Anthropic / OpenAI / Gemini / Ollama (the `[nl]` extra); the Workbench recipe above covers the same selection flow in the browser.
+* [Find links by describing them](find-links.md) — what you can type ("Cedar St between Central Ave and Price Ave", "all residential links"), which requests need a language model, and how fast each is; in the Workbench, `netstead select` or Python.
 * [Write a Workbench plugin](workbench-plugins.md) — add Actions, settings, state, routes and a front end as a separate pip package; the `Host` API, trust model, testing and versioning.
 * [Author ProjectCards in the Workbench](workbench-project-cards.md) — the project cards plugin: select, change, preview and commit network_wrangler ProjectCards.
 * [Run language models locally with Ollama](local-llm-ollama.md) — install Ollama, pull `qwen3:4b`, select in plain English with nothing leaving your machine.
