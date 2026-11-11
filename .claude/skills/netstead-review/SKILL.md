@@ -86,7 +86,7 @@ Focus areas — what to flag:
 
 - **Doc-vs-code drift.** Documented symbol that doesn't exist → **Critical**. (`netstead.read` was missing for months — that was a Critical we should have caught.)
 - **Stale install commands.** `pip install` snippet that fails on a fresh venv → **Critical**.
-- **Broken internal links.** Cross-page links that 404 in `mkdocs build --strict` → **Important**.
+- **Broken internal links.** Cross-page links that fail `zensical build --strict` → **Important**.
 - **Examples that exec-fail.** Any code block under a `.. code-block:: python` / `.. doctest::` / triple-backtick `python` that raises → **Important**.
 - **Inconsistent install names.** README says `netstead[all]`, docs say `netstead[clean,server,mcp,notebook]` — pick one → **Suggestion**.
 - **Missing first-touch escape hatches.** "If this fails, run `netstead doctor`" / "if you don't have zsh, ..." callouts where users will predictably stumble → **Suggestion**.
@@ -96,7 +96,7 @@ Automated belts that catch many lens-D issues *before* the human reviewer:
 - `packages/netstead/tests/test_documented_api_contract.py` — scans every `.md` for `netstead.X` / `corral.X` references and asserts each one resolves. **Adds an enforced cost** to landing aspirational API names in docs without implementation.
 - `packages/netstead/tests/test_documented_cli_contract.py` — scans every `.md` for `netstead <cmd> --flag` / `corral <cmd> --flag` invocations in bash/zsh/console fenced blocks (and inline backticks), and asserts every documented `--flag` exists on the resolved command via click introspection. Catches the CLI-side version of the same doc/code drift class.
 - `--doctest-modules` in CI — every `Examples:` block in a docstring runs as a test.
-- `mkdocs build` with `htmlproofer` plugin — catches broken internal links.
+- `zensical build --strict` — fails on links to pages that do not exist.
 
 If a CI belt could catch it, the reviewer's job is to confirm it does. If not, the reviewer is the last line of defense.
 

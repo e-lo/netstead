@@ -11,7 +11,7 @@ Netstead + corral are designed to be driven by AI agents as a first-class usage 
 
 ## 1. `llms.txt` + `llms-full.txt` (this site)
 
-Two files at the site root, regenerated on every `mkdocs build`:
+Two files at the site root, regenerated before every docs build:
 
 | Artifact | Purpose | Built from |
 |---|---|---|
@@ -74,7 +74,7 @@ The two variants serve different agent loops:
 }
 ```
 
-Built by `corral.docgen.llms.generate_api_index_json` at `mkdocs build` time — it is not checked into the repo. Refreshes each build.
+Built by `corral.docgen.llms.generate_api_index_json` before each docs build — it is not checked into the repo.
 
 ### Use it from an agent
 
