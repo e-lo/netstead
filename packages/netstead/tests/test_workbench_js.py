@@ -1485,46 +1485,6 @@ def test_related_explanation_is_generic_or_uses_the_real_answer(node_module):
     assert "nothing more in this network" in lines[2]
 
 
-def test_dismissible_help_remembers_its_choice_and_survives_broken_storage(node_module):
-    harness = """
-const mem = new Map();
-const storage = {
-  getItem: k => (mem.has(k) ? mem.get(k) : null),
-  setItem: (k, v) => mem.set(k, v),
-  removeItem: k => mem.delete(k),
-};
-const boom = () => { throw new Error("blocked"); };
-const broken = { getItem: boom, setItem: boom, removeItem: boom };
-const mk = () => ({ el: { hidden: false }, hideBtn: {}, showBtn: { hidden: true } });
-const a = mk();
-wireDismissibleHelp(a.el, helpKey("edit"), { ...a, storage });
-const shownFirst = [a.el.hidden, a.showBtn.hidden];
-a.hideBtn.onclick();
-const afterHide = [a.el.hidden, a.showBtn.hidden, mem.get("wb.help.edit")];
-const b = mk();
-wireDismissibleHelp(b.el, helpKey("edit"), { ...b, storage });  // a reload: still hidden
-const reload = [b.el.hidden, b.showBtn.hidden];
-b.showBtn.onclick();
-const afterShow = [b.el.hidden, b.showBtn.hidden, mem.has("wb.help.edit")];
-const c = mk();
-wireDismissibleHelp(c.el, "k", { ...c, storage: broken });
-c.hideBtn.onclick();
-const brokenHide = [c.el.hidden, c.showBtn.hidden];
-"""
-    got = node_module(
-        "help.js",
-        ["helpKey", "wireDismissibleHelp"],
-        "(() => {" + harness + "return {shownFirst, afterHide, reload, afterShow, brokenHide};})()",
-    )
-    assert got == {
-        "shownFirst": [False, True],
-        "afterHide": [True, False, "hidden"],
-        "reload": [True, False],
-        "afterShow": [False, True, False],
-        "brokenHide": [True, False],  # the toggle works even when nothing can be remembered
-    }
-
-
 def test_tab_labels_say_what_the_badge_means(node_module):
     got = node_module(
         "tabs.js",

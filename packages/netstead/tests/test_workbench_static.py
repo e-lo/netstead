@@ -943,15 +943,14 @@ def test_related_steps_control_has_an_info_popover():
     assert 'id="tbl-hops-pop"' in wrap and 'aria-haspopup="dialog"' in wrap
 
 
-def test_the_view_panel_is_gone_and_edit_help_is_dismissible():
+def test_the_view_panel_is_gone_and_edit_help_is_a_tooltip():
     html = (STATIC_DIR / "index.html").read_text()
     assert 'data-panel="view"' not in html
     assert "registerViewPanel" not in (JS_DIR / "panels.js").read_text() + (JS_DIR / "main.js").read_text()
     edit = html[html.index('id="dock-edit"') : html.index('id="dock-validate"')]
-    for element_id in ("ed-help", "ed-help-hide", "ed-help-show"):
-        assert f'id="{element_id}"' in edit
-    assert 'data-tip="Hide this help"' in edit and 'data-tip="About this tab"' in edit
-    assert 'wireDismissibleHelp($("ed-help"), helpKey("edit")' in (JS_DIR / "edits.js").read_text()
+    assert 'id="ed-info"' in edit and 'data-icon="info"' in edit and "Undo reverses your newest edit" in edit
+    assert 'id="ed-help' not in edit and "wireDismissibleHelp" not in (JS_DIR / "edits.js").read_text()
+    assert not (JS_DIR / "help.js").exists()
 
 
 def test_the_links_row_keeps_width_direction_and_filter_in_its_options():

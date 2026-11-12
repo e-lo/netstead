@@ -102,6 +102,7 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Changed
 
+- **Workbench Changes pane: its explanation is an info tooltip.** The paragraph with a × dismiss button (and its remembered choice) is replaced by an info icon beside the Changes heading; the help.js module is gone.
 - **Anthropic's default model is now Haiku 5.5** (`claude-haiku-5-5`, $0.10 / $0.50 per million input /
   output tokens, a tenth of Haiku 4.5's price), and the catalog offers Sonnet 5.5 (`claude-sonnet-5-5`) in place
   of Sonnet 5. A `select.model` you set yourself is unchanged.

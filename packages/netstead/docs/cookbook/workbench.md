@@ -249,8 +249,8 @@ Focus is a view. Clicking never changes the selection.
     **Assistant** (chat bubble). Panels another plugin adds sit below a divider. Click an icon to open its pane in
     the **drawer** beside the rail; click the open icon again to close the drawer, and the map takes the width. With
     the keyboard, the Up and Down arrows move between icons and Enter or Space opens or closes the drawer. A badge is
-    one pill at its icon's corner (orange while edits are unsaved). The Changes pane's help paragraph hides behind its
-    **×**; the **ⓘ** beside the heading brings it back.
+    one pill at its icon's corner (orange while edits are unsaved). The **ⓘ** beside the Changes heading explains the pane
+    in a tooltip.
   - **Details** is a panel on the right that opens when you focus a record: click a link or node on the map, click a
     table row, zoom to a finding in Validate, or pick a result in Find. It lists the record's fields and has
     **Edit…** and **Delete…**. Close it with its **×** or Escape (which also clears the focus); the map takes the width
