@@ -66,6 +66,7 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Fixed
 
+- **Language model changes apply without a reload.** Choosing a provider or model in the header now re-reads the Assistant pane's status (it kept the old model until a reload), and a pick holds back the refresh its own two settings writes triggered, which could redraw the old pair.
 - **Find: a route matches by number as well as by name.** A facility now matches the union of the links whose `name` or `ref` matches, with route spellings normalized (`US-2`, `US Highway 2`, `Interstate 5`) and the diagnostics saying which column matched, so "US 2 between Mill Street and 9th Street" on Leavenworth follows the unnamed links of US 2. OpenStreetMap builds keep OSM's `ref` as a `ref` column (never copied into `name`); the bundled Leavenworth fixture gained it through a deterministic patch script (no rebuild).
 - **Local models now see the assistant's whole prompt.** Ollama's default context window (4,096 tokens on
   recent versions) cut the Ask prompt to about 2,050 tokens. netstead now asks for 16,384 (new setting

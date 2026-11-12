@@ -1059,3 +1059,19 @@ def test_the_ramp_is_picked_from_the_legend_gradient_not_a_footer_row():
     panels = (JS_DIR / "panels.js").read_text()
     assert 'class="lg-ramp-btn"' in panels and 'role="listbox"' in panels
     assert 'links: "ramp"' in panels and 'nodes: "node_ramp"' in panels
+
+
+def test_a_provider_or_model_pick_redraws_every_pane_that_names_the_model():
+    llm = (JS_DIR / "llm.js").read_text()
+    main = (JS_DIR / "main.js").read_text()
+    # the picks hold back history-driven refreshes while they write, then redraw from what was picked
+    assert (
+        "const onProviderChange = provider => whileWriting(" in llm
+        and "const onModelChange = model => whileWriting(" in llm
+    )
+    assert "if (writing) return;" in llm
+    # renderPicker is the one place that redraws the robot, the Find form and the model list, and it tells the Assistant
+    render = llm[llm.index("async function renderPicker()") : llm.index("function syncButtonTip")]
+    for call in ("setFindProvider(provider)", "syncButtonTip(current, provider)", "onSelected(llm.selected)"):
+        assert call in render
+    assert "onLLMSelected(() => loadAssistant())" in main

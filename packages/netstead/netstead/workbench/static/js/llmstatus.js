@@ -29,6 +29,14 @@ export function llmStatus({ provider, row = null, model = "", modelMissing = fal
   return finish("ready", name, "ready", privacy);
 }
 
+// Whether the chosen pair differs from the one last shown (`shownKey`, "" or null before any): what the panes that
+// describe the chosen model (the Assistant's note and usage) must be told to re-read. Returns {key, changed}; the
+// first pair seen is not a change, since the page loaded it already.
+export function selectionChange(shownKey, selected) {
+  const key = selected ? `${selected.provider}|${selected.model ?? ""}` : "";
+  return { key, changed: shownKey != null && key !== shownKey };
+}
+
 function finish(state, name, phrase, privacy) {
   const text = `Language model: ${name} — ${phrase}.${privacy ? ` ${privacy}` : ""}`;
   return { state, name, phrase, text };

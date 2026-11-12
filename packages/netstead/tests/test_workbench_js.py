@@ -1730,3 +1730,21 @@ def test_find_form_cross_choices_and_mode(node_module):
     ]"""
     got = node_module("findmodel.js", ["crossChoices", "useForm", "parseIds"], expr)
     assert got == [["C"], ["A", "B"], ["B"], True, False, [1, 2], None, None]
+
+
+def test_a_changed_provider_or_model_is_reported_once_and_the_first_pair_is_not_a_change(node_module):
+    expr = """(() => {
+      const a = {provider: "stub", model: null}, b = {provider: "ollama", model: "qwen2.5:7b"};
+      const first = selectionChange(null, a);
+      const same = selectionChange(first.key, a);
+      const provider = selectionChange(first.key, b);
+      const model = selectionChange(provider.key, {provider: "ollama", model: "llama3.1:8b"});
+      const none = selectionChange(provider.key, null);
+      return [first, same, provider, model, none];
+    })()"""
+    first, same, provider, model, none = node_module("llmstatus.js", ["selectionChange"], expr)
+    assert first == {"key": "stub|", "changed": False}  # the page loaded it already
+    assert same["changed"] is False
+    assert provider == {"key": "ollama|qwen2.5:7b", "changed": True}
+    assert model["changed"] is True
+    assert none == {"key": "", "changed": True}
