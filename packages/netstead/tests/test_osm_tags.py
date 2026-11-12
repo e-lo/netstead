@@ -97,10 +97,12 @@ class TestApplyMapping:
             "maxspeed": "30 mph",
             "highway": "residential",
             "surface": "asphalt",
+            "ref": "US 2",
         }
         result = tags.apply_mapping(osm)
         assert result == {
             "name": "Main St",
+            "ref": "US 2",
             "lanes": 2,
             "free_speed": 30.0,
             "facility_type": "residential",
@@ -110,6 +112,7 @@ class TestApplyMapping:
         result = tags.apply_mapping({"highway": "primary"})
         assert result == {
             "name": None,
+            "ref": None,
             "lanes": None,
             "free_speed": None,
             "facility_type": "primary",

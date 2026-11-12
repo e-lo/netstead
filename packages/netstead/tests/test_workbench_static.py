@@ -423,7 +423,6 @@ def test_the_layer_controls_live_in_the_layers_card_not_in_the_dock():
         "col-selection",
         "colorby",
         "node-colorby",
-        "ramp",
         "widthby",
         "tg-direction",
         "tg-offset",
@@ -834,6 +833,13 @@ def test_the_assistant_panel_and_the_ask_button_exist():
         'id="as-usage"',
     ):
         assert el in pane
+    assert (
+        pane.index('id="as-input"')
+        < pane.index('id="as-examples"')
+        < pane.index('id="as-note"')
+        < pane.index('id="as-docs"')
+    )
+    assert pane.index('id="as-log"') < pane.index('id="as-input"')  # the log is empty (hidden) until there are turns
     assert 'id="ask"' in html.split('id="find-bar"', 1)[1].split('id="status-wrap"', 1)[0]
     js = (JS_DIR / "assistant.js").read_text()
     assert 'addPanel(CORE, { id: "assistant"' in js and "workspace: ALL_WORKSPACES" in js
@@ -943,15 +949,14 @@ def test_related_steps_control_has_an_info_popover():
     assert 'id="tbl-hops-pop"' in wrap and 'aria-haspopup="dialog"' in wrap
 
 
-def test_the_view_panel_is_gone_and_edit_help_is_dismissible():
+def test_the_view_panel_is_gone_and_edit_help_is_a_tooltip():
     html = (STATIC_DIR / "index.html").read_text()
     assert 'data-panel="view"' not in html
     assert "registerViewPanel" not in (JS_DIR / "panels.js").read_text() + (JS_DIR / "main.js").read_text()
     edit = html[html.index('id="dock-edit"') : html.index('id="dock-validate"')]
-    for element_id in ("ed-help", "ed-help-hide", "ed-help-show"):
-        assert f'id="{element_id}"' in edit
-    assert 'data-tip="Hide this help"' in edit and 'data-tip="About this tab"' in edit
-    assert 'wireDismissibleHelp($("ed-help"), helpKey("edit")' in (JS_DIR / "edits.js").read_text()
+    assert 'id="ed-info"' in edit and 'data-icon="info"' in edit and "Undo reverses your newest edit" in edit
+    assert 'id="ed-help' not in edit and "wireDismissibleHelp" not in (JS_DIR / "edits.js").read_text()
+    assert not (JS_DIR / "help.js").exists()
 
 
 def test_the_links_row_keeps_width_direction_and_filter_in_its_options():
@@ -971,7 +976,12 @@ def test_the_links_row_keeps_width_direction_and_filter_in_its_options():
         "flt-note",
     ):
         assert f'id="{element_id}"' in opts, element_id
-    assert "Show only links where…" in opts and "the data is not changed" in opts
+    assert (
+        "Show only links where…" in opts
+        and 'data-tip="Hides other links on the map' in opts
+        and 'id="flt-info"' in opts
+    )
+    assert '<div class="diag">Hides other links' not in opts  # the note is a tooltip, not visible text
     for element_id in (
         "col-links",
         "col-nodes",
@@ -980,7 +990,6 @@ def test_the_links_row_keeps_width_direction_and_filter_in_its_options():
         "node-colorby",
         "plugin-layers",
         "tg-labels",
-        "ramp",
     ):
         assert f'id="{element_id}"' in card
     assert "wb.layers.open" in (JS_DIR / "viewmodel.js").read_text()
@@ -1037,3 +1046,70 @@ def test_a_finding_group_can_show_all_its_links_on_the_map():
     assert 'data-tip="Show all on the map"' in issues and "issues/anchors?" in issues
     assert "store.set({ highlights: new Set(a.links) }); fitLinks(a.links);" in issues
     assert "g.located > 0" in issues  # no button for a type that has nothing on the map
+
+
+def test_the_header_has_a_help_link_before_settings_and_a_palette_command():
+    html = (STATIC_DIR / "index.html").read_text()
+    link = html[html.index('<a id="help-link"') :].split(">", 1)[0]
+    assert 'href="https://e-lo.github.io/netstead/netstead/cookbook/workbench/"' in link
+    assert 'target="_blank"' in link and 'rel="noopener"' in link and 'data-icon="life-buoy"' in link
+    assert 'data-tip="Help: Netstead documentation"' in link and 'aria-label="Help: Netstead documentation"' in link
+    assert html.index('id="help-link"') < html.index('id="settings-btn"')
+    core = (JS_DIR / "corecmds.js").read_text()
+    assert 'title: "Open the documentation"' in core and "cookbook/workbench/" in core
+
+
+def test_the_ramp_is_picked_from_the_legend_gradient_not_a_footer_row():
+    html = (STATIC_DIR / "index.html").read_text()
+    card = html[html.index('id="layers-card"') : html.index('id="split-handle"')]
+    assert 'id="ramp"' not in card and 'id="ramp-row"' not in card
+    panels = (JS_DIR / "panels.js").read_text()
+    assert 'class="lg-ramp-btn"' in panels and 'role="listbox"' in panels
+    assert 'links: "ramp"' in panels and 'nodes: "node_ramp"' in panels
+
+
+def test_a_provider_or_model_pick_redraws_every_pane_that_names_the_model():
+    llm = (JS_DIR / "llm.js").read_text()
+    main = (JS_DIR / "main.js").read_text()
+    # the picks hold back history-driven refreshes while they write, then redraw from what was picked
+    assert (
+        "const onProviderChange = provider => whileWriting(" in llm
+        and "const onModelChange = model => whileWriting(" in llm
+    )
+    assert "if (writing) return;" in llm
+    # renderPicker is the one place that redraws the robot, the Find form and the model list, and it tells the Assistant
+    render = llm[llm.index("async function renderPicker()") : llm.index("function syncButtonTip")]
+    for call in ("setFindProvider(provider)", "syncButtonTip(current, provider)", "onSelected(llm.selected)"):
+        assert call in render
+    assert "onLLMSelected(() => loadAssistant())" in main
+
+
+def test_the_assistant_pane_opens_on_the_box_with_examples_a_privacy_line_and_a_docs_link():
+    html = (STATIC_DIR / "index.html").read_text()
+    pane = html.split('id="dock-assistant"', 1)[1].split("</section>", 1)[0]
+    assert "what the model receives" not in pane.lower()  # the long paragraph is gone
+    for example in (
+        "color by lanes and zoom to the selection",
+        "select Pine Street between Orchard Street and Central Avenue",
+    ):
+        assert f'data-example="{example}"' in pane
+    info = pane[pane.index('id="as-privacy-info"') :].split(">", 1)[0]
+    assert 'data-icon="info"' in info and "data-tip=" in info
+    docs = pane[pane.index('id="as-docs"') :].split(">", 1)[0]
+    assert 'href="https://e-lo.github.io/netstead/netstead/cookbook/workbench/#ask-the-assistant"' in docs
+    assert 'target="_blank"' in docs and 'rel="noopener"' in docs
+    js = (JS_DIR / "assistant.js").read_text()
+    assert "privacySummary(st)" in js and 'closest("button[data-example]")' in js and "noteText" not in js
+
+
+def test_select_and_ask_are_icon_and_label_buttons_with_tooltips():
+    html = (STATIC_DIR / "index.html").read_text()
+    row = html[html.index('id="find-go"') :].split("</div>", 1)[0]
+    go = row[row.index('id="go"') :].split("</button>", 1)[0]
+    ask = row[row.index('id="ask"') :].split("</button>", 1)[0]
+    assert 'data-icon="target"' in go and go.rstrip().endswith("Select") and 'data-tip="Select links:' in go
+    assert 'data-icon="sparkles"' in ask and ask.rstrip().endswith("Ask AI") and "Ask needs a language model" in ask
+    assert 'aria-keyshortcuts="Control+Enter Meta+Enter"' in ask
+    form = (JS_DIR / "findform.js").read_text()
+    assert "findButtonTips(provider)" in form and '$("ask").title' not in form
+    assert 'title="Ask' not in html  # the tooltip layer's data-tip, not a native title

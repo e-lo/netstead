@@ -19,6 +19,13 @@ export const hex2rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
 export const rgb2hex = c => "#" + c.map(x => x.toString(16).padStart(2, "0")).join("");
 export const fmt = v => (Math.abs(v) >= 100 ? Math.round(v) : Math.round(v * 10) / 10);
 
+// The CSS gradient of a ramp (a legend bar, a menu entry); an unknown name draws as the default ramp.
+export const rampGradient = name => `linear-gradient(90deg, ${(RAMPS[name] || RAMPS.YlOrRd).map(rgb).join(", ")})`;
+
+// The ramp menu's entries for the ramp in use: [{name, gradient, selected}] in RAMPS order.
+export const rampMenu = current =>
+  Object.keys(RAMPS).map(name => ({ name, gradient: rampGradient(name), selected: name === current }));
+
 export function ramp(name, t) {
   const s = RAMPS[name] || RAMPS.YlOrRd, x = Math.max(0, Math.min(1, t)) * (s.length - 1);
   const i = Math.min(s.length - 2, Math.floor(x)), f = x - i, a = s[i], b = s[i + 1];
@@ -29,13 +36,13 @@ export function catColor(prop, cat, i) {
   return (prop && prop.name === "facility_type" && FT_PALETTE[cat]) || CAT_PALETTE[i % CAT_PALETTE.length];
 }
 
-// Feature i's color from `prop` (a categorical palette or the style's ramp), `single` without one, NULL_COLOR
+// Feature i's color from `prop` (a categorical palette or the layer's ramp `rampName`), `single` without one, NULL_COLOR
 // for a missing value. The same rule colors links and nodes.
-function valueColor(i, style, prop, single) {
+function valueColor(i, rampName, prop, single) {
   if (!prop) return single;
   const v = prop.values[i];
   if (v === null || v === undefined) return NULL_COLOR;
-  if (prop.kind === "continuous") return ramp(style.ramp, prop.max > prop.min ? (v - prop.min) / (prop.max - prop.min) : 0.5);
+  if (prop.kind === "continuous") return ramp(rampName, prop.max > prop.min ? (v - prop.min) / (prop.max - prop.min) : 0.5);
   return catColor(prop, v, prop.categories.indexOf(v));
 }
 
@@ -43,7 +50,7 @@ export function buildLinkColors(net, style, prop) {
   const p = prop && style.color_by !== "none" && prop.name === style.color_by ? prop : null;
   const c = new Uint8Array(net.linkStart[net.L.count] * 4);
   for (let i = 0; i < net.L.count; i++) {
-    const [r, g, b] = valueColor(i, style, p, style.colors.links);
+    const [r, g, b] = valueColor(i, style.ramp, p, style.colors.links);
     for (let v = net.linkStart[i]; v < net.linkStart[i + 1]; v++) { c[v * 4] = r; c[v * 4 + 1] = g; c[v * 4 + 2] = b; c[v * 4 + 3] = 222; }
   }
   return c;
@@ -57,7 +64,7 @@ export function buildNodeColors(net, style, prop) {
   const p = prop && style.node_color_by !== "none" && prop.name === style.node_color_by ? prop : null;
   const c = new Uint8Array(net.N.count * 4), alpha = p ? NODE_ALPHA_COLORED : NODE_ALPHA;
   for (let i = 0; i < net.N.count; i++) {
-    const [r, g, b] = valueColor(i, style, p, style.colors.nodes);
+    const [r, g, b] = valueColor(i, style.node_ramp, p, style.colors.nodes);
     c[i * 4] = r; c[i * 4 + 1] = g; c[i * 4 + 2] = b; c[i * 4 + 3] = alpha;
   }
   return c;

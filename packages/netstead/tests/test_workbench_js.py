@@ -875,7 +875,8 @@ def test_settings_switches_save_what_is_on_screen_and_list_only_offerable_action
 
 ICON_NAMES = [
     "undo", "redo", "gear", "terminal", "code", "save", "folder-open", "play", "download", "check-circle",
-    "alert-triangle", "x-circle", "circle", "filter", "x", "chevron-down", "layers", "crosshair", "grip",
+    "alert-triangle", "x-circle", "circle", "filter", "x", "chevron-down", "layers", "crosshair", "grip", "life-buoy",
+    "target", "sparkles",
 ]  # fmt: skip
 
 
@@ -1263,7 +1264,7 @@ def test_validity_error_warn_and_clean_with_plurals(node_module):
 
 # ---- palette.js: node colors follow the links' palette rules
 
-_NODE_STYLE = 'ramp: "YlOrRd", colors: {nodes: [1, 2, 3]}'
+_NODE_STYLE = 'ramp: "Blues", node_ramp: "YlOrRd", colors: {nodes: [1, 2, 3]}'
 
 
 def test_node_colors_single_categorical_continuous_and_null(node_module):
@@ -1282,6 +1283,22 @@ def test_node_colors_single_categorical_continuous_and_null(node_module):
     assert single == [[1, 2, 3, 150]] * 3 and other == single  # no property, or the wrong one: the single color
     assert cat == [[228, 66, 62, 215], [205, 208, 214, 215], [57, 126, 184, 215]]  # palette, null, palette
     assert num == [[255, 237, 160, 215], [254, 178, 76, 215], [240, 59, 32, 215]]  # the ramp's ends and middle
+
+
+def test_nodes_use_their_own_ramp_and_the_ramp_menu_lists_the_ramps(node_module):
+    expr = (
+        "(() => { const net = {N: {count: 2}};"
+        " const p = {name: 'z', kind: 'continuous', min: 0, max: 1, values: [0, 1]};"
+        " const style = {node_color_by: 'z', ramp: 'Blues', node_ramp: 'Viridis', colors: {nodes: [1, 2, 3]}};"
+        " const c = buildNodeColors(net, style, p);"
+        " return [[...c.slice(0, 3)], [...c.slice(4, 7)]]; })()"
+    )
+    assert node_module("palette.js", ["buildNodeColors"], expr) == [[68, 1, 84], [253, 231, 37]]  # Viridis, not Blues
+    menu = node_module("palette.js", ["rampMenu"], 'rampMenu("Blues")')
+    assert [m["name"] for m in menu] == ["YlOrRd", "Blues", "Viridis"]
+    assert [m["selected"] for m in menu] == [False, True, False]
+    assert all(m["gradient"].startswith("linear-gradient(90deg, rgb(") for m in menu)
+    assert node_module("palette.js", ["rampGradient"], 'rampGradient("nope") === rampGradient("YlOrRd")') is True
 
 
 def test_node_style_semantic_for_ctrl_type_generic_otherwise(node_module):
@@ -1483,46 +1500,6 @@ def test_related_explanation_is_generic_or_uses_the_real_answer(node_module):
     two = dict(related, hops=2)
     lines = run(f'relatedExplanation({{subject: "link 1", related: {json.dumps(two)}}})')
     assert "nothing more in this network" in lines[2]
-
-
-def test_dismissible_help_remembers_its_choice_and_survives_broken_storage(node_module):
-    harness = """
-const mem = new Map();
-const storage = {
-  getItem: k => (mem.has(k) ? mem.get(k) : null),
-  setItem: (k, v) => mem.set(k, v),
-  removeItem: k => mem.delete(k),
-};
-const boom = () => { throw new Error("blocked"); };
-const broken = { getItem: boom, setItem: boom, removeItem: boom };
-const mk = () => ({ el: { hidden: false }, hideBtn: {}, showBtn: { hidden: true } });
-const a = mk();
-wireDismissibleHelp(a.el, helpKey("edit"), { ...a, storage });
-const shownFirst = [a.el.hidden, a.showBtn.hidden];
-a.hideBtn.onclick();
-const afterHide = [a.el.hidden, a.showBtn.hidden, mem.get("wb.help.edit")];
-const b = mk();
-wireDismissibleHelp(b.el, helpKey("edit"), { ...b, storage });  // a reload: still hidden
-const reload = [b.el.hidden, b.showBtn.hidden];
-b.showBtn.onclick();
-const afterShow = [b.el.hidden, b.showBtn.hidden, mem.has("wb.help.edit")];
-const c = mk();
-wireDismissibleHelp(c.el, "k", { ...c, storage: broken });
-c.hideBtn.onclick();
-const brokenHide = [c.el.hidden, c.showBtn.hidden];
-"""
-    got = node_module(
-        "help.js",
-        ["helpKey", "wireDismissibleHelp"],
-        "(() => {" + harness + "return {shownFirst, afterHide, reload, afterShow, brokenHide};})()",
-    )
-    assert got == {
-        "shownFirst": [False, True],
-        "afterHide": [True, False, "hidden"],
-        "reload": [True, False],
-        "afterShow": [False, True, False],
-        "brokenHide": [True, False],  # the toggle works even when nothing can be remembered
-    }
 
 
 def test_tab_labels_say_what_the_badge_means(node_module):
@@ -1754,3 +1731,56 @@ def test_find_form_cross_choices_and_mode(node_module):
     ]"""
     got = node_module("findmodel.js", ["crossChoices", "useForm", "parseIds"], expr)
     assert got == [["C"], ["A", "B"], ["B"], True, False, [1, 2], None, None]
+
+
+def test_a_changed_provider_or_model_is_reported_once_and_the_first_pair_is_not_a_change(node_module):
+    expr = """(() => {
+      const a = {provider: "stub", model: null}, b = {provider: "ollama", model: "qwen2.5:7b"};
+      const first = selectionChange(null, a);
+      const same = selectionChange(first.key, a);
+      const provider = selectionChange(first.key, b);
+      const model = selectionChange(provider.key, {provider: "ollama", model: "llama3.1:8b"});
+      const none = selectionChange(provider.key, null);
+      return [first, same, provider, model, none];
+    })()"""
+    first, same, provider, model, none = node_module("llmstatus.js", ["selectionChange"], expr)
+    assert first == {"key": "stub|", "changed": False}  # the page loaded it already
+    assert same["changed"] is False
+    assert provider == {"key": "ollama|qwen2.5:7b", "changed": True}
+    assert model["changed"] is True
+    assert none == {"key": "", "changed": True}
+
+
+def test_find_buttons_say_how_select_and_ask_differ(node_module):
+    offline, model = node_module(
+        "findmodel.js", ["findButtonTips"], '[findButtonTips("stub"), findButtonTips("anthropic")]'
+    )
+    assert offline["select"] == "Select links: matches street names in this network"
+    assert model["select"] == "Select links: the language model reads your request, then it is matched to this network"
+    assert model["ask"] == "Ask the assistant: a language model that can select, style and edit for you"
+    assert offline["ask"] == "Ask needs a language model: choose one with the robot icon"
+    assert (offline["askReady"], model["askReady"]) == (False, True)
+
+
+_ASSISTANT_REMOTE = (
+    '{provider: "anthropic", model: "claude-haiku-5-5", local: false,'
+    ' sends: ["your question", "column names"], compact: false}'
+)
+
+
+def test_the_assistant_privacy_summary_is_one_line_with_the_detail_apart(node_module):
+    expr = (
+        f"[privacySummary({_ASSISTANT_REMOTE}), privacySummary({{provider: 'stub'}}),"
+        " privacySummary({provider: 'ollama', model: 'qwen2.5:7b', local: true, sends: [],"
+        " compact: true, tools: [1, 2]}),"
+        " privacySummary({error: 'no provider'})]"
+    )
+    remote, stub, local, error = node_module("assistmodel.js", ["privacySummary"], expr)
+    assert (
+        remote["line"] == "Runs on anthropic · claude-haiku-5-5; it sees column names and summaries, never your tables."
+    )
+    assert "a remote service) receives: your question; column names. Never your network tables" in remote["detail"]
+    assert stub["line"].startswith("Runs offline") and "sends nothing anywhere" in stub["detail"]
+    assert local["line"].startswith("Runs on ollama · qwen2.5:7b;") and "on this machine" in local["detail"]
+    assert "nothing beyond your question" in local["detail"] and "compact tool set (2 tools" in local["detail"]
+    assert error == {"line": "no provider", "detail": ""}

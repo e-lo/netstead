@@ -44,6 +44,7 @@
         </div>
       </span>
       <button id="jobs-btn" class="mini ghost" data-tip="Background jobs" aria-label="Background jobs"><span data-icon="play"></span><span id="jobs-count" class="pcount">0</span></button>
+      <a id="help-link" class="iconbtn" href="https://e-lo.github.io/netstead/netstead/cookbook/workbench/" target="_blank" rel="noopener" data-icon="life-buoy" data-tip="Help: Netstead documentation" aria-label="Help: Netstead documentation"></a>
       <button id="settings-btn" class="iconbtn" data-icon="gear" data-tip="Settings" aria-label="Settings"></button>
     </div>
   </header>
@@ -69,8 +70,8 @@
         <div id="find-missing" class="diag warn-note" role="status"></div>
       </div>
       <input id="utterance" placeholder='e.g. "I-40 EB between South Miami Boulevard and Airport Boulevard"' aria-label="Selection utterance" />
-      <div class="row wrap" id="find-go"><button id="go">Select</button>
-        <button id="ask" class="ghost" title="Ask the assistant (Ctrl+Enter, ⌘Enter on a Mac)" aria-keyshortcuts="Control+Enter Meta+Enter">Ask</button></div>
+      <div class="row wrap" id="find-go"><button id="go" class="with-icon" data-tip="Select links: matches street names in this network" aria-keyshortcuts="Enter"><span data-icon="target"></span>Select</button>
+        <button id="ask" class="ghost with-icon needs-model" data-tip="Ask needs a language model: choose one with the robot icon" aria-keyshortcuts="Control+Enter Meta+Enter"><span data-icon="sparkles"></span>Ask AI</button></div>
     </div>
     <div id="thinking" class="diag" role="status" aria-live="polite" hidden></div>
     <div id="status-wrap"></div>
@@ -108,10 +109,7 @@
     </div>
     </section>
     <section class="dock-pane" id="dock-edit" data-panel="edit" role="tabpanel" aria-labelledby="dtab-edit" hidden>
-      <div class="label">Changes <button class="iconbtn" id="ed-help-show" data-icon="info" data-tip="About this tab" aria-label="About this tab" hidden></button></div>
-      <p class="diag help" id="ed-help">Every change to this network since it was opened, newest first: your edits, Python's and any
-        plugin's. Undo reverses your newest edit. The strip at the bottom is the session history (every action).
-        <button class="iconbtn" id="ed-help-hide" data-icon="x" data-tip="Hide this help" aria-label="Hide this help"></button></p>
+      <div class="label">Changes <button class="iconbtn" id="ed-info" data-icon="info" aria-label="About the Changes pane" data-tip="Every change to this network since it was opened, newest first: your edits, Python's and any plugin's. Undo reverses your newest edit. The strip at the bottom is the session history (every action)."></button></div>
       <div class="row wrap"><button class="iconbtn" id="ed-undo" data-icon="undo" data-tip="Undo last edit" aria-label="Undo last edit" disabled></button>
         <button class="iconbtn" id="ed-redo" data-icon="redo" data-tip="Redo" aria-label="Redo" disabled></button>
         <span class="diag" id="ed-undo-why"></span></div>
@@ -137,12 +135,16 @@
       <div id="iss-list"><span class="empty">Run validation to list issues.</span></div>
     </section>
     <section class="dock-pane" id="dock-assistant" data-panel="assistant" role="tabpanel" aria-labelledby="dtab-assistant" hidden>
-      <div id="as-note" class="diag"></div>
-      <div id="as-log" role="log" aria-live="polite"><span class="empty">Ask for what you want done, e.g. “color by lanes and zoom to the selection”.</span></div>
+      <div id="as-log" role="log" aria-live="polite"></div>
       <div id="as-draft"></div>
       <div class="row"><textarea id="as-input" rows="2" aria-label="Ask the assistant" placeholder="e.g. color by lanes and zoom to the selection"></textarea></div>
       <div class="row wrap"><button class="mini" id="as-send">Ask</button><button class="mini ghost" id="as-clear">Clear</button>
         <span id="as-usage" class="diag"></span></div>
+      <div id="as-examples" class="as-examples"><span class="diag">Try:</span>
+        <button class="linkbtn" data-example="color by lanes and zoom to the selection">color by lanes and zoom to the selection</button>
+        <button class="linkbtn" data-example="select Pine Street between Orchard Street and Central Avenue">select Pine Street between Orchard Street and Central Avenue</button></div>
+      <div class="diag as-privacy"><span id="as-note"></span><button class="iconbtn" id="as-privacy-info" data-icon="info" aria-label="What the assistant sends" data-tip="What the assistant sends" hidden></button></div>
+      <a id="as-docs" class="diag" href="https://e-lo.github.io/netstead/netstead/cookbook/workbench/#ask-the-assistant" target="_blank" rel="noopener">More about the assistant</a>
     </section>
   </aside>
   <div id="side-handle" role="separator" aria-orientation="vertical" aria-label="Resize side panel" tabindex="0"
@@ -182,7 +184,8 @@
                 <label class="sw"><input type="checkbox" id="tg-direction"><span></span></label></div>
               <div class="row"><span class="lbl">Offset directions</span>
                 <label class="sw"><input type="checkbox" id="tg-offset"><span></span></label></div>
-              <div class="sub">Show only links where…</div>
+              <div class="sub">Show only links where… <button class="iconbtn" id="flt-info" data-icon="info" aria-label="About the filter"
+                data-tip="Hides other links on the map and in the table's Filtered view; the data is not changed. Recorded in the session history."></button></div>
               <div class="row"><select id="flt-col" aria-label="Filter column"></select></div>
               <div class="row flt-cond"><select id="flt-op" aria-label="Filter operator">
                   <option value="eq">=</option><option value="ne">≠</option><option value="lt">&lt;</option>
@@ -192,7 +195,6 @@
                 <input id="flt-val" aria-label="Filter value" size="8"></div>
               <div class="row"><button class="mini" id="flt-apply">Apply</button><button class="mini ghost" id="flt-clear">Clear</button>
                 <span id="flt-count" class="diag" role="status"></span></div>
-              <div class="diag">Hides other links on the map and in the table's Filtered view; the data is not changed. Recorded in the session history.</div>
               <div id="flt-note" class="diag" hidden></div>
             </div>
           </div>
@@ -215,8 +217,6 @@
           </div>
           <div id="plugin-layers"></div>
           <div class="lc-foot">
-            <div class="row lc-line" id="ramp-row" style="display:none"><span class="lbl">Ramp</span>
-              <select id="ramp" aria-label="Color ramp"><option>YlOrRd</option><option>Blues</option><option>Viridis</option></select></div>
             <div class="row lc-line"><span class="lbl">Basemap labels</span>
               <label class="sw"><input type="checkbox" id="tg-labels"><span></span></label></div>
             <div class="row lc-line"><span class="lbl">Show legend</span>

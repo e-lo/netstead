@@ -78,6 +78,10 @@ def _describe_style(a: Any) -> str:
     if a.node_color_by:
         none = a.node_color_by == "none"
         bits.append("stop coloring nodes by a column" if none else f"color nodes by {a.node_color_by}")
+    if a.ramp:
+        bits.append(f"shade links with the {a.ramp} ramp")
+    if a.node_ramp:
+        bits.append(f"shade nodes with the {a.node_ramp} ramp")
     if a.width_by:
         bits.append("size links by lane count" if a.width_by == "none" else f"size links by {a.width_by}")
     return " and ".join(bits) or "change the map style"

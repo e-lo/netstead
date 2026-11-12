@@ -5,8 +5,10 @@ from importlib import resources
 import pandas as pd
 import pytest
 from netstead.fixtures import leavenworth
+from netstead.select._support import norm_ref
 from netstead.select.errors import IntentError
 from netstead.select.intent import Facility, SelectionIntent
+from netstead.select.parse import StubParser
 from netstead.select.resolve import _apply_modes, resolve_frames
 
 
@@ -174,7 +176,7 @@ def _cherry(**pins):
 
 def test_surface_anchors_resolve_on_a_network_without_a_ref_column(leav):
     links, nodes = leav
-    assert "ref" not in links.columns
+    links = links.drop(columns=["ref"])
     r = resolve_frames(_cherry(), links, nodes)
     assert r.status == "ambiguous" and r.link_ids == [170, 182, 187]
     assert (r.from_match.node_id, r.from_match.candidates) == (53, [])
@@ -281,3 +283,59 @@ def test_apply_modes_truncates_listed_uses():
     uses = [",".join(f"u{i:02d}" for i in range(12))]
     _, _, diags = _apply_modes(_frames(uses), ["drive"])
     assert "u09, ..." in diags[0] and "u10" not in diags[0]
+
+
+# --- a facility matches links whose name OR ref matches (a route numbered on some links, named on others) ---
+
+
+def _route_frames():
+    """A straight road: two links named "US 2" (with the ref), two with only the ref, one named street."""
+    links = pd.DataFrame(
+        {
+            "link_id": [1, 2, 3, 4, 5],
+            "from_node_id": [1, 2, 3, 4, 3],
+            "to_node_id": [2, 3, 4, 5, 6],
+            "name": ["US 2", None, None, "US 2", "Mill Street"],
+            "ref": ["US 2", "US 2", "US-2", None, None],
+            "length": [100.0] * 5,
+        }
+    )
+    nodes = pd.DataFrame({"node_id": [1, 2, 3, 4, 5, 6], "x_coord": [0, 1, 2, 3, 4, 2], "y_coord": [0, 0, 0, 0, 0, 1]})
+    return links, nodes
+
+
+def test_a_facility_matches_the_union_of_its_name_and_ref_links():
+    links, nodes = _route_frames()
+    for spelling in ("US 2", "US-2", "US Highway 2", "u.s. route 2"):
+        got = resolve_frames(SelectionIntent(facility=Facility(ref=spelling)), links, nodes)
+        assert sorted(got.link_ids) == [1, 2, 3, 4], spelling  # not just the two named "US 2"
+    by_name = resolve_frames(SelectionIntent(facility=Facility(name="US 2")), links, nodes)
+    assert sorted(by_name.link_ids) == [1, 2, 3, 4]
+    assert "matched 'US 2' on ref (3 links) and on name (2 links)" in by_name.diagnostics
+
+
+def test_only_the_name_column_matching_says_so_and_a_missing_ref_column_still_works():
+    links, nodes = _route_frames()
+    got = resolve_frames(SelectionIntent(facility=Facility(name="Mill Street")), links, nodes)
+    assert got.link_ids == [5] and not any("matched" in d and "ref (" in d for d in got.diagnostics)
+    no_ref = links.drop(columns=["ref"])
+    assert sorted(resolve_frames(SelectionIntent(facility=Facility(ref="US 2")), no_ref, nodes).link_ids) == [1, 4]
+
+
+def test_route_aliases_normalize_to_the_same_token():
+    assert norm_ref("US 2") == norm_ref("US-2") == norm_ref("US Highway 2") == norm_ref("U.S. Route 2") == {"US2"}
+    assert norm_ref("Interstate 5") == norm_ref("I-5") == {"I5"}
+    assert norm_ref("I 40;US 1") == {"I40", "US1"}
+
+
+def test_us_2_between_mill_and_9th_follows_the_ref_through_the_unnamed_links(leav):
+    """On Leavenworth US 2 is named on two links and only numbered (OSM ``ref``) on the rest of its way."""
+    links, nodes = leav
+    assert set(links.loc[links["ref"] != "", "facility_type"]) == {"primary"} and links["ref"].eq("US 2").sum() == 10
+    intent = StubParser().parse("US 2 between Mill Street and 9th Street")
+    assert intent.facility.refs() == ("US 2",)
+    got = resolve_frames(intent, links, nodes)
+    assert got.status == "resolved" and got.link_ids == [28, 27]
+    chosen = links[links.link_id.isin(got.link_ids)]
+    assert chosen["ref"].eq("US 2").all() and chosen["name"].eq("").sum() == 1  # one link has no name at all
+    assert any("on ref (10 links) and on name (2 links)" in d for d in got.diagnostics)

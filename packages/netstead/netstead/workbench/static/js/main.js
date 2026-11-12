@@ -15,7 +15,7 @@ import { hub } from "./hub.js";
 import { markFocusedIssue, onIssuesState, registerIssueLayer, reloadIssues, renderEditWarnings, wireIssues } from "./issues.js";
 import { loadJobs, onJob, wireJobs } from "./jobs.js";
 import { netChange } from "./linking.js";
-import { onHistoryEntry, onLLMEvent, onLLMJob, refreshLLM, renderLLMPanel, wireLLM } from "./llm.js";
+import { onHistoryEntry, onLLMEvent, onLLMJob, onLLMSelected, refreshLLM, renderLLMPanel, wireLLM } from "./llm.js";
 import { layerRegistry } from "./layers.js";
 import { fitBbox, fitLinks, fitNetwork, flyToNode, initMap, render, setBasemap } from "./map.js";
 import { decodeNetwork } from "./netbuf.js";
@@ -287,6 +287,7 @@ async function boot() {
   await loadJobs();
   restoreViewMode();
   loadPlugins().catch(e => toast(`Plugins: ${e.message}`)); // not awaited: a slow plugin never delays the map
+  onLLMSelected(() => loadAssistant()); // the Assistant's note and usage name the chosen model: re-read them now
   refreshLLM().catch(e => toast(e.message));
   loadAssistant();
   if (history.entries.length) showEntry(history.entries[history.entries.length - 1]);

@@ -7,7 +7,6 @@ import { dispatch, getJSON, netPath } from "./api.js";
 import { commandContext, runCommand } from "./commands.js";
 import { $, esc, toast } from "./dom.js";
 import { dirtyBadge, editsBadge, pendingLine, redoBlocked, undoBlocked, validatedText } from "./editmodel.js";
-import { helpKey, wireDismissibleHelp } from "./help.js";
 import { hub } from "./hub.js";
 import { issuesBadge } from "./issuelist.js";
 import { ALL_WORKSPACES, CORE, slots } from "./slots.js";
@@ -122,7 +121,6 @@ export function wireEdits() {
   $("ed-undo").onclick = () => dispatch({ type: "undo_edit" }).catch(fail);
   $("ed-redo").onclick = () => dispatch({ type: "redo_edit" }).catch(fail);
   $("ed-card").onclick = saveAsCard;
-  wireDismissibleHelp($("ed-help"), helpKey("edit"), { hideBtn: $("ed-help-hide"), showBtn: $("ed-help-show") });
   hub.on("core.panels", syncCardButton);
   syncCardButton(slots.panels.list().map(p => p.id));
 }

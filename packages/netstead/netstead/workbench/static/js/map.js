@@ -87,7 +87,7 @@ function linkColors(s) {
 // like the links'. `order` maps a drawn index back to the node's index (null: the same).
 function nodeStyle(s) {
   const st = s.server.style, np = s.nodeProp;
-  const key = JSON.stringify([s.netKey, st.node_color_by, st.ramp, st.colors.nodes, np && np.name, np && np.netKey]);
+  const key = JSON.stringify([s.netKey, st.node_color_by, st.node_ramp, st.colors.nodes, np && np.name, np && np.netKey]);
   if (nodeCache.key !== key) {
     const { colors, radii, order } = buildNodeStyle(s.net, st, np), pos = s.net.nodePositions;
     if (!order) nodeCache = { key, colors, radii, positions: pos, order };

@@ -176,7 +176,9 @@ provider = "anthropic"
 
 ### The Settings dialog
 
-The gear icon in the header (tooltip "Settings") opens a form built from the same settings model. Each field
+The **life-buoy** icon at the right end of the header (tooltip "Help: Netstead documentation") opens this guide in a new tab, and the command palette has **Open the documentation**.
+
+The gear icon beside it (tooltip "Settings") opens a form built from the same settings model. Each field
 has a badge showing where its current value comes from: `default`, `user`, `project`, `env` or `session`.
 
 - **Save to** chooses the layer a change is written to: **User (all projects)** (your user file, the default), **This project**
@@ -249,8 +251,8 @@ Focus is a view. Clicking never changes the selection.
     **Assistant** (chat bubble). Panels another plugin adds sit below a divider. Click an icon to open its pane in
     the **drawer** beside the rail; click the open icon again to close the drawer, and the map takes the width. With
     the keyboard, the Up and Down arrows move between icons and Enter or Space opens or closes the drawer. A badge is
-    one pill at its icon's corner (orange while edits are unsaved). The Changes pane's help paragraph hides behind its
-    **×**; the **ⓘ** beside the heading brings it back.
+    one pill at its icon's corner (orange while edits are unsaved). The **ⓘ** beside the Changes heading explains the pane
+    in a tooltip.
   - **Details** is a panel on the right that opens when you focus a record: click a link or node on the map, click a
     table row, zoom to a finding in Validate, or pick a result in Find. It lists the record's fields and has
     **Edit…** and **Delete…**. Close it with its **×** or Escape (which also clears the focus); the map takes the width
@@ -420,8 +422,14 @@ With **Offline (pattern)** chosen, the **Find** tab is a form, so you never have
 Street and cross-street fields suggest the open network's street names; after you pick a Street, the cross
 streets are narrowed to the streets that meet it. The assembled sentence shows under the form, and **Select**
 sends exactly that sentence (so the history and the replay script read as they always have). A blank that is
-still empty blocks Select and is named under the form. **Ask** keeps its own behavior; offline it understands only
-a few fixed requests (see [Ask the assistant](#ask-the-assistant)), which its tooltip says.
+still empty blocks Select and is named under the form.
+
+**Select** and **Ask AI** (each has an icon, and a tooltip saying what it does) are different. **Select** resolves a
+selection: with the offline parser it matches street names in this network directly; with a language model chosen,
+the model reads your request first and the result is then matched to this network. **Ask AI** sends the request to the
+[assistant](#ask-the-assistant), a language model that can select, style and edit for you. Offline it is drawn muted and
+its tooltip says it needs a language model (choose one with the robot icon); it still answers the few fixed commands the
+offline assistant knows. Enter selects; Ctrl+Enter or ⌘Enter asks.
 
 Choose a language model in the header and the free-text box comes back, prefilled with the last sentence; choosing
 Offline again restores the form. The offline parser also reads `<street> from <A> to <B>`, with the same
@@ -477,15 +485,16 @@ Nodes colored by `ctrl_type` use a fixed style where size carries meaning too (s
 - **The Layers & legend card** floats at the map's top-left. It is the legend: one row per layer (**Links**,
   **Nodes**, **Selection**, then the overlays), each with an eye that shows or hides the layer, its color swatch,
   and, for Links and Nodes, a **by** picker with the legend under it (the categories with their colors, or a
-  gradient with its minimum and maximum). The chevron on the Links row opens its other options: **Width by**,
+  gradient with its minimum and maximum; click a gradient to choose its ramp, `YlOrRd`, `Blues` or `Viridis`, separately
+  for links (`Style(ramp=...)`) and nodes (`Style(node_ramp=...)`)). The chevron on the Links row opens its other options: **Width by**,
   **Show direction**, **Offset directions** and **Show only links where…**. **Overlays** lists a plugin's or core's
   map layers (issue markers, anchor candidates) the same way, with an info tooltip saying what each draws. The footer
-  has **Basemap labels**, a **Ramp** choice while a numeric column colors a layer, and **Show legend**. The card
+  has **Basemap labels** and **Show legend**. The card
   collapses to one **Layers** button (remembered in this browser), is hidden in Table view, and scrolls in Split view.
 - On the map, a click, right-click or hover picks only layers that are switched on, and when a node and a link are
   both under the pointer the node wins (so nodes can be inspected where links run through them).
 - **Width by** sizes links by a numeric column (`app.do(Style(width_by="lanes"))`).
-- **Show only links where...** (the Layers card's filter; it hides the other links on the map and in the table's Filtered view and never changes the data) dims every link that doesn't match
+- **Show only links where...** (the Layers card's filter; hover its ⓘ for what it does: it hides the other links on the map and in the table's Filtered view and never changes the data) dims every link that doesn't match
   (`app.do(Filter(where=[{"col": "lanes", "op": "gte", "val": 2}]))`); the table's **Filtered** scope lists the
   matching links (the filter applies to links: on the node table it lists every node). `Filter(where=None)`
   clears it. Filters are fields and operators only, never free text or SQL: `contains` matches a plain
@@ -494,6 +503,10 @@ Nodes colored by `ctrl_type` use a fixed style where size carries meaning too (s
   value is read as its column's type (`"2"` on `lanes` is 2; a value the column can't hold is refused). The
   `in` operator (a list of values) is available from Python and the API only.
 - `app.do(Navigate(record={"table": "link", "id": 170}))` flies the map to one link or node.
+
+## Find matches route numbers too
+
+A facility in a Find request matches the links whose `name` **or** `ref` matches it, all together: "US 2" selects the links named US 2 and the links numbered US 2 (an OSM way tagged `ref=US 2` often has no `name`). Spellings of a route number agree (`US 2`, `US-2`, `US Highway 2`, `Interstate 5` is `I 5`). The diagnostics say which column matched. Networks built from OpenStreetMap keep OSM's `ref` as a `ref` column (it is not a GMNS field, like `osm_way_id`); Overture builds map a segment's first route number into `ref`.
 
 ## Column filters in the table
 
@@ -527,7 +540,10 @@ independent: the grid's filters only narrow what the table shows.
   touches has changed, and a new question replaces it.
 - Everything it runs is in the session history (the strip shows `#12 · assistant`) and in "Session as Python", which
   replays it with no model.
-- **What it sends** is listed at the top of the panel. To a remote provider: your question, the recent conversation
+- The **Assistant** panel opens on its box, with two examples to click (they fill the box; nothing runs until you press
+  **Ask**), a one-line privacy summary ("Runs on provider · model; it sees column names and summaries, never your
+  tables.") and a link to this section. Switching the provider or model in the header updates it at once.
+- **What it sends** is the tooltip of the ⓘ beside that summary. To a remote provider: your question, the recent conversation
   (your words, and its steps as action names and counts), the tool schemas, the networks' names and sizes, column
   names and what the GMNS spec says they mean, the selection's status and size, how many selections are saved, the
   filter's size, the map style's columns, the number of pending edits, whether validation is out of date, and
