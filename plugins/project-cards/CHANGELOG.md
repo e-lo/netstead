@@ -5,6 +5,11 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
 
 ## [Unreleased]
 
+### Changed
+
+- **The Cards panel sits after Validate in the Workbench's new left rail** (panel order 35, was 25), matching core's
+  order Find, Changes, Validate, Cards, Assistant.
+
 ### Added
 
 - **Card facilities as a Segment or a Link list, in a chosen id system.** A property change's facility is built in
