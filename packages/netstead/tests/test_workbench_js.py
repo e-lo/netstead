@@ -1286,8 +1286,10 @@ def test_node_colors_single_categorical_continuous_and_null(node_module):
 
 def test_nodes_use_their_own_ramp_and_the_ramp_menu_lists_the_ramps(node_module):
     expr = (
-        "(() => { const net = {N: {count: 2}}; const p = {name: 'z', kind: 'continuous', min: 0, max: 1, values: [0, 1]};"
-        " const c = buildNodeColors(net, {node_color_by: 'z', ramp: 'Blues', node_ramp: 'Viridis', colors: {nodes: [1, 2, 3]}}, p);"
+        "(() => { const net = {N: {count: 2}};"
+        " const p = {name: 'z', kind: 'continuous', min: 0, max: 1, values: [0, 1]};"
+        " const style = {node_color_by: 'z', ramp: 'Blues', node_ramp: 'Viridis', colors: {nodes: [1, 2, 3]}};"
+        " const c = buildNodeColors(net, style, p);"
         " return [[...c.slice(0, 3)], [...c.slice(4, 7)]]; })()"
     )
     assert node_module("palette.js", ["buildNodeColors"], expr) == [[68, 1, 84], [253, 231, 37]]  # Viridis, not Blues

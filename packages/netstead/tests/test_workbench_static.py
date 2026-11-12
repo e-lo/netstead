@@ -969,7 +969,11 @@ def test_the_links_row_keeps_width_direction_and_filter_in_its_options():
         "flt-note",
     ):
         assert f'id="{element_id}"' in opts, element_id
-    assert "Show only links where…" in opts and 'data-tip="Hides other links on the map' in opts and 'id="flt-info"' in opts
+    assert (
+        "Show only links where…" in opts
+        and 'data-tip="Hides other links on the map' in opts
+        and 'id="flt-info"' in opts
+    )
     assert '<div class="diag">Hides other links' not in opts  # the note is a tooltip, not visible text
     for element_id in (
         "col-links",

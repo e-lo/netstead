@@ -124,7 +124,7 @@ def test_links_and_nodes_have_their_own_ramps(opened):
     assert opened.style["ramp"] == "Blues" and opened.style["node_ramp"] == "Viridis"
     with pytest.raises(ValueError):
         Style(node_ramp="Rainbow")
-    from netstead.workbench.assistant.echo import describe  # noqa: PLC0415
+    from netstead.workbench.assistant.echo import describe
 
     assert "nodes with the Viridis ramp" in describe(Style(node_ramp="Viridis"))
 
