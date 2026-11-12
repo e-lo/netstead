@@ -293,9 +293,7 @@ class DisconnectedComponentsRule:
                     f"(sizes: {sizes[:10]}{'…' if len(sizes) > 10 else ''})."
                 ),
                 table="link",
-                fix_hint=(
-                    "Use netstead.clean.connect_disconnected_components to add bridge links, or drop small components."
-                ),
+                fix_hint=("Connect the components with a link in a GIS tool such as QGIS, or drop the strays."),
                 extra={"component_sizes": sizes},
             )
         )
@@ -537,7 +535,7 @@ class SharpAngleBendsRule:
                     table="link",
                     column="geometry",
                     row=i,
-                    fix_hint="Verify the bend; consider splitting at the vertex with split_link_at_node.",
+                    fix_hint="If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
                     extra={"angle_degrees": sharpest},
                 )
             )
