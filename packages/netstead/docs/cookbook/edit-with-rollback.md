@@ -162,19 +162,14 @@ rollback(net, log_path="history.parquet")  # replay in LIFO
 
 ### 6. Write the result
 
-Persist the edited network with `net.write(...)`. An edit marks the touched tables dirty, so writing emits a benign `OutOfSyncWarning` (the validator's foreign-key index hasn't been re-resolved against the edited rows — tracked in [#164](https://github.com/e-lo/netstead/issues/164)). Suppress it for the write, exactly as the CLI does:
+Persist the edited network with `net.write(...)` once the session has committed, that is, after the `with` block, as the CLI does:
 
 <!-- doctest: skip -->
 ```python
-import warnings
-from corral.dataset.package import OutOfSyncWarning
-
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore", OutOfSyncWarning)
-    net.write("./leavenworth-edited.parquet", overwrite=False)
+net.write("./leavenworth-edited.parquet", overwrite=False)
 ```
 
-The warning is informational: it tells you the in-memory FK index reflects the pre-edit rows. A fresh `netstead.read` of the written network re-resolves the index from scratch, and `netstead validate` re-checks the foreign keys.
+A cleanly committed session makes its edits the network's new baseline, so the write raises no `OutOfSyncWarning`. Writing from inside the `with` block, before the commit, still warns. The warning also still fires when a table was marked dirty outside the session (`net.invalidate(...)`), or, with a `DirtyTracker` attached, when an edit changed a foreign-key column that an earlier `validate()` had checked. Run `netstead validate` on the result to re-check the foreign keys.
 
 ## Common variations
 
@@ -267,7 +262,7 @@ The warning is informational: it tells you the in-memory FK index reflects the p
 * **`merge_close_nodes` returns a list, not one `EditResult`.** It touches two tables (`node` + `link`), so it returns `[node_result, link_result]`. The single-table ops (`remove_orphans`, `simplify_geometry`, `recompute_lengths`) return one `EditResult`.
 * **`simplify_geometry` edits whichever table holds the shapes.** Its `EditResult` targets `link` when geometry is inline and `geometry` when it is carried via `geometry_id` — read `result.edit.table` rather than assuming `link`. `recompute_lengths` always edits `link`, because that is where `length` lives (see the variation above).
 * **Pass `--dest` to the CLI ops when the source is a CSV directory.** Without it the op writes back over the source as parquet, and that in-place rewrite currently fails partway after the CSVs are gone ([tracked as a follow-up](https://github.com/e-lo/netstead/issues)). `--dry-run` is safe either way.
-* **`OutOfSyncWarning` on write is expected after an edit** ([#164](https://github.com/e-lo/netstead/issues/164)). It means the in-memory FK index still reflects the pre-edit rows; it is not an error. Suppress it for the write (step 6) — re-reading the written network rebuilds the index.
+* **Write after the `with` block, not inside it.** Until the session commits, its edits count as unsaved changes and `net.write(...)` raises `OutOfSyncWarning` ([#164](https://github.com/e-lo/netstead/issues/164)).
 * **A 100%-null column can break the write** ([#163](https://github.com/e-lo/netstead/issues/163)). Writing an edited table could fail when a column was entirely null. The issue's original repro (`netstead clean remove-orphans` on the Leavenworth fixture) now succeeds. If you still hit it, cast the all-null column to a concrete type (or drop it) before the write, and add your case to the issue. The old `--engine pandas` workaround no longer exists: DuckDB is the only engine since #195.
 * **The CLI ops overwrite `<src>` unless you pass `--dest`.** The write is staged beside the source and swapped in once complete, so a failure leaves the original in place, and a directory source keeps its format (a CSV directory stays CSV). It is still an overwrite, though: there is no undo once the swap has happened. Pass `--dest` (or run with `--dry-run` first) to keep the original.
 * **Don't mutate tables outside the session.** Direct `net.links.expr.execute().assign(...)` writes bypass the session entirely and aren't rollback-able.
