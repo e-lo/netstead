@@ -139,8 +139,13 @@ jobs:
               raise SystemExit(0)
 
           def means(path):
-              with open(path) as f:
-                  data = json.load(f)
+              # pytest-benchmark leaves an empty file when only wall-clock
+              # perf tests ran (no benchmark fixture), so empty means none.
+              try:
+                  with open(path) as f:
+                      data = json.load(f)
+              except (OSError, json.JSONDecodeError):
+                  return {}
               return {b["fullname"]: b["stats"]["mean"] for b in data.get("benchmarks", [])}
 
           current = means(current_path)
