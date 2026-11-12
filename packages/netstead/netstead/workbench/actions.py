@@ -183,7 +183,8 @@ class Style(BaseAction):
 
     ``color_by`` colors links by a column of the link table and ``node_color_by`` nodes by one of the node
     table (``"none"`` for a single color); ``width_by`` sizes links by a numeric column (``"none"`` for widths
-    by lane count).
+    by lane count). ``ramp`` is the color ramp for a numeric ``color_by`` column of links and ``node_ramp`` the
+    one for a numeric ``node_color_by`` column of nodes.
     """
 
     type: Literal["style"] = "style"
@@ -191,6 +192,7 @@ class Style(BaseAction):
     node_color_by: str | None = None
     width_by: str | None = None
     ramp: Literal["YlOrRd", "Blues", "Viridis"] | None = None
+    node_ramp: Literal["YlOrRd", "Blues", "Viridis"] | None = None
     show: dict[Literal["links", "nodes", "labels", "selection"], bool] | None = None
     colors: dict[Literal["links", "nodes", "selection"], RGB] | None = None
     offset: bool | None = None

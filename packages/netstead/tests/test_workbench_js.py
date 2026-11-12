@@ -1263,7 +1263,7 @@ def test_validity_error_warn_and_clean_with_plurals(node_module):
 
 # ---- palette.js: node colors follow the links' palette rules
 
-_NODE_STYLE = 'ramp: "YlOrRd", colors: {nodes: [1, 2, 3]}'
+_NODE_STYLE = 'ramp: "Blues", node_ramp: "YlOrRd", colors: {nodes: [1, 2, 3]}'
 
 
 def test_node_colors_single_categorical_continuous_and_null(node_module):
@@ -1282,6 +1282,20 @@ def test_node_colors_single_categorical_continuous_and_null(node_module):
     assert single == [[1, 2, 3, 150]] * 3 and other == single  # no property, or the wrong one: the single color
     assert cat == [[228, 66, 62, 215], [205, 208, 214, 215], [57, 126, 184, 215]]  # palette, null, palette
     assert num == [[255, 237, 160, 215], [254, 178, 76, 215], [240, 59, 32, 215]]  # the ramp's ends and middle
+
+
+def test_nodes_use_their_own_ramp_and_the_ramp_menu_lists_the_ramps(node_module):
+    expr = (
+        "(() => { const net = {N: {count: 2}}; const p = {name: 'z', kind: 'continuous', min: 0, max: 1, values: [0, 1]};"
+        " const c = buildNodeColors(net, {node_color_by: 'z', ramp: 'Blues', node_ramp: 'Viridis', colors: {nodes: [1, 2, 3]}}, p);"
+        " return [[...c.slice(0, 3)], [...c.slice(4, 7)]]; })()"
+    )
+    assert node_module("palette.js", ["buildNodeColors"], expr) == [[68, 1, 84], [253, 231, 37]]  # Viridis, not Blues
+    menu = node_module("palette.js", ["rampMenu"], 'rampMenu("Blues")')
+    assert [m["name"] for m in menu] == ["YlOrRd", "Blues", "Viridis"]
+    assert [m["selected"] for m in menu] == [False, True, False]
+    assert all(m["gradient"].startswith("linear-gradient(90deg, rgb(") for m in menu)
+    assert node_module("palette.js", ["rampGradient"], 'rampGradient("nope") === rampGradient("YlOrRd")') is True
 
 
 def test_node_style_semantic_for_ctrl_type_generic_otherwise(node_module):

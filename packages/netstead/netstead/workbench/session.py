@@ -144,6 +144,7 @@ DEFAULT_STYLE: dict[str, Any] = {
     "node_color_by": "ctrl_type",
     "width_by": "none",
     "ramp": "YlOrRd",
+    "node_ramp": "YlOrRd",
     "offset": True,
     "show_direction": False,
     "show_legend": True,

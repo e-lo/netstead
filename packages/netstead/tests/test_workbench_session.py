@@ -116,6 +116,19 @@ def test_style_partial_merge_and_validation(opened):
         opened.dispatch(Style(color_by="geometry"))
 
 
+def test_links_and_nodes_have_their_own_ramps(opened):
+    assert opened.style["ramp"] == "YlOrRd" and opened.style["node_ramp"] == "YlOrRd"
+    opened.dispatch(Style(node_ramp="Viridis"))
+    assert opened.style["node_ramp"] == "Viridis" and opened.style["ramp"] == "YlOrRd"
+    opened.dispatch(Style(ramp="Blues"))
+    assert opened.style["ramp"] == "Blues" and opened.style["node_ramp"] == "Viridis"
+    with pytest.raises(ValueError):
+        Style(node_ramp="Rainbow")
+    from netstead.workbench.assistant.echo import describe  # noqa: PLC0415
+
+    assert "nodes with the Viridis ramp" in describe(Style(node_ramp="Viridis"))
+
+
 def test_opening_a_network_applies_the_default_coloring_its_columns_allow(session, rdu_source):
     # Leavenworth has both default columns: links by facility_type, nodes by ctrl_type.
     session.dispatch(OpenNetwork(source=str(leavenworth.csv_dir())))

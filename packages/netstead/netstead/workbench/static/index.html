@@ -180,7 +180,8 @@
                 <label class="sw"><input type="checkbox" id="tg-direction"><span></span></label></div>
               <div class="row"><span class="lbl">Offset directions</span>
                 <label class="sw"><input type="checkbox" id="tg-offset"><span></span></label></div>
-              <div class="sub">Show only links where…</div>
+              <div class="sub">Show only links where… <button class="iconbtn" id="flt-info" data-icon="info" aria-label="About the filter"
+                data-tip="Hides other links on the map and in the table's Filtered view; the data is not changed. Recorded in the session history."></button></div>
               <div class="row"><select id="flt-col" aria-label="Filter column"></select></div>
               <div class="row flt-cond"><select id="flt-op" aria-label="Filter operator">
                   <option value="eq">=</option><option value="ne">≠</option><option value="lt">&lt;</option>
@@ -190,7 +191,6 @@
                 <input id="flt-val" aria-label="Filter value" size="8"></div>
               <div class="row"><button class="mini" id="flt-apply">Apply</button><button class="mini ghost" id="flt-clear">Clear</button>
                 <span id="flt-count" class="diag" role="status"></span></div>
-              <div class="diag">Hides other links on the map and in the table's Filtered view; the data is not changed. Recorded in the session history.</div>
               <div id="flt-note" class="diag" hidden></div>
             </div>
           </div>
@@ -213,8 +213,6 @@
           </div>
           <div id="plugin-layers"></div>
           <div class="lc-foot">
-            <div class="row lc-line" id="ramp-row" style="display:none"><span class="lbl">Ramp</span>
-              <select id="ramp" aria-label="Color ramp"><option>YlOrRd</option><option>Blues</option><option>Viridis</option></select></div>
             <div class="row lc-line"><span class="lbl">Basemap labels</span>
               <label class="sw"><input type="checkbox" id="tg-labels"><span></span></label></div>
             <div class="row lc-line"><span class="lbl">Show legend</span>

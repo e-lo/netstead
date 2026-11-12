@@ -423,7 +423,6 @@ def test_the_layer_controls_live_in_the_layers_card_not_in_the_dock():
         "col-selection",
         "colorby",
         "node-colorby",
-        "ramp",
         "widthby",
         "tg-direction",
         "tg-offset",
@@ -970,7 +969,8 @@ def test_the_links_row_keeps_width_direction_and_filter_in_its_options():
         "flt-note",
     ):
         assert f'id="{element_id}"' in opts, element_id
-    assert "Show only links where…" in opts and "the data is not changed" in opts
+    assert "Show only links where…" in opts and 'data-tip="Hides other links on the map' in opts and 'id="flt-info"' in opts
+    assert '<div class="diag">Hides other links' not in opts  # the note is a tooltip, not visible text
     for element_id in (
         "col-links",
         "col-nodes",
@@ -979,7 +979,6 @@ def test_the_links_row_keeps_width_direction_and_filter_in_its_options():
         "node-colorby",
         "plugin-layers",
         "tg-labels",
-        "ramp",
     ):
         assert f'id="{element_id}"' in card
     assert "wb.layers.open" in (JS_DIR / "viewmodel.js").read_text()
@@ -1047,3 +1046,12 @@ def test_the_header_has_a_help_link_before_settings_and_a_palette_command():
     assert html.index('id="help-link"') < html.index('id="settings-btn"')
     core = (JS_DIR / "corecmds.js").read_text()
     assert 'title: "Open the documentation"' in core and "cookbook/workbench/" in core
+
+
+def test_the_ramp_is_picked_from_the_legend_gradient_not_a_footer_row():
+    html = (STATIC_DIR / "index.html").read_text()
+    card = html[html.index('id="layers-card"') : html.index('id="split-handle"')]
+    assert 'id="ramp"' not in card and 'id="ramp-row"' not in card
+    panels = (JS_DIR / "panels.js").read_text()
+    assert 'class="lg-ramp-btn"' in panels and 'role="listbox"' in panels
+    assert 'links: "ramp"' in panels and 'nodes: "node_ramp"' in panels

@@ -109,7 +109,7 @@ def test_details_has_its_own_stored_width_and_the_highlighted_links_stay_in_find
 
 MOVED_IDS = (
     "tg-links", "tg-nodes", "tg-selection", "tg-labels", "tg-direction", "tg-offset", "tg-legend",
-    "col-links", "col-nodes", "col-selection", "colorby", "node-colorby", "ramp", "ramp-row", "widthby",
+    "col-links", "col-nodes", "col-selection", "colorby", "node-colorby", "widthby",
     "flt-col", "flt-op", "flt-val", "flt-apply", "flt-clear", "flt-count", "flt-note", "plugin-layers",
 )  # fmt: skip
 

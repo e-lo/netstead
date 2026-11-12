@@ -239,7 +239,18 @@
   .lg-sw.lg-dot { width:10px; height:10px; border-radius:50%; margin:0 2px; }
   .lg-item { display:flex; align-items:center; gap:7px; margin:3px 0; }
   .lg-sw { width:14px; height:10px; border-radius:2px; flex:none; }
-  .lg-grad { height:10px; border-radius:2px; margin:4px 0 2px; }
+  .lg-grad { display:block; height:10px; border-radius:2px; margin:4px 0 2px; }
+  .lg-ramp-btn { display:block; width:100%; padding:0 2px; background:none; border:1px solid transparent; border-radius:4px; cursor:pointer; }
+  .lg-ramp-btn:hover, .lg-ramp-btn[aria-expanded="true"] { border-color:var(--edge); background:#20242e; }
+  .ramp-wrap { position:relative; }
+  .ramp-menu { position:absolute; left:0; right:0; top:100%; z-index:5; background:var(--panel); border:1px solid var(--edge);
+               border-radius:6px; padding:4px; box-shadow:0 4px 14px rgba(0,0,0,.4); }
+  .ramp-opt { display:block; width:100%; padding:3px 4px; background:none; border:1px solid transparent; border-radius:4px;
+              color:var(--ink); text-align:left; cursor:pointer; font:inherit; }
+  .ramp-opt:hover, .ramp-opt[aria-selected="true"] { background:#20242e; border-color:var(--edge); }
+  .ramp-opt .lg-grad { margin:2px 0; }
+  .ramp-name { font-size:11px; color:var(--muted); }
+  #layers-card .sub .iconbtn { display:inline-flex; width:20px; height:20px; vertical-align:middle; }
   .lg-scale { display:flex; justify-content:space-between; color:var(--muted); font-size:11px; }
 
   .status { display:inline-block; padding:3px 10px; border-radius:999px; font-size:12px; font-weight:600; }

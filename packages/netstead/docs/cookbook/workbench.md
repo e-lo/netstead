@@ -479,15 +479,16 @@ Nodes colored by `ctrl_type` use a fixed style where size carries meaning too (s
 - **The Layers & legend card** floats at the map's top-left. It is the legend: one row per layer (**Links**,
   **Nodes**, **Selection**, then the overlays), each with an eye that shows or hides the layer, its color swatch,
   and, for Links and Nodes, a **by** picker with the legend under it (the categories with their colors, or a
-  gradient with its minimum and maximum). The chevron on the Links row opens its other options: **Width by**,
+  gradient with its minimum and maximum; click a gradient to choose its ramp, `YlOrRd`, `Blues` or `Viridis`, separately
+  for links (`Style(ramp=...)`) and nodes (`Style(node_ramp=...)`)). The chevron on the Links row opens its other options: **Width by**,
   **Show direction**, **Offset directions** and **Show only links where…**. **Overlays** lists a plugin's or core's
   map layers (issue markers, anchor candidates) the same way, with an info tooltip saying what each draws. The footer
-  has **Basemap labels**, a **Ramp** choice while a numeric column colors a layer, and **Show legend**. The card
+  has **Basemap labels** and **Show legend**. The card
   collapses to one **Layers** button (remembered in this browser), is hidden in Table view, and scrolls in Split view.
 - On the map, a click, right-click or hover picks only layers that are switched on, and when a node and a link are
   both under the pointer the node wins (so nodes can be inspected where links run through them).
 - **Width by** sizes links by a numeric column (`app.do(Style(width_by="lanes"))`).
-- **Show only links where...** (the Layers card's filter; it hides the other links on the map and in the table's Filtered view and never changes the data) dims every link that doesn't match
+- **Show only links where...** (the Layers card's filter; hover its ⓘ for what it does: it hides the other links on the map and in the table's Filtered view and never changes the data) dims every link that doesn't match
   (`app.do(Filter(where=[{"col": "lanes", "op": "gte", "val": 2}]))`); the table's **Filtered** scope lists the
   matching links (the filter applies to links: on the node table it lists every node). `Filter(where=None)`
   clears it. Filters are fields and operators only, never free text or SQL: `contains` matches a plain
