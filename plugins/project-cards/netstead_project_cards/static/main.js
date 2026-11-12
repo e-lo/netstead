@@ -1,6 +1,6 @@
 // The project cards plugin's front end: the "Cards" dock panel (its id is the bare `cards` core reserves for this
-// plugin) and the "New change ▸ …" commands. The panel has four sections: the catalog (a folder of cards, each with
-// its applicability badge, previewed or applied), the draft card (compose a change, preview it, the draft's changes,
+// plugin) and the "New change ▸ …" commands. The panel has four sections: the catalog (a folder of cards, each row
+// its fit icon, its name, Inspect details and Preview; the details view edits a card), the draft card (compose a change, preview it, the draft's changes,
 // commit and import), this session's card actions (saved, applied, catalog files), and the session summary (copied
 // or downloaded). Everything
 // goes through `wb` (see the cookbook page "Write a Workbench plugin"); the flow lives in controller.js and the rules
@@ -9,8 +9,9 @@
 import {
   ROADWAY_TYPES, TRANSIT_TYPES, TYPE_TITLES, applyDefaults, applyEnabled, catalogOf, checkedAgainst, sampleCatalogs, catalogRows, commitChoices,
   FACILITY_FORMS, ID_SYSTEMS, facilityReason,
-  commitFields, commitView, draftBadge, editPrompt, fileLine, metaFields, metaForm, renameName, draftNet, draftOf, hasNode, importPath, inspectHeader, inspectRows, needsSelection,
+  commitFields, commitView, draftBadge, editPrompt, fileLine, draftNet, draftOf, hasNode, importPath, inspectHeader, inspectRows, needsSelection,
   openPreview, previewLine, savedChoices, selectionStatus, sessionRows, stepIndicator, summaryFileName, typeChoices,
+  READ_ONLY_TIP, catalogReadOnly, detailFields, editKey, fieldEdit, fitDetail, fitIcon, rowSubline,
 } from "./cardmodel.js";
 import { createController } from "./controller.js";
 
@@ -72,17 +73,17 @@ const LOCAL_ICONS = {
     + '<line x1="17" y1="4" x2="17" y2="20"/><line x1="15" y1="4" x2="19" y2="4"/><line x1="15" y1="20" x2="19" y2="20"/>',
   tag: '<path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/>'
     + '<circle cx="7.5" cy="7.5" r="1.5"/>',
+  check: '<polyline points="20 6 9 17 4 12"/>',
+  dash: '<line x1="6" y1="12" x2="18" y2="12"/>',
   table: '<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/>'
     + '<line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="10" x2="9" y2="20"/>',
 };
 const svgOf = body => '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" '
   + `stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
-// The catalog's status pills: green fits, red doesn't, gray not checked (core's dark theme).
-const PILL_STYLES = {
-  fits: "background:#173322;color:#5fd38a;border-color:#2f6b45",
-  no: "background:#3a1c1c;color:#ff7a75;border-color:#6b2f2f",
-  unchecked: "background:#20242e;color:var(--muted);border-color:var(--edge)",
-};
+// The fit icons' colors: green fits, red doesn't, gray not checked (core's dark theme).
+const FIT_COLORS = { fits: "#5fd38a", no: "#ff7a75", unchecked: "var(--muted)" };
+// The text an icon stands in for where the host draws no icons.
+const FIT_TEXT = { fits: "✓", no: "✗", unchecked: "–" };
 // A row of icon buttons, kept compact (a card's actions, a section's controls).
 const actionRow = (...buttons) => h("div", { class: "pc-actions",
   style: "display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin:4px 0" }, ...buttons);
@@ -214,11 +215,12 @@ function createView(wb, ctl, el) {
   const heading = text => h("h3", { class: "label", style: "font-size:12px;margin:18px 0 6px", text });
   const catalogHeading = heading("Catalog"); // names the network the cards were checked against (drawCatalog)
   el.style.overflowWrap = "anywhere"; // long file paths wrap instead of scrolling the dock sideways
-  // Core's tooltips sit left of a button (the map's corner); in this panel's rows they go below it instead, so they
-  // neither cover the next button nor run off the dock's left edge (the last button's tooltip ends at its right).
+  // The catalog's rows and the details' editable fields (core's tooltip layer draws every data-tip).
   el.setAttribute("data-pc-panel", "");
-  el.append(h("style", { text: "[data-pc-panel] [data-tip]:hover::after{top:calc(100% + 4px);right:auto;left:0;"
-    + "transform:none;z-index:6}[data-pc-panel] [data-tip]:last-child:hover::after{left:auto;right:0}" }));
+  el.append(h("style", { text: "[data-pc-panel] .pc-card .iconbtn{width:28px;height:28px}"
+    + "[data-pc-panel] .pc-field-value[tabindex]{cursor:text;border-radius:4px;padding:0 3px}"
+    + "[data-pc-panel] .pc-field-value[tabindex]:hover,[data-pc-panel] .pc-field-value[tabindex]:focus{"
+    + "background:#20242e;outline:none}" }));
   el.append(
     catalogHeading, catalogBox, previewBox, inspectBox,
     heading("Draft"), createBox, composeBox, draftBox, commitBox,
@@ -633,41 +635,58 @@ function createView(wb, ctl, el) {
     return loading;
   }
 
-  // The applicability rows a card's Details expand to.
-  function detailRows(row) {
-    const a = row.applicability;
-    if (!a) return [h("p", { class: "muted", text: "Not checked yet." })];
-    const list = h("ul");
-    for (const c of a.changes || []) {
-      const what = c.reason ? c.reason : c.missing && c.missing.length ? `missing ${c.missing.join(", ")}` : "";
-      list.append(h("li", { text: `${c.describe}: ${c.resolved} resolved${what ? `; ${what}` : ""}` }));
-    }
-    return [h("p", { class: "muted", text: `Checked on ${a.net_id}` }), list];
-  }
-
   // --------------------------------------------------------------------------------------------- inspecting
 
-  // The read-only Inspect view of a catalog card or the draft. Clicking a change highlights its links on the map;
-  // the map does not zoom to them (the Workbench gives plugins no camera control), so the status says so.
+  // The details view (#pc-inspect) of a catalog card or the draft. A catalog card's shows its fit in full, its
+  // fields (double-click one to edit it, unless the catalog is read-only) and its actions; clicking a change
+  // highlights its links on the map. The map does not zoom to them (the Workbench gives plugins no camera control).
   let showYaml = false;
   let highlighted = false;
   let inspectedDraft = null; // the draft the view shows, to read it again when it changes
+  let editing = null; // the key of the details field being edited, or null
   const highlight = links => {
     if (typeof wb.highlight !== "function") return false;
     wb.highlight(links ? { links } : {});
     highlighted = Boolean(links && links.length);
     return true;
   };
-  async function openInspect(cardId) {
+  // The element `id` under `root`, or null.
+  const findIn = (root, id) => {
+    if (root.id === id) return root;
+    for (const child of root.children || []) {
+      const found = findIn(child, id);
+      if (found) return found;
+    }
+    return null;
+  };
+  function focusIn(id) {
+    const target = findIn(inspectBox, id);
+    if (!target) return;
+    target.focus();
+    if (typeof target.scrollIntoView === "function") target.scrollIntoView({ block: "nearest" });
+  }
+  // `focusFit`: the view opens at the card's fit reasons (the red X).
+  async function openInspect(cardId, { focusFit = false } = {}) {
     const detail = await ctl.inspect(cardId, baseNet());
     showYaml = false;
+    editing = null;
     inspectedDraft = cardId ? null : JSON.stringify(draftOf(server(), server().active));
     drawInspect(true);
+    drawCatalog(); // the row being inspected is marked
+    if (focusFit) focusIn("pc-inspect-fit");
     say(`Inspecting ${detail.card_id || `the draft on ${detail.net_id}`}`);
+  }
+  // Read a catalog card's details again (after one of its fields was saved: under its new name after a rename).
+  async function reinspect(cardId, focusField) {
+    await ctl.inspect(cardId, baseNet());
+    editing = null;
+    drawInspect(true);
+    focusIn(`pc-field-${focusField}`);
   }
   function closeInspect() {
     ctl.closeInspect();
     inspectedDraft = null;
+    editing = null;
     if (highlighted) highlight(null);
     drawInspect(true);
   }
@@ -684,36 +703,145 @@ function createView(wb, ctl, el) {
       closeInspect(); // the draft has no changes any more (committed, or every change removed)
     }
   }
+  // The catalog row of the card being inspected (its fit is the listing's), or null.
+  const inspectedRow = detail => (detail && detail.source === "catalog"
+    ? catalogRows(server(), ctl.catalog()).find(r => r.card_id === detail.card_id) || null : null);
+
+  // The fit in full: the icon and its title, every reason, every warning; a card not checked yet has a check button.
+  function fitSection(row) {
+    const fit = fitDetail(row);
+    const nodes = [h("div", { style: "display:flex;gap:6px;align-items:center" }, fitMark(fit.fit, "span"),
+      h("span", { text: fit.title }))];
+    if (fit.reasons.length) {
+      nodes.push(h("ul", { class: "pc-fit-reasons" }, ...fit.reasons.map(r => h("li", { text: r }))));
+    }
+    if (fit.warnings.length) {
+      nodes.push(h("div", { class: "muted", text: "Warnings:" }),
+        h("ul", { class: "pc-fit-warnings" }, ...fit.warnings.map(w => h("li", { text: w }))));
+    }
+    if (row && fit.fit === "unchecked") {
+      nodes.push(actionRow(iconAct("check-circle", "Check against this network", () => checkCard(row),
+        `Check ${row.project} against this network`)));
+    }
+    return h("div", { id: "pc-inspect-fit", tabindex: -1, "aria-label": "Fit with this network",
+      style: "margin:4px 0" }, ...nodes);
+  }
+
+  // One field of a catalog card's details: its value (double-click it, or press Enter on it, to edit), or the input
+  // editing it (Enter or Cmd/Ctrl+Enter saves, Escape cancels, leaving the field saves).
+  function fieldRow(detail, f) {
+    const label = h("span", { class: "muted", text: `${f.label}: ` });
+    if (editing !== f.key) {
+      const value = h("span", { class: "pc-field-value", id: `pc-field-${f.key}`, "data-field": f.key,
+        "data-tip": f.tip, "aria-label": `${f.label}: ${f.value || "none"}`,
+        ...(f.editable ? { tabindex: 0, role: "button" } : { "aria-readonly": "true" }), text: f.value || "—" });
+      if (f.editable) {
+        const begin = () => {
+          editing = f.key;
+          drawInspect();
+          focusIn(`pc-edit-${f.key}`);
+          const input = findIn(inspectBox, `pc-edit-${f.key}`);
+          if (input && typeof input.select === "function") input.select(); // typing replaces the value
+        };
+        value.ondblclick = begin;
+        value.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); begin(); } };
+      }
+      return h("div", { "data-row": f.key }, label, value);
+    }
+    const input = h("input", { type: "text", id: `pc-edit-${f.key}`, "aria-label": f.label,
+      ...(f.hint ? { placeholder: f.hint } : {}), style: "width:100%" });
+    input.value = f.value;
+    let saving = false;
+    const stop = () => { editing = null; drawInspect(); focusIn(`pc-field-${f.key}`); };
+    const finish = async apply => {
+      if (saving || editing !== f.key) return;
+      const edit = apply ? fieldEdit(detail, f.key, input.value) : { unchanged: true };
+      if (edit.unchanged) { stop(); return; }
+      if (edit.error) { say(edit.error); return; } // the input stays open, to fix
+      saving = true;
+      input.disabled = true;
+      try {
+        const result = edit.rename ? await ctl.renameCard(detail.card_id, edit.rename)
+          : await ctl.updateCardMeta(detail.card_id, edit.meta);
+        say(fileLine(result));
+        await reinspect(edit.rename ? result.to : detail.card_id, f.key);
+      } catch (e) {
+        say(e.message); // refused (say, a file by that name exists): the input stays open
+        saving = false;
+        input.disabled = false;
+        input.focus();
+      }
+    };
+    input.onkeydown = e => {
+      const what = editKey(e);
+      if (!what) return;
+      e.preventDefault();
+      e.stopPropagation(); // Escape cancels the edit, nothing else
+      return finish(what === "apply");
+    };
+    input.onblur = () => finish(true);
+    return h("div", { "data-row": f.key }, h("label", { class: "muted", for: input.id, text: `${f.label}: ` }), input);
+  }
+
+  // The details' actions for a catalog card: Edit changes, Apply… (with enable_apply), then Duplicate and Delete (not
+  // in a read-only catalog).
+  function cardActions(row, readOnly) {
+    if (!row) return [];
+    const of = `${row.project} (${row.card_id})`;
+    const buttons = [iconAct("pencil", "Edit changes", () => openEditDialog(row), `Edit the changes of ${of} in the draft`)];
+    if (applyEnabled(server())) buttons.push(iconAct("check-circle", "Apply…", () => openApplyDialog(row), `Apply ${of}…`));
+    if (!readOnly) {
+      buttons.push(
+        iconAct("copy", "Duplicate", async () => say(fileLine(await ctl.duplicateCard(row.card_id))), `Duplicate ${of}`),
+        iconAct("trash", "Delete", () => deleteCard(row), `Delete ${of}`));
+    }
+    return buttons;
+  }
+
   function drawInspect(force = false) {
     const detail = ctl.state.inspect;
     if (!detail) { redraw(inspectBox, [], force); return; }
-    const what = detail.source === "draft" ? `the draft on ${detail.net_id}` : detail.card_id;
+    const catalogCard = detail.source !== "draft";
+    const row = inspectedRow(detail);
+    const readOnly = catalogReadOnly(server());
     const yaml = glyph(h("button", { class: `iconbtn${showYaml ? " on" : ""}`, "data-tip": "YAML",
       "aria-label": "Show the card's YAML", "aria-pressed": String(showYaml) }), "code", "YAML");
     yaml.onclick = () => { showYaml = !showYaml; drawInspect(); };
-    const close = iconAct("x", "Close", async () => closeInspect(), "Close the Inspect view");
-    const head = h("div", { style: "display:flex;gap:6px;align-items:center" },
-      h("div", { class: "label", tabindex: -1, text: `Inspect: ${what}` }), yaml, close);
-    const lines = inspectHeader(detail).map(([label, text]) => h("div", {},
-      h("span", { class: "muted", text: `${label}: ` }), h("span", { text })));
-    const list = h("ol", { id: "pc-inspect-changes", style: "padding-left:1.2em" });
-    for (const row of inspectRows(detail)) {
-      const pick = h("button", { class: "mini ghost", "data-index": String(row.index),
-        "aria-label": `Highlight change ${row.index + 1} on the map` }, row.title);
-      pick.onclick = () => {
-        const n = row.links.length;
-        if (!highlight(row.links)) say("This Workbench cannot highlight links for plugins");
-        else say(n ? `Highlighted ${n} link${n === 1 ? "" : "s"} of change ${row.index + 1} on the map `
-          + "(the map does not zoom to them)" : `Change ${row.index + 1} has no links to highlight`);
-      };
-      list.append(h("li", { "data-change": String(row.index), style: "margin:4px 0" }, pick,
-        h("div", { class: "muted", text: row.facility }),
-        ...(row.properties.length ? [h("ul", {}, ...row.properties.map(p => h("li", { text: p })))] : []),
-        ...(row.note ? [h("div", { class: "muted", text: `Why: ${row.note}` })] : []),
-        h("div", { "data-check": row.check.state, text: row.check.text })));
+    const close = iconAct("x", "Close", async () => closeInspect(), "Close the details");
+    const title = catalogCard ? `Details: ${detail.project || detail.card_id}` : `Inspect: the draft on ${detail.net_id}`;
+    const head = h("div", { style: "display:flex;gap:4px;align-items:center;flex-wrap:wrap" },
+      h("div", { class: "label", tabindex: -1, style: "flex:1", text: title }),
+      ...(catalogCard ? cardActions(row, readOnly) : []), yaml, close);
+    const nodes = [head];
+    if (catalogCard) {
+      nodes.push(fitSection(row), ...detailFields(detail, { readOnly }).map(f => fieldRow(detail, f)));
+      if (detail.notes) {
+        nodes.push(h("div", {}, h("span", { class: "muted", text: "Notes: " }), h("span", { text: detail.notes })));
+      }
+      nodes.push(h("p", { class: "muted", text: readOnly ? `${READ_ONLY_TIP}.`
+        : "Double-click a field (or focus it and press Enter) to edit it: Enter saves, Escape cancels." }));
+    } else {
+      nodes.push(...inspectHeader(detail).map(([label, text]) => h("div", {},
+        h("span", { class: "muted", text: `${label}: ` }), h("span", { text }))));
     }
-    const nodes = [head, ...lines, h("p", { class: "muted",
-      text: "Click a change to highlight its links on the map. Inspecting changes nothing." }), list];
+    const list = h("ol", { id: "pc-inspect-changes", style: "padding-left:1.2em" });
+    for (const change of inspectRows(detail)) {
+      const pick = h("button", { class: "mini ghost", "data-index": String(change.index),
+        "aria-label": `Highlight change ${change.index + 1} on the map` }, change.title);
+      pick.onclick = () => {
+        const n = change.links.length;
+        if (!highlight(change.links)) say("This Workbench cannot highlight links for plugins");
+        else say(n ? `Highlighted ${n} link${n === 1 ? "" : "s"} of change ${change.index + 1} on the map `
+          + "(the map does not zoom to them)" : `Change ${change.index + 1} has no links to highlight`);
+      };
+      list.append(h("li", { "data-change": String(change.index), style: "margin:4px 0" }, pick,
+        h("div", { class: "muted", text: change.facility }),
+        ...(change.properties.length ? [h("ul", {}, ...change.properties.map(p => h("li", { text: p })))] : []),
+        ...(change.note ? [h("div", { class: "muted", text: `Why: ${change.note}` })] : []),
+        h("div", { "data-check": change.check.state, text: change.check.text })));
+    }
+    nodes.push(h("p", { class: "muted", text: "Click a change to highlight its links on the map. "
+      + "Inspecting changes nothing." }), list);
     if (showYaml) {
       nodes.push(h("pre", { id: "pc-inspect-yaml", text: detail.yaml,
         style: "max-height:45vh;overflow:auto;background:var(--bg)" }));
@@ -721,64 +849,51 @@ function createView(wb, ctl, el) {
     redraw(inspectBox, nodes, force);
   }
 
-  const opened = new Set(); // the cards whose Details the user opened
+  // A fit icon (a green check, a red X or a gray dash) drawn in a `tag`: a span, or a button (the row's X and dash).
+  function fitMark(fit, tag, props = {}) {
+    return glyph(h(tag, { class: tag === "button" ? "iconbtn pc-fit" : "pc-fit", "data-fit": fit,
+      style: `color:${FIT_COLORS[fit]};display:inline-flex;align-items:center;justify-content:center;flex:none`,
+      ...props }), fitIcon({ fit }).icon, FIT_TEXT[fit]);
+  }
+
+  // Check one card against this network (read only); the listing (and the card's details, if open) follow.
+  async function checkCard(row) {
+    const result = await ctl.checkCard(row.card_id, baseNet());
+    say(`Checked ${row.card_id}: ${result.ok ? "fits" : "doesn't fit"} ${result.net_id}`);
+    drawCatalog();
+  }
+
   let selectedCard = null; // the card last picked in the catalog's table (selectCard)
+  // A catalog row: its fit icon, its project name (its tags beneath, muted), then Inspect details and Preview.
   function cardRow(row) {
-    const tags = row.tags.length ? ` · ${row.tags.join(", ")}` : "";
     const of = `${row.project} (${row.card_id})`;
-    // The status pill: green fits, red doesn't (its first reason beside it, every reason in the tooltip), gray not
-    // checked (with a button that checks it).
-    const pill = h("span", { class: "pc-fit", "data-fit": row.fit, title: row.tip,
-      style: `display:inline-block;padding:1px 8px;border:1px solid;border-radius:999px;font-size:11px;`
-        + `font-weight:600;white-space:nowrap;${PILL_STYLES[row.fit] || PILL_STYLES.unchecked}`, text: row.label });
-    const status = [pill];
-    if (row.fit === "no") {
-      status.push(h("span", { class: "muted pc-fit-reason", title: row.tip, style: "font-size:11px", text: row.reason }));
-    } else if (row.fit === "unchecked") {
-      status.push(iconAct("check-circle", "Check against this network", async () => {
-        const result = await ctl.checkCard(row.card_id, baseNet());
-        say(`Checked ${row.card_id}: ${result.ok ? "fits" : "doesn't fit"} ${result.net_id}`);
-        drawCatalog();
-      }, `Check ${of} against this network`));
+    const icon = fitIcon(row);
+    let mark;
+    if (icon.action === "details") {
+      mark = fitMark(row.fit, "button", { "data-tip": icon.tip, "aria-label": `${of}: incompatible; see details` });
+      mark.onclick = guard(() => busy([mark], () => openInspect(row.card_id, { focusFit: true })));
+    } else if (icon.action === "check") {
+      mark = fitMark(row.fit, "button", { "data-tip": icon.tip, "aria-label": `Check ${of} against this network` });
+      mark.onclick = guard(() => busy([mark], () => checkCard(row)));
+    } else {
+      mark = fitMark(row.fit, "span", { "data-tip": icon.tip, role: "img", "aria-label": icon.tip,
+        style: `color:${FIT_COLORS.fits};display:inline-flex;align-items:center;justify-content:center;width:28px;flex:none` });
     }
-    const preview = iconAct("play", "Preview", async () => {
+    const subline = rowSubline(row);
+    const name = h("div", { style: "flex:1;min-width:0" }, h("div", { class: "pc-name", text: row.project }),
+      ...(subline ? [h("div", { class: "muted pc-tags", style: "font-size:11px", text: subline })] : []));
+    const info = iconAct("info", "Inspect details", () => openInspect(row.card_id), `Inspect details of ${of}`);
+    const preview = iconAct("play", "Preview on the network", async () => {
       const result = await ctl.previewCard(row.card_id, baseNet());
       say(`Previewing ${row.card_id} on ${result.preview}`);
-    }, `Preview ${of}`);
-    // Applying is off unless the enable_apply setting is on: the server refuses it then, so the row offers none.
-    const apply = applyEnabled(server()) ? [iconAct("check-circle", "Apply…", () => openApplyDialog(row), `Apply ${of}…`)]
-      : [];
-    const inspect = iconAct("search", "Inspect", () => openInspect(row.card_id), `Inspect ${of}`);
-    const edit = iconAct("pencil", "Edit", () => openEditDialog(row), `Edit ${of} in the draft`);
-    // The Details toggle shows the card's file and its check; a redraw (any server change) keeps it open if it was.
-    const isOpen = opened.has(row.card_id);
-    const details = h("div", { class: "pc-details", style: "margin:2px 0 0" },
-      h("p", { class: "muted", text: row.path }), ...detailRows(row));
-    details.hidden = !isOpen;
-    const toggle = glyph(h("button", { class: `iconbtn${isOpen ? " on" : ""}`, "data-tip": "Details",
-      "aria-label": `Details of ${of}`, "aria-expanded": String(isOpen) }), "info", "Details");
-    toggle.onclick = () => {
-      const now = !opened.has(row.card_id);
-      if (now) opened.add(row.card_id); else opened.delete(row.card_id);
-      details.hidden = !now;
-      toggle.setAttribute("aria-expanded", String(now));
-      toggle.setAttribute("class", `iconbtn${now ? " on" : ""}`);
-    };
-    const actions = actionRow(preview, ...apply, inspect, edit, toggle,
-      iconAct("rename", "Rename…", () => openRenameDialog(row), `Rename ${of}…`),
-      iconAct("copy", "Duplicate", async () => say(fileLine(await ctl.duplicateCard(row.card_id))), `Duplicate ${of}`),
-      iconAct("tag", "Edit metadata…", () => openMetaDialog(row), `Edit the metadata of ${of}…`),
-      iconAct("trash", "Delete", () => deleteCard(row), `Delete ${of}`));
+    }, `Preview ${of} on the network`);
     const picked = row.card_id === selectedCard;
+    const inspected = (ctl.state.inspect || {}).card_id === row.card_id;
     return h("div", { class: "pc-card", "data-card": row.card_id,
       ...(picked ? { "aria-current": "true" } : {}),
-      style: `margin:8px 0 10px;${picked ? "outline:1px solid var(--accent);outline-offset:3px;border-radius:4px" : ""}` },
-      h("div", {}, h("strong", { text: row.project }),
-        h("span", { class: "muted", text: ` · ${row.changes} change(s)${tags} · ${row.card_id}` })),
-      h("div", { class: "pc-status", style: "display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:3px 0" },
-        ...status),
-      actions, details,
-    );
+      style: `display:flex;gap:4px;align-items:center;margin:2px 0;padding:2px 0;border-radius:4px;`
+        + `${inspected ? "background:#20242e;" : ""}${picked ? "outline:1px solid var(--accent);outline-offset:1px" : ""}` },
+    mark, name, info, preview);
   }
 
   function drawCatalog() {
@@ -800,67 +915,16 @@ function createView(wb, ctl, el) {
         h("ul", {}, ...rejected.map(r => h("li", { class: "muted", text: `${r.card_id}: ${r.error}` })))));
     }
     redraw(catalogList, nodes);
+    // A catalog card's details follow its fit (a field being edited keeps what is typed).
+    if (ctl.state.inspect && ctl.state.inspect.source === "catalog" && !editing) drawInspect();
   }
 
   // ------------------------------------------------------------------------------------ the catalog's files
 
-  // A dialog with `fields` (labeled controls), a status line and Cancel / `label`: `run()` resolves to the status
-  // text, and a refusal stays in the dialog.
-  function fileDialog(title, fields, label, run) {
-    const note = h("p", { role: "status" });
-    const go = h("button", { class: "mini" }, label);
-    const cancel = h("button", { class: "mini ghost", onclick: () => dialog.close() }, "Cancel");
-    go.onclick = async () => {
-      try {
-        const text = await busy([go, cancel], run);
-        if (text === null) return; // the form itself said what is missing
-        dialog.close();
-        say(text);
-      } catch (e) {
-        note.textContent = e.message;
-      }
-    };
-    dialog.replaceChildren(h("h3", { id: "pc-dialog-title", text: title }), ...fields, note,
-      h("div", { style: "display:flex;gap:8px;justify-content:flex-end" }, cancel, go));
-    if (!dialog.open) dialog.showModal();
-    return note;
-  }
-
-  function openRenameDialog(row) {
-    const name = h("input", { type: "text", id: "pc-rename" });
-    name.value = row.card_id;
-    const overwrite = h("input", { type: "checkbox", id: "pc-rename-overwrite" });
-    const note = fileDialog(`Rename "${row.project}"`, [
-      field("New file name (in the catalog folder)", name), field("Replace an existing file", overwrite)],
-    "Rename", async () => {
-      const { name: newName, error } = renameName(name.value, row.card_id);
-      if (error) { note.textContent = error; return null; }
-      return fileLine(await ctl.renameCard(row.card_id, newName, overwrite.checked));
-    });
-    name.focus();
-  }
-
-  async function openMetaDialog(row) {
-    const start = metaForm(await ctl.cardDetail(row.card_id, baseNet()));
-    const inputs = Object.fromEntries(["project", "tags", "prerequisites", "corequisites", "conflicts"].map(k => {
-      const el = h("input", { type: "text", id: `pc-meta-${k}` });
-      el.value = start[k];
-      return [k, el];
-    }));
-    const labels = { project: "Project name", tags: "Tags (comma separated)",
-      prerequisites: "Prerequisites (projects, comma separated)", corequisites: "Corequisites", conflicts: "Conflicts" };
-    const note = fileDialog(`Edit metadata of "${row.project}"`,
-      Object.entries(inputs).map(([k, el]) => field(labels[k], el)), "Save", async () => {
-        const { fields, error } = metaFields(Object.fromEntries(Object.entries(inputs).map(([k, el]) => [k, el.value])));
-        if (error) { note.textContent = error; return null; }
-        return fileLine(await ctl.updateCardMeta(row.card_id, fields));
-      });
-    inputs.project.focus();
-  }
-
   // A delete moves the file to the catalog's trash: the status offers it back at once.
   async function deleteCard(row) {
     const result = await ctl.deleteCard(row.card_id);
+    if ((ctl.state.inspect || {}).card_id === row.card_id) closeInspect();
     sayWith(fileLine(result), "Undo delete", async () => say(fileLine(await ctl.restoreCard(row.card_id))));
   }
 

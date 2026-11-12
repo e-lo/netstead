@@ -177,6 +177,9 @@ PANEL_HARNESS = (
         """getJSON: async p => { if (p.includes("commit-check")) {
       return { net_id: "base", warnings: [{ table: "link", key: 3, message: "x" }], problems: [], yaml: "" }; }
     if (p.includes("/catalog")) return LISTING;
+    if (p.includes("/card?")) { const id = new URL(p, "http://x").searchParams.get("card_id");
+      return { source: "catalog", card_id: id, path: `/cards/${id}`, net_id: "base", project: id === "bad.yml" ? "Bad"
+        : "Good", tags: ["t"], dependencies: {}, notes: null, yaml: "", changes: [] }; }
     if (p.includes("roadway")) return { supported: true, net_id: "base", existing: {}, targets: { label: "2" },
                                          columns: {}, options: {} };""",
     )
@@ -295,27 +298,35 @@ const session = [{ kind: "saved", verb: "Saved", text: "Saved lanes.yml", detail
 got.noSession = sessionBox.textContent;
 setServer({ plugins: { project_cards: { drafts: {}, preview: null, catalog: CATALOG, applied, session } } });
 await settle(); await settle();  // the listing is read after the store change
-got.noApply = walk(catalogBox).filter(e => e.getAttribute("data-card")).map(c => Boolean(button(c, "Apply…")));
+const cards = () => walk(catalogBox).filter(e => e.getAttribute("data-card"));
+const markOf = c => walk(c).find(e => (e.getAttribute("class") || "").includes("pc-fit"));
+got.cards = cards().map(c => [c.getAttribute("data-card"), markOf(c).tagName, markOf(c).getAttribute("data-fit"),
+  markOf(c).textContent, markOf(c).getAttribute("data-tip"),
+  walk(c).filter(e => e.tagName === "BUTTON").map(b => [b.getAttribute("data-tip"), b.getAttribute("aria-label")]),
+  c.textContent.includes("missing link 999999")]);
+// The red X opens the card's details at its fit reasons; Apply… is there only with enable_apply on.
+const inspectBox = elById(root, "pc-inspect");
+await markOf(cards()[1]).onclick();
+got.fitDetails = [document.activeElement.id, inspectBox.textContent.includes("Incompatible with base:"),
+  inspectBox.textContent.includes("missing link 999999"), inspectBox.textContent.includes("Details: Bad")];
+got.noApply = !button(inspectBox, "Apply…");
 setServer({ plugins: { project_cards: { drafts: {}, preview: null, catalog: CATALOG, applied, session,
   enable_apply: true } } });
 await settle(); await settle();
-const cards = walk(catalogBox).filter(e => e.getAttribute("data-card"));
-const pillOf = c => walk(c).find(e => e.getAttribute("class") === "pc-fit");
-got.cards = cards.map(c => [c.getAttribute("data-card"), pillOf(c).getAttribute("data-fit"), pillOf(c).textContent,
-                            pillOf(c).getAttribute("title"), c.textContent.includes("missing link 999999")]);
 got.catalogHeading = root.children.filter(e => e.tagName === "H3")[0].textContent;
 got.catalogLine = elById(root, "pc-catalog-line").textContent;
 got.rejected = find(catalogBox, "SUMMARY", "Not cards (1)") !== undefined;
 got.session = walk(sessionBox).filter(e => e.tagName === "LI").map(e => [e.getAttribute("data-kind"), e.textContent]);
 
 // 9. Apply… on a ✗ card opens the options dialog with ignore_missing checked; Apply dispatches apply_card.
-await button(cards[1], "Apply…").onclick();
+await button(inspectBox, "Apply…").onclick();
 const ignore = elById(dialog, "pc-ignore"), conflict = elById(dialog, "pc-conflict");
 got.applyDialog = [dialog.open, ignore.checked, conflict.value, find(dialog, "H3").textContent];
 await button(dialog, "Apply").onclick();
 const applyAction = calls.find(c => c[0] === "dispatch" && c[1] === "project_cards.apply_card");
 got.applied2 = [dialog.open, Boolean(applyAction), status.textContent.startsWith("Applied")];
-await button(cards[0], "Apply…").onclick();
+await button(cards()[0], "Inspect details").onclick();
+await button(inspectBox, "Apply…").onclick();
 got.applyGood = [dialog.open, elById(dialog, "pc-ignore").checked];
 dialog.close();
 
@@ -363,16 +374,36 @@ def test_the_panel_under_a_fake_dom(run_js):
     # The catalog, applied and summary sections.
     assert got["sections"] == ["Catalog", "Draft", "This session", "Session summary"]
     assert got["noCatalog"] is True
+
+    # Each row: its fit icon (a check with a tooltip; an X button), the project name, and exactly two buttons.
+    def two_buttons(of):
+        return [
+            ["Inspect details", f"Inspect details of {of}"],
+            ["Preview on the network", f"Preview {of} on the network"],
+        ]
+
     assert got["cards"] == [
-        ["good.yml", "fits", "Fits this network", "Fits base", False],
-        ["bad.yml", "no", "Doesn't fit", "missing link 999999", True],
+        ["good.yml", "SPAN", "fits", "✓", "Compatible with the current network", two_buttons("Good (good.yml)"), False],
+        [
+            "bad.yml",
+            "BUTTON",
+            "no",
+            "✗",
+            "Incompatible; click to see details",
+            [
+                ["Incompatible; click to see details", "Bad (bad.yml): incompatible; see details"],
+                *two_buttons("Bad (bad.yml)"),
+            ],
+            False,  # its reasons are in its details, not the row
+        ],
     ]
+    assert got["fitDetails"] == ["pc-inspect-fit", True, True, True]
     assert got["catalogLine"] == "/cards" and got["rejected"] is True
     assert got["catalogHeading"] == "Catalog · checked against base"
     assert got["noSession"] == "Nothing yet: saved cards and catalog file changes are listed here."
     # A saved card reads "Saved <file>", never "applied" (the icon's text stand-in is the bullet).
     assert got["session"] == [["saved", "•Saved lanes.yml · 2 change(s) from base09:05"]]
-    assert got["noApply"] == [False, False]  # enable_apply is off: no Apply…
+    assert got["noApply"] is True  # enable_apply is off: no Apply…
     assert got["applyDialog"] == [True, True, "error", 'Apply "Bad"']
     assert got["applied2"] == [False, True, True]
     assert got["applyGood"] == [True, False]
@@ -543,9 +574,9 @@ await settle(); await settle();
 const inspectBox = elById(root, "pc-inspect"), status = elById(root, "pc-status");
 const card = walk(elById(root, "pc-catalog")).find(e => e.getAttribute("data-card") === "good.yml");
 const got = {};
-await button(card, "Inspect").onclick();
+await button(card, "Inspect details").onclick();
 const shows = text => inspectBox.textContent.includes(text);
-got.view = [shows("Inspect: good.yml"), shows("Project: Good"), shows("lanes: 1 → 3"),
+got.view = [shows("Details: Good"), shows("Project name: Good"), shows("lanes: 1 → 3"),
             shows("Applies: 2 records found"), !elById(inspectBox, "pc-inspect-yaml")];
 button(inspectBox, "YAML").onclick();
 got.yaml = [elById(inspectBox, "pc-inspect-yaml").textContent, button(inspectBox, "YAML").getAttribute("aria-pressed")];
@@ -627,8 +658,10 @@ got.choices = [choice("over").textContent, choice("over").disabled, choice("new"
 await choice("over").onclick();
 got.savedOver = [dialog.open, actions.at(-1)];
 // Edit on a catalog card while the draft has changes asks first, then replaces the draft.
+const inspectBox = elById(root, "pc-inspect");
 const card = walk(elById(root, "pc-catalog")).find(e => e.getAttribute("data-card") === "bad.yml");
-await button(card, "Edit").onclick();
+await button(card, "Inspect details").onclick();
+await button(inspectBox, "Edit changes").onclick();
 got.ask = [dialog.open, find(dialog, "H3").textContent, dialog.textContent.includes("Edit undoes them")];
 await button(dialog, "Replace the draft").onclick();
 got.edited = [dialog.open, actions.at(-1), status.textContent];
@@ -636,7 +669,8 @@ got.edited = [dialog.open, actions.at(-1), status.textContent];
 setServer({ plugins: { project_cards: { drafts: {}, preview: null, catalog: CATALOG, applied: [] } } });
 await settle(); await settle();
 const good = walk(elById(root, "pc-catalog")).find(e => e.getAttribute("data-card") === "good.yml");
-await button(good, "Edit").onclick();
+await button(good, "Inspect details").onclick();
+await button(inspectBox, "Edit changes").onclick();
 got.direct = [dialog.open, actions.at(-1)];
 got.errors = calls.filter(c => c[0] === "error");
 console.log(JSON.stringify(got));
@@ -684,59 +718,74 @@ const RESULTS = {
 deps.dispatch = async a => { actions.push(a); if (a.type === "project_cards.rename_card" && a.new_name === "bad.yml")
   throw new Error("bad.yml already exists in the catalog"); return RESULTS[a.type](a); };
 const read = deps.getJSON;
-deps.getJSON = async p => (p.includes("/card?") ? { project: "Good", tags: ["t"],
+deps.getJSON = async p => (p.includes("/card?") ? { source: "catalog", net_id: "base", project: "Good", tags: ["t"],
+  card_id: new URL(p, "http://x").searchParams.get("card_id"), changes: [], yaml: "",
   dependencies: { prerequisites: ["Bridge"], corequisites: [], conflicts: [] } } : read(p));
 panels[0].render(root);
-store.set({ server: { ...store.get().server,
-  plugins: { project_cards: { drafts: {}, preview: null, catalog: CATALOG, applied: [] } } } });
+const SAMPLE = { id: "leavenworth", name: "Sample cards (Leavenworth)", path: "/pkg/cards", network: "base", cards: 2 };
+const open = path => store.set({ server: { ...store.get().server, plugins: { project_cards: { drafts: {},
+  preview: null, catalog: { ...CATALOG, path }, applied: [], samples: [SAMPLE] } } } });
+open("/cards");
 await settle(); await settle();
-const status = elById(root, "pc-status"), dialog = find(root, "DIALOG");
+const status = elById(root, "pc-status"), inspectBox = elById(root, "pc-inspect");
 const row = () => walk(elById(root, "pc-catalog")).find(e => e.getAttribute("data-card") === "good.yml");
-const file = () => row();
+const value = k => elById(inspectBox, `pc-field-${k}`);
+const input = k => elById(inspectBox, `pc-edit-${k}`);
+const key = (k, extra = {}) => ({ key: k, preventDefault() {}, stopPropagation() {}, ...extra });
+const tips = root => walk(root).filter(e => e.tagName === "BUTTON").map(b => [b.getAttribute("data-tip"),
+  b.getAttribute("aria-label")]);
 const got = {};
-// Rename: a refusal stays in the dialog; then it goes through.
-await button(file(), "Rename…").onclick();
-got.renameStart = [dialog.open, elById(dialog, "pc-rename").value];
-elById(dialog, "pc-rename").value = "good.yml";
-await button(dialog, "Rename").onclick();
-got.sameName = [dialog.open, dialog.textContent.includes("already has that name")];
-elById(dialog, "pc-rename").value = "bad.yml";
-await button(dialog, "Rename").onclick();
-got.refused = [dialog.open, dialog.textContent.includes("bad.yml already exists")];
-elById(dialog, "pc-rename").value = "main-street.yml";
-await button(dialog, "Rename").onclick();
-got.renamed = [dialog.open, status.textContent];
-// Duplicate needs no dialog.
-await button(file(), "Duplicate").onclick();
+await button(row(), "Inspect details").onclick();
+got.fields = walk(inspectBox).filter(e => e.getAttribute("data-field"))
+  .map(e => [e.getAttribute("data-field"), e.textContent, e.getAttribute("data-tip"), e.getAttribute("tabindex")]);
+got.headButtons = tips(walk(inspectBox).find(e => e.tagName === "DIV"));
+// The File field renames the file: double-click, a refusal keeps the input open, then Enter saves.
+value("file").ondblclick();
+got.renameStart = [input("file").value, document.activeElement === input("file")];
+input("file").value = "bad.yml";
+await input("file").onkeydown(key("Enter"));
+got.refused = [Boolean(input("file")), status.textContent];
+input("file").value = "main-street.yml";
+await input("file").onkeydown(key("Enter"));
+got.renamed = [Boolean(input("file")), status.textContent, document.activeElement.id,
+               value("file").textContent];
+await button(row(), "Inspect details").onclick();
+// Enter on a focused field starts editing it; Escape cancels.
+value("project").onkeydown(key("Enter"));
+input("project").value = "zzz";
+await input("project").onkeydown(key("Escape"));
+got.cancelled = [Boolean(input("project")), value("project").textContent, document.activeElement.id];
+// The project name: a blank one is caught here; Cmd+Enter saves it with every metadata field.
+value("project").ondblclick();
+input("project").value = " ";
+await input("project").onkeydown(key("Enter"));
+got.noProject = [Boolean(input("project")), status.textContent];
+input("project").value = "Good street";
+await input("project").onkeydown(key("Enter", { metaKey: true }));
+got.meta = [Boolean(input("project")), status.textContent];
+// Leaving a field saves it; an unchanged one dispatches nothing.
+value("tags").ondblclick();
+input("tags").value = "t, bike";
+await input("tags").onblur();
+value("tags").ondblclick();
+await input("tags").onkeydown(key("Enter"));
+got.tagsClosed = !input("tags");
+// Duplicate needs no dialog; Delete closes the details, and Undo delete from the status line restores the file.
+await button(inspectBox, "Duplicate").onclick();
 got.duplicated = status.textContent;
-// Edit metadata: prefilled from the card, saved with every field.
-await button(file(), "Edit metadata…").onclick();
-got.metaStart = ["project", "tags", "prerequisites"].map(k => elById(dialog, `pc-meta-${k}`).value);
-elById(dialog, "pc-meta-project").value = "";
-await button(dialog, "Save").onclick();
-got.noProject = [dialog.open, dialog.textContent.includes("Give the card a project name")];
-elById(dialog, "pc-meta-project").value = "Good street";
-elById(dialog, "pc-meta-tags").value = "t, bike";
-await button(dialog, "Save").onclick();
-got.meta = [dialog.open, status.textContent];
-// Delete, then Undo delete from the status line.
-await button(file(), "Delete").onclick();
+await button(inspectBox, "Delete").onclick();
 got.deleted = [status.textContent.startsWith("Moved good.yml to the catalog's .trash/ folder"),
-               Boolean(button(status, "Undo delete"))];
+               Boolean(button(status, "Undo delete")), inspectBox.children.length];
 await button(status, "Undo delete").onclick();
 got.restored = status.textContent;
-// The Details toggle shows the card's file, and stays open across a redraw.
-const details = () => walk(row()).find(e => e.getAttribute("class") === "pc-details");
-const before = details();
-got.detailsStart = [before.hidden, button(row(), "Details").getAttribute("aria-expanded")];
-button(row(), "Details").onclick();
-got.detailsOpen = [before.hidden, button(row(), "Details").getAttribute("aria-expanded"),
-                   before.textContent.includes("/cards/good.yml")];
-store.set({ server: { ...store.get().server,
-  plugins: { project_cards: { drafts: {}, preview: null, catalog: { ...CATALOG }, applied: [], files: [{}] } } } });
-got.stillOpen = [details() !== before, details().hidden];
-got.iconButtons = walk(row()).filter(e => e.tagName === "BUTTON").map(b => [b.getAttribute("class"),
-  b.getAttribute("data-tip"), b.getAttribute("aria-label")]);
+// A bundled sample catalog: read-only fields with the reason in their tooltip, and no file actions.
+open(SAMPLE.path);
+await settle(); await settle();
+await button(row(), "Inspect details").onclick();
+got.readOnly = [value("project").getAttribute("aria-readonly"), value("project").getAttribute("tabindex"),
+  value("project").ondblclick === undefined, value("project").getAttribute("data-tip"),
+  tips(walk(inspectBox).find(e => e.tagName === "DIV")).map(t => t[0]),
+  inspectBox.textContent.includes("copy its folder")];
 got.actions = actions;
 got.errors = calls.filter(c => c[0] === "error");
 console.log(JSON.stringify(got));
@@ -747,42 +796,56 @@ console.log(JSON.stringify(got));
 def test_the_catalog_files_under_a_fake_dom(run_js):
     got = run_js(FILES, FILES_HARNESS)
     assert got["errors"] == []
-    assert got["renameStart"] == [True, "good.yml"]
-    assert got["sameName"] == [True, True]  # caught here: nothing dispatched
-    assert got["refused"] == [True, True]
-    assert got["renamed"] == [False, "Renamed good.yml to main-street.yml"]
-    assert got["duplicated"] == "Duplicated good.yml as good-copy.yml"
-    assert got["metaStart"] == ["Good", "t", "Bridge"]
-    assert got["noProject"] == [True, True]
-    assert got["meta"] == [False, "Saved good.yml's project, tags"]
-    assert got["deleted"] == [True, True]
-    assert got["restored"] == "Restored good.yml"
-    assert got["detailsStart"] == [True, "false"]
-    assert got["detailsOpen"] == [False, "true", True]
-    assert got["stillOpen"] == [True, False]  # redrawn, and open again
-    # Every action of a card is an icon button with a tooltip, named for the card it acts on.
-    assert got["iconButtons"] == [
-        ["iconbtn", "Check against this network", "Check Good (good.yml) against this network"],  # not checked yet
-        ["iconbtn", "Preview", "Preview Good (good.yml)"],
-        ["iconbtn", "Inspect", "Inspect Good (good.yml)"],
-        ["iconbtn", "Edit", "Edit Good (good.yml) in the draft"],
-        ["iconbtn on", "Details", "Details of Good (good.yml)"],
-        ["iconbtn", "Rename…", "Rename Good (good.yml)…"],
-        ["iconbtn", "Duplicate", "Duplicate Good (good.yml)"],
-        ["iconbtn", "Edit metadata…", "Edit the metadata of Good (good.yml)…"],
-        ["iconbtn", "Delete", "Delete Good (good.yml)"],
+    tip = "Double-click to edit"
+    assert got["fields"] == [
+        ["project", "Good", tip, "0"],
+        ["tags", "t", tip, "0"],
+        ["prerequisites", "Bridge", tip, "0"],
+        ["corequisites", "—", tip, "0"],
+        ["conflicts", "—", tip, "0"],
+        ["file", "good.yml", "Double-click to rename the file", "0"],
     ]
+    # The details' actions are icon buttons with tooltips, named for the card they act on.
+    assert got["headButtons"] == [
+        ["Edit changes", "Edit the changes of Good (good.yml) in the draft"],
+        ["Duplicate", "Duplicate Good (good.yml)"],
+        ["Delete", "Delete Good (good.yml)"],
+        ["YAML", "Show the card's YAML"],
+        ["Close", "Close the details"],
+    ]
+    assert got["renameStart"] == ["good.yml", True]
+    assert got["refused"] == [True, "bad.yml already exists in the catalog"]
+    assert got["renamed"] == [False, "Renamed good.yml to main-street.yml", "pc-field-file", "main-street.yml"]
+    assert got["cancelled"] == [False, "Good", "pc-field-project"]
+    assert got["noProject"] == [True, "Give the card a project name"]
+    assert got["meta"] == [False, "Saved good.yml's project, tags"]
+    assert got["tagsClosed"] is True
+    assert got["duplicated"] == "Duplicated good.yml as good-copy.yml"
+    assert got["deleted"] == [True, True, 0]
+    assert got["restored"] == "Restored good.yml"
+    read_only, no_tab, no_edit, why, buttons, said = got["readOnly"]
+    assert (read_only, no_tab, no_edit) == ("true", None, True)
+    assert why.startswith("A bundled sample catalog is read-only") and said is True
+    assert buttons == ["Edit changes", "YAML", "Close"]  # no Duplicate or Delete
+    deps = {"prerequisites": ["Bridge"], "corequisites": [], "conflicts": []}
     assert got["actions"] == [
         {"type": "project_cards.rename_card", "card_id": "good.yml", "new_name": "bad.yml", "overwrite": False},
         {"type": "project_cards.rename_card", "card_id": "good.yml", "new_name": "main-street.yml", "overwrite": False},
-        {"type": "project_cards.duplicate_card", "card_id": "good.yml"},
         {
             "type": "project_cards.update_card_meta",
             "card_id": "good.yml",
             "project": "Good street",
-            "tags": ["t", "bike"],
-            "dependencies": {"prerequisites": ["Bridge"], "corequisites": [], "conflicts": []},
+            "tags": ["t"],
+            "dependencies": deps,
         },
+        {
+            "type": "project_cards.update_card_meta",
+            "card_id": "good.yml",
+            "project": "Good",
+            "tags": ["t", "bike"],
+            "dependencies": deps,
+        },
+        {"type": "project_cards.duplicate_card", "card_id": "good.yml"},
         {"type": "project_cards.delete_card", "card_id": "good.yml"},
         {"type": "project_cards.restore_card", "card_id": "good.yml"},
     ]
@@ -792,14 +855,16 @@ ICONS_HARNESS = (
     PANEL_SETUP
     + """
 // A host that draws icons: core's by name (one it lacks throws, as core's icon() does), the panel's own for the rest.
-deps.icon = name => { if (name === "search") throw new Error(`unknown icon "${name}"`); return `<svg>${name}</svg>`; };
+deps.icon = name => { if (name === "info") throw new Error(`unknown icon "${name}"`); return `<svg>${name}</svg>`; };
 panels[0].render(root);
 store.set({ server: { ...store.get().server,
   plugins: { project_cards: { drafts: {}, preview: null, catalog: CATALOG, applied: [] } } } });
 await settle(); await settle();
 const row = walk(elById(root, "pc-catalog")).find(e => e.getAttribute("data-card") === "good.yml");
 const shown = tip => { const b = button(row, tip); return [b.innerHTML || null, b.textContent]; };
-console.log(JSON.stringify({ preview: shown("Preview"), trash: shown("Delete"), missing: shown("Inspect"),
+const mark = walk(row).find(e => (e.getAttribute("class") || "").includes("pc-fit"));
+console.log(JSON.stringify({ preview: shown("Preview on the network"), missing: shown("Inspect details"),
+  dash: [mark.getAttribute("data-fit"), mark.innerHTML],
   errors: calls.filter(c => c[0] === "error") }));
 """
 )
@@ -809,8 +874,9 @@ def test_icon_buttons_draw_the_hosts_icons_and_fall_back_to_text(run_js):
     got = run_js(FILES, ICONS_HARNESS)
     assert got["errors"] == []
     assert got["preview"] == ["<svg>play</svg>", ""]  # core's icon
-    assert got["trash"][0].startswith("<svg") and "<polyline" in got["trash"][0]  # the panel's own
-    assert got["missing"] == [None, "Inspect"]  # a name the host lacks: the text
+    fit, dash = got["dash"]  # not checked yet: the panel's own dash
+    assert fit == "unchecked" and dash.startswith("<svg") and '<line x1="6" y1="12"' in dash
+    assert got["missing"] == [None, "Inspect details"]  # a name the host lacks: the text
 
 
 TABLE_HARNESS = (

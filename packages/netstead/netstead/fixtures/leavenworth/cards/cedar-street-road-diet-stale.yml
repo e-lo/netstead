@@ -4,8 +4,8 @@ tags:
 - safety
 - road-diet
 notes: 'INTENTIONALLY DOES NOT FIT: it expects 2 lanes but Cedar Street has 1 in this
-  network, so the Cards panel shows Doesn''t fit with the reason, and Apply would
-  refuse it. Kept as a sample of that state.
+  network, so the Cards panel shows a red X (its details give the reason), and Apply
+  would refuse it. Kept as a sample of that state.
 
   netstead.note[0]: Written against an older network where Cedar Street had two lanes.'
 changes:

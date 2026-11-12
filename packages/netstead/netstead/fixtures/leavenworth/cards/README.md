@@ -16,4 +16,4 @@ Every card has a year tag (`year:2027`, `year:2030`) and a theme tag (`safety`, 
 | `mine-street-alley-closure.yml` | `roadway_deletion`: closes the 17.6 m Mine Street stub (links 203 and 233). |
 | `nordic-circle-connector.yml` | `roadway_addition`: a new two-way connector, links 340 and 341 (above the network's highest, 339), between existing nodes 91 and 115. |
 | `commercial-street-bike-lanes.yml` | Has `dependencies`: the Commercial Street road diet is a prerequisite, and Park Avenue bike lanes are listed as a conflict. |
-| `cedar-street-road-diet-stale.yml` | **Intentionally does not fit**: it expects 2 lanes where Cedar Street has 1, so the panel shows "Doesn't fit" with the reason. |
+| `cedar-street-road-diet-stale.yml` | **Intentionally does not fit**: it expects 2 lanes where Cedar Street has 1, so the panel shows a red X; click it for the reason. |

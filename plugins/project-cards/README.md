@@ -28,28 +28,30 @@ description run through core's natural-language **Select**, or a saved selection
 **Use these N links**, then fill in the form, **Preview** and **Add to card**. It dispatches the same Actions
 (`project_cards.preview`, `project_cards.add_change`) as the right-click entry point, which stays.
 
-The **Cards** panel has four sections, in order: **Catalog** (open a folder of cards; each card has a status pill, **Fits
-this network**, **Doesn't fit** (with its first reason) or **Not checked**, against the network the heading names, with **Preview**, **Apply…** (only with `enable_apply` on) and
-**Details**; files that are not cards
-are listed under "Not cards"), **Draft** (the compose, draft and commit UI above), **This session** (what the
+The **Cards** panel has four sections, in order: **Catalog** (open a folder of cards; each card's row is a fit icon
+against the network the heading names, a green check (compatible), a red X (incompatible: click it for the reasons) or a
+gray dash (not checked: click it to check), then the project name with its tags beneath, then two icon buttons,
+**Inspect details** and **Preview on the network**; files that are not cards are listed under "Not cards"), **Draft** (the compose, draft and commit UI above), **This session** (what the
 session did with cards, newest first with the time: "Saved <file>", the catalog file actions, and "Applied …" when
 `enable_apply` is on; `plugins.project_cards.session`) and **Session summary** (Copy and Download).
 
-**Edit** (on a catalog card) loads the card into the draft, as Import does, and remembers its file (a draft with
+**Edit changes** (in a catalog card's details) loads the card into the draft, as Import does, and remembers its file (a draft with
 uncommitted changes is replaced only when you confirm). **Remove** takes out any change of the draft (the later ones
 are re-applied, so the network ends as if it had never been made), **Edit…** removes a change and reopens its form,
 and **Commit…** offers **Save over <file>** or **Save as new file**.
 
-The panel's actions are icon buttons (hover for the name): a catalog card's row reads **Preview**, **Inspect**,
-**Edit**, **Details** (its file and its check), then its file actions.
+The panel's actions are icon buttons (hover for the name). **Inspect details** opens a catalog card's details view:
+its fit in full (every reason and warning), its fields, its actions and its changes. Double-click a field (or focus it
+and press Enter) to edit it; Enter or Cmd/Ctrl+Enter saves, Escape cancels, leaving the field saves. **Project name**,
+**Tags**, **Prerequisites**, **Corequisites** and **Conflicts** are saved with `project_cards.update_card_meta`;
+**File** renames the card's file (`project_cards.rename_card`). The details' icon actions are **Edit changes**,
+**Apply…** (only with `enable_apply` on), **Duplicate** (`<name>-copy.yml`) and **Delete** (moves the file to a
+`.trash` folder inside the catalog folder, with **Undo delete** in the status line). Every write stays inside
+`io.allowed_roots` and the catalog folder, validates the card with `projectcard` first and never replaces a different
+file unless asked; the session summary lists them. In a bundled sample catalog (read-only) the fields are not
+editable (their tooltip says why) and Duplicate and Delete are not offered.
 
-Each catalog card's file actions are **Rename…**, **Duplicate** (`<name>-copy.yml`), **Edit metadata…**
-(project, tags, dependencies) and **Delete** (moves the file to a `.trash` folder inside the catalog folder, with
-**Undo delete** in the status line). Every write stays inside `io.allowed_roots` and the catalog folder, validates
-the card with `projectcard` first and never replaces a different file unless asked; the session summary lists them.
-
-**Inspect** (on a catalog card, and on the draft) opens a read-only view: the project, tags, dependencies, notes and
-file, then each change with its type, facility (ids, or the query and what it resolved to), property changes
+**Inspect** on the draft opens the same view, read-only: the project, tags, dependencies and notes, then each change with its type, facility (ids, or the query and what it resolved to), property changes
 (existing → set or change) and whether it applies to the open network. Clicking a change highlights its links on
 the map (`wb.highlight`; the map does not zoom to them, since the Workbench gives plugins no camera control yet), and
 **YAML** shows the card's text. Nothing changes.
