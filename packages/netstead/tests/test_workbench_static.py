@@ -1036,3 +1036,14 @@ def test_a_finding_group_can_show_all_its_links_on_the_map():
     assert 'data-tip="Show all on the map"' in issues and "issues/anchors?" in issues
     assert "store.set({ highlights: new Set(a.links) }); fitLinks(a.links);" in issues
     assert "g.located > 0" in issues  # no button for a type that has nothing on the map
+
+
+def test_the_header_has_a_help_link_before_settings_and_a_palette_command():
+    html = (STATIC_DIR / "index.html").read_text()
+    link = html[html.index('<a id="help-link"') :].split(">", 1)[0]
+    assert 'href="https://e-lo.github.io/netstead/netstead/cookbook/workbench/"' in link
+    assert 'target="_blank"' in link and 'rel="noopener"' in link and 'data-icon="life-buoy"' in link
+    assert 'data-tip="Help: Netstead documentation"' in link and 'aria-label="Help: Netstead documentation"' in link
+    assert html.index('id="help-link"') < html.index('id="settings-btn"')
+    core = (JS_DIR / "corecmds.js").read_text()
+    assert 'title: "Open the documentation"' in core and "cookbook/workbench/" in core

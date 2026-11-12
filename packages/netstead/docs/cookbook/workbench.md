@@ -176,7 +176,9 @@ provider = "anthropic"
 
 ### The Settings dialog
 
-The gear icon in the header (tooltip "Settings") opens a form built from the same settings model. Each field
+The **life-buoy** icon at the right end of the header (tooltip "Help: Netstead documentation") opens this guide in a new tab, and the command palette has **Open the documentation**.
+
+The gear icon beside it (tooltip "Settings") opens a form built from the same settings model. Each field
 has a badge showing where its current value comes from: `default`, `user`, `project`, `env` or `session`.
 
 - **Save to** chooses the layer a change is written to: **User (all projects)** (your user file, the default), **This project**

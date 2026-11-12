@@ -875,7 +875,7 @@ def test_settings_switches_save_what_is_on_screen_and_list_only_offerable_action
 
 ICON_NAMES = [
     "undo", "redo", "gear", "terminal", "code", "save", "folder-open", "play", "download", "check-circle",
-    "alert-triangle", "x-circle", "circle", "filter", "x", "chevron-down", "layers", "crosshair", "grip",
+    "alert-triangle", "x-circle", "circle", "filter", "x", "chevron-down", "layers", "crosshair", "grip", "life-buoy",
 ]  # fmt: skip
 
 

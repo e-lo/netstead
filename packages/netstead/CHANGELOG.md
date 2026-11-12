@@ -8,6 +8,7 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Added
 
+- **Workbench Help link.** A life-buoy icon at the right end of the header opens the Workbench guide in a new tab, and the command palette has "Open the documentation".
 - **Workbench layout: a left rail, a Details panel on the right, and a Layers & legend card on the map.** The
   side panel's tab strip is now a vertical icon rail on the far left (Find, Changes, Validate, Cards, Assistant;
   plugin panels below a divider). Clicking an icon opens its pane in a drawer; clicking the open icon closes it and
