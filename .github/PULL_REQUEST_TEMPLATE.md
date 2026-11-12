@@ -11,6 +11,11 @@
 - [ ] Code passes all tests: `uv run pytest packages`
 - [ ] By contributing to this project, all contributors certify to the Developer Certificate of Origin in [CONTRIBUTING.md](CONTRIBUTING.md#contributor-agreement).
 
+## AI Use Disclosure
+
+- [ ] I did not use AI tools, **or** I used them as described here (tool and what it did): ...
+- [ ] I have reviewed and understand every change in this PR and can explain it. See [AI-assisted contributions](CONTRIBUTING.md#ai-assisted-contributions).
+
 ## Documentation Submission Checklist
 
 - [ ] Documentation can be built locally `zensical build --strict`
