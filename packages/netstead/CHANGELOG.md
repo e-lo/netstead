@@ -105,6 +105,7 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Changed
 
+- **Assistant pane opens on its box; Select and Ask AI say how they differ.** The long privacy paragraph is replaced by the input box, two clickable examples, a one-line privacy summary with an info tooltip holding the detail, and a link to the docs. In Find, Select (target icon) and Ask AI (sparkles icon) have tooltips that depend on the chosen model; Ask stays clickable offline (the offline assistant still answers a few fixed commands) but is drawn muted.
 - **Color ramp is picked from the legend gradient, separately for links and nodes.** Clicking the gradient under a numeric "by" column opens a menu of ramps (each drawn as a gradient); the footer Ramp row is gone. `Style` gains `node_ramp` (links keep `ramp`). The filter's explanatory note is an info tooltip beside its heading.
 - **Workbench Changes pane: its explanation is an info tooltip.** The paragraph with a × dismiss button (and its remembered choice) is replaced by an info icon beside the Changes heading; the help.js module is gone.
 - **Anthropic's default model is now Haiku 5.5** (`claude-haiku-5-5`, $0.10 / $0.50 per million input /

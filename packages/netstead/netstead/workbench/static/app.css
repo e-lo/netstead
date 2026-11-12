@@ -504,6 +504,10 @@
   #dock-tabs button.icontab .pcount.warn { background:var(--accent); color:#1b1206; }
   #dock-tabs button.icontab .pcount.error { background:rgb(224,82,77); color:#fff; }
   #thinking { margin:4px 0; }
+  button.with-icon { display:inline-flex; align-items:center; gap:6px; }
+  button.with-icon svg { width:15px; height:15px; flex:none; }
+  button.with-icon.busy svg { display:none; }
+  #ask.needs-model { opacity:.65; }
   button.busy { display:inline-flex; align-items:center; gap:6px; }
   .spin { width:11px; height:11px; border:2px solid currentColor; border-top-color:transparent; border-radius:50%;
           animation:spin .8s linear infinite; flex:none; }
@@ -588,6 +592,15 @@
 
   /* the Assistant dock panel and the command bar's Ask */
   #ask { background:none; color:var(--ink); border:1px solid var(--edge); }
+  .as-examples { display:flex; flex-direction:column; align-items:flex-start; gap:2px; margin:8px 0 4px; }
+  .linkbtn { background:none; border:0; padding:2px 0; color:var(--accent); cursor:pointer; font:inherit; text-align:left; }
+  .linkbtn:hover { text-decoration:underline; }
+  .as-privacy { margin:8px 0 2px; }
+  #as-privacy-info { display:inline-flex; width:22px; height:22px; vertical-align:middle; }
+  #as-privacy-info[hidden] { display:none; }
+  #as-privacy-info svg { width:14px; height:14px; }
+  #as-docs { display:inline-block; margin-top:2px; }
+  #as-log:empty { display:none; }
   #as-log { display:flex; flex-direction:column; gap:8px; margin:8px 0; }
   .as-turn { display:flex; flex-direction:column; gap:4px; }
   .as-text { white-space:pre-wrap; overflow-wrap:anywhere; }

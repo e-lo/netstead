@@ -876,6 +876,7 @@ def test_settings_switches_save_what_is_on_screen_and_list_only_offerable_action
 ICON_NAMES = [
     "undo", "redo", "gear", "terminal", "code", "save", "folder-open", "play", "download", "check-circle",
     "alert-triangle", "x-circle", "circle", "filter", "x", "chevron-down", "layers", "crosshair", "grip", "life-buoy",
+    "target", "sparkles",
 ]  # fmt: skip
 
 
@@ -1748,3 +1749,38 @@ def test_a_changed_provider_or_model_is_reported_once_and_the_first_pair_is_not_
     assert provider == {"key": "ollama|qwen2.5:7b", "changed": True}
     assert model["changed"] is True
     assert none == {"key": "", "changed": True}
+
+
+def test_find_buttons_say_how_select_and_ask_differ(node_module):
+    offline, model = node_module(
+        "findmodel.js", ["findButtonTips"], '[findButtonTips("stub"), findButtonTips("anthropic")]'
+    )
+    assert offline["select"] == "Select links: matches street names in this network"
+    assert model["select"] == "Select links: the language model reads your request, then it is matched to this network"
+    assert model["ask"] == "Ask the assistant: a language model that can select, style and edit for you"
+    assert offline["ask"] == "Ask needs a language model: choose one with the robot icon"
+    assert (offline["askReady"], model["askReady"]) == (False, True)
+
+
+_ASSISTANT_REMOTE = (
+    '{provider: "anthropic", model: "claude-haiku-5-5", local: false,'
+    ' sends: ["your question", "column names"], compact: false}'
+)
+
+
+def test_the_assistant_privacy_summary_is_one_line_with_the_detail_apart(node_module):
+    expr = (
+        f"[privacySummary({_ASSISTANT_REMOTE}), privacySummary({{provider: 'stub'}}),"
+        " privacySummary({provider: 'ollama', model: 'qwen2.5:7b', local: true, sends: [],"
+        " compact: true, tools: [1, 2]}),"
+        " privacySummary({error: 'no provider'})]"
+    )
+    remote, stub, local, error = node_module("assistmodel.js", ["privacySummary"], expr)
+    assert (
+        remote["line"] == "Runs on anthropic · claude-haiku-5-5; it sees column names and summaries, never your tables."
+    )
+    assert "a remote service) receives: your question; column names. Never your network tables" in remote["detail"]
+    assert stub["line"].startswith("Runs offline") and "sends nothing anywhere" in stub["detail"]
+    assert local["line"].startswith("Runs on ollama · qwen2.5:7b;") and "on this machine" in local["detail"]
+    assert "nothing beyond your question" in local["detail"] and "compact tool set (2 tools" in local["detail"]
+    assert error == {"line": "no provider", "detail": ""}

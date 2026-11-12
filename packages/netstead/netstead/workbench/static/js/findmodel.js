@@ -56,5 +56,22 @@ export function crossChoices(allStreets, crossing, street) {
   return pool.filter(n => clean(n).toLowerCase() !== self);
 }
 
+// The Select and Ask buttons' tooltips, which say how they differ. Select resolves a selection: the offline pattern
+// grammar matches street names directly, a language model reads the request first. Ask hands the request to the
+// assistant, which needs a language model to do more than a few fixed commands (`askReady` false offline: the button
+// stays clickable, since the offline assistant still answers those, but it is drawn muted).
+export function findButtonTips(provider) {
+  const offline = provider === "stub";
+  return {
+    select: offline
+      ? "Select links: matches street names in this network"
+      : "Select links: the language model reads your request, then it is matched to this network",
+    ask: offline
+      ? "Ask needs a language model: choose one with the robot icon"
+      : "Ask the assistant: a language model that can select, style and edit for you",
+    askReady: !offline,
+  };
+}
+
 // Which input the user sees: the form while the offline parser is chosen, the free-text box for a language model.
 export const useForm = provider => provider === "stub";

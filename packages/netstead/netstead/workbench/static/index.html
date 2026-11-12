@@ -70,8 +70,8 @@
         <div id="find-missing" class="diag warn-note" role="status"></div>
       </div>
       <input id="utterance" placeholder='e.g. "I-40 EB between South Miami Boulevard and Airport Boulevard"' aria-label="Selection utterance" />
-      <div class="row wrap" id="find-go"><button id="go">Select</button>
-        <button id="ask" class="ghost" title="Ask the assistant (Ctrl+Enter, ⌘Enter on a Mac)" aria-keyshortcuts="Control+Enter Meta+Enter">Ask</button></div>
+      <div class="row wrap" id="find-go"><button id="go" class="with-icon" data-tip="Select links: matches street names in this network" aria-keyshortcuts="Enter"><span data-icon="target"></span>Select</button>
+        <button id="ask" class="ghost with-icon needs-model" data-tip="Ask needs a language model: choose one with the robot icon" aria-keyshortcuts="Control+Enter Meta+Enter"><span data-icon="sparkles"></span>Ask AI</button></div>
     </div>
     <div id="thinking" class="diag" role="status" aria-live="polite" hidden></div>
     <div id="status-wrap"></div>
@@ -135,12 +135,16 @@
       <div id="iss-list"><span class="empty">Run validation to list issues.</span></div>
     </section>
     <section class="dock-pane" id="dock-assistant" data-panel="assistant" role="tabpanel" aria-labelledby="dtab-assistant" hidden>
-      <div id="as-note" class="diag"></div>
-      <div id="as-log" role="log" aria-live="polite"><span class="empty">Ask for what you want done, e.g. “color by lanes and zoom to the selection”.</span></div>
+      <div id="as-log" role="log" aria-live="polite"></div>
       <div id="as-draft"></div>
       <div class="row"><textarea id="as-input" rows="2" aria-label="Ask the assistant" placeholder="e.g. color by lanes and zoom to the selection"></textarea></div>
       <div class="row wrap"><button class="mini" id="as-send">Ask</button><button class="mini ghost" id="as-clear">Clear</button>
         <span id="as-usage" class="diag"></span></div>
+      <div id="as-examples" class="as-examples"><span class="diag">Try:</span>
+        <button class="linkbtn" data-example="color by lanes and zoom to the selection">color by lanes and zoom to the selection</button>
+        <button class="linkbtn" data-example="select Pine Street between Orchard Street and Central Avenue">select Pine Street between Orchard Street and Central Avenue</button></div>
+      <div class="diag as-privacy"><span id="as-note"></span><button class="iconbtn" id="as-privacy-info" data-icon="info" aria-label="What the assistant sends" data-tip="What the assistant sends" hidden></button></div>
+      <a id="as-docs" class="diag" href="https://e-lo.github.io/netstead/netstead/cookbook/workbench/#ask-the-assistant" target="_blank" rel="noopener">More about the assistant</a>
     </section>
   </aside>
   <div id="side-handle" role="separator" aria-orientation="vertical" aria-label="Resize side panel" tabindex="0"

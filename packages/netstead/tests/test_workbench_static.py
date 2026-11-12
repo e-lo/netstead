@@ -833,6 +833,13 @@ def test_the_assistant_panel_and_the_ask_button_exist():
         'id="as-usage"',
     ):
         assert el in pane
+    assert (
+        pane.index('id="as-input"')
+        < pane.index('id="as-examples"')
+        < pane.index('id="as-note"')
+        < pane.index('id="as-docs"')
+    )
+    assert pane.index('id="as-log"') < pane.index('id="as-input"')  # the log is empty (hidden) until there are turns
     assert 'id="ask"' in html.split('id="find-bar"', 1)[1].split('id="status-wrap"', 1)[0]
     js = (JS_DIR / "assistant.js").read_text()
     assert 'addPanel(CORE, { id: "assistant"' in js and "workspace: ALL_WORKSPACES" in js
@@ -1075,3 +1082,34 @@ def test_a_provider_or_model_pick_redraws_every_pane_that_names_the_model():
     for call in ("setFindProvider(provider)", "syncButtonTip(current, provider)", "onSelected(llm.selected)"):
         assert call in render
     assert "onLLMSelected(() => loadAssistant())" in main
+
+
+def test_the_assistant_pane_opens_on_the_box_with_examples_a_privacy_line_and_a_docs_link():
+    html = (STATIC_DIR / "index.html").read_text()
+    pane = html.split('id="dock-assistant"', 1)[1].split("</section>", 1)[0]
+    assert "what the model receives" not in pane.lower()  # the long paragraph is gone
+    for example in (
+        "color by lanes and zoom to the selection",
+        "select Pine Street between Orchard Street and Central Avenue",
+    ):
+        assert f'data-example="{example}"' in pane
+    info = pane[pane.index('id="as-privacy-info"') :].split(">", 1)[0]
+    assert 'data-icon="info"' in info and "data-tip=" in info
+    docs = pane[pane.index('id="as-docs"') :].split(">", 1)[0]
+    assert 'href="https://e-lo.github.io/netstead/netstead/cookbook/workbench/#ask-the-assistant"' in docs
+    assert 'target="_blank"' in docs and 'rel="noopener"' in docs
+    js = (JS_DIR / "assistant.js").read_text()
+    assert "privacySummary(st)" in js and 'closest("button[data-example]")' in js and "noteText" not in js
+
+
+def test_select_and_ask_are_icon_and_label_buttons_with_tooltips():
+    html = (STATIC_DIR / "index.html").read_text()
+    row = html[html.index('id="find-go"') :].split("</div>", 1)[0]
+    go = row[row.index('id="go"') :].split("</button>", 1)[0]
+    ask = row[row.index('id="ask"') :].split("</button>", 1)[0]
+    assert 'data-icon="target"' in go and go.rstrip().endswith("Select") and 'data-tip="Select links:' in go
+    assert 'data-icon="sparkles"' in ask and ask.rstrip().endswith("Ask AI") and "Ask needs a language model" in ask
+    assert 'aria-keyshortcuts="Control+Enter Meta+Enter"' in ask
+    form = (JS_DIR / "findform.js").read_text()
+    assert "findButtonTips(provider)" in form and '$("ask").title' not in form
+    assert 'title="Ask' not in html  # the tooltip layer's data-tip, not a native title

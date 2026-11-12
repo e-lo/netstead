@@ -422,8 +422,14 @@ With **Offline (pattern)** chosen, the **Find** tab is a form, so you never have
 Street and cross-street fields suggest the open network's street names; after you pick a Street, the cross
 streets are narrowed to the streets that meet it. The assembled sentence shows under the form, and **Select**
 sends exactly that sentence (so the history and the replay script read as they always have). A blank that is
-still empty blocks Select and is named under the form. **Ask** keeps its own behavior; offline it understands only
-a few fixed requests (see [Ask the assistant](#ask-the-assistant)), which its tooltip says.
+still empty blocks Select and is named under the form.
+
+**Select** and **Ask AI** (each has an icon, and a tooltip saying what it does) are different. **Select** resolves a
+selection: with the offline parser it matches street names in this network directly; with a language model chosen,
+the model reads your request first and the result is then matched to this network. **Ask AI** sends the request to the
+[assistant](#ask-the-assistant), a language model that can select, style and edit for you. Offline it is drawn muted and
+its tooltip says it needs a language model (choose one with the robot icon); it still answers the few fixed commands the
+offline assistant knows. Enter selects; Ctrl+Enter or ⌘Enter asks.
 
 Choose a language model in the header and the free-text box comes back, prefilled with the last sentence; choosing
 Offline again restores the form. The offline parser also reads `<street> from <A> to <B>`, with the same
@@ -534,7 +540,10 @@ independent: the grid's filters only narrow what the table shows.
   touches has changed, and a new question replaces it.
 - Everything it runs is in the session history (the strip shows `#12 · assistant`) and in "Session as Python", which
   replays it with no model.
-- **What it sends** is listed at the top of the panel. To a remote provider: your question, the recent conversation
+- The **Assistant** panel opens on its box, with two examples to click (they fill the box; nothing runs until you press
+  **Ask**), a one-line privacy summary ("Runs on provider · model; it sees column names and summaries, never your
+  tables.") and a link to this section. Switching the provider or model in the header updates it at once.
+- **What it sends** is the tooltip of the ⓘ beside that summary. To a remote provider: your question, the recent conversation
   (your words, and its steps as action names and counts), the tool schemas, the networks' names and sizes, column
   names and what the GMNS spec says they mean, the selection's status and size, how many selections are saved, the
   filter's size, the map style's columns, the number of pending edits, whether validation is out of date, and
