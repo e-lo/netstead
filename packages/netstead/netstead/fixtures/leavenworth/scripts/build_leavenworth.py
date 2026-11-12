@@ -394,13 +394,12 @@ def build_lane_table(link_df: pd.DataFrame) -> pd.DataFrame:
     """
     rows: list[dict] = []
     next_id = 1
-    for _, link in link_df.iterrows():
-        n = int(link["lanes"])
-        for ln in range(1, n + 1):
+    for link_id, lanes in zip(link_df["link_id"], link_df["lanes"], strict=True):
+        for ln in range(1, int(lanes) + 1):
             rows.append(
                 {
                     "lane_id": next_id,
-                    "link_id": int(link["link_id"]),
+                    "link_id": int(link_id),
                     "lane_num": ln,
                     "allowed_uses": "auto,truck",
                     "width": 3.5,
