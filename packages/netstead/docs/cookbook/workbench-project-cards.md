@@ -39,7 +39,7 @@ still runs (see [Write a Workbench plugin](workbench-plugins.md#startup-outcomes
 2. **Pick a change.** Right-click the selection (or open **Selection actions ▾** in the **Find** tab) and
    choose **New change ▸ Property change** or **New change ▸ Deletion**. **New change ▸ Addition** adds a link, and
    optionally a new end node, without a selection, so it is only in the command palette (**Ctrl+K**, **⌘K** on a
-   Mac). The **Cards** dock tab opens with the form, in its **Draft** section.
+   Mac). The **Cards** rail icon opens its pane with the form, in its **Draft** section.
 3. **Fill in the form.** The panel says what the change applies to ("1 picked link", or "4 links matching
    {"name": ["Benton Street"]}").
     - **Property change:** one field per column, titled with its current value when every selected link agrees
@@ -456,7 +456,7 @@ refused as stale if the previewed network has changed since.
 
 ## See also
 
-- [Explore in the Workbench](workbench.md): selection, edits, the Edit tab, saving.
+- [Explore in the Workbench](workbench.md): selection, edits, the Changes tab, saving.
 - [Write a Workbench plugin](workbench-plugins.md): the plugin API this plugin is built on.
 - [Triage and fix findings](fix-findings.md): the offline report's edit log.
 - [projectcard](https://github.com/network-wrangler/projectcard): the ProjectCard schema and validator.

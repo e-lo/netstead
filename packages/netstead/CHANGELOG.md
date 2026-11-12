@@ -8,6 +8,20 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Added
 
+- **Workbench layout: a left rail, a Details panel on the right, and a Layers & legend card on the map.** The
+  side panel's tab strip is now a vertical icon rail on the far left (Find, Changes, Validate, Cards, Assistant;
+  plugin panels below a divider). Clicking an icon opens its pane in a drawer; clicking the open icon closes it and
+  the map takes the width (arrows move between icons, Enter or Space toggles). The Edit tab is now **Changes**, with
+  a history icon. The **Inspect** pane is now a **Details** panel on the right that opens when you focus a record
+  (map click, table row, a finding's zoom-to, a Find result) and closes with its **×** or Escape; it has its own
+  resize handle and remembered width. The **View** tab and the map's separate legend are gone: a collapsible
+  **Layers & legend** card at the map's top-left has a row per layer (Links, Nodes, Selection, then overlays) with a
+  visibility eye, swatch, "by ‹column›" picker and legend, the Links options (width, direction, offset, "Show only
+  links where…") behind a chevron, and a footer with Basemap labels. It collapses to a **Layers** button
+  (remembered), hides in Table view and scrolls in Split view. Tooltips are now one floating layer above
+  everything, placed to stay on screen, so the map and drawers no longer clip them. The project-cards plugin's
+  Cards panel moved after Validate in the rail (panel order 35).
+
 - **Find answers common requests without calling the model.** With a language model selected, the Workbench's
   Find tab now reads a request with the offline pattern parser first ("Glenwood Ave between Peace St and Wade
   Ave", "I-40 EB", "all residential links", "links 5, 6") and calls the model only when that reading names a

@@ -14,6 +14,7 @@ import { addLayer, fitLinks } from "./map.js";
 import { anchorRows, candidatePoints, exportChoices, exportParams, selectionBadge, staleNotes, unpinAfterPin, validChoice } from "./selectmodel.js";
 import { ALL_WORKSPACES, CORE, slots } from "./slots.js";
 import { activeSelection, store } from "./store.js";
+import { refreshTip, showTipNow } from "./tooltip.js";
 import { addPanel, showPanel } from "./workspaces.js";
 
 const FROM_COLOR = [53, 196, 106], TO_COLOR = [224, 82, 77];
@@ -186,11 +187,11 @@ async function copyFragment() {
   try { await navigator.clipboard.writeText(fragmentText); } catch { toast("Could not copy; select the text and copy it by hand."); return; }
   btn.dataset.tip = "Copied";
   btn.setAttribute("aria-label", "Copied the fragment");
-  btn.classList.add("copied");
+  showTipNow(btn);
   setTimeout(() => {
     btn.dataset.tip = "Copy";
     btn.setAttribute("aria-label", "Copy the fragment");
-    btn.classList.remove("copied");
+    refreshTip(btn);
   }, 1500);
 }
 
