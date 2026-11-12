@@ -13,8 +13,8 @@
 
 ## Documentation Submission Checklist
 
-- [ ] Documentation can be built locally `mkdocs build`
-- [ ] Documentation has been reviewed locally `mkdocs serve`
+- [ ] Documentation can be built locally `zensical build --strict`
+- [ ] Documentation has been reviewed locally `zensical serve`
 - [ ] By contributing to this project, all contributors certify to the Developer Certificate of Origin in [CONTRIBUTING.md](CONTRIBUTING.md#contributor-agreement).
 
 ## Applicable Issues

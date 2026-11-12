@@ -7,7 +7,7 @@ Architecture §6.9. Two clusters of generators:
   spec model. Used by the mkdocs site for human-readable spec pages.
 * :mod:`corral.docgen.llms` — AI-consumable static artifacts
   (``llms.txt``, ``llms-full.txt``, ``ai/api-index.json``) emitted at
-  ``mkdocs build`` time via the project's mkdocs ``main.py`` hook.
+  docs build time by each package's ``main.py`` (run before ``zensical build``).
 * :mod:`corral.docgen.cli` and :mod:`corral.docgen.openapi` — reference
   pages generated from a live click/typer command tree and from a
   FastAPI app's OpenAPI document, also emitted from ``main.py`` so the

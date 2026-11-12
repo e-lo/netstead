@@ -163,20 +163,27 @@ Documentation uses `mkdocs`: one small umbrella site at the repo root plus a sit
 uv sync --all-packages --all-extras --group docs
 ```
 
-2. Serve a site locally (umbrella, or a package's own site)
+2. Generate the build-time pages (CLI and HTTP references, llms.txt, AI index). They are gitignored, so run this
+   after a fresh clone and again whenever the CLI, the HTTP API or the nav changes.
 
 ```bash
-uv run mkdocs serve                                  # umbrella landing page
-uv run mkdocs serve -f packages/netstead/mkdocs.yml  # netstead docs
-uv run mkdocs serve -f packages/corral/mkdocs.yml    # corral docs
+uv run python packages/netstead/main.py
+uv run python packages/corral/main.py
 ```
 
-Material for MkDocs prints a banner about the coming MkDocs 2.0 changes on every build. It is informational;
-CI sets `NO_MKDOCS_2_WARNING=1` to keep it out of the strict build, and you can export the same variable locally.
+3. Serve a site locally (umbrella, or a package's own site) with [Zensical](https://zensical.org/)
 
-General settings for documentation can be found in `mkdocs.yml`
+```bash
+uv run zensical serve                                  # umbrella landing page
+uv run zensical serve -f packages/netstead/mkdocs.yml  # netstead docs
+uv run zensical serve -f packages/corral/mkdocs.yml    # corral docs
+```
 
-Each package site's mkdocs-macros hooks (spec tables, live nav) are in `packages/<pkg>/main.py`
+Run `uv run zensical build --strict -f <config>` to check a site the way CI does.
+
+General settings for documentation can be found in `mkdocs.yml`. Zensical reads these files directly.
+
+Each package site's macros (spec tables, file includes) and its build-time page generator are in `packages/<pkg>/main.py`.
 
 `.github/workflows/documentation.yml` builds the umbrella and both package sites and deploys them to GitHub Pages.
 

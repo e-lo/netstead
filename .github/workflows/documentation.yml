@@ -1,7 +1,7 @@
 name: Docs
 
 # Builds the umbrella landing page plus each package's own site into one tree:
-#   /            ← mkdocs.yml (umbrella)
+#   /            ← mkdocs.yml (umbrella), built with Zensical
 #   /netstead/   ← packages/netstead/mkdocs.yml
 #   /corral/     ← packages/corral/mkdocs.yml
 # Pushes to main deploy to the gh-pages branch (served at e-lo.github.io/netstead/);
@@ -25,26 +25,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0  # git-revision-date-localized needs history
       - uses: astral-sh/setup-uv@v7
         with:
           python-version: '3.13'  # as tests.yml's lint job: duckdb 1.1.3 has no wheel for the runner's 3.14
       - name: Install packages + docs toolchain
         run: uv sync --all-packages --all-extras --group docs
-      - name: Build sites
-        # --strict turns every mkdocs / plugin warning (broken link or
-        # anchor, missing docstring type, unresolved cross-reference) into
-        # a failed build, so a warning fails the PR instead of shipping.
-        env:
-          # Material for MkDocs >= 9.7.2 prints a banner about the coming
-          # MkDocs 2.0 changes on every build. It is informational, not a
-          # docs problem, so keep it out of the strict build's output.
-          NO_MKDOCS_2_WARNING: "1"
+      - name: Generate build-time pages
+        # Each package's main.py writes its gitignored generated pages (CLI and
+        # HTTP references, llms.txt, llms-full.txt, ai/api-index.json). They
+        # must exist before Zensical scans the docs folder.
         run: |
-          uv run mkdocs build --strict -f mkdocs.yml -d site
-          uv run mkdocs build --strict -f packages/netstead/mkdocs.yml -d "$PWD/site/netstead"
-          uv run mkdocs build --strict -f packages/corral/mkdocs.yml -d "$PWD/site/corral"
+          uv run python packages/netstead/main.py
+          uv run python packages/corral/main.py
+      - name: Build sites
+        # --strict turns every warning (such as a link to a page that does not
+        # exist) into a failed build, so a warning fails the PR instead of
+        # shipping. Zensical writes each site next to its config, so the two
+        # package sites are copied under the umbrella site afterwards.
+        run: |
+          uv run zensical build --strict --clean -f mkdocs.yml
+          uv run zensical build --strict --clean -f packages/netstead/mkdocs.yml
+          uv run zensical build --strict --clean -f packages/corral/mkdocs.yml
+          cp -R packages/netstead/site site/netstead
+          cp -R packages/corral/site site/corral
       - name: Deploy to gh-pages
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: peaceiris/actions-gh-pages@v4

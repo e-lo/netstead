@@ -1,4 +1,4 @@
-"""mkdocs-macros entry point for the corral documentation site.
+"""Zensical macros module for the corral documentation site.
 
 Two responsibilities:
 
@@ -25,6 +25,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+import yaml
 from corral.docgen import (
     generate_api_index_json,
     generate_llms_full_txt,
@@ -34,6 +35,7 @@ from corral.docgen import (
 logger = logging.getLogger(__name__)
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
+DOCS_DIR = PACKAGE_ROOT / "docs"
 REPO_ROOT = PACKAGE_ROOT.parent.parent
 
 # Link rewrites for include_file: repo-root files pulled into pages.
@@ -185,12 +187,19 @@ def _downshift_md(md: str) -> str:
     return md
 
 
-def _docs_dir(env: Any) -> Path:
-    """Resolve the mkdocs docs_dir from the macros env, with a fallback."""
-    try:
-        return Path(env.conf["docs_dir"])
-    except (AttributeError, KeyError, TypeError):
-        return PACKAGE_ROOT / "docs"
+def _config_nav() -> list | None:
+    """Read the raw ``nav`` list from this site's ``mkdocs.yml``.
+
+    The config carries ``!!python/name`` tags for Markdown extensions; they
+    are irrelevant here, so any tagged node loads as ``None``.
+    """
+
+    class _TolerantLoader(yaml.SafeLoader):
+        pass
+
+    _TolerantLoader.add_multi_constructor("", lambda loader, suffix, node: None)
+    config = yaml.load((PACKAGE_ROOT / "mkdocs.yml").read_text(encoding="utf-8"), Loader=_TolerantLoader)
+    return config.get("nav") if isinstance(config, dict) else None
 
 
 def _write_ai_artifacts(docs_dir: Path, nav: list[dict], site_url: str) -> None:
@@ -219,15 +228,11 @@ def _write_ai_artifacts(docs_dir: Path, nav: list[dict], site_url: str) -> None:
 
 
 def define_env(env: Any) -> None:
-    """Register macros + emit AI-docgen artifacts at build time."""
-    docs_dir = _docs_dir(env)
-    env_conf = getattr(env, "conf", {}) if hasattr(env, "conf") else {}
-    site_url = (env_conf.get("site_url") if isinstance(env_conf, dict) else None) or SITE_URL
-    nav = _extract_live_nav(env_conf) or _DEFAULT_NAV
-    try:
-        _write_ai_artifacts(docs_dir, nav, site_url)
-    except Exception as exc:
-        logger.warning("AI docgen artifact emission failed: %s", exc)
+    """Register the page macros.
+
+    Zensical re-runs this for every Markdown conversion, so it must stay
+    cheap and side-effect free. Generated files come from :func:`generate_docs`.
+    """
 
     @env.macro
     def include_file(
@@ -253,3 +258,18 @@ def define_env(env: Any) -> None:
                 replace = replace.replace(page_url, "")
             content = content.replace(find, replace)
         return content
+
+
+def generate_docs() -> None:
+    """Write the build-time generated files into ``docs/``.
+
+    Run before every build (``uv run python packages/corral/main.py``): the
+    generated pages are gitignored and must exist when Zensical scans the
+    docs folder.
+    """
+    nav = _extract_live_nav({"nav": _config_nav()}) or _DEFAULT_NAV
+    _write_ai_artifacts(DOCS_DIR, nav, SITE_URL)
+
+
+if __name__ == "__main__":
+    generate_docs()

@@ -164,7 +164,7 @@ For pages where the output *is* visual (a card-rendered `_repr_html_`, an HTML v
 *Validation report card. No ERRORs, no WARNINGs and 16 INFO findings for optional tables the fixture doesn't ship.*
 ```
 
-The `{ .screenshot }` class applies a subtle border + shadow. `mkdocs-glightbox` adds click-to-zoom automatically.
+The `{ .screenshot }` class applies a subtle border + shadow. The glightbox plugin adds click-to-zoom automatically.
 
 Place PNGs under `docs/assets/screenshots/`. Caption every screenshot.
 
@@ -288,7 +288,7 @@ If a page is over 800 lines, split it. If under 80, it probably belongs as a sec
 
 ## AI artifacts that depend on this guide
 
-Three machine-readable artifacts at `docs/` root are built at `mkdocs build` time and depend on the conventions above:
+Three machine-readable artifacts at `docs/` root are generated before each build by the package's `main.py` and depend on the conventions above:
 
 | Artifact | Built by | Depends on |
 |---|---|---|

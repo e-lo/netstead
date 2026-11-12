@@ -115,7 +115,7 @@ venv.bak/
 
 # mkdocs documentation
 /site
-# per-package mkdocs build outputs (corral + netstead each have their own site)
+# per-package docs build outputs (corral + netstead each have their own site)
 packages/*/site/
 
 # mypy

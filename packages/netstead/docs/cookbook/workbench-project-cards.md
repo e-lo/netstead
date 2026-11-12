@@ -2,7 +2,7 @@
 title: Author ProjectCards in the Workbench
 audience: users
 kind: howto
-summary: Turn Workbench edits into network_wrangler ProjectCards with the project cards plugin: select, change, preview, add, commit.
+summary: "Turn Workbench edits into network_wrangler ProjectCards with the project cards plugin: select, change, preview, add, commit."
 ---
 
 # Author ProjectCards in the Workbench

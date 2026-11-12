@@ -1,6 +1,6 @@
-"""mkdocs-macros entry point for the netstead documentation site.
+"""Zensical macros module for the netstead documentation site.
 
-Loaded by ``mkdocs-macros-plugin`` from this directory because the
+Loaded by the Zensical macros plugin from this directory because the
 netstead ``mkdocs.yml`` lives alongside (`packages/netstead/mkdocs.yml`).
 Three responsibilities:
 
@@ -35,6 +35,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+import yaml
 from corral.docgen import (
     RouteGroup,
     click_to_md,
@@ -51,6 +52,7 @@ logger = logging.getLogger(__name__)
 
 # Resolve repo paths from this file's location (packages/netstead/).
 PACKAGE_ROOT = Path(__file__).resolve().parent
+DOCS_DIR = PACKAGE_ROOT / "docs"
 REPO_ROOT = PACKAGE_ROOT.parent.parent
 VENDORED_SPEC_ROOT = PACKAGE_ROOT / "netstead" / "spec"
 DEFAULT_LOCAL_VERSION = "0.97"
@@ -504,12 +506,19 @@ def _load_official_package(branch: str):
         return _load_local_package(DEFAULT_LOCAL_VERSION)
 
 
-def _docs_dir(env: Any) -> Path:
-    """Resolve the mkdocs docs_dir from the macros env, with a fallback."""
-    try:
-        return Path(env.conf["docs_dir"])
-    except (AttributeError, KeyError, TypeError):
-        return PACKAGE_ROOT / "docs"
+def _config_nav() -> list | None:
+    """Read the raw ``nav`` list from this site's ``mkdocs.yml``.
+
+    The config carries ``!!python/name`` tags for Markdown extensions; they
+    are irrelevant here, so any tagged node loads as ``None``.
+    """
+
+    class _TolerantLoader(yaml.SafeLoader):
+        pass
+
+    _TolerantLoader.add_multi_constructor("", lambda loader, suffix, node: None)
+    config = yaml.load((PACKAGE_ROOT / "mkdocs.yml").read_text(encoding="utf-8"), Loader=_TolerantLoader)
+    return config.get("nav") if isinstance(config, dict) else None
 
 
 def _write_ai_artifacts(docs_dir: Path, nav: list[dict], site_url: str) -> None:
@@ -538,23 +547,11 @@ def _write_ai_artifacts(docs_dir: Path, nav: list[dict], site_url: str) -> None:
 
 
 def define_env(env: Any) -> None:
-    """Register mkdocs-macros macros + emit AI-docgen artifacts at build time.
+    """Register the page macros.
 
-    Same shape as the repo-root ``main.py`` was, scoped now to the
-    netstead site only. ``env`` is the ``MacrosPlugin`` instance.
+    Zensical re-runs this for every Markdown conversion, so it must stay
+    cheap and side-effect free. Generated files come from :func:`generate_docs`.
     """
-    docs_dir = _docs_dir(env)
-    env_conf = getattr(env, "conf", {}) if hasattr(env, "conf") else {}
-    site_url = (env_conf.get("site_url") if isinstance(env_conf, dict) else None) or SITE_URL
-    nav = _extract_live_nav(env_conf) or _DEFAULT_NAV
-    # Reference pages first: llms-full.txt reads page bodies from disk, so
-    # they must exist before the AI artifacts are written. A failure here
-    # is a real docs bug and should fail the build (no try/except).
-    _write_reference_pages(docs_dir)
-    try:
-        _write_ai_artifacts(docs_dir, nav, site_url)
-    except Exception as exc:
-        logger.warning("AI docgen artifact emission failed: %s", exc)
 
     @env.macro
     def include_file(
@@ -608,3 +605,20 @@ def define_env(env: Any) -> None:
         """Per-schema tables for the upstream GMNS Frictionless package."""
         logger.info("official_frictionless_schemas(branch=%r)", branch)
         return schemas_to_md(_load_official_package(branch))
+
+
+def generate_docs() -> None:
+    """Write the build-time generated files into ``docs/``.
+
+    Run before every build (``uv run python packages/netstead/main.py``): the
+    generated pages are gitignored and must exist when Zensical scans the
+    docs folder.
+    """
+    nav = _extract_live_nav({"nav": _config_nav()}) or _DEFAULT_NAV
+    # Reference pages first: llms-full.txt reads page bodies from disk.
+    _write_reference_pages(DOCS_DIR)
+    _write_ai_artifacts(DOCS_DIR, nav, SITE_URL)
+
+
+if __name__ == "__main__":
+    generate_docs()
