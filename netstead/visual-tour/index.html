@@ -1,0 +1,2854 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Python toolkit for the General Modeling Network Specification — load, validate, scope, edit GMNS networks at regional scale, with CLI &#x2f; notebook &#x2f; HTTP &#x2f; MCP surfaces.">
+      
+      
+      
+        <link rel="canonical" href="https://e-lo.github.io/netstead/netstead/visual-tour/">
+      
+      
+      
+        <link rel="prev" href="../what-is-gmns/">
+      
+      
+        <link rel="next" href="../python-tour/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.1.1">
+    
+    
+      
+        <title>Visual tour - netstead documentation</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../assets/stylesheets/modern/main.ebb7f775.min.css">
+      
+        
+          
+        
+        <link rel="stylesheet" href="../assets/stylesheets/modern/palette.b60ce83d.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="green">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-hidden="true"></label>
+    <div data-md-component="skip">
+      <a href="#__skip" class="md-skip">
+        Skip to content
+      </a>
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="./.." title="netstead documentation" class="md-header__button md-logo" aria-label="netstead documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+      <span class="md-visually-hidden">Navigation</span>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            netstead documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Visual tour
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="green"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 6H7c-3.31 0-6 2.69-6 6s2.69 6 6 6h10c3.31 0 6-2.69 6-6s-2.69-6-6-6m0 10H7c-2.21 0-4-1.79-4-4s1.79-4 4-4h10c2.21 0 4 1.79 4 4s-1.79 4-4 4M7 9c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="green" data-md-color-accent="green"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 7H7a5 5 0 0 0-5 5 5 5 0 0 0 5 5h10a5 5 0 0 0 5-5 5 5 0 0 0-5-5m0 8a3 3 0 0 1-3-3 3 3 0 0 1 3-3 3 3 0 0 1 3 3 3 3 0 0 1-3 3"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+          <span class="md-visually-hidden">Search</span>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+        <a href="https://github.com/e-lo/netstead" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M216.5 362.5c-66-8-112.5-55.5-112.5-117 0-25 9-52 24-70-6.5-16.5-5.5-51.5 2-66 20-2.5 47 8 63 22.5 19-6 39-9 63.5-9s44.5 3 62.5 8.5c15.5-14 43-24.5 63-22 7 13.5 8 48.5 1.5 65.5 16 19 24.5 44.5 24.5 70.5 0 61.5-46.5 108-113.5 116.5 17 11 28.5 35 28.5 62.5v52c0 15 12.5 23.5 27.5 17.5C441 459.5 512 369 512 257 512 115.5 397 0 255.5 0S0 115.5 0 257c0 111 70.5 203 165.5 237.5 13.5 5 26.5-4 26.5-17.5v-40c-7 3-16 5-24 5-33 0-52.5-18-66.5-51.5-5.5-13.5-11.5-21.5-23-23-6-.5-8-3-8-6 0-6 10-10.5 20-10.5 14.5 0 27 9 40 27.5 10 14.5 20.5 21 33 21s20.5-4.5 32-16c8.5-8.5 15-16 21-21"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      
+    </div>
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="./.." class="md-tabs__link">
+        
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../quickstart/" class="md-tabs__link">
+        
+  
+  Quickstart: Python
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../quickstart-workbench/" class="md-tabs__link">
+        
+  
+  Quickstart: Workbench
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../install/" class="md-tabs__link">
+        
+  
+  Install and troubleshoot
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../what-is-gmns/" class="md-tabs__link">
+        
+  
+  What is GMNS?
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="././" class="md-tabs__link">
+        
+  
+  Visual tour
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../python-tour/" class="md-tabs__link">
+        
+  
+  Python tour
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../workbench-and-other-tools/" class="md-tabs__link">
+        
+  
+  The Workbench and other tools
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../roadmap/" class="md-tabs__link">
+        
+  
+  Status and roadmap
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../changelog/" class="md-tabs__link">
+        
+  
+  Changelog
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+      
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+      <li class="md-tabs__item">
+        <a href="../cookbook/" class="md-tabs__link">
+          
+  
+  Cookbook
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+      
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+      <li class="md-tabs__item">
+        <a href="../reference/api/" class="md-tabs__link">
+          
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../migration/v0.3-to-v1.0/" class="md-tabs__link">
+        
+  
+  Migration v0.3 → v1.0
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="https://e-lo.github.io/netstead/" class="md-tabs__link">
+        
+  
+  « Netstead umbrella
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="https://e-lo.github.io/netstead/corral/" class="md-tabs__link">
+        
+  
+  corral site »
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="./.." title="netstead documentation" class="md-nav__button md-logo" aria-label="netstead documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    netstead documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/e-lo/netstead" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M216.5 362.5c-66-8-112.5-55.5-112.5-117 0-25 9-52 24-70-6.5-16.5-5.5-51.5 2-66 20-2.5 47 8 63 22.5 19-6 39-9 63.5-9s44.5 3 62.5 8.5c15.5-14 43-24.5 63-22 7 13.5 8 48.5 1.5 65.5 16 19 24.5 44.5 24.5 70.5 0 61.5-46.5 108-113.5 116.5 17 11 28.5 35 28.5 62.5v52c0 15 12.5 23.5 27.5 17.5C441 459.5 512 369 512 257 512 115.5 397 0 255.5 0S0 115.5 0 257c0 111 70.5 203 165.5 237.5 13.5 5 26.5-4 26.5-17.5v-40c-7 3-16 5-24 5-33 0-52.5-18-66.5-51.5-5.5-13.5-11.5-21.5-23-23-6-.5-8-3-8-6 0-6 10-10.5 20-10.5 14.5 0 27 9 40 27.5 10 14.5 20.5 21 33 21s20.5-4.5 32-16c8.5-8.5 15-16 21-21"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Home
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Quickstart: Python
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart-workbench/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Quickstart: Workbench
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Install and troubleshoot
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-is-gmns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  What is GMNS?
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Visual tour
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Visual tour
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-youll-build" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What you&rsquo;ll build
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Prerequisites
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Steps
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Steps">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-a-gmns-network-on-a-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        1. A GMNS network on a map
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-the-linked-table" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2. The linked table
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-a-selection-you-can-read-back" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3. A selection you can read back
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-what-an-ambiguous-anchor-means" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        4. What an ambiguous anchor means
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-what-validation-severities-mean" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5. What validation severities mean
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-what-an-edit-does-to-the-network" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        6. What an edit does to the network
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-what-session-as-python-is-for" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        7. What &ldquo;Session as Python&rdquo; is for
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#8-saving-a-copy-and-what-stays-the-same" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        8. Saving a copy, and what stays the same
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#next-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Next steps
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-tour/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Python tour
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../workbench-and-other-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  The Workbench and other tools
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Status and roadmap
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Changelog
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../cookbook/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Cookbook
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_11" id="__nav_11_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_11">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Cookbook
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_11_2" id="__nav_11_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Validate and fix
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_11_2_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_11_2">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Validate and fix
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cookbook/validate-network/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Validate a network
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cookbook/customize-quality/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Customize quality rules
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cookbook/fix-findings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Triage and fix findings
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_11_3" id="__nav_11_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Build and scope
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_11_3_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_11_3">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Build and scope
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cookbook/build-from-osm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Build from OpenStreetMap or Overture
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cookbook/scope-from-nodes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Scope from seed nodes
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_11_4" id="__nav_11_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Query and edit
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_11_4_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_11_4">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Query and edit
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cookbook/query-and-update/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Query and update linked tables
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cookbook/edit-with-rollback/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Edit with rollback
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_11_5" id="__nav_11_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Workbench
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_11_5_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_11_5">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Workbench
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cookbook/workbench/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Explore in the Workbench
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cookbook/find-links/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Find links by describing them
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cookbook/workbench-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Write a Workbench plugin
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cookbook/workbench-project-cards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Author ProjectCards
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cookbook/local-llm-ollama/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Local language models (Ollama)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_11_6" id="__nav_11_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Maps and reports
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_11_6_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_11_6">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Maps and reports
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cookbook/view-your-network/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  View a network on a map
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_11_7" id="__nav_11_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Serve and automate
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_11_7_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_11_7">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Serve and automate
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cookbook/serve-http/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Self-host the HTTP server
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cookbook/serve-mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Wire up the MCP server
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cookbook/run-bench/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Run the bench
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
+        
+          
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Reference
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_12">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Reference
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  CLI
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Schema
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spec-versions/development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  GMNS development branch
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spec-versions/local/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  GMNS local spec (0.97)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/table-of-tables/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Table of tables
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Glossary
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Settings
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/workbench-actions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Workbench Actions
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/workbench-http-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Workbench HTTP API
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai/mcp-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  MCP tools
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gmns-data-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  GMNS data model
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migration/v0.3-to-v1.0/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Migration v0.3 → v1.0
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://e-lo.github.io/netstead/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  « Netstead umbrella
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://e-lo.github.io/netstead/corral/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  corral site »
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-youll-build" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What you&rsquo;ll build
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Prerequisites
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Steps
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Steps">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-a-gmns-network-on-a-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        1. A GMNS network on a map
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-the-linked-table" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2. The linked table
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-a-selection-you-can-read-back" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        3. A selection you can read back
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-what-an-ambiguous-anchor-means" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        4. What an ambiguous anchor means
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-what-validation-severities-mean" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        5. What validation severities mean
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-what-an-edit-does-to-the-network" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        6. What an edit does to the network
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-what-session-as-python-is-for" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        7. What &ldquo;Session as Python&rdquo; is for
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#8-saving-a-copy-and-what-stays-the-same" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        8. Saving a copy, and what stays the same
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#next-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Next steps
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                <a id="__skip" tabindex="-1"></a>
+                
+                  
+
+  
+    <a href="https://github.com/e-lo/netstead/edit/main/packages/netstead/docs/visual-tour.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75z"/></svg>
+    </a>
+  
+  
+    
+      
+    
+    <a href="https://github.com/e-lo/netstead/raw/main/packages/netstead/docs/visual-tour.md" title="View source of this page" class="md-content__button md-icon">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0 8a5 5 0 0 1-5-5 5 5 0 0 1 5-5 5 5 0 0 1 5 5 5 5 0 0 1-5 5m0-12.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5"/></svg>
+    </a>
+  
+
+
+<!-- screenshots: refresh after the beta-feedback PR merges -->
+
+<h1 id="visual-tour">Visual tour<a class="headerlink" href="#visual-tour" title="Permanent link"> ¶</a></h1>
+<p>This is the <a href="../quickstart-workbench/">Workbench quickstart</a> told slowly: the same eight steps on the same
+bundled network, but with the emphasis on what you are looking at, what netstead is doing underneath, and why
+it matters for a real network. The notebook version of this tour, with maps and report cards rendered from
+Python, is the <a href="../python-tour/">Python tour</a>.</p>
+<h2 id="what-youll-build">What you&rsquo;ll build<a class="headerlink" href="#what-youll-build" title="Permanent link"> ¶</a></h2>
+<p><a class="glightbox" data-type="image" href="../assets/screenshots/workbench-walkthrough.gif"><img alt="Sixty-second walkthrough: open, select, validate, fix, replay" class="screenshot" src="../assets/screenshots/workbench-walkthrough.gif" /></a>
+<em>Open, select, validate, fix, replay: the tour in a minute. (screenshot predates the panel restructure)</em></p>
+<p>By the end you will be able to read the Workbench the way a modeler reads it: a GMNS network on a map, its
+tables beside it, a selection with a status you can trust, a validation report whose severities mean something,
+an edit log with versions, and a script that reproduces all of it.</p>
+<h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link"> ¶</a></h2>
+<p>Follow step 1 of the <a href="../quickstart-workbench/#1-install-and-open-the-network">Workbench quickstart</a> to install
+<code>netstead</code> with the <code>[server,graph,nl]</code> extras and open the Leavenworth fixture with <code>--provider stub</code>. This
+page doesn&rsquo;t repeat the commands; if the install or the first run fails, see
+<a href="../install/">Install and troubleshoot</a>.</p>
+<h2 id="steps">Steps<a class="headerlink" href="#steps" title="Permanent link"> ¶</a></h2>
+<h3 id="1-a-gmns-network-on-a-map">1. A GMNS network on a map<a class="headerlink" href="#1-a-gmns-network-on-a-map" title="Permanent link"> ¶</a></h3>
+<p><a class="glightbox" data-type="image" href="../assets/screenshots/workbench-01-open.png"><img alt="The Workbench with the Leavenworth network open" class="screenshot" src="../assets/screenshots/workbench-01-open.png" /></a>
+<em>Leavenworth, WA: 339 links and 121 nodes, drawn from the <code>link</code>, <code>node</code> and <code>geometry</code> tables. (screenshot predates the panel restructure)</em></p>
+<p>What you see is a small, real street network: downtown Leavenworth, an OSM-derived grid about 2 km across,
+with Highway 2 along the south and residential streets fanning north. The header says what it is made of:
+<strong>339 links · 121 nodes</strong>. In GMNS a <strong>node</strong> is a point (an intersection, a dead end, a change of attributes)
+and a <strong>link</strong> is a directed edge between two nodes with the attributes a model needs: <code>facility_type</code>,
+<code>lanes</code>, <code>free_speed</code>, <code>capacity</code>, <code>directed</code>. Each link&rsquo;s shape comes from the <code>geometry</code> table, keyed by
+<code>geometry_id</code>, which is why a link can bend without extra nodes.</p>
+<p>Why it matters: everything else in the Workbench is a view of those tables. The map is not a separate GIS
+layer that can drift from the data; it is drawn from the <code>link</code> rows you are about to edit, and it redraws
+when they change. If the map opened zoomed out, <strong>Zoom to full network</strong> fits the view to the network&rsquo;s
+bounding box: the first thing to try whenever the map looks empty.</p>
+<h3 id="2-the-linked-table">2. The linked table<a class="headerlink" href="#2-the-linked-table" title="Permanent link"> ¶</a></h3>
+<p><a class="glightbox" data-type="image" href="../assets/screenshots/workbench-02-split.png"><img alt="Split view: a link picked on the map, its row focused in the table" class="screenshot" src="../assets/screenshots/workbench-02-split.png" /></a>
+<em>Split view. One record, three views: the link on the map, its row in the table, its attributes in Inspect. (screenshot predates the panel restructure)</em></p>
+<p><strong>Split</strong> puts the <code>link</code> table next to the map. The rail on the left of the table lists every table in the
+network with its row count: <code>link</code>, <code>node</code>, <code>geometry</code>, <code>lane</code>, <code>link_tod</code> and the rest. Click a link on the
+map and three things agree on which record you mean: the map outlines it, the table scrolls to and outlines
+its row, and the <strong>Inspect</strong> tab comes forward and lists its attributes. Click a row and the map flies to it.</p>
+<p>What the linked table gives you is the half of a network that a map can&rsquo;t show. A speed, a lane count, a
+time-of-day override or a foreign key are table facts; the map can color by one of them at a time (<strong>Find →
+View → Color links by</strong>), but the table shows them all, sortable and pageable, with the key columns (<code>from_node_id</code>,
+<code>geometry_id</code>) as links you can follow into the other tables. Rows a foreign key away from the focused record,
+such as the link&rsquo;s two end nodes or its lanes, are tinted in every table and on the map. GMNS is a relational
+spec, and the Workbench treats it as one.</p>
+<p>One rule keeps this simple: <strong>clicking never changes the selection</strong>. The focused record is a view. The
+selection, next, is the thing the Workbench records and can replay.</p>
+<h3 id="3-a-selection-you-can-read-back">3. A selection you can read back<a class="headerlink" href="#3-a-selection-you-can-read-back" title="Permanent link"> ¶</a></h3>
+<p><a class="glightbox" data-type="image" href="../assets/screenshots/workbench-03-select.png"><img alt="Ski Hill Drive selected from the header box" class="screenshot" src="../assets/screenshots/workbench-03-select.png" /></a>
+<em>Ski Hill Drive: 20 links, status <code>resolved</code>, and the GMNS selection fragment that names them. (screenshot predates the panel restructure)</em></p>
+<p>Type <code>Ski Hill Drive</code> into the <strong>Find</strong> tab&rsquo;s box and press <strong>Select</strong>. The resolver matches the phrase against
+the network&rsquo;s own street names, finds the facility, and marks its 20 links. The <strong>Find</strong> tab shows three
+things worth reading:</p>
+<ul>
+<li>The <strong>status</strong>, <code>resolved</code>: the phrase mapped to one unambiguous set of links. Other statuses are
+  <code>ambiguous</code> (next step) and the empty result when nothing matched.</li>
+<li>The <strong>diagnostics</strong>: how it got there (<code>facility ['Ski Hill Drive']: 20 link(s)</code>).</li>
+<li>The <strong>fragment</strong>: a JSON document in the GMNS selection schema, the portable form of the selection. As a
+  <strong>Link list</strong> it holds only the <code>link_id</code>s; as a <strong>Segment</strong> it keeps the street name and the from/to nodes
+  instead, so another tool, or a later version of this network, can resolve it again. Pick the form and the
+  ID system (GMNS, OpenStreetMap or Overture GERS) under <strong>Export</strong>, or a ProjectCard facility instead, and use
+  the copy button on the box.</li>
+</ul>
+<p>Why it matters: a selection made by name is reproducible in a way a hand-drawn box is not. The strip at the
+bottom already shows it as <code>app.do(Select(utterance='Ski Hill Drive'))</code>; after an edit, a query selection is
+resolved again against the edited network. With <code>--provider stub</code> the phrase is parsed by an offline pattern
+matcher; the same box can use a local model through Ollama or a hosted one, and the selection object looks the
+same either way.</p>
+<h3 id="4-what-an-ambiguous-anchor-means">4. What an ambiguous anchor means<a class="headerlink" href="#4-what-an-ambiguous-anchor-means" title="Permanent link"> ¶</a></h3>
+<p><a class="glightbox" data-type="image" href="../assets/screenshots/workbench-04-ambiguous.png"><img alt="An ambiguous selection: candidate nodes for the anchor, as rings on the map" class="screenshot" src="../assets/screenshots/workbench-04-ambiguous.png" /></a>
+<em>&ldquo;Cherry Street between Prospect Street and West Center Street&rdquo;: the <code>to</code> anchor could be node 60 or node 61. (screenshot predates the panel restructure)</em></p>
+<p>Now select <code>Cherry Street between Prospect Street and West Center Street</code>. A &ldquo;between&rdquo; phrase has a facility
+(Cherry Street) and two <strong>anchors</strong>, the cross streets that bound the stretch; each anchor must resolve to one
+node on the facility. The <code>from</code> anchor does (<code>Prospect Street → node 53</code>). The <code>to</code> anchor doesn&rsquo;t: West
+Center Street meets Cherry Street at more than one node, so the resolver picks the nearest (node 60) and
+reports the status <strong>ambiguous</strong>, with node 61 listed as the other candidate and both drawn as rings on the
+map.</p>
+<p>That status is the point. The resolver could have quietly taken its best guess, and three links would have
+lit up looking exactly like a confident answer. Instead the selection says it is a guess, the tab badge shows
+<code>?</code>, and export is refused until you settle it. Settling it is a <strong>pin</strong>: click <code>node 61</code> to choose it, or
+<strong>Pin node 60</strong> to keep the resolver&rsquo;s choice. The selection is resolved again, the status becomes <code>resolved</code>,
+and the pin becomes part of the selection&rsquo;s query (<code>app.do(PinAnchor(role='to', node_id=60))</code>), so it survives
+an edit and comes back when you reuse a saved selection. <strong>Unpin</strong> returns to the resolver&rsquo;s choice.</p>
+<p>Real networks are full of this: a cross street that crosses twice, a divided road with two carriageways, a
+name shared by a street and a ramp. A selection status you can read is what lets you trust the selections you
+didn&rsquo;t check by hand.</p>
+<h3 id="5-what-validation-severities-mean">5. What validation severities mean<a class="headerlink" href="#5-what-validation-severities-mean" title="Permanent link"> ¶</a></h3>
+<p><a class="glightbox" data-type="image" href="../assets/screenshots/workbench-05-issues.png"><img alt="The Validate panel after Run validation" class="screenshot" src="../assets/screenshots/workbench-05-issues.png" /></a>
+<em>After Run validation: 271 warnings and 16 info, and a dot on the map for every issue with a place. (screenshot predates the panel restructure)</em></p>
+<p><strong>Run validation</strong> (the play icon in the <strong>Validate</strong> tab) runs two kinds of check and lists them together,
+each with a severity:</p>
+<ul>
+<li><strong>error</strong> — the network breaks the spec in a way a consumer can&rsquo;t work around: a required table or field is
+  missing, a value has the wrong type, a foreign key points at a row that doesn&rsquo;t exist. Leavenworth has none.</li>
+<li><strong>warning</strong> — something is wrong or can&rsquo;t be shown to be right. The spec check finds none on Leavenworth.
+  The quality rules add 271: <code>quality.high_speed_residential</code>, a residential link whose <code>free_speed</code> (40) is above
+  the 35 mph threshold. The spec allows it; the rule says it is probably a coding mistake, and its <code>fix_hint</code>
+  says what to do if the speed is right (raise the facility class instead).</li>
+<li><strong>info</strong> — worth knowing, not wrong: 16 <code>structural.missing_optional_resource</code> findings, one per optional
+  GMNS table (<code>movement</code>, <code>segment</code>, <code>signal_*</code>, <code>zone</code>, &hellip;) that this network doesn&rsquo;t include.</li>
+</ul>
+<p>The status line sums them: <code>Validated v0: 271 warnings, 16 info</code>, the <code>v0</code> being the version of the network
+that was checked. Spec checks are about whether the file is valid GMNS; quality rules are about whether the
+network is plausible, and they are configurable (<strong>Settings → Validation</strong>, keyed by rule code), so a region
+with 40 mph residential streets can raise the threshold instead of silencing the rule.</p>
+<p>Each located issue is a dot on the map, colored by severity; click one in the list (or its crosshair &ldquo;zoom
+to&rdquo; icon) and the map flies to its link, Inspect shows the record, and the table scrolls to the row. Findings
+about a whole table, like the missing-resource notes, have no place on the map; findings that share a code and
+differ only by resource are grouped into one row under a collapsed <strong>Unlocated findings</strong> block. The filters
+(severity, table, code) carry counts, so <code>quality.high_speed_residential (271)</code> is one click away from being
+the only thing in the list.</p>
+<h3 id="6-what-an-edit-does-to-the-network">6. What an edit does to the network<a class="headerlink" href="#6-what-an-edit-does-to-the-network" title="Permanent link"> ¶</a></h3>
+<p><a class="glightbox" data-type="image" href="../assets/screenshots/workbench-06-fix.png"><img alt="Fixing a free_speed value from an issue; the Edit tab shows the pending edit" class="screenshot" src="../assets/screenshots/workbench-06-fix.png" /></a>
+<em>Fix on an issue: the editor opens on the issue&rsquo;s column; Apply sends one edit; the Edit tab records it at v1. (screenshot predates the panel restructure)</em></p>
+<p>Press <strong>Fix</strong> on a <code>quality.high_speed_residential</code> issue. The editor opens on that record and that column
+(<code>link 1 · free_speed</code>), prefilled with <code>40</code>, and with the issue as the edit&rsquo;s note, which you can replace
+with your own reason (<code>Residential street: posted 35 mph</code>). Change the value to <code>35</code> and press <strong>Apply</strong>.</p>
+<p>Three things happen, and each is visible:</p>
+<ul>
+<li><strong>The network version moves.</strong> The network you opened was <code>v0</code>; it is now <code>v1</code>. Edits change the network in
+  memory only; nothing on disk is touched until you save a copy, and the source is never overwritten. The
+  version is what the rest of the Workbench keys on: the map and table redraw for <code>v1</code>, the stored validation
+  is marked stale (<code>the network changed since: re-run</code>), and a delete planned on <code>v0</code> would be refused.</li>
+<li><strong>The edit log grows.</strong> The <strong>Edit</strong> tab lists <code>#1 link 1: free_speed = 35.0 (Residential street: posted
+  35 mph)</code>, with the rows it touched (<code>1 link</code>) and the version it produced (<code>v1</code>), and says <code>1 unsaved</code>; the
+  network picker says the same, and the header&rsquo;s validity light turns amber-outlined. The undo icon reverses
+  the newest edit; undo is last-in, first-out and is itself recorded (<code>app.do(UndoEdit())</code>). A redo icon beside
+  it would reapply that edit (<code>app.do(RedoEdit())</code>) until any other change clears it.</li>
+<li><strong>The edited rows are re-checked at once.</strong> A value the spec disagrees with, such as a foreign key to a row
+  that doesn&rsquo;t exist or a required field left empty, is applied anyway and listed under <strong>Edit warnings</strong> in
+  the <strong>Edit</strong> tab with its own <strong>Fix</strong>, so you can put it right where you found it. A speed of 35 raises
+  no warning, so the count stays at 0.</li>
+</ul>
+<p>Why it matters: an edit in the Workbench is a typed action with a note, a version and an undo, not a cell
+changed in a spreadsheet. That is what makes the next two steps possible.</p>
+<h3 id="7-what-session-as-python-is-for">7. What &ldquo;Session as Python&rdquo; is for<a class="headerlink" href="#7-what-session-as-python-is-for" title="Permanent link"> ¶</a></h3>
+<p><a class="glightbox" data-type="image" href="../assets/screenshots/workbench-07-python.png"><img alt="Session as Python: the whole session as a replayable script" class="screenshot" src="../assets/screenshots/workbench-07-python.png" /></a>
+<em>Every action you took, as the script that repeats it. (screenshot predates the panel restructure)</em></p>
+<p>The strip at the bottom of the window shows the last action as Python; the code icon in the footer (tooltip
+&ldquo;Copy session as Python&rdquo;) shows the whole session as one script: the imports, <code>app = Session()</code>, and one
+<code>app.do(...)</code> line per action, from <code>OpenNetwork(source=...)</code> through <code>Select</code>, <code>PinAnchor</code>, <code>RunValidation</code>,
+<code>EditCells</code> and <code>UndoEdit</code>.</p>
+<p>It exists because clicking is a bad way to document work. The script is the record of what you did to the
+network, in the form a reviewer can read, a colleague can run on the next quarter&rsquo;s network, and a CI job can
+run on every one. A build you approved replays with <code>approved=True</code>; a save replays as a new copy. The one
+thing to know before replaying: a folder you trusted on the <code>netstead app</code> command line is not in the script,
+so a fresh <code>Session()</code> needs it in <code>io.allowed_roots</code> (see
+<a href="../cookbook/workbench/#every-action-is-replayable">Every action is replayable</a>).</p>
+<h3 id="8-saving-a-copy-and-what-stays-the-same">8. Saving a copy, and what stays the same<a class="headerlink" href="#8-saving-a-copy-and-what-stays-the-same" title="Permanent link"> ¶</a></h3>
+<p><a class="glightbox" data-type="image" href="../assets/screenshots/workbench-08-save.png"><img alt="Save a copy: the edited network written to a new folder" class="screenshot" src="../assets/screenshots/workbench-08-save.png" /></a>
+<em>Save a copy as a Parquet folder. The source folder is never written to. (screenshot predates the panel restructure)</em></p>
+<p>The <strong>Save</strong> icon in the header opens a dialog that writes the network as it is now (<code>v1</code>, with your fix) to
+a <strong>new</strong> folder or file: name it, choose Parquet, CSV, DuckDB or Zip, and pick a folder inside your home
+directory with <strong>Choose folder…</strong> and <strong>Use this folder</strong>, then <strong>Save</strong>. The save is a job; when it finishes
+a toast says where the copy went and which tables differ from the source, the edit is marked <code>saved</code> in the
+Edit tab, and the unsaved badge clears.</p>
+<p>What stays the same is the network you opened. The Workbench never writes to its source, local or remote, and
+never overwrites an existing copy, so an afternoon of edits can&rsquo;t damage the file you started from. Open
+warnings are listed and confirmed before a save goes ahead. A Parquet copy opens directly in GeoLibre, QGIS or
+ArcGIS Pro, and feeds AequilibraE, DTALite and Path4GMNS; see
+<a href="../workbench-and-other-tools/">The Workbench and other tools</a> for how to move between them.</p>
+<h2 id="next-steps">Next steps<a class="headerlink" href="#next-steps" title="Permanent link"> ¶</a></h2>
+<ul>
+<li><a href="../cookbook/workbench/">Explore networks in the Netstead Workbench</a> — every panel and command, the assistant,
+  settings and language models.</li>
+<li><a href="../cookbook/validate-network/">Validate a network</a> — the four validation passes and the report formats,
+  from the CLI and Python.</li>
+<li><a href="../cookbook/fix-findings/">Triage and fix findings</a> — working through a report: filter, fix locally, re-run.</li>
+<li><a href="../python-tour/">Python tour (notebook)</a> — the same network rendered as maps and report cards from Python,
+  with a geometry edit and a scoped subgraph.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-circle-arrow-up" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V8"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog" role="status" aria-atomic="true">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      
+      
+        
+        
+      <script id="__config" type="application/json">{"annotate":null,"base":"..","features":["navigation.tabs","navigation.tabs.sticky","navigation.sections","navigation.indexes","navigation.top","navigation.tracking","toc.follow","content.code.copy","content.code.annotate","content.tabs.link","content.tooltips","content.action.edit","content.action.view","search.suggest","search.highlight","search.share"],"redirect":null,"search":"../assets/javascripts/workers/search.719e0d91.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.3cb411a8.min.js"></script>
+      
+    
+  </body>
+</html>

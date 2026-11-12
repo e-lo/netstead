@@ -1,0 +1,82 @@
+# corral + netstead documentation
+
+Generated from the mkdocs nav for AI-agent consumption. Each link below points at the canonical rendered page.
+
+## Home
+
+- [Home](https://e-lo.github.io/netstead/netstead/index.md)
+
+## Quickstart: Python
+
+- [Quickstart: Python](https://e-lo.github.io/netstead/netstead/quickstart.md)
+
+## Quickstart: Workbench
+
+- [Quickstart: Workbench](https://e-lo.github.io/netstead/netstead/quickstart-workbench.md)
+
+## Install and troubleshoot
+
+- [Install and troubleshoot](https://e-lo.github.io/netstead/netstead/install.md)
+
+## What is GMNS?
+
+- [What is GMNS?](https://e-lo.github.io/netstead/netstead/what-is-gmns.md)
+
+## Visual tour
+
+- [Visual tour](https://e-lo.github.io/netstead/netstead/visual-tour.md)
+
+## Python tour
+
+- [Python tour](https://e-lo.github.io/netstead/netstead/python-tour.md)
+
+## The Workbench and other tools
+
+- [The Workbench and other tools](https://e-lo.github.io/netstead/netstead/workbench-and-other-tools.md)
+
+## Status and roadmap
+
+- [Status and roadmap](https://e-lo.github.io/netstead/netstead/roadmap.md)
+
+## Changelog
+
+- [Changelog](https://e-lo.github.io/netstead/netstead/changelog.md)
+
+## Cookbook
+
+- [Cookbook](https://e-lo.github.io/netstead/netstead/cookbook/index.md)
+- [Validate a network](https://e-lo.github.io/netstead/netstead/cookbook/validate-network.md)
+- [Customize quality rules](https://e-lo.github.io/netstead/netstead/cookbook/customize-quality.md)
+- [Triage and fix findings](https://e-lo.github.io/netstead/netstead/cookbook/fix-findings.md)
+- [Build from OpenStreetMap or Overture](https://e-lo.github.io/netstead/netstead/cookbook/build-from-osm.md)
+- [Scope from seed nodes](https://e-lo.github.io/netstead/netstead/cookbook/scope-from-nodes.md)
+- [Query and update linked tables](https://e-lo.github.io/netstead/netstead/cookbook/query-and-update.md)
+- [Edit with rollback](https://e-lo.github.io/netstead/netstead/cookbook/edit-with-rollback.md)
+- [Explore in the Workbench](https://e-lo.github.io/netstead/netstead/cookbook/workbench.md)
+- [Find links by describing them](https://e-lo.github.io/netstead/netstead/cookbook/find-links.md)
+- [Write a Workbench plugin](https://e-lo.github.io/netstead/netstead/cookbook/workbench-plugins.md)
+- [Author ProjectCards](https://e-lo.github.io/netstead/netstead/cookbook/workbench-project-cards.md)
+- [Local language models (Ollama)](https://e-lo.github.io/netstead/netstead/cookbook/local-llm-ollama.md)
+- [View a network on a map](https://e-lo.github.io/netstead/netstead/cookbook/view-your-network.md)
+- [Self-host the HTTP server](https://e-lo.github.io/netstead/netstead/cookbook/serve-http.md)
+- [Wire up the MCP server](https://e-lo.github.io/netstead/netstead/cookbook/serve-mcp.md)
+- [Run the bench](https://e-lo.github.io/netstead/netstead/cookbook/run-bench.md)
+
+## Reference
+
+- [API](https://e-lo.github.io/netstead/netstead/reference/api.md)
+- [CLI](https://e-lo.github.io/netstead/netstead/reference/cli.md)
+- [Schema](https://e-lo.github.io/netstead/netstead/reference/spec.md)
+- [GMNS development branch](https://e-lo.github.io/netstead/netstead/spec-versions/development.md)
+- [GMNS local spec (0.97)](https://e-lo.github.io/netstead/netstead/spec-versions/local.md)
+- [Table of tables](https://e-lo.github.io/netstead/netstead/reference/table-of-tables.md)
+- [Glossary](https://e-lo.github.io/netstead/netstead/reference/glossary.md)
+- [Settings](https://e-lo.github.io/netstead/netstead/reference/settings.md)
+- [Workbench Actions](https://e-lo.github.io/netstead/netstead/reference/workbench-actions.md)
+- [Workbench HTTP API](https://e-lo.github.io/netstead/netstead/reference/workbench-http-api.md)
+- [MCP tools](https://e-lo.github.io/netstead/netstead/ai/mcp-tools.md)
+- [GMNS data model](https://e-lo.github.io/netstead/netstead/gmns-data-model.md)
+
+## Migration v0.3 → v1.0
+
+- [Migration v0.3 → v1.0](https://e-lo.github.io/netstead/netstead/migration/v0.3-to-v1.0.md)

@@ -1,0 +1,3357 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Python toolkit for the General Modeling Network Specification — load, validate, scope, edit GMNS networks at regional scale, with CLI &#x2f; notebook &#x2f; HTTP &#x2f; MCP surfaces.">
+      
+      
+      
+        <link rel="canonical" href="https://e-lo.github.io/netstead/netstead/cookbook/workbench-project-cards/">
+      
+      
+      
+        <link rel="prev" href="../workbench-plugins/">
+      
+      
+        <link rel="next" href="../local-llm-ollama/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.1.1">
+    
+    
+      
+        <title>Author ProjectCards in the Workbench - netstead documentation</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.ebb7f775.min.css">
+      
+        
+          
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/modern/palette.b60ce83d.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="green">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-hidden="true"></label>
+    <div data-md-component="skip">
+      <a href="#__skip" class="md-skip">
+        Skip to content
+      </a>
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="netstead documentation" class="md-header__button md-logo" aria-label="netstead documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+      <span class="md-visually-hidden">Navigation</span>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            netstead documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Author ProjectCards in the Workbench
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="green"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 6H7c-3.31 0-6 2.69-6 6s2.69 6 6 6h10c3.31 0 6-2.69 6-6s-2.69-6-6-6m0 10H7c-2.21 0-4-1.79-4-4s1.79-4 4-4h10c2.21 0 4 1.79 4 4s-1.79 4-4 4M7 9c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="green" data-md-color-accent="green"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M17 7H7a5 5 0 0 0-5 5 5 5 0 0 0 5 5h10a5 5 0 0 0 5-5 5 5 0 0 0-5-5m0 8a3 3 0 0 1-3-3 3 3 0 0 1 3-3 3 3 0 0 1 3 3 3 3 0 0 1-3 3"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+          <span class="md-visually-hidden">Search</span>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+        <a href="https://github.com/e-lo/netstead" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M216.5 362.5c-66-8-112.5-55.5-112.5-117 0-25 9-52 24-70-6.5-16.5-5.5-51.5 2-66 20-2.5 47 8 63 22.5 19-6 39-9 63.5-9s44.5 3 62.5 8.5c15.5-14 43-24.5 63-22 7 13.5 8 48.5 1.5 65.5 16 19 24.5 44.5 24.5 70.5 0 61.5-46.5 108-113.5 116.5 17 11 28.5 35 28.5 62.5v52c0 15 12.5 23.5 27.5 17.5C441 459.5 512 369 512 257 512 115.5 397 0 255.5 0S0 115.5 0 257c0 111 70.5 203 165.5 237.5 13.5 5 26.5-4 26.5-17.5v-40c-7 3-16 5-24 5-33 0-52.5-18-66.5-51.5-5.5-13.5-11.5-21.5-23-23-6-.5-8-3-8-6 0-6 10-10.5 20-10.5 14.5 0 27 9 40 27.5 10 14.5 20.5 21 33 21s20.5-4.5 32-16c8.5-8.5 15-16 21-21"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      
+    </div>
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../quickstart/" class="md-tabs__link">
+        
+  
+  Quickstart: Python
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../quickstart-workbench/" class="md-tabs__link">
+        
+  
+  Quickstart: Workbench
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../install/" class="md-tabs__link">
+        
+  
+  Install and troubleshoot
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../what-is-gmns/" class="md-tabs__link">
+        
+  
+  What is GMNS?
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../visual-tour/" class="md-tabs__link">
+        
+  
+  Visual tour
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../python-tour/" class="md-tabs__link">
+        
+  
+  Python tour
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../workbench-and-other-tools/" class="md-tabs__link">
+        
+  
+  The Workbench and other tools
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../roadmap/" class="md-tabs__link">
+        
+  
+  Status and roadmap
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../changelog/" class="md-tabs__link">
+        
+  
+  Changelog
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+      
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
+          
+  
+  Cookbook
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+      
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../reference/api/" class="md-tabs__link">
+          
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../migration/v0.3-to-v1.0/" class="md-tabs__link">
+        
+  
+  Migration v0.3 → v1.0
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="https://e-lo.github.io/netstead/" class="md-tabs__link">
+        
+  
+  « Netstead umbrella
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="https://e-lo.github.io/netstead/corral/" class="md-tabs__link">
+        
+  
+  corral site »
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="netstead documentation" class="md-nav__button md-logo" aria-label="netstead documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    netstead documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/e-lo/netstead" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M216.5 362.5c-66-8-112.5-55.5-112.5-117 0-25 9-52 24-70-6.5-16.5-5.5-51.5 2-66 20-2.5 47 8 63 22.5 19-6 39-9 63.5-9s44.5 3 62.5 8.5c15.5-14 43-24.5 63-22 7 13.5 8 48.5 1.5 65.5 16 19 24.5 44.5 24.5 70.5 0 61.5-46.5 108-113.5 116.5 17 11 28.5 35 28.5 62.5v52c0 15 12.5 23.5 27.5 17.5C441 459.5 512 369 512 257 512 115.5 397 0 255.5 0S0 115.5 0 257c0 111 70.5 203 165.5 237.5 13.5 5 26.5-4 26.5-17.5v-40c-7 3-16 5-24 5-33 0-52.5-18-66.5-51.5-5.5-13.5-11.5-21.5-23-23-6-.5-8-3-8-6 0-6 10-10.5 20-10.5 14.5 0 27 9 40 27.5 10 14.5 20.5 21 33 21s20.5-4.5 32-16c8.5-8.5 15-16 21-21"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Home
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Quickstart: Python
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../quickstart-workbench/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Quickstart: Workbench
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Install and troubleshoot
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../what-is-gmns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  What is GMNS?
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../visual-tour/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Visual tour
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python-tour/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Python tour
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../workbench-and-other-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  The Workbench and other tools
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Status and roadmap
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Changelog
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Cookbook
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_11" id="__nav_11_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="true">
+            <label class="md-nav__title" for="__nav_11">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Cookbook
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_11_2" id="__nav_11_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Validate and fix
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_11_2_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_11_2">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Validate and fix
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../validate-network/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Validate a network
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../customize-quality/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Customize quality rules
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../fix-findings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Triage and fix findings
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_11_3" id="__nav_11_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Build and scope
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_11_3_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_11_3">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Build and scope
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../build-from-osm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Build from OpenStreetMap or Overture
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scope-from-nodes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Scope from seed nodes
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_11_4" id="__nav_11_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Query and edit
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_11_4_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_11_4">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Query and edit
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../query-and-update/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Query and update linked tables
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../edit-with-rollback/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Edit with rollback
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_11_5" id="__nav_11_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Workbench
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_11_5_label" aria-expanded="true">
+            <label class="md-nav__title" for="__nav_11_5">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Workbench
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../workbench/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Explore in the Workbench
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../find-links/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Find links by describing them
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../workbench-plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Write a Workbench plugin
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Author ProjectCards
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Author ProjectCards
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#when-to-use-this" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        When to use this
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#install-and-enable" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Install and enable
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-by-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Step-by-step
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Step-by-step">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#new-card-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        New card mode
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#undo" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Undo
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#use-a-card-catalog" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Use a card catalog
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Use a card catalog">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#edit-a-card" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Edit a card
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#manage-the-catalogs-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Manage the catalog&rsquo;s files
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inspect-a-card" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Inspect a card
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#import-a-card" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Import a card
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-goes-in-the-card" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What goes in the card
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What goes in the card">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#segment-or-link-list-and-the-id-system" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Segment or Link list, and the id system
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#provenance-notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Provenance notes
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ignore_missing" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>ignore_missing</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#from-python" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        From Python
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#with-the-assistant" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        With the assistant
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pitfalls" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Pitfalls
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        See also
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../local-llm-ollama/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Local language models (Ollama)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_11_6" id="__nav_11_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Maps and reports
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_11_6_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_11_6">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Maps and reports
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../view-your-network/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  View a network on a map
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_11_7" id="__nav_11_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Serve and automate
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_11_7_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_11_7">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Serve and automate
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../serve-http/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Self-host the HTTP server
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../serve-mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Wire up the MCP server
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../run-bench/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Run the bench
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_12" >
+        
+          
+          <label class="md-nav__link" for="__nav_12" id="__nav_12_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Reference
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_12_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_12">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  Reference
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  CLI
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Schema
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../spec-versions/development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  GMNS development branch
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../spec-versions/local/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  GMNS local spec (0.97)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/table-of-tables/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Table of tables
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Glossary
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Settings
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/workbench-actions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Workbench Actions
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/workbench-http-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Workbench HTTP API
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ai/mcp-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  MCP tools
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../gmns-data-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  GMNS data model
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../migration/v0.3-to-v1.0/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Migration v0.3 → v1.0
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://e-lo.github.io/netstead/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  « Netstead umbrella
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://e-lo.github.io/netstead/corral/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  corral site »
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#when-to-use-this" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        When to use this
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#install-and-enable" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Install and enable
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-by-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Step-by-step
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Step-by-step">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#new-card-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        New card mode
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#undo" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Undo
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#use-a-card-catalog" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Use a card catalog
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Use a card catalog">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#edit-a-card" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Edit a card
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#manage-the-catalogs-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Manage the catalog&rsquo;s files
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inspect-a-card" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Inspect a card
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#import-a-card" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Import a card
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-goes-in-the-card" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What goes in the card
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What goes in the card">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#segment-or-link-list-and-the-id-system" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Segment or Link list, and the id system
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#provenance-notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Provenance notes
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ignore_missing" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>ignore_missing</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#from-python" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        From Python
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#with-the-assistant" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        With the assistant
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pitfalls" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Pitfalls
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        See also
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                <a id="__skip" tabindex="-1"></a>
+                
+                  
+
+  
+    <a href="https://github.com/e-lo/netstead/edit/main/packages/netstead/docs/cookbook/workbench-project-cards.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75z"/></svg>
+    </a>
+  
+  
+    
+      
+    
+    <a href="https://github.com/e-lo/netstead/raw/main/packages/netstead/docs/cookbook/workbench-project-cards.md" title="View source of this page" class="md-content__button md-icon">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0 8a5 5 0 0 1-5-5 5 5 0 0 1 5-5 5 5 0 0 1 5 5 5 5 0 0 1-5 5m0-12.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5"/></svg>
+    </a>
+  
+
+
+<h1 id="author-projectcards-in-the-workbench">Author ProjectCards in the Workbench<a class="headerlink" href="#author-projectcards-in-the-workbench" title="Permanent link"> ¶</a></h1>
+<h2 id="when-to-use-this">When to use this<a class="headerlink" href="#when-to-use-this" title="Permanent link"> ¶</a></h2>
+<p>You edit a GMNS network in the <a href="../workbench/">Workbench</a> and want the edits as a
+<a href="https://github.com/network-wrangler/projectcard">ProjectCard</a>: a YAML file that network_wrangler applies to its own
+network, and that you review like code. The <code>project_cards</code> plugin adds this to the Workbench. Its package is
+<code>netstead-project-cards</code>, in <code>plugins/project-cards</code> of the netstead repository.</p>
+<p>The plugin covers roadway changes: property changes, deletions and additions. The transit change types are listed
+but answer &ldquo;not yet supported&rdquo;.</p>
+<h2 id="install-and-enable">Install and enable<a class="headerlink" href="#install-and-enable" title="Permanent link"> ¶</a></h2>
+<p>In the netstead workspace, <code>uv sync --all-packages</code> installs <code>netstead-project-cards</code> next to netstead. The plugin is
+not on PyPI yet. To add it to another environment, install it from a checkout:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>plugins/project-cards<span class="w">   </span><span class="c1"># brings projectcard&gt;=0.3.3,&lt;0.4 and netstead[server]</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>uv<span class="w"> </span>run<span class="w"> </span>netstead<span class="w"> </span>app
+</span></code></pre></div>
+<p>An installed plugin is enabled: there is nothing to switch on. <strong>Settings → Plugins</strong> lists <em>Project cards</em> as
+loaded, with its version and the plugin API it needs (1.7). If it shows an error instead, the rest of the Workbench
+still runs (see <a href="../workbench-plugins/#startup-outcomes">Write a Workbench plugin</a>).</p>
+<h2 id="step-by-step">Step-by-step<a class="headerlink" href="#step-by-step" title="Permanent link"> ¶</a></h2>
+<ol>
+<li><strong>Select links.</strong> Type a request such as &ldquo;Benton Street&rdquo; in the <strong>Find</strong> tab&rsquo;s box. Or turn on <strong>Highlight
+   links</strong> (▯ on the map), click links or shift-drag a box over them, then press <strong>Set as selection</strong> under
+   <strong>Highlighted links</strong> in the <strong>Find</strong> tab. A click alone only focuses a link: it never changes the selection.</li>
+<li><strong>Pick a change.</strong> Right-click the selection (or open <strong>Selection actions ▾</strong> in the <strong>Find</strong> tab) and
+   choose <strong>New change ▸ Property change</strong> or <strong>New change ▸ Deletion</strong>. <strong>New change ▸ Addition</strong> adds a link, and
+   optionally a new end node, without a selection, so it is only in the command palette (<strong>Ctrl+K</strong>, <strong>⌘K</strong> on a
+   Mac). The <strong>Cards</strong> dock tab opens with the form, in its <strong>Draft</strong> section.</li>
+<li><strong>Fill in the form.</strong> The panel says what the change applies to (&ldquo;1 picked link&rdquo;, or &ldquo;4 links matching
+   {&ldquo;name&rdquo;: [&ldquo;Benton Street&rdquo;]}&rdquo;).<ul>
+<li><strong>Property change:</strong> one field per column, titled with its current value when every selected link agrees
+  (&ldquo;lanes (now 1)&rdquo;), or &ldquo;(values differ)&rdquo; or &ldquo;(empty)&rdquo;. Columns that hold lists are left out. A blank field is
+  left alone. <strong>How</strong> is <em>set</em> (a new value) or <em>change</em> (a number added to each link&rsquo;s current value).
+  When the selected links agree on a value, the card records it as <code>existing</code>, and <strong>If a current value differs
+  when the card is applied</strong> says what happens when the network has moved on: <code>error</code> (stop, the default),
+  <code>warn</code> or <code>skip</code>.</li>
+<li><strong>Deletion:</strong> <strong>Also delete end nodes no other link uses</strong> (<code>clean_nodes</code> in the card).</li>
+<li><strong>Addition:</strong> the new link&rsquo;s fields, with <code>link_id</code> filled in with the next free id. <code>link_id</code>,
+  <code>from_node_id</code>, <code>to_node_id</code>, <code>name</code>, <code>facility_type</code>, <code>lanes</code> and <code>allowed_uses</code> are required, since a
+  ProjectCard needs them. Fill in the optional node form (it shows the next free <code>node_id</code>) to add an end node too.
+  Core&rsquo;s live checks flag GMNS-required link fields the addition leaves empty (such as <code>directed</code>), and
+  <strong>Commit…</strong> then asks you to confirm those warnings.</li>
+<li>Every form has <strong>Why (written in the card&rsquo;s notes)</strong>.</li>
+</ul>
+</li>
+<li><strong>Preview</strong> applies the change to a copy of the network, makes the copy active and shows it on the map. The
+   network itself is untouched. The panel reads &ldquo;Previewing … on …&rdquo;, and <strong>Back to the network</strong> closes the copy.
+   A second preview replaces the first. If the network changes while you preview, the panel says so: preview again
+   to see it.</li>
+<li><strong>Add to card</strong> applies the change to the network (never to the preview, which then closes) and lists it in the
+   draft card. Core&rsquo;s <strong>Edit</strong> tab lists it too, with <code>project_cards</code> as its source, and the live checks run as
+   they do for any edit. Each change is one step: all of it applies, or none of it. <strong>Cancel</strong> closes the form and
+   any preview. If the selection changes while a Property change or Deletion form is open, the form says it is out
+   of date and <strong>Preview</strong> and <strong>Add to card</strong> wait until you press <strong>Reload form</strong>, which reads it again for the
+   new selection.</li>
+<li><strong>Watch the badge.</strong> The <strong>Cards</strong> tab shows the number of uncommitted changes with a dirty dot; its
+   workspace tab shows the dot. The draft belongs to the network: switch networks and the panel shows that network&rsquo;s
+   draft.</li>
+<li>
+<p><strong>Commit.</strong> Under <strong>Commit</strong>, give the card a <strong>Project name</strong>, optional <strong>Tags</strong> (comma separated) and a
+   <strong>Card file</strong> inside <code>io.allowed_roots</code>, then press <strong>Commit…</strong>. The dialog shows the network&rsquo;s live edit
+   warnings and the card&rsquo;s YAML:</p>
+<ul>
+<li>With no warnings, the button reads <strong>Commit</strong>.</li>
+<li>With warnings, tick <strong>I have read the warnings: commit anyway</strong>, and the button reads <strong>Commit anyway</strong>. The
+  card records the changes as they are.</li>
+<li>A card that <code>projectcard</code>&rsquo;s own validator rejects can&rsquo;t be committed: the dialog says why (&ldquo;Not a valid
+  ProjectCard yet: …&rdquo;).</li>
+</ul>
+<p>The file is written atomically: a failed write leaves an existing file as it was, and an existing file is
+replaced only when <strong>Replace an existing file</strong> is ticked. When the file is inside the open catalog&rsquo;s folder,
+the catalog is rescanned and lists the card. A new, empty draft then starts.</p>
+</li>
+</ol>
+<p>Committing writes the card, not the network: the edits stay pending in the <strong>Edit</strong> tab until you save the
+network, as with any edit.</p>
+<h3 id="new-card-mode">New card mode<a class="headerlink" href="#new-card-mode" title="Permanent link"> ¶</a></h3>
+<p><strong>New card</strong>, at the top of the <strong>Draft</strong> section, walks through steps 1 to 5 as a guided mode. A step indicator
+reads <strong>Type → Select → Details → Add</strong> (done steps are ticked); <strong>Back</strong> returns one step and <strong>Cancel</strong> leaves the
+mode, closing its form and any preview.</p>
+<ol>
+<li><strong>Type:</strong> Property change, Deletion or Addition. The transit types are listed, disabled: not yet supported.</li>
+<li><strong>Select</strong> (skipped for an Addition, which needs no selection): select the facility with the shared selection.
+   Turn on <strong>Highlight links</strong>, click links or shift-drag a box over them and press <strong>Set as selection</strong> (as in
+   step 1), or describe them in the mode&rsquo;s own box and press <strong>Select</strong> (core&rsquo;s natural-language selection), or
+   pick a saved selection and
+   press <strong>Use saved</strong>. The mode shows a live count (&ldquo;3 links selected.&rdquo;); <strong>Use these 3 links</strong> opens the form. A
+   selection that is not resolved yet (an ambiguous anchor) must be pinned in the <strong>Selection</strong> panel first.</li>
+<li><strong>Details:</strong> the same form as step 3 above, prefilled from the selection.</li>
+<li><strong>Add:</strong> <strong>Preview</strong> shows the change on a copy; <strong>Add to card</strong> adds it to the draft. Then <strong>Add another
+   change</strong> starts again at <strong>Type</strong>, or <strong>Done</strong> leaves the mode; commit as in step 7.</li>
+</ol>
+<p>The mode dispatches the same Actions as the right-click entry point (<code>project_cards.preview</code>,
+<code>project_cards.add_change</code>), so history, undo and commit work the same way.</p>
+<h3 id="undo">Undo<a class="headerlink" href="#undo" title="Permanent link"> ¶</a></h3>
+<p><strong>Undo last change</strong> in the panel (or <strong>Undo the draft card&rsquo;s last change</strong> in the command palette) takes back the
+draft&rsquo;s newest change, network edits included. A deletion with <strong>Also delete end nodes</strong> is two edits, and both are
+undone. Committed cards are not undone.</p>
+<p><strong>Remove</strong>, next to each change of the draft, takes out any change, not only the last. Core undoes only the
+network&rsquo;s newest edit, so the plugin undoes the draft back to that change and applies the later changes again, in
+order: the network ends as if the change had never been made. A later change that depends on the removed one (a
+property change on a link the removed change added, or an <code>existing</code> value it set) no longer applies, so the removal
+is refused and nothing changes (&ldquo;change 3 depends on the removed change 2: …&rdquo;). <strong>Edit…</strong> next to a change removes
+it and opens its form again on the links it aimed at (selected by id, so a query selection comes back as the ids it
+resolved to): change the form and <strong>Add to card</strong> to put it back, at the end of the draft. Reordering changes is not
+supported.</p>
+<p>Core and the plugin each undo only their own edits. Core&rsquo;s <strong>Undo</strong> won&rsquo;t take back a card change, and the plugin&rsquo;s
+undo refuses when the network&rsquo;s newest edit is one you made yourself: undo that one first, in the <strong>Edit</strong> tab.</p>
+<h2 id="use-a-card-catalog">Use a card catalog<a class="headerlink" href="#use-a-card-catalog" title="Permanent link"> ¶</a></h2>
+<p>A <strong>catalog</strong> is a folder of existing ProjectCard files you check against the open network, preview and apply —
+distinct from the draft you build above.</p>
+<ul>
+<li><strong>Open a catalog.</strong> In the <strong>Cards</strong> tab&rsquo;s <strong>Catalog</strong> section, give a folder path (inside <code>io.allowed_roots</code>)
+  and press <strong>Open</strong>, or set <code>[plugins.project_cards] catalog_dir</code> so it opens automatically when the session
+  starts (see the <a href="../../reference/settings/">Settings reference</a>). The folder is
+  scanned non-recursively, plus one level of sub-folders, for <code>.yml</code> / <code>.yaml</code> / <code>.json</code> card files; files that
+  are not cards are listed with why not. <strong>Refresh</strong> rescans (new, changed and removed files).</li>
+<li><strong>Does it fit?</strong> Each listed card has a status pill, and the section&rsquo;s heading names the network they were
+  checked against (&ldquo;Catalog · checked against leavenworth&rdquo;). A green <strong>Fits this network</strong> pill means the card
+  applies cleanly to the network as it is now (<code>warn</code> and <code>skip</code> conflicts still fit; hover for the warning). A red
+  <strong>Doesn&rsquo;t fit</strong> pill has its first reason beside it in small text, and every reason in its tooltip: &ldquo;missing link
+  999999&rdquo;, &ldquo;conflict: lanes: expected 1, found 2 on 1 of 1 links&rdquo; (a property&rsquo;s <code>existing</code> value differs and the card
+  says <code>existing_value_conflict: error</code>), &ldquo;already applied on leavenworth at 10:15&rdquo; (with <code>enable_apply</code> on), or why
+  a change can&rsquo;t be applied. A gray <strong>Not checked</strong> pill has a check button beside it; the panel also checks up to 50
+  unchecked cards per request. A query selection with no netstead provenance reads and
+  lists fine, but is refused when applying: &ldquo;query without provenance; re-resolution not supported&rdquo;.</li>
+<li><strong>Show as table</strong> (the table icon beside the folder) opens the catalog in the table pane as the read-only
+  <strong>Cards catalog</strong> table (listed under &ldquo;Plugins&rdquo; in the table rail): one row per card with <code>card_id</code>, <code>project</code>,
+  <code>tags</code>, <code>change_count</code>, <code>change_types</code>, <code>fits</code>, <code>reason</code>, <code>links_targeted</code> and <code>modified</code>. Sort it by any column
+  and filter it with the column funnels (<strong>any of</strong> on <code>tags</code> picks the cards with a tag); clicking a row brings the
+  Cards tab forward with that card marked. The table follows the catalog: a rescan, a check or a file action reads
+  it again.</li>
+<li><strong>Preview</strong> shows every change of the card on a copy of the network (as in step 4 above) and highlights the
+  links and nodes it targets on the map, so you can see what it touches before committing to it.</li>
+<li><strong>Apply…</strong> (only when <code>[plugins.project_cards] enable_apply = true</code>; it is off by default, and
+  <code>project_cards.apply_card</code> is refused while it is) applies the card to the network, all or nothing, through the
+  same path as a draft change — no file
+  is written, since the card already exists. Its dialog offers <strong>If a current value differs when the card is
+  applied</strong> (<code>existing_value_conflict</code>: error / warn / skip) and, for a card that doesn&rsquo;t fit, <strong>ignore missing ids</strong>: with it
+  checked, a missing id is skipped and listed instead of refusing the whole card.</li>
+<li><strong>This session</strong> lists what this session did with cards, newest first, each with an icon, a verb and the time:
+  <strong>Saved <file></strong> for a draft committed to a file, <strong>Renamed</strong>, <strong>Duplicated</strong>, <strong>Deleted</strong>, <strong>Restored</strong> and
+  <strong>Edited the metadata of</strong> for the catalog file actions, and <strong>Applied <card> to <network></strong> when <code>enable_apply</code>
+  is on. Saving a card does not apply it to anything: its changes were already on the network as the draft.</li>
+<li><strong>Session summary</strong> builds a plain-text summary (network, source, spec version; the applied cards with their
+  edit ids; the draft, if any; and this plugin&rsquo;s actions in order, each ok or failed) with <strong>Copy</strong> and
+  <strong>Download</strong> buttons. <code>GET /api/plugins/project_cards/summary.txt</code> serves the same text.</li>
+</ul>
+<h3 id="edit-a-card">Edit a card<a class="headerlink" href="#edit-a-card" title="Permanent link"> ¶</a></h3>
+<p><strong>Edit</strong>, on a catalog card, loads it into the open network&rsquo;s draft: every change of the card is applied, as
+<strong>Import</strong> does (all or nothing), and the draft takes the card&rsquo;s project, tags, dependencies and notes. The draft
+remembers the card&rsquo;s file (&ldquo;Editing main.yml (…)&rdquo;) and the commit fields are filled in with the card&rsquo;s. Then edit
+the draft: <strong>Remove</strong> or <strong>Edit…</strong> its changes, or add new ones (see <a href="#undo">Undo</a>).</p>
+<ul>
+<li>If the draft already has uncommitted changes, Edit asks first: <strong>Replace the draft</strong> undoes them (network edits
+  included) and loads the card instead.</li>
+<li>Edit applies the card to the network, so it needs a network the card applies to (a <strong>Fits this network</strong> pill). A card committed
+  in this session is already on its network: reopen the network (or open another copy) to edit it.</li>
+<li><strong>Commit…</strong> then offers <strong>Save over main.yml</strong> (replace the card&rsquo;s file) or <strong>Save as new file</strong> (the <strong>Card
+  file</strong> field, which must name another file; an existing one is replaced only with <strong>Replace an existing file</strong>).
+  The catalog is rescanned after either.</li>
+</ul>
+<p>From Python: <code>project_cards.edit_card(card_id, replace_draft=False)</code> and <code>project_cards.remove_change(index)</code>.</p>
+<h3 id="manage-the-catalogs-files">Manage the catalog&rsquo;s files<a class="headerlink" href="#manage-the-catalogs-files" title="Permanent link"> ¶</a></h3>
+<p>Each catalog card&rsquo;s row of icon buttons (hover one for its name) ends with four file actions; <strong>Details</strong> shows the
+card&rsquo;s path. Each one is a recorded Action, listed in
+the session summary under <strong>Catalog files</strong>; the catalog is rescanned after it. They change files, not the network,
+and the assistant is not offered them.</p>
+<ul>
+<li><strong>Rename…</strong> gives the file a new name in the catalog folder (or <code>sub/name.yml</code>, one sub-folder down). A name
+  without a suffix keeps the card&rsquo;s. An existing file with other content is replaced only when <strong>Replace an existing
+  file</strong> is ticked.</li>
+<li><strong>Duplicate</strong> copies the file, byte for byte, to <code>&lt;name&gt;-copy.yml</code> (<code>-copy-2</code>, … when that is taken).</li>
+<li><strong>Edit metadata…</strong> changes the card&rsquo;s project name, tags and dependencies (prerequisites, corequisites,
+  conflicts; comma separated). Only those keys of the file change; its changes and notes stay as they are, though
+  YAML comments are not kept.</li>
+<li><strong>Delete</strong> moves the file to a <code>.trash</code> folder inside the catalog folder; nothing is deleted for good. The status
+  line offers <strong>Undo delete</strong>, which moves it back (<code>project_cards.restore_card</code>). Empty <code>.trash</code> yourself when you
+  are sure.</li>
+</ul>
+<p>Every new or rewritten file stays inside <code>io.allowed_roots</code> and the catalog folder (nothing hidden, at most one
+sub-folder down), and the card is validated with <code>projectcard</code> before it is written: a card <code>projectcard</code> rejects is
+not renamed, copied or rewritten.</p>
+<h3 id="inspect-a-card">Inspect a card<a class="headerlink" href="#inspect-a-card" title="Permanent link"> ¶</a></h3>
+<p><strong>Inspect</strong>, on a catalog card or under the draft, opens a read-only view of the card:</p>
+<ul>
+<li>its <strong>Project</strong>, <strong>Tags</strong>, <strong>Dependencies</strong> (prerequisites, corequisites, conflicts), <strong>Notes</strong> and <strong>File</strong>;</li>
+<li>each change, numbered, with its type, its facility (&ldquo;links 1, 2&rdquo;, or <code>links matching {"name":["Benton Street"]}</code>
+  with the number of links it resolved to), its property changes as existing → new (&ldquo;lanes: 1 → 2&rdquo;, &ldquo;lanes: 1 →
+  change by +1&rdquo;) and whether it applies to the open network (&ldquo;Applies: 2 records found&rdquo;, &ldquo;0 found; missing 999999&rdquo;,
+  or the reason it can&rsquo;t be applied). The draft&rsquo;s changes are already on its network: &ldquo;In the draft: applied to …&rdquo;.</li>
+</ul>
+<p>Click a change to highlight its links on the map. The map does not zoom to them: the Workbench gives plugins no
+camera control yet, so pan to them yourself (or use <strong>Find</strong> to zoom to a link). <strong>YAML</strong> shows the card&rsquo;s text: the
+file itself for a catalog card, the YAML a commit would write for the draft. <strong>Close</strong> clears the highlights.
+Inspecting changes nothing; <code>GET /api/plugins/project_cards/card?card_id=&lt;id&gt;</code> (or <code>?draft=true</code>) serves the same
+view as JSON.</p>
+<p>From Python: <code>project_cards.open_catalog(path)</code>, <code>project_cards.refresh_catalog()</code>, <code>project_cards.check_card
+(card_id)</code>, <code>project_cards.preview_card(card_id)</code>, <code>project_cards.apply_card(card_id, existing_value_conflict=
+..., ignore_missing=...)</code> and <code>project_cards.session_summary()</code> — see <a href="#from-python">From Python</a> below for the
+Action names. Needs Host API 1.7 (<code>host.readable</code>, <code>host.list_dir</code>, <code>host.history</code>).</p>
+<h3 id="import-a-card">Import a card<a class="headerlink" href="#import-a-card" title="Permanent link"> ¶</a></h3>
+<p>Under <strong>Import a card</strong>, give the path of a card or edit log, then press <strong>Import</strong>. The path must be inside
+<code>io.allowed_roots</code>. Every change in the file is applied to the network and added to the draft, all or nothing: if
+one fails, none are applied, and the message names the one that failed (&ldquo;change 2 of 2: …&rdquo;). An empty draft takes
+the card&rsquo;s project, tags, dependencies and notes.</p>
+<p>Import reads YAML and JSON cards. The edit log that the offline validation report&rsquo;s &ldquo;Fix locally&rdquo; editor downloads
+(see <a href="../fix-findings/">Triage and fix findings</a>) is one: each fix is a picked id with <code>ignore_missing: false</code>, and its
+<code>netstead.note[&lt;i&gt;]</code> line becomes the change&rsquo;s note. Edit logs written before netstead 2026-10-20 are not
+schema-valid (the facility holds <code>model_link_id</code> at the top level, and each change carries its own <code>notes</code>); import
+still reads them, and each of those notes becomes the change&rsquo;s note, written into the card&rsquo;s notes on commit.</p>
+<p>Import refuses:</p>
+<ul>
+<li><strong>Scoped (time-of-day) values</strong>, in an added record or as a <code>scoped</code> property change.</li>
+<li><strong>TOML cards</strong>: <code>projectcard</code> 0.3.3 can&rsquo;t read them. Use YAML or JSON.</li>
+<li><strong>Transit changes</strong>, <code>pycode</code> and <code>roadway_managed_lanes</code>.</li>
+<li><strong>A query selection without netstead provenance.</strong> A card that selects links by a query (<code>name</code>, <code>ref</code>, …) is
+  applied to the link ids recorded in its notes, so only cards that the plugin wrote can be imported this way. One
+  with no provenance reads fine (it is an unresolved selection), but import and apply refuse the change: &ldquo;query
+  without provenance; re-resolution not supported&rdquo;. Re-resolving a query on another version of the network is
+  planned for later.</li>
+<li><strong>A deletion that doesn&rsquo;t select by id</strong> (<code>model_link_id</code> / <code>model_node_id</code>).</li>
+</ul>
+<h2 id="what-goes-in-the-card">What goes in the card<a class="headerlink" href="#what-goes-in-the-card" title="Permanent link"> ¶</a></h2>
+<p>The card uses network_wrangler&rsquo;s names. GMNS names map to them through a data file,
+<code>netstead_project_cards/mappings/gmns_to_wrangler.yaml</code> (<code>link_id</code> → <code>model_link_id</code>, <code>from_node_id</code> → <code>A</code>,
+<code>to_node_id</code> → <code>B</code>, <code>facility_type</code> → <code>roadway</code>). A column it doesn&rsquo;t list keeps its GMNS name.</p>
+<table>
+<thead>
+<tr>
+<th>You did</th>
+<th>The card says</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Picked links (click or box), as a <strong>Link list</strong> in GMNS ids</td>
+<td><code>facility: {links: {model_link_id: [...], ignore_missing: false}}</code></td>
+</tr>
+<tr>
+<td>Selected by a request (&ldquo;Pine Street between Orchard Street and Central Avenue&rdquo;), as a <strong>Segment</strong></td>
+<td><code>facility: {links: {name: [Pine Street], ignore_missing: true}, from: {model_node_id: 33}, to: {model_node_id: 19}}</code>, plus a <code>netstead.resolved[&lt;i&gt;]</code> line in the card&rsquo;s <code>notes</code></td>
+</tr>
+<tr>
+<td>Either, in OpenStreetMap ids</td>
+<td><code>facility: {links: {osm_link_id: ['5846369'], ignore_missing: false}}</code> (Link list), or the Segment with <code>from: {osm_node_id: '46999094'}</code> and <code>to: {osm_node_id: '46993874'}</code></td>
+</tr>
+<tr>
+<td>Deleted links</td>
+<td><code>roadway_deletion</code> by id: <code>ignore_missing: false</code> for picked links, the query&rsquo;s own flag for links a request selected; <strong>Also delete end nodes</strong> is <code>clean_nodes: true</code></td>
+</tr>
+<tr>
+<td>Added a link</td>
+<td><code>roadway_addition</code> in network_wrangler&rsquo;s names, with <code>walk_access</code>, <code>bike_access</code> and <code>drive_access</code> derived from <code>allowed_uses</code></td>
+</tr>
+<tr>
+<td>Wrote a note</td>
+<td>a <code>netstead.note[&lt;i&gt;]</code> line in the card&rsquo;s <code>notes</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="segment-or-link-list-and-the-id-system">Segment or Link list, and the id system<a class="headerlink" href="#segment-or-link-list-and-the-id-system" title="Permanent link"> ¶</a></h3>
+<p>A change&rsquo;s facility is written in exactly one of two forms, never a mix, chosen in the change form (and by the
+<code>facility_form</code> and <code>id_system</code> fields of <code>project_cards.add_change</code> and <code>project_cards.preview</code>). The two choices are
+the Find tab&rsquo;s, with the same ID system choice:</p>
+<ul>
+<li><strong>Segment</strong>: the facility by <code>name</code> or <code>ref</code> with the <code>from</code> and <code>to</code> nodes. A re-import can find it again on
+  another version of the network. It is the default for a selection made by a request that names a facility, and it
+  is disabled, with the reason as its tooltip, for a click or box selection, which has no name (&ldquo;This selection has
+  no named segment; use Link list&rdquo;).</li>
+<li><strong>Link list</strong>: only ids. It is the default for clicked or box-selected links.</li>
+</ul>
+<p>The <strong>ID system</strong> is <strong>GMNS</strong> (<code>model_link_id</code>, <code>model_node_id</code>, the default) or <strong>OpenStreetMap</strong> (<code>osm_link_id</code>,
+<code>osm_node_id</code>, written as text as ProjectCard has them). OpenStreetMap needs the network&rsquo;s <code>osm_way_id</code> and
+<code>osm_node_id</code> columns, and a selected link with no OSM id refuses it. One OSM way can be split into several links, so a
+Link list in OSM ids applies to <strong>every</strong> link of those ways, not only the selected ones: the form says so (&ldquo;OSM way
+5846369 also covers 11 links outside this selection&rdquo;) and the change applies to all of them. <strong>Overture GERS</strong> is
+disabled with the reason &ldquo;ProjectCard has no key for GERS ids&rdquo;; asking for it from Python is refused the same way. A
+deletion takes GMNS link ids only.</p>
+<p>The draft and the Inspect view say which was used, per change: <code>Segment: Pine Street, node 33 → 19 (GMNS)</code>,
+<code>Link list: 1 OSM way (OpenStreetMap)</code>.</p>
+<p>On import and in the catalog&rsquo;s fit check an OSM Link list is resolved on the open network, <code>osm_link_id</code> against the
+link table&rsquo;s <code>osm_way_id</code> (all links that carry it) and <code>osm_node_id</code> against the node table&rsquo;s: an id the network
+lacks is listed as missing (<code>OSM way 999</code>) and refuses the card unless <code>ignore_missing</code> is <code>true</code>. A Segment is
+applied to the links its provenance line recorded.</p>
+<h3 id="provenance-notes">Provenance notes<a class="headerlink" href="#provenance-notes" title="Permanent link"> ¶</a></h3>
+<p>A ProjectCard change has no field for extra information, so the plugin keeps it in the card&rsquo;s top-level <code>notes</code>,
+one line per item, numbered by the change&rsquo;s position (from 0):</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">notes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|-</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="no">Ski season fixes</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="no">netstead.note[0]: issue 42: two lanes</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="no">netstead.resolved[1]: model_link_id=[1, 5, 6, 8]</span>
+</span></code></pre></div>
+<ul>
+<li><code>netstead.resolved[&lt;i&gt;]: model_link_id=[...]</code> records the links that Segment <code>i</code> matched when you made the
+  change (in GMNS ids, even when the Segment names its nodes in OpenStreetMap ids). Import applies the Segment to these
+  ids. A Link list needs no such line.</li>
+<li><code>netstead.note[&lt;i&gt;]: …</code> is change <code>i</code>&rsquo;s <strong>Why</strong>, on one line.</li>
+</ul>
+<p>The rest of the notes are yours: the commit&rsquo;s <code>notes</code> field, from Python or the assistant. Import reads the provenance lines back and keeps the
+other lines as the card&rsquo;s notes.</p>
+<h3 id="ignore_missing"><code>ignore_missing</code><a class="headerlink" href="#ignore_missing" title="Permanent link"> ¶</a></h3>
+<p><code>ignore_missing</code> says what network_wrangler does when a selected record is not in the network: fail (<code>false</code>) or
+skip it (<code>true</code>).</p>
+<ul>
+<li><strong>Picked links</strong> are written by id with <code>ignore_missing: false</code>. A fix aimed at specific links should fail loudly
+  when one of them is gone.</li>
+<li><strong>A query selection</strong> keeps the query&rsquo;s own <code>ignore_missing</code>, which is <code>true</code> (network_wrangler&rsquo;s default) when
+  the query has none. The plugin applies it now too: a resolved id the network no longer has is skipped and listed,
+  instead of refusing the change.</li>
+<li><strong>Deletions</strong> are written by id (the links the selection resolved to). Picked links get <code>ignore_missing: false</code>;
+  links a query selected keep the query&rsquo;s flag, so with <code>true</code> a resolved link that is gone is skipped and listed,
+  as for a property change. A deletion&rsquo;s nodes always get <code>false</code>.</li>
+<li><strong>Reading a card</strong>, a selector without <code>ignore_missing</code> reads as <code>true</code>. A deletion keeps its links&rsquo; flag; its
+  nodes&rsquo; flag is dropped and written back as <code>false</code>. The offline edit log&rsquo;s ids read as <code>false</code>.</li>
+</ul>
+<h2 id="from-python">From Python<a class="headerlink" href="#from-python" title="Permanent link"> ¶</a></h2>
+<p>Each step is a recorded Action in the session history, so <strong>Copy as Python</strong> in the history strip replays it. The
+copied lines import from <code>netstead_project_cards.actions</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>project_cards.add_change</code> (<code>AddChange</code>)</td>
+<td>Apply one change and add it to the network&rsquo;s draft.</td>
+</tr>
+<tr>
+<td><code>project_cards.undo_change</code> (<code>UndoChange</code>)</td>
+<td>Undo the draft&rsquo;s last change.</td>
+</tr>
+<tr>
+<td><code>project_cards.remove_change</code> (<code>RemoveChange</code>)</td>
+<td>Remove any change of the draft (the later ones are re-applied).</td>
+</tr>
+<tr>
+<td><code>project_cards.preview</code> (<code>PreviewChange</code>)</td>
+<td>Preview a change on a copy of the network.</td>
+</tr>
+<tr>
+<td><code>project_cards.close_preview</code> (<code>ClosePreview</code>)</td>
+<td>Close the preview.</td>
+</tr>
+<tr>
+<td><code>project_cards.commit</code> (<code>CommitCard</code>)</td>
+<td>Write the draft as a card file and start a new draft.</td>
+</tr>
+<tr>
+<td><code>project_cards.import</code> (<code>ImportCard</code>)</td>
+<td>Apply a card or edit log to the draft, all or nothing.</td>
+</tr>
+<tr>
+<td><code>project_cards.edit_card</code> (<code>EditCard</code>)</td>
+<td>Load a catalog card into the draft to edit it, remembering its file.</td>
+</tr>
+<tr>
+<td><code>project_cards.open_catalog</code> (<code>OpenCatalog</code>)</td>
+<td>Open a folder of card files as the catalog.</td>
+</tr>
+<tr>
+<td><code>project_cards.refresh_catalog</code> (<code>RefreshCatalog</code>)</td>
+<td>Rescan the open catalog&rsquo;s folder.</td>
+</tr>
+<tr>
+<td><code>project_cards.check_card</code> (<code>CheckCard</code>)</td>
+<td>Check whether a catalog card applies to the network now, without changing anything.</td>
+</tr>
+<tr>
+<td><code>project_cards.preview_card</code> (<code>PreviewCard</code>)</td>
+<td>Preview a catalog card&rsquo;s changes on a copy of the network.</td>
+</tr>
+<tr>
+<td><code>project_cards.apply_card</code> (<code>ApplyCard</code>)</td>
+<td>Apply a catalog card to the network, all or nothing; record it as applied.</td>
+</tr>
+<tr>
+<td><code>project_cards.rename_card</code> (<code>RenameCard</code>)</td>
+<td>Rename a catalog card&rsquo;s file.</td>
+</tr>
+<tr>
+<td><code>project_cards.duplicate_card</code> (<code>DuplicateCard</code>)</td>
+<td>Copy a catalog card to <code>&lt;name&gt;-copy.yml</code> (or a name you give).</td>
+</tr>
+<tr>
+<td><code>project_cards.delete_card</code> (<code>DeleteCard</code>)</td>
+<td>Move a catalog card&rsquo;s file to the catalog&rsquo;s <code>.trash</code> folder.</td>
+</tr>
+<tr>
+<td><code>project_cards.restore_card</code> (<code>RestoreCard</code>)</td>
+<td>Move a deleted card back from <code>.trash</code>.</td>
+</tr>
+<tr>
+<td><code>project_cards.update_card_meta</code> (<code>UpdateCardMeta</code>)</td>
+<td>Change a catalog card&rsquo;s project, tags and dependencies.</td>
+</tr>
+<tr>
+<td><code>project_cards.session_summary</code> (<code>SessionSummary</code>)</td>
+<td>The session summary as plain text.</td>
+</tr>
+</tbody>
+</table>
+<p><code>session.dispatch</code> (or its alias <code>app.do</code>) runs them. A change targets the shared selection (<code>use_selection=True</code>),
+a saved selection (<code>saved_selection="&lt;name&gt;"</code>, Python and the assistant only), or names its own facility. This
+example opens the Leavenworth fixture, sets link 1 to two lanes, undoes a second change and commits the card to a
+temporary folder. <code>plugins=[plugin()]</code> installs just this plugin; a <code>Session()</code> without it loads every installed
+plugin, as <code>netstead app</code> does:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">tempfile</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">netstead.fixtures</span><span class="w"> </span><span class="kn">import</span> <span class="n">leavenworth</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="kn">from</span><span class="w"> </span><span class="nn">netstead.workbench</span><span class="w"> </span><span class="kn">import</span> <span class="n">OpenNetwork</span><span class="p">,</span> <span class="n">Select</span><span class="p">,</span> <span class="n">Session</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="kn">from</span><span class="w"> </span><span class="nn">netstead_project_cards</span><span class="w"> </span><span class="kn">import</span> <span class="n">plugin</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="kn">from</span><span class="w"> </span><span class="nn">netstead_project_cards.actions</span><span class="w"> </span><span class="kn">import</span> <span class="n">AddChange</span><span class="p">,</span> <span class="n">CommitCard</span><span class="p">,</span> <span class="n">UndoChange</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="kn">from</span><span class="w"> </span><span class="nn">netstead_project_cards.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">PropertyChange</span><span class="p">,</span> <span class="n">RoadwayPropertyChange</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="n">fixture</span><span class="p">,</span> <span class="n">out</span> <span class="o">=</span> <span class="n">leavenworth</span><span class="o">.</span><span class="n">parquet_dir</span><span class="p">(),</span> <span class="n">Path</span><span class="p">(</span><span class="n">tempfile</span><span class="o">.</span><span class="n">mkdtemp</span><span class="p">())</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="n">roots</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;io.allowed_roots&quot;</span><span class="p">:</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">out</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="n">fixture</span><span class="o">.</span><span class="n">parent</span><span class="p">)]}</span>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="n">app</span> <span class="o">=</span> <span class="n">Session</span><span class="p">(</span><span class="n">project_dir</span><span class="o">=</span><span class="n">out</span><span class="p">,</span> <span class="n">overrides</span><span class="o">=</span><span class="n">roots</span><span class="p">,</span> <span class="n">plugins</span><span class="o">=</span><span class="p">[</span><span class="n">plugin</span><span class="p">()])</span>
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="n">app</span><span class="o">.</span><span class="n">dispatch</span><span class="p">(</span><span class="n">OpenNetwork</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">fixture</span><span class="p">)))</span>
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="n">app</span><span class="o">.</span><span class="n">dispatch</span><span class="p">(</span><span class="n">Select</span><span class="p">(</span><span class="n">link_ids</span><span class="o">=</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="n">lanes</span> <span class="o">=</span> <span class="n">RoadwayPropertyChange</span><span class="p">(</span><span class="n">property_changes</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;lanes&quot;</span><span class="p">:</span> <span class="n">PropertyChange</span><span class="p">(</span><span class="n">existing</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="nb">set</span><span class="o">=</span><span class="mi">2</span><span class="p">)},</span> <span class="n">note</span><span class="o">=</span><span class="s2">&quot;issue 42&quot;</span><span class="p">)</span>
+</span><span id="__span-2-16"><a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="n">app</span><span class="o">.</span><span class="n">dispatch</span><span class="p">(</span><span class="n">AddChange</span><span class="p">(</span><span class="n">use_selection</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">change</span><span class="o">=</span><span class="n">lanes</span><span class="p">))</span>
+</span><span id="__span-2-17"><a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="n">app</span><span class="o">.</span><span class="n">dispatch</span><span class="p">(</span><span class="n">AddChange</span><span class="p">(</span><span class="n">use_selection</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">change</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;roadway_property_change&quot;</span><span class="p">,</span>
+</span><span id="__span-2-18"><a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>                                                   <span class="s2">&quot;property_changes&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;free_speed&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;change&quot;</span><span class="p">:</span> <span class="o">-</span><span class="mi">5</span><span class="p">}}}))</span>
+</span><span id="__span-2-19"><a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="n">app</span><span class="o">.</span><span class="n">dispatch</span><span class="p">(</span><span class="n">UndoChange</span><span class="p">())</span>  <span class="c1"># takes back the free_speed change</span>
+</span><span id="__span-2-20"><a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="n">result</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">dispatch</span><span class="p">(</span><span class="n">CommitCard</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">out</span> <span class="o">/</span> <span class="s2">&quot;link-1-lanes.yml&quot;</span><span class="p">),</span> <span class="n">project</span><span class="o">=</span><span class="s2">&quot;Link 1 lanes&quot;</span><span class="p">,</span> <span class="n">confirm_warnings</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+</span><span id="__span-2-21"><a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">&quot;card_id&quot;</span><span class="p">],</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;changes&quot;</span><span class="p">])</span>  <span class="c1"># link-1-lanes 1</span>
+</span></code></pre></div>
+<p>A change can be a model, as for <code>lanes</code>, or a plain dict, as in the copied lines. <code>confirm_warnings=True</code> stands in
+for the dialog&rsquo;s confirmation: without it, a network with live edit warnings refuses the commit. The written file
+loads with <code>projectcard</code>&rsquo;s own reader:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">projectcard</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="nb">print</span><span class="p">(</span><span class="n">projectcard</span><span class="o">.</span><span class="n">read_card</span><span class="p">(</span><span class="n">out</span> <span class="o">/</span> <span class="s2">&quot;link-1-lanes.yml&quot;</span><span class="p">,</span> <span class="n">validate</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">project</span><span class="p">)</span>  <span class="c1"># Link 1 lanes</span>
+</span></code></pre></div>
+<p>Selecting by a request needs a language model (see <a href="../workbench/">Explore in the Workbench</a>). Preview and import
+work the same way:</p>
+<!-- doctest: skip -->
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">netstead_project_cards.actions</span><span class="w"> </span><span class="kn">import</span> <span class="n">ClosePreview</span><span class="p">,</span> <span class="n">ImportCard</span><span class="p">,</span> <span class="n">PreviewChange</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">app</span><span class="o">.</span><span class="n">dispatch</span><span class="p">(</span><span class="n">Select</span><span class="p">(</span><span class="n">utterance</span><span class="o">=</span><span class="s2">&quot;Benton Street&quot;</span><span class="p">))</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">app</span><span class="o">.</span><span class="n">dispatch</span><span class="p">(</span><span class="n">PreviewChange</span><span class="p">(</span><span class="n">use_selection</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">change</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;roadway_deletion&quot;</span><span class="p">}))</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="n">app</span><span class="o">.</span><span class="n">dispatch</span><span class="p">(</span><span class="n">ClosePreview</span><span class="p">())</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="n">app</span><span class="o">.</span><span class="n">dispatch</span><span class="p">(</span><span class="n">ImportCard</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="s2">&quot;cards/edit-log.yaml&quot;</span><span class="p">))</span>
+</span></code></pre></div>
+<p>Over HTTP, <code>POST /api/actions</code> takes the same Actions as JSON (<code>{"type": "project_cards.add_change", ...}</code>). The
+panel also reads routes: <code>GET /api/plugins/project_cards/form</code> (the form for a change type on the selection),
+<code>GET /api/plugins/project_cards/commit-check</code> (the warnings, problems and YAML the commit dialog shows), <code>/catalog</code>
+(the open catalog), <code>/card</code> (the Inspect view) and <code>/summary.txt</code>. All only read.</p>
+<p>The library behind the Actions is usable on its own: <code>DraftCard</code> builds a card from the change model and writes it
+with <code>to_yaml()</code>, <code>read_card_file</code> reads one back, and <code>netstead_project_cards.validate.card_problems</code> runs
+<code>projectcard</code>&rsquo;s validator.</p>
+<h2 id="with-the-assistant">With the assistant<a class="headerlink" href="#with-the-assistant" title="Permanent link"> ¶</a></h2>
+<p>The assistant offers a plugin&rsquo;s Actions only when you opt in. In <strong>Settings → Assistant: actions &amp; plugins</strong>, or in
+<code>~/.config/netstead/config.toml</code>:</p>
+<div class="language-toml highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">[assistant]</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">plugins</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;project_cards&quot;</span><span class="p">]</span>
+</span></code></pre></div>
+<p><code>plugins</code> is the opt-in. With a model on this machine (Ollama), the default <code>compact_tools = "auto"</code> gives it a smaller
+set of tools. That set includes adding, undoing and previewing a change and closing the preview, but not committing
+or importing, which need a file path. To draft those with a local model as well, set <code>compact_tools = "off"</code>.</p>
+<p>Every <code>project_cards</code> Action changes a network, opens or closes a preview, or writes a file, so the assistant
+drafts each one for you to approve. Nothing runs until you do. A drafted change made while a preview was open is
+refused as stale if the previewed network has changed since.</p>
+<h2 id="pitfalls">Pitfalls<a class="headerlink" href="#pitfalls" title="Permanent link"> ¶</a></h2>
+<ul>
+<li><strong>Roadway only.</strong> Transit change types answer &ldquo;not yet supported&rdquo; in the palette, the Actions and the
+  assistant. <code>roadway_managed_lanes</code> and <code>pycode</code> are not supported either.</li>
+<li><strong>One number or text per property.</strong> A card can&rsquo;t set a property to empty (clear a cell with a core edit
+  instead) or to a list. <code>true</code> / <code>false</code> are written as <code>1</code> / <code>0</code>. Scoped (time-of-day) values are not supported.</li>
+<li><strong>A change must be a valid ProjectCard before it is applied.</strong> For example, a request that names both a street and
+  a route number gives a query that ProjectCard doesn&rsquo;t allow, so <strong>Add to card</strong> refuses it: select by one of them.</li>
+<li><strong>An added record&rsquo;s fields must be columns the network has.</strong> A field with no column answers &ldquo;not yet
+  supported&rdquo;.</li>
+<li><strong>A draft lives in the Workbench session.</strong> Closing the network or the app drops its draft. The network&rsquo;s edits
+  stay pending until you save or discard them. Commit to keep the card.</li>
+<li><strong>A change that applies nothing is refused</strong>, for example a query whose links are all gone with
+  <code>ignore_missing: true</code>, or every property skipped by <code>skip</code>.</li>
+<li><strong>Importing a query needs provenance.</strong> See <a href="#import-a-card">Import a card</a>.</li>
+<li><strong>The panel works on the shared selection.</strong> To use a saved selection, select it first, or use
+  <code>saved_selection</code> from Python or the assistant.</li>
+<li><strong>A committed card&rsquo;s id is not written to the network&rsquo;s lineage.</strong> It is listed in the plugin&rsquo;s state
+  (<code>plugins.project_cards.committed</code>) for the session.</li>
+</ul>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link"> ¶</a></h2>
+<ul>
+<li><a href="../workbench/">Explore in the Workbench</a>: selection, edits, the Edit tab, saving.</li>
+<li><a href="../workbench-plugins/">Write a Workbench plugin</a>: the plugin API this plugin is built on.</li>
+<li><a href="../fix-findings/">Triage and fix findings</a>: the offline report&rsquo;s edit log.</li>
+<li><a href="https://github.com/network-wrangler/projectcard">projectcard</a>: the ProjectCard schema and validator.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-circle-arrow-up" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V8"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog" role="status" aria-atomic="true">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      
+      
+        
+        
+      <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["navigation.tabs","navigation.tabs.sticky","navigation.sections","navigation.indexes","navigation.top","navigation.tracking","toc.follow","content.code.copy","content.code.annotate","content.tabs.link","content.tooltips","content.action.edit","content.action.view","search.suggest","search.highlight","search.share"],"redirect":null,"search":"../../assets/javascripts/workers/search.719e0d91.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.3cb411a8.min.js"></script>
+      
+    
+  </body>
+</html>
