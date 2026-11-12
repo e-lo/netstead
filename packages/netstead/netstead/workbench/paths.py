@@ -33,6 +33,7 @@ __all__ = [
     "local_locator",
     "open_locator",
     "resolve_allowed",
+    "resolve_readable",
     "split_source",
 ]
 
@@ -138,6 +139,20 @@ def _bundled(path: str) -> bool:
         return is_bundled_example(_resolve(path))
     except PathNotAllowed:
         return False
+
+
+def resolve_readable(path: str | Path, settings: Settings) -> Path:
+    """Like :func:`resolve_allowed`, for reading: a bundled sample ProjectCard catalog's folder and files also pass.
+
+    Only the folders of :func:`netstead.workbench.examples.sample_catalogs` qualify, never their parents; nothing here
+    makes them writable (see ``Host.writable``).
+    """
+    candidate = _resolve(path)
+    if _inside(candidate, allowed_roots(settings)):
+        return candidate
+    from .examples import in_sample_catalog  # deferred, like _bundled: it loads the fixtures
+
+    return candidate if in_sample_catalog(candidate) else resolve_allowed(path, settings)
 
 
 def allowed_roots(settings: Settings) -> list[Path]:

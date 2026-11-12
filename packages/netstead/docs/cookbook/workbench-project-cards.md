@@ -132,6 +132,15 @@ distinct from the draft you build above.
   starts (see the [Settings reference](../reference/settings.md)). The folder is
   scanned non-recursively, plus one level of sub-folders, for `.yml` / `.yaml` / `.json` card files; files that
   are not cards are listed with why not. **Refresh** rescans (new, changed and removed files).
+- **Try the sample catalog.** With the bundled Leavenworth example open, press **Sample cards (Leavenworth)**
+  under the folder path (it is the primary button when Leavenworth is the open network): nine small cards written
+  against the network's real ids open at once, with no folder to find and no `io.allowed_roots` entry needed. They
+  cover a road diet, a speed reduction, bike lanes, a Segment (`Front Street pedestrian improvements`), OpenStreetMap
+  ids, a closure, an added connector and a card with `dependencies`; eight fit, and one
+  (`Cedar Street road diet (stale baseline)`) is there to show a red **Doesn't fit** pill and its reason. Inspect,
+  Preview, **Show as table** and (with `enable_apply`) Apply all work on them. The catalog is read-only: renaming,
+  editing or deleting its files is refused ("This is a bundled sample catalog and cannot be changed here…"); copy
+  the folder (`netstead.fixtures.leavenworth.cards_dir()`) somewhere of your own and open that to change cards.
 - **Does it fit?** Each listed card has a status pill, and the section's heading names the network they were
   checked against ("Catalog · checked against leavenworth"). A green **Fits this network** pill means the card
   applies cleanly to the network as it is now (`warn` and `skip` conflicts still fit; hover for the warning). A red

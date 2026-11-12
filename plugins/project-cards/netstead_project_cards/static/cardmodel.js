@@ -189,6 +189,17 @@ export function commitView(check) {
 // The open catalog as state() reports it ({path, cards, rejected}), or null.
 export const catalogOf = state => cards(state).catalog || null;
 
+// The sample catalogs bundled with netstead ({id, name, path, network, cards}; Host API 1.9), each with whether it is
+// open now and whether it was written for `netId` (the open network: the panel then offers it first).
+export function sampleCatalogs(state, netId = null) {
+  const open = catalogOf(state);
+  return (cards(state).samples || []).map(sample => ({
+    ...sample,
+    isOpen: Boolean(open) && open.path === sample.path,
+    suggested: netId !== null && sample.network === netId,
+  }));
+}
+
 // Whether applying catalog cards is on (`[plugins.project_cards] enable_apply`; off by default).
 export const applyEnabled = state => Boolean(cards(state).enable_apply);
 

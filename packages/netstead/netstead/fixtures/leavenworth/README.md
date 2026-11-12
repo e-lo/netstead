@@ -98,11 +98,16 @@ print(leavenworth.parquet_dir())        # .../parquet/
 print(leavenworth.duckdb_path())        # .../leavenworth.duckdb
 print(leavenworth.zip_path())           # .../leavenworth.csv.zip
 print(leavenworth.DATAPACKAGE)          # .../datapackage.json
+print(leavenworth.cards_dir())          # .../cards/ (sample ProjectCards)
 
 # Quick load
 nodes = pd.read_csv(leavenworth.csv_dir() / "node.csv")
 links = pd.read_csv(leavenworth.csv_dir() / "link.csv")
 ```
+
+### Sample ProjectCards
+
+`cards/` holds a small catalog of nine [ProjectCards](https://network-wrangler.github.io/projectcard/) written against this network's real link and node ids (a road diet, a speed reduction, bike lanes, a Segment, OpenStreetMap ids, a closure, an added connector, a card with dependencies, and one that intentionally does not fit). `leavenworth.cards_dir()` returns the folder; see [`cards/README.md`](cards/README.md) for one line per card. In the Workbench, open them with **Sample cards (Leavenworth)** in the Cards panel's Catalog section (read-only; copy the folder to edit). Unlike the network tables, the cards are hand-written files, not build-script output, so they stay out of the regeneration steps above.
 
 To get a `Network` directly instead, use `leavenworth.load()` (CSV by default; `"parquet"` and `"duckdb"` also accepted).
 

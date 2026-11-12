@@ -1,0 +1,33 @@
+project: Nordic Circle connector
+tags:
+- year:2030
+- transit
+notes: 'netstead.note[0]: A new two-way link between nodes 91 and 115 (ids 340 and
+  341 are above the network''s highest, 339).'
+changes:
+- roadway_addition:
+    links:
+    - walk_access: 1
+      bike_access: 1
+      drive_access: 1
+      model_link_id: 340
+      A: 91
+      B: 115
+      name: Nordic Circle Connector
+      roadway: residential
+      lanes: 1
+      length: 66
+      free_speed: 30
+      allowed_uses: auto,transit,bike,walk
+    - walk_access: 1
+      bike_access: 1
+      drive_access: 1
+      model_link_id: 341
+      A: 115
+      B: 91
+      name: Nordic Circle Connector
+      roadway: residential
+      lanes: 1
+      length: 66
+      free_speed: 30
+      allowed_uses: auto,transit,bike,walk

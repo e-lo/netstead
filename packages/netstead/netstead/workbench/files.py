@@ -12,7 +12,7 @@ from typing import Any
 from netstead.config import Settings
 from netstead.overture.layout import is_local_snapshot
 
-from .paths import allowed_roots, resolve_allowed
+from .paths import allowed_roots, resolve_allowed, resolve_readable
 
 __all__ = ["MAX_ENTRIES", "detect_kind", "list_dir", "open_target"]
 
@@ -58,8 +58,10 @@ def _entry(path: Path) -> dict[str, Any]:
     }
 
 
-def list_dir(path: str | None, settings: Settings) -> dict[str, Any]:
+def list_dir(path: str | None, settings: Settings, *, sample_catalogs: bool = False) -> dict[str, Any]:
     """List ``path`` (or, when ``None``, the allowed roots themselves) as tagged entries, folders first.
+
+    With ``sample_catalogs``, a bundled sample ProjectCard catalog's folder is listable too (it has no ``parent``).
 
     Raises:
         PathNotAllowed: ``path`` resolves outside ``io.allowed_roots``.
@@ -69,7 +71,7 @@ def list_dir(path: str | None, settings: Settings) -> dict[str, Any]:
     if path is None:
         roots = [r for r in allowed_roots(settings) if r.is_dir()]
         return {"path": None, "parent": None, "entries": [_entry(r) for r in roots], "truncated": False}
-    folder = resolve_allowed(path, settings)
+    folder = (resolve_readable if sample_catalogs else resolve_allowed)(path, settings)
     if not folder.exists():
         raise FileNotFoundError(f"no such folder: {path}")
     if not folder.is_dir():
@@ -78,7 +80,9 @@ def list_dir(path: str | None, settings: Settings) -> dict[str, Any]:
         (p for p in folder.iterdir() if not p.name.startswith(".")),
         key=lambda p: (not p.is_dir(), p.name.lower()),
     )
-    parent = folder.parent if folder not in allowed_roots(settings) else None
+    roots = allowed_roots(settings)
+    inside = any(folder.is_relative_to(r) for r in roots)  # false for a bundled sample catalog: nothing above it opens
+    parent = folder.parent if inside and folder not in roots else None
     return {
         "path": str(folder),
         "parent": str(parent) if parent is not None else None,

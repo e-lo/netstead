@@ -850,6 +850,51 @@ def test_show_as_table_and_a_table_row_selects_its_card(run_js):
     assert got["gone"] == "gone.yml is not in the open catalog"
 
 
+SAMPLES_HARNESS = (
+    PANEL_SETUP
+    + """
+panels[0].render(root);
+const sample = { id: "leavenworth", name: "Sample cards (Leavenworth)", path: "/pkg/cards", network: "base", cards: 9 };
+const other = { id: "elsewhere", name: "Sample cards (Elsewhere)", path: "/pkg/other", network: "else", cards: 2 };
+const cardsState = extra => ({ project_cards: { drafts: {}, preview: null, applied: [],
+  samples: [sample, other], ...extra } });
+store.set({ server: { ...store.get().server, plugins: cardsState({ catalog: null }) } });
+await settle(); await settle();
+const catalogBox = elById(root, "pc-catalog"), status = elById(root, "pc-status");
+const samples = () => walk(catalogBox).filter(e => e.getAttribute("data-sample"));
+const got = { buttons: samples().map(b => [b.textContent, b.getAttribute("class"), b.disabled]) };
+got.empty = catalogBox.textContent.includes("or try the sample cards");
+await samples()[0].onclick();
+got.dispatched = calls.filter(c => c[0] === "dispatch" && c[1] === "project_cards.open_catalog");
+got.said = status.textContent;
+store.set({ server: { ...store.get().server, plugins: cardsState({ catalog: { ...CATALOG, path: sample.path } }) } });
+await settle(); await settle();
+got.afterOpen = samples().map(b => b.disabled);
+store.set({ server: { ...store.get().server,
+  plugins: { project_cards: { drafts: {}, preview: null, applied: [] } } } });
+await settle();
+got.none = samples().length;
+got.errors = calls.filter(c => c[0] === "error");
+console.log(JSON.stringify(got));
+"""
+)
+
+
+def test_the_panel_offers_each_sample_catalog_in_one_click(run_js):
+    got = run_js(FILES, SAMPLES_HARNESS)
+    assert got["errors"] == []
+    # the one written for the open network (id "base" here) is the primary button; the other is a ghost
+    assert got["buttons"] == [
+        ["Sample cards (Leavenworth)", "mini", False],
+        ["Sample cards (Elsewhere)", "mini ghost", False],
+    ]
+    assert got["empty"] is True
+    assert got["dispatched"] == [["dispatch", "project_cards.open_catalog"]]
+    assert got["said"].startswith("Opened Sample cards (Leavenworth)") and "read-only" in got["said"]
+    assert got["afterOpen"] == [True, False]  # the open one has nothing left to do
+    assert got["none"] == 0  # a host without sample catalogs (an older netstead) draws nothing
+
+
 FACILITY_FORM = "/api/plugins/project_cards/form"
 PINE = "Pine Street between Orchard Street and Central Avenue"
 

@@ -8,6 +8,18 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Added
 
+- **A sample ProjectCard catalog for the bundled Leavenworth network.** `netstead/fixtures/leavenworth/cards/` holds
+  nine small cards written against the network's real ids: a road diet, a speed reduction, bike lanes, a Segment with
+  its `netstead.resolved[i]` provenance note, OpenStreetMap ids (`osm_link_id`, `osm_node_id`), a closure, an added
+  connector, one with `dependencies`, and one that intentionally does not fit (to show "Doesn't fit" and its reason),
+  each tagged with a year and a theme, plus a `cards/README.md`. `netstead.fixtures.leavenworth.cards_dir()` returns the
+  folder, and the wheel includes it. The Workbench's Cards panel opens it in one click (**Sample cards (Leavenworth)**).
+- **Workbench plugin API 1.9: bundled sample catalogs.** `host.sample_catalogs()` lists the sample ProjectCard
+  catalogs bundled with netstead; `host.readable` and `host.list_dir` reach a catalog's folder (and the files directly
+  in it) even outside `io.allowed_roots`, as the Included examples reach their network folders, and `host.writable`
+  refuses it with "This is a bundled sample catalog and cannot be changed here…", whatever `io.allowed_roots` says.
+  Nothing else beside the catalog opens. Additive: a plugin written for 1.8 keeps working.
+
 - **Workbench layout: a left rail, a Details panel on the right, and a Layers & legend card on the map.** The
   side panel's tab strip is now a vertical icon rail on the far left (Find, Changes, Validate, Cards, Assistant;
   plugin panels below a divider). Clicking an icon opens its pane in a drawer; clicking the open icon closes it and

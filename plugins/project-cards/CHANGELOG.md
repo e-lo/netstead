@@ -12,6 +12,13 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
 
 ### Added
 
+- **Open the bundled Leavenworth sample catalog in one click.** The Cards panel's Catalog section has a **Sample
+  cards (Leavenworth)** button (the primary one when Leavenworth is the open network; read from `host.sample_catalogs()`,
+  so it needs Host API 1.9, which this version now requires). The nine cards open read-only from netstead's own files,
+  outside `io.allowed_roots`: Inspect, Preview, Show as table and Apply work, and renaming, editing metadata,
+  duplicating, deleting or committing into that folder is refused with "This is a bundled sample catalog and cannot be
+  changed here…". The plugin's state carries `samples`.
+
 - **Card facilities as a Segment or a Link list, in a chosen id system.** A property change's facility is built in
   exactly one of the two strict forms the Find tab exports: **Segment** (`name` / `ref` with `from` / `to`;
   re-resolvable, with the resolved ids kept in a `netstead.resolved[i]` note) or **Link list** (ids only), in GMNS

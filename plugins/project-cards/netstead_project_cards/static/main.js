@@ -7,7 +7,7 @@
 // in cardmodel.js, both tested under node. Card and user text is only ever set as text (`h`'s `text`, or a string
 // child), never parsed as markup.
 import {
-  ROADWAY_TYPES, TRANSIT_TYPES, TYPE_TITLES, applyDefaults, applyEnabled, catalogOf, checkedAgainst, catalogRows, commitChoices,
+  ROADWAY_TYPES, TRANSIT_TYPES, TYPE_TITLES, applyDefaults, applyEnabled, catalogOf, checkedAgainst, sampleCatalogs, catalogRows, commitChoices,
   FACILITY_FORMS, ID_SYSTEMS, facilityReason,
   commitFields, commitView, draftBadge, editPrompt, fileLine, metaFields, metaForm, renameName, draftNet, draftOf, hasNode, importPath, inspectHeader, inspectRows, needsSelection,
   openPreview, previewLine, savedChoices, selectionStatus, sessionRows, stepIndicator, summaryFileName, typeChoices,
@@ -577,6 +577,7 @@ function createView(wb, ctl, el) {
   const catalogPath = h("input", { type: "text", id: "pc-catalog-path", placeholder: "folder of cards" });
   const catalogLine = h("p", { class: "muted", id: "pc-catalog-line" });
   const catalogList = h("div", { id: "pc-catalog-list" });
+  const sampleLine = h("p", { class: "muted", id: "pc-samples" }); // the bundled sample catalogs, one click each
   function drawCatalogControls() {
     const open = iconAct("folder-open", "Open", async () => {
       const path = catalogPath.value.trim();
@@ -596,8 +597,27 @@ function createView(wb, ctl, el) {
     }, "Show the catalog as a table")] : [];
     catalogBox.append(
       h("div", { style: "display:flex;gap:6px;align-items:center" }, catalogPath, open, refresh, ...table),
-      catalogLine, catalogList,
+      sampleLine, catalogLine, catalogList,
     );
+  }
+
+  // One button per bundled sample catalog (Host API 1.9); the one written for the open network is the primary button.
+  // Its files sit inside netstead's own install, so the server reads them but refuses every change to them.
+  function drawSamples() {
+    const samples = sampleCatalogs(server(), baseNet());
+    const buttons = samples.map(sample => {
+      const b = h("button", { class: sample.suggested ? "mini" : "mini ghost", "data-sample": sample.id,
+        title: `Open the ${sample.cards} sample cards bundled with netstead, written for the ${sample.network} example network (read-only)` },
+      sample.name);
+      b.disabled = sample.isOpen;
+      b.onclick = guard(() => busy([b], async () => {
+        const result = await ctl.openCatalog(sample.path);
+        say(`Opened ${sample.name}: ${result.cards} card(s). It is read-only; copy its folder to change the cards.`);
+      }));
+      return b;
+    });
+    sampleLine.replaceChildren(...(buttons.length ? ["Try: ", ...buttons] : []));
+    sampleLine.hidden = buttons.length === 0;
   }
 
   // A listing is read when one is open (the route checks unchecked cards, so the "Not checked" pills fill in).
@@ -762,12 +782,13 @@ function createView(wb, ctl, el) {
   }
 
   function drawCatalog() {
+    drawSamples();
     const listing = ctl.catalog();
     const against = listing ? checkedAgainst(listing) : null;
     catalogHeading.textContent = against ? `Catalog · checked against ${against}` : "Catalog";
     if (!listing) {
       catalogLine.textContent = "";
-      redraw(catalogList, [h("p", { class: "empty", tabindex: -1, text: "No catalog open: open a folder of cards." })]);
+      redraw(catalogList, [h("p", { class: "empty", tabindex: -1, text: "No catalog open: open a folder of cards, or try the sample cards." })]);
       return;
     }
     catalogLine.textContent = listing.path;

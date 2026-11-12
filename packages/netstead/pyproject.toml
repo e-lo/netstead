@@ -175,6 +175,8 @@ include = [
     "netstead/fixtures/**/*.zip",
     "netstead/fixtures/**/datapackage.json",
     "netstead/fixtures/**/README.md",
+    # The sample ProjectCard catalog (netstead.fixtures.leavenworth.cards_dir).
+    "netstead/fixtures/**/cards/*.yml",
     # netstead.reports HTML viewer assets (Jinja template, our own CSS/JS, and
     # the vendored Leaflet 1.9.4 bundle so the report is fully offline).
     # netstead.map HTML viewer assets (Jinja templates, our own CSS/JS, the
