@@ -1111,12 +1111,21 @@ class Package:
         * the :class:`DirtyTracker`'s ``is_table_dirty`` (when a
           tracker is attached).
 
-        Either signal alone flags the table as stale — the union of
-        the two is the conservative thing to report to the user.
+        * the :class:`DirtyTracker`'s ``stale_fks`` (when a tracker is
+          attached): both tables of every FK validated earlier whose
+          column hashes have since changed. FKs naming a table outside
+          this package (a scoped subset) are skipped.
+
+        Any signal alone flags the table as stale — the union is the
+        conservative thing to report to the user. A cleanly committed
+        :class:`~corral.editing.Session` resets the first two for the
+        tables it edited (issue #164), so after an intentional edit
+        only a broken FK validation is reported.
         """
         stale: set[str] = {name for name, t in self.tables.items() if t.dirty}
         if self.dirty_tracker is None or self.engine is None:
             return stale
+        stale |= self._stale_fk_tables()
         is_dirty = getattr(self.dirty_tracker, "is_table_dirty", None)
         if not callable(is_dirty):
             return stale
@@ -1138,6 +1147,17 @@ class Package:
                     exc_info=True,
                 )
                 stale.add(name)
+        return stale
+
+    def _stale_fk_tables(self) -> set[str]:
+        """Both tables of every stamped FK whose validated columns have changed since validation."""
+        stale_fks = getattr(self.dirty_tracker, "stale_fks", None)
+        if not callable(stale_fks) or self.engine is None:
+            return set()
+        stale: set[str] = set()
+        for stamp in stale_fks({name: t.expr for name, t in self.tables.items()}, self.engine):
+            if stamp.source_table in self.tables and stamp.target_table in self.tables:
+                stale |= {stamp.source_table, stamp.target_table}
         return stale
 
 

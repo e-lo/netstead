@@ -110,7 +110,7 @@ netstead/
 ├── indexes/           # spatial (shapely STRtree) + graph (via netstead.graph) build/cache/load; sidecar parquet keyed on content hash
 ├── graph/             # OPTIONAL [graph] — scipy-CSR routing: components, shortest paths, isochrones, nearest-node snap
 ├── quality/           # GMNS rule pack: high-speed-on-residential, disconnected components, lane-count mismatch, …
-├── clean/             # OPTIONAL [clean] — simplify_geometry, merge_close_nodes, snap_to_reference, …; uses corral.editing for rollback
+├── clean/             # OPTIONAL [clean] — simplify_geometry, merge_close_nodes, …; uses corral.editing for rollback
 ├── server/            # OPTIONAL [server] — assembled FastAPI app on top of corral.api primitives
 ├── mcp/               # OPTIONAL [mcp] — assembled MCP server on top of corral.mcp primitives
 ├── cli/               # GMNS commands registered onto the corral typer app
@@ -255,7 +255,7 @@ if/elif inside it.
 
 `corral.editing` provides the framework: `Edit` (op + table + payload), `EditResult` (edit + `Diff` + rollback blob + `applied_at` + `session_id`), `Session(package, log_path=...)` (context manager — applies edits as they are added, reverses them all if the block raises, persists the log to the parquet sidecar at `log_path` on clean exit), `rollback(package, log_path, to=None | session_id | datetime)` (replays the persisted log LIFO) and `affected_rows(result)`.
 
-`netstead.clean` (optional `[clean]` extra) provides domain ops: `simplify_geometry(net, mode="redundant_only" | "douglas_peucker", tolerance=...)`, `merge_close_nodes(threshold_m=5)`, `remove_orphans()`, `split_link_at_node(...)`, `connect_disconnected_components(...)`, `recompute_lengths()`, `snap_to_reference(other_net)`. Each returns `EditResult` integrated with `corral.editing.Session`.
+`netstead.clean` (optional `[clean]` extra) provides domain ops: `simplify_geometry(net, mode="redundant_only" | "douglas_peucker", tolerance=...)`, `merge_close_nodes(threshold_m=5)`, `remove_orphans()`, `recompute_lengths()`. (`split_link_at_node`, `connect_disconnected_components` and `snap_to_reference` are planned but not implemented yet.) Each returns `EditResult` integrated with `corral.editing.Session`.
 
 Edits inside `with Session(pkg, log_path=log) as s: s.add_edit(...)` produce a chronological log; `corral.editing.rollback(pkg, log, to=session_id_or_timestamp)` reverses. `Network` has no `.session()` / `.rollback()` shortcuts — use the `corral.editing` functions directly (the `netstead clean` commands do this for you).
 

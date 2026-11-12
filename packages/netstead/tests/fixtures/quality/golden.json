@@ -11,7 +11,7 @@
      1
     ]
    },
-   "fix_hint": "Use netstead.clean.connect_disconnected_components to add bridge links, or drop small components.",
+   "fix_hint": "Connect the components with a link in a GIS tool such as QGIS, or drop the strays.",
    "message": "Network has 3 weakly-connected components (sizes: [6, 2, 1]).",
    "row": null,
    "severity": "info",
@@ -197,7 +197,7 @@
    "extra": {
     "angle_degrees": 6.340191745909908
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 0 (link_id=1): sharpest interior angle 6.3\u00b0 < threshold 30.0\u00b0.",
    "row": 0,
    "severity": "warning",
@@ -210,7 +210,7 @@
    "extra": {
     "angle_degrees": 3.5763343749973706
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 4 (link_id=5): sharpest interior angle 3.6\u00b0 < threshold 30.0\u00b0.",
    "row": 4,
    "severity": "warning",
@@ -223,7 +223,7 @@
    "extra": {
     "angle_degrees": 3.5763343749973706
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 6 (link_id=7): sharpest interior angle 3.6\u00b0 < threshold 30.0\u00b0.",
    "row": 6,
    "severity": "warning",
@@ -242,7 +242,7 @@
      1
     ]
    },
-   "fix_hint": "Use netstead.clean.connect_disconnected_components to add bridge links, or drop small components.",
+   "fix_hint": "Connect the components with a link in a GIS tool such as QGIS, or drop the strays.",
    "message": "Network has 3 weakly-connected components (sizes: [6, 2, 1]).",
    "row": null,
    "severity": "info",
@@ -442,7 +442,7 @@
    "extra": {
     "angle_degrees": 6.340191745909908
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 0 (link_id=1): sharpest interior angle 6.3\u00b0 < threshold 170.0\u00b0.",
    "row": 0,
    "severity": "warning",
@@ -455,7 +455,7 @@
    "extra": {
     "angle_degrees": 3.5763343749973706
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 4 (link_id=5): sharpest interior angle 3.6\u00b0 < threshold 170.0\u00b0.",
    "row": 4,
    "severity": "warning",
@@ -468,7 +468,7 @@
    "extra": {
     "angle_degrees": 3.5763343749973706
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 6 (link_id=7): sharpest interior angle 3.6\u00b0 < threshold 170.0\u00b0.",
    "row": 6,
    "severity": "warning",
@@ -7245,7 +7245,7 @@
    "extra": {
     "angle_degrees": 168.91459331075123
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 0 (link_id=1): sharpest interior angle 168.9\u00b0 < threshold 170.0\u00b0.",
    "row": 0,
    "severity": "warning",
@@ -7258,7 +7258,7 @@
    "extra": {
     "angle_degrees": 152.73625443802558
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 2 (link_id=21): sharpest interior angle 152.7\u00b0 < threshold 170.0\u00b0.",
    "row": 2,
    "severity": "warning",
@@ -7271,7 +7271,7 @@
    "extra": {
     "angle_degrees": 169.2656692762362
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 5 (link_id=44): sharpest interior angle 169.3\u00b0 < threshold 170.0\u00b0.",
    "row": 5,
    "severity": "warning",
@@ -7284,7 +7284,7 @@
    "extra": {
     "angle_degrees": 166.75729351475258
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 8 (link_id=47): sharpest interior angle 166.8\u00b0 < threshold 170.0\u00b0.",
    "row": 8,
    "severity": "warning",
@@ -7297,7 +7297,7 @@
    "extra": {
     "angle_degrees": 153.9985220241684
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 18 (link_id=795): sharpest interior angle 154.0\u00b0 < threshold 170.0\u00b0.",
    "row": 18,
    "severity": "warning",
@@ -7310,7 +7310,7 @@
    "extra": {
     "angle_degrees": 166.08062149422472
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 19 (link_id=796): sharpest interior angle 166.1\u00b0 < threshold 170.0\u00b0.",
    "row": 19,
    "severity": "warning",
@@ -7323,7 +7323,7 @@
    "extra": {
     "angle_degrees": 159.84627733354438
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 20 (link_id=797): sharpest interior angle 159.8\u00b0 < threshold 170.0\u00b0.",
    "row": 20,
    "severity": "warning",
@@ -7336,7 +7336,7 @@
    "extra": {
     "angle_degrees": 155.41664786577724
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 27 (link_id=804): sharpest interior angle 155.4\u00b0 < threshold 170.0\u00b0.",
    "row": 27,
    "severity": "warning",
@@ -7349,7 +7349,7 @@
    "extra": {
     "angle_degrees": 161.31084348810393
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 37 (link_id=3059): sharpest interior angle 161.3\u00b0 < threshold 170.0\u00b0.",
    "row": 37,
    "severity": "warning",
@@ -7362,7 +7362,7 @@
    "extra": {
     "angle_degrees": 168.37495630131687
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 39 (link_id=3257): sharpest interior angle 168.4\u00b0 < threshold 170.0\u00b0.",
    "row": 39,
    "severity": "warning",
@@ -7375,7 +7375,7 @@
    "extra": {
     "angle_degrees": 154.57494511083027
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 40 (link_id=3289): sharpest interior angle 154.6\u00b0 < threshold 170.0\u00b0.",
    "row": 40,
    "severity": "warning",
@@ -7388,7 +7388,7 @@
    "extra": {
     "angle_degrees": 154.57494511083027
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 41 (link_id=3290): sharpest interior angle 154.6\u00b0 < threshold 170.0\u00b0.",
    "row": 41,
    "severity": "warning",
@@ -7401,7 +7401,7 @@
    "extra": {
     "angle_degrees": 158.30265101925673
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 68 (link_id=5206): sharpest interior angle 158.3\u00b0 < threshold 170.0\u00b0.",
    "row": 68,
    "severity": "warning",
@@ -7414,7 +7414,7 @@
    "extra": {
     "angle_degrees": 148.0547325757068
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 76 (link_id=6229): sharpest interior angle 148.1\u00b0 < threshold 170.0\u00b0.",
    "row": 76,
    "severity": "warning",
@@ -7427,7 +7427,7 @@
    "extra": {
     "angle_degrees": 162.54480088914772
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 86 (link_id=6265): sharpest interior angle 162.5\u00b0 < threshold 170.0\u00b0.",
    "row": 86,
    "severity": "warning",
@@ -7440,7 +7440,7 @@
    "extra": {
     "angle_degrees": 165.00030924735677
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 89 (link_id=6268): sharpest interior angle 165.0\u00b0 < threshold 170.0\u00b0.",
    "row": 89,
    "severity": "warning",
@@ -7453,7 +7453,7 @@
    "extra": {
     "angle_degrees": 157.3059687012332
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 94 (link_id=6273): sharpest interior angle 157.3\u00b0 < threshold 170.0\u00b0.",
    "row": 94,
    "severity": "warning",
@@ -7466,7 +7466,7 @@
    "extra": {
     "angle_degrees": 168.7149365777297
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 105 (link_id=7261): sharpest interior angle 168.7\u00b0 < threshold 170.0\u00b0.",
    "row": 105,
    "severity": "warning",
@@ -7479,7 +7479,7 @@
    "extra": {
     "angle_degrees": 162.2345310439054
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 108 (link_id=7319): sharpest interior angle 162.2\u00b0 < threshold 170.0\u00b0.",
    "row": 108,
    "severity": "warning",
@@ -7492,7 +7492,7 @@
    "extra": {
     "angle_degrees": 166.56647805467054
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 111 (link_id=7322): sharpest interior angle 166.6\u00b0 < threshold 170.0\u00b0.",
    "row": 111,
    "severity": "warning",
@@ -7505,7 +7505,7 @@
    "extra": {
     "angle_degrees": 165.37070719190686
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 112 (link_id=7792): sharpest interior angle 165.4\u00b0 < threshold 170.0\u00b0.",
    "row": 112,
    "severity": "warning",
@@ -7518,7 +7518,7 @@
    "extra": {
     "angle_degrees": 157.29366748105454
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 116 (link_id=7799): sharpest interior angle 157.3\u00b0 < threshold 170.0\u00b0.",
    "row": 116,
    "severity": "warning",
@@ -7531,7 +7531,7 @@
    "extra": {
     "angle_degrees": 159.5471236903793
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 124 (link_id=8158): sharpest interior angle 159.5\u00b0 < threshold 170.0\u00b0.",
    "row": 124,
    "severity": "warning",
@@ -7544,7 +7544,7 @@
    "extra": {
     "angle_degrees": 165.80905227439192
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 125 (link_id=8159): sharpest interior angle 165.8\u00b0 < threshold 170.0\u00b0.",
    "row": 125,
    "severity": "warning",
@@ -7557,7 +7557,7 @@
    "extra": {
     "angle_degrees": 168.89812954995566
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 131 (link_id=8168): sharpest interior angle 168.9\u00b0 < threshold 170.0\u00b0.",
    "row": 131,
    "severity": "warning",
@@ -7570,7 +7570,7 @@
    "extra": {
     "angle_degrees": 169.97922162178477
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 133 (link_id=8170): sharpest interior angle 170.0\u00b0 < threshold 170.0\u00b0.",
    "row": 133,
    "severity": "warning",
@@ -7583,7 +7583,7 @@
    "extra": {
     "angle_degrees": 162.0061826868722
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 140 (link_id=8578): sharpest interior angle 162.0\u00b0 < threshold 170.0\u00b0.",
    "row": 140,
    "severity": "warning",
@@ -7596,7 +7596,7 @@
    "extra": {
     "angle_degrees": 162.0061826868722
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 141 (link_id=8579): sharpest interior angle 162.0\u00b0 < threshold 170.0\u00b0.",
    "row": 141,
    "severity": "warning",
@@ -7609,7 +7609,7 @@
    "extra": {
     "angle_degrees": 142.2145581786466
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 146 (link_id=9500): sharpest interior angle 142.2\u00b0 < threshold 170.0\u00b0.",
    "row": 146,
    "severity": "warning",
@@ -7622,7 +7622,7 @@
    "extra": {
     "angle_degrees": 166.5860081539571
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 147 (link_id=9721): sharpest interior angle 166.6\u00b0 < threshold 170.0\u00b0.",
    "row": 147,
    "severity": "warning",
@@ -7635,7 +7635,7 @@
    "extra": {
     "angle_degrees": 168.1617440667934
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 159 (link_id=9852): sharpest interior angle 168.2\u00b0 < threshold 170.0\u00b0.",
    "row": 159,
    "severity": "warning",
@@ -7648,7 +7648,7 @@
    "extra": {
     "angle_degrees": 169.66012284237567
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 160 (link_id=9853): sharpest interior angle 169.7\u00b0 < threshold 170.0\u00b0.",
    "row": 160,
    "severity": "warning",
@@ -7661,7 +7661,7 @@
    "extra": {
     "angle_degrees": 159.16401886898296
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 161 (link_id=9854): sharpest interior angle 159.2\u00b0 < threshold 170.0\u00b0.",
    "row": 161,
    "severity": "warning",
@@ -7674,7 +7674,7 @@
    "extra": {
     "angle_degrees": 165.86031065496306
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 162 (link_id=9855): sharpest interior angle 165.9\u00b0 < threshold 170.0\u00b0.",
    "row": 162,
    "severity": "warning",
@@ -7687,7 +7687,7 @@
    "extra": {
     "angle_degrees": 154.37753068168482
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 163 (link_id=9885): sharpest interior angle 154.4\u00b0 < threshold 170.0\u00b0.",
    "row": 163,
    "severity": "warning",
@@ -7700,7 +7700,7 @@
    "extra": {
     "angle_degrees": 154.79629362157277
    },
-   "fix_hint": "Verify the bend; consider splitting at the vertex with split_link_at_node.",
+   "fix_hint": "If the bend is a digitizing error, fix the geometry in a GIS tool such as QGIS.",
    "message": "link row 166 (link_id=10018): sharpest interior angle 154.8\u00b0 < threshold 170.0\u00b0.",
    "row": 166,
    "severity": "warning",
