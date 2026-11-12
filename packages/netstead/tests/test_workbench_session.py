@@ -66,6 +66,13 @@ def test_select_utterance_resolves_with_anchors(opened):
     assert opened.state()["selection"] == sel
 
 
+def test_a_new_selection_shows_the_hidden_selection_layer(opened):
+    opened.dispatch(Style(show={"selection": False}))
+    opened.dispatch(Select(utterance=UTTERANCE))
+    assert opened.style["show"]["selection"] is True
+    assert opened.style["show"]["links"] is True  # the other layers keep their visibility
+
+
 def test_select_picked_link_ids_carries_a_fragment(opened):
     """Picked ids (a box-select, the old viz ``/api/fragment``) resolve to a selection with a fragment."""
     ids = opened.dispatch(Select(utterance=UTTERANCE))["link_ids"][:3]

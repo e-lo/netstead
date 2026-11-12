@@ -6,7 +6,7 @@ import { CORE, checkId } from "./slots.js";
 export const COMPONENTS = ["roadway", "transit"];
 // Core's layers, bottom to top. A plugin layer defaults to just above related records, under the user's own
 // highlights, focus and marker, which stay on top.
-export const CORE_ORDER = { base: 100, selection: 200, related: 300, highlighted: 400, focus: 500, marker: 600 };
+export const CORE_ORDER = { base: 100, selection: 200, related: 300, highlighted: 400, focus: 500, anchors: 550, marker: 600 };
 export const PLUGIN_ORDER = 350;
 
 export function createLayerRegistry() {

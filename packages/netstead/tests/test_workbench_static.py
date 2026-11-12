@@ -392,7 +392,7 @@ def test_settings_and_schema_forms_share_one_field_model():
 def test_map_draws_every_layer_from_the_registry_in_the_old_order():
     src = (JS_DIR / "map.js").read_text()
     assert 'layerRegistry.build("roadway"' in src
-    core_ids = ("base", "selection", "related", "highlighted", "focus", "marker")
+    core_ids = ("base", "selection", "related", "highlighted", "focus", "anchors", "marker")
     for core_id in core_ids:
         assert f'reg("{core_id}"' in src, f"core layer group {core_id} must register on the registry"
     render = re.search(r"export function render\(\) \{.*?\n\}", src, re.S).group(0)

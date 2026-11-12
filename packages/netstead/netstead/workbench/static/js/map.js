@@ -18,6 +18,7 @@ const FOCUS_COLOR = [255, 0, 200, 240];
 const RELATED_COLOR = [45, 210, 230, 110]; // the highlight hue, lighter
 // Under the focus and highlight strokes, so they read on the light Positron basemap and over white highway casings.
 const CASING_COLOR = [20, 20, 30, 220];
+const SELECTION_HALO_PX = 16; // extra width of the selection's translucent band
 // A white arrowhead with a dark outline, for the same reason as the casing.
 const ARROW_SVG = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">' +
@@ -186,15 +187,21 @@ function casedPathLayers(net, layerId, ids, color, extraWidth) {
   return stroke && [idPathLayer(net, layerId + "-casing", ids, CASING_COLOR, extraWidth + 2), stroke];
 }
 
+// The selection: a wide, translucent band of the selection color under a solid stroke, so the chosen links
+// read at a glance over any link coloring.
 function selectionLayers(net, style, sel) {
-  const layers = [];
-  const path = idPathLayer(net, "selection", sel.link_ids, [...style.colors.selection, 255], 3);
-  if (path) layers.push(path);
-  if (sel.anchors.length) layers.push(new deck.ScatterplotLayer({ id: "anchors", data: sel.anchors,
-    getPosition: a => [a.lon, a.lat], getRadius: 7, radiusUnits: "pixels",
-    getFillColor: a => (a.role === "from" ? [53, 196, 106] : [224, 82, 77]),
-    getLineColor: [17, 21, 26], lineWidthMinPixels: 2, stroked: true, parameters: { depthTest: false } }));
-  return layers;
+  const color = style.colors.selection;
+  const halo = idPathLayer(net, "selection-halo", sel.link_ids, [...color, 90], SELECTION_HALO_PX);
+  const path = idPathLayer(net, "selection", sel.link_ids, [...color, 255], 3);
+  return [halo, path].filter(Boolean);
+}
+
+// The from/to anchors, drawn above every link layer: large green and red dots with a white ring.
+function anchorLayer(sel) {
+  return new deck.ScatterplotLayer({ id: "anchors", data: sel.anchors,
+    getPosition: a => [a.lon, a.lat], getRadius: 10, radiusUnits: "pixels",
+    getFillColor: a => (a.role === "from" ? [53, 196, 106, 255] : [224, 82, 77, 255]),
+    getLineColor: [255, 255, 255, 255], lineWidthMinPixels: 3, stroked: true, parameters: { depthTest: false } });
 }
 
 // Records a foreign key away from the focus/highlights: lighter links, and rings on nodes.
@@ -234,6 +241,7 @@ function registerCoreLayers() {
   reg("related", c => (c.related ? relatedLayers(c.net, c.related) : null));
   reg("highlighted", c => (c.highlights.size ? casedPathLayers(c.net, "highlighted", c.highlights, [...HIGHLIGHT_COLOR, 255], 2.5) : null));
   reg("focus", c => (c.focus && c.focus.table === "link" ? casedPathLayers(c.net, "focus", [c.focus.id], FOCUS_COLOR, 4) : null));
+  reg("anchors", c => (c.style.show.selection && c.selection && c.selection.anchors.length ? anchorLayer(c.selection) : null));
   reg("marker", c => (c.marker ? markerLayer(c.marker) : null));
 }
 

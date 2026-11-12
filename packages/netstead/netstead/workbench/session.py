@@ -1732,6 +1732,12 @@ class Session:
         return _ParsedSelect(handle, version, intent, result, parsed_by)
 
     def _do_select(self, action: Select, prepared: _ParsedSelect | None = None) -> dict[str, Any]:
+        selection = self._select(action, prepared)
+        # A new selection is meant to be seen: turn the selection layer back on if it was hidden.
+        self.style["show"] = {**self.style["show"], "selection": True}
+        return selection
+
+    def _select(self, action: Select, prepared: _ParsedSelect | None) -> dict[str, Any]:
         if action.component != "roadway":
             raise NotSupportedYet("transit selection arrives with the transit component (phase P6)")
         if action.utterance is None:
