@@ -498,6 +498,10 @@ Nodes colored by `ctrl_type` use a fixed style where size carries meaning too (s
   `in` operator (a list of values) is available from Python and the API only.
 - `app.do(Navigate(record={"table": "link", "id": 170}))` flies the map to one link or node.
 
+## Find matches route numbers too
+
+A facility in a Find request matches the links whose `name` **or** `ref` matches it, all together: "US 2" selects the links named US 2 and the links numbered US 2 (an OSM way tagged `ref=US 2` often has no `name`). Spellings of a route number agree (`US 2`, `US-2`, `US Highway 2`, `Interstate 5` is `I 5`). The diagnostics say which column matched. Networks built from OpenStreetMap keep OSM's `ref` as a `ref` column (it is not a GMNS field, like `osm_way_id`); Overture builds map a segment's first route number into `ref`.
+
 ## Column filters in the table
 
 Each table column header carries a funnel icon instead of a text box. Click it to open a popover whose body

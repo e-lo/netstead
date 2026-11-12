@@ -114,3 +114,21 @@ class TestBuildNetworkFromOsm:
         assert net.nodes.count() == 2
         assert net.links.count() == 2  # two-way residential -> two directed links
         assert "Main St" in set(net.links.to_pandas()["name"])
+
+    def test_ref_column_is_kept_through_the_pipeline_and_leaves_name_empty(self):
+        payload = {
+            "elements": [
+                {"type": "node", "id": 1, "lat": 42.000, "lon": -71.000},
+                {"type": "node", "id": 2, "lat": 42.001, "lon": -71.000},
+                {"type": "way", "id": 100, "nodes": [1, 2], "tags": {"highway": "trunk", "ref": "US 2"}},
+            ]
+        }
+        net = build.build_network_from_osm(
+            (-71.1, 41.9, -70.9, 42.1),
+            engine=IbisEngine(),
+            session=_FakeSession([_FakeResponse(200, payload)]),
+            sleep=lambda *_: None,
+        )
+        links = net.links.to_pandas()
+        assert set(links["ref"]) == {"US 2"}
+        assert links["name"].isna().all()
