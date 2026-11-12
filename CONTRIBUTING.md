@@ -194,7 +194,6 @@ AI tools (Copilot, Claude, ChatGPT, etc.) are welcome here. You are still the au
 - **Disclose** AI use in the pull request template: which tool, and roughly what it did (code, tests, docs, review).
 - **Review and understand** every line before you submit it. Be ready to explain any change in review; you stand behind it as if you wrote it yourself.
 - **Tests must check meaningful behavior**, not just raise coverage. Confirm that a test fails when the behavior it covers breaks.
-- **Fully automated PRs** (an AI agent opening one with no human review) are not accepted.
 
 *Maintainer review time is limited. Contributions that are low quality or not well understood by their author may be closed without extended discussion.*
 
