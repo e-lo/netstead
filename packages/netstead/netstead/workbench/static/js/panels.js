@@ -1,14 +1,13 @@
-// The View panel (layers, color links / nodes by, width, direction, filter links) and the map's
-// legend. Every control change is a recorded Action: `style` (color, width, switches) or `filter` (Filter links).
+// The Layers & legend card on the map (layers with a visibility eye and swatch, color links / nodes by with the legend
+// under each, width, direction and the links filter in the Links row's options, overlays, basemap labels). Every
+// control change is a recorded Action: `style` (color, width, switches) or `filter` (Filter links).
 import { dispatch } from "./api.js";
 import { $, esc, mountIcons, toast } from "./dom.js";
 import { filterKey, filterValue, filterView, takesNoValue } from "./filtermodel.js";
 import { hasOffset } from "./map.js";
-import { RAMPS, catColor, fmt, hex2rgb, nodeLegendItems, rgb, rgb2hex } from "./palette.js";
-import { ALL_WORKSPACES, CORE } from "./slots.js";
+import { catColor, fmt, hex2rgb, nodeLegendItems, rampGradient, rampMenu, rgb, rgb2hex } from "./palette.js";
 import { store } from "./store.js";
-import { SECTIONS_KEY, parseClosed, serializeClosed, swatchPatch, swatchTip } from "./viewmodel.js";
-import { addPanel } from "./workspaces.js";
+import { CARD_KEY, parseCardOpen, swatchPatch, swatchTip } from "./viewmodel.js";
 
 const style = patch => dispatch({ type: "style", ...patch }).catch(e => toast(e.message));
 
@@ -23,19 +22,14 @@ const SWITCHES = [
 ];
 const COLORS = [["col-links", "links"], ["col-nodes", "nodes"], ["col-selection", "selection"]];
 
-// The View tab, right after Find: its markup is static (index.html #dock-view), wired by wirePanels below.
-export function registerViewPanel() {
-  addPanel(CORE, { id: "view", title: "View", icon: "sliders", workspace: ALL_WORKSPACES, order: 5 });
-}
-
 export function wirePanels() {
   $("colorby").onchange = e => style({ color_by: e.target.value });
   $("node-colorby").onchange = e => style({ node_color_by: e.target.value });
-  $("ramp").onchange = e => style({ ramp: e.target.value });
   $("widthby").onchange = e => style({ width_by: e.target.value });
   for (const [id, , patch] of SWITCHES) $(id).onchange = e => style(patch(e.target.checked));
   for (const [id, key] of COLORS) $(id).onchange = e => style(swatchPatch(key, hex2rgb(e.target.value), store.get().server.style));
-  wireSections();
+  wireCard();
+  wireRampMenu();
   if (!hasOffset()) $("tg-offset").disabled = true;
   $("plugin-layers").onchange = e => {
     const el = e.target.closest("input[data-layer]");
@@ -46,33 +40,43 @@ export function wirePanels() {
   };
 }
 
-// View → Overlays: each titled registry layer (a plugin's, or core's issue markers) with a show/hide switch.
-// Hiding is view state, like the focus: it is per tab and never recorded. Nothing renders while there are none.
+// Overlays: each titled registry layer (a plugin's, or core's issue markers) is a row of the Layers card with a
+// visibility eye. Hiding is view state, like the focus: it is per tab and never recorded. Nothing renders while
+// there are none.
 export function renderPluginLayers(list, hidden) {
   $("plugin-layers").innerHTML = list.length
-    ? `<details class="vsec" data-sec="overlays"${closedSections.has("overlays") ? "" : " open"}><summary>Overlays</summary>` +
-      list.map(l => `<div class="row"><label class="sw">` +
-      `<input type="checkbox" data-layer="${esc(l.id)}" aria-label="${esc(l.title)}"${hidden.has(l.id) ? "" : " checked"}>` +
-      `<span></span></label><span class="lbl">${esc(l.title)}</span>` +
+    ? '<div class="lc-sub">Overlays</div>' + list.map(l => `<div class="row lc-line"><label class="eye">` +
+      `<input type="checkbox" data-layer="${esc(l.id)}" aria-label="Show ${esc(l.title)}"${hidden.has(l.id) ? "" : " checked"}>` +
+      `<span class="eye-on" data-icon="eye"></span><span class="eye-off" data-icon="eye-off"></span></label>` +
+      `<span class="lbl">${esc(l.title)}</span>` +
       (l.description ? `<button class="iconbtn" data-icon="info" data-tip="${esc(l.description)}" aria-label="${esc(l.description)}"></button>` : "") +
-      `</div>`).join("") + "</details>"
+      `</div>`).join("")
     : "";
   mountIcons($("plugin-layers"));
 }
 
-// Folded View sections, remembered per browser (never recorded: it is view state). Unreadable storage means open.
-const readStore = () => { try { return localStorage.getItem(SECTIONS_KEY); } catch { return null; } };
-let closedSections = parseClosed(readStore());
-function wireSections() {
-  const view = $("dock-view");
-  for (const d of view.querySelectorAll("details[data-sec]")) d.open = !closedSections.has(d.dataset.sec);
-  // `toggle` doesn't bubble, so listen in the capture phase (also catches the Overlays section drawn later).
-  view.addEventListener("toggle", e => {
-    const d = e.target;
-    if (!d.dataset || !d.dataset.sec) return;
-    if (d.open) closedSections.delete(d.dataset.sec); else closedSections.add(d.dataset.sec);
-    try { localStorage.setItem(SECTIONS_KEY, serializeClosed(closedSections)); } catch { /* private mode */ }
-  }, true);
+// The card is open or collapsed to its Layers button (remembered per browser, never recorded: it is view state;
+// unreadable storage means open). A row's chevron shows or hides that layer's other options.
+function setCardOpen(open, { save = true, focus = false } = {}) {
+  $("layers-card").dataset.open = String(open);
+  $("layers-toggle").setAttribute("aria-expanded", String(open));
+  if (save) { try { localStorage.setItem(CARD_KEY, String(open)); } catch { /* private mode */ } }
+  if (focus) $(open ? "layers-hide" : "layers-toggle").focus();
+}
+
+function wireCard() {
+  let stored = null;
+  try { stored = localStorage.getItem(CARD_KEY); } catch { /* unreadable: open */ }
+  setCardOpen(parseCardOpen(stored), { save: false });
+  $("layers-toggle").onclick = () => setCardOpen(true, { focus: true });
+  $("layers-hide").onclick = () => setCardOpen(false, { focus: true });
+  $("layers-card").addEventListener("click", e => {
+    const more = e.target.closest(".lc-more");
+    if (!more) return;
+    const panel = $(more.getAttribute("aria-controls")), open = panel.hidden;
+    panel.hidden = !open;
+    more.setAttribute("aria-expanded", String(open));
+  });
 }
 
 const option = (value, text) => Object.assign(document.createElement("option"), { value, textContent: text });
@@ -109,7 +113,6 @@ export function populateNodeColorby(props) {
 function pick(select, value) {
   select.value = [...select.options].some(o => o.value === value) ? value : "none";
 }
-const continuous = select => { const o = select.selectedOptions[0]; return Boolean(o && o.dataset.kind === "continuous"); };
 
 export function wireFilter() {
   const apply = () => {
@@ -132,6 +135,7 @@ export function renderFilter(server) {
   const v = filterView(server);
   $("flt-count").textContent = v.count;
   $("flt-clear").disabled = !v.canClear;
+  $("lc-links-more").classList.toggle("active", v.canClear);
   $("flt-note").textContent = v.note;
   $("flt-note").hidden = !v.note;
   const key = filterKey(server);
@@ -148,8 +152,6 @@ export function renderFilter(server) {
 export function syncControls(st) {
   pick($("colorby"), st.color_by || "none");
   pick($("node-colorby"), st.node_color_by || "none");
-  $("ramp").value = st.ramp;
-  $("ramp-row").style.display = continuous($("colorby")) || continuous($("node-colorby")) ? "flex" : "none";
   pick($("widthby"), st.width_by || "none");
   for (const [id, get] of SWITCHES) $(id).checked = get(st);
   for (const [id, key] of COLORS) {
@@ -158,29 +160,54 @@ export function syncControls(st) {
   }
 }
 
-// One legend block: the property's name (with what it colors), then a ramp or the categories' swatches.
-function legendBlock(st, prop, what, shape) {
-  let html = `<div class="lg-title">${esc(what)}: ${esc(prop.name)}</div>`;
+// The ramp menu is open for one layer at a time ("links" or "nodes"); the legend redraws with it.
+let rampOpen = null, lastLegend = null;
+const RAMP_KEY = { links: "ramp", nodes: "node_ramp" };
+
+// One legend block under a layer's "by" picker: a ramp (the gradient is the button that opens the ramp menu, with
+// min and max under it) or the categories' swatches. `layer` is "links" or "nodes".
+function legendBlock(st, prop, shape, layer) {
   if (prop.kind === "continuous") {
-    html += `<div class="lg-grad" style="background:linear-gradient(90deg, ${RAMPS[st.ramp].map(rgb).join(", ")})"></div>` +
+    const current = st[RAMP_KEY[layer]], open = rampOpen === layer;
+    const menu = open ? `<div class="ramp-menu" role="listbox" aria-label="Color ramp">` + rampMenu(current).map(r =>
+      `<button class="ramp-opt" role="option" aria-selected="${r.selected}" data-ramp="${esc(r.name)}" data-layer="${layer}">` +
+      `<span class="lg-grad" style="background:${r.gradient}"></span><span class="ramp-name">${esc(r.name)}</span></button>`).join("") + "</div>" : "";
+    return `<div class="ramp-wrap"><button class="lg-ramp-btn" data-layer="${layer}" aria-haspopup="listbox" aria-expanded="${open}" ` +
+      `data-tip="Change the color ramp (${esc(current)})" aria-label="Color ramp: ${esc(current)}">` +
+      `<span class="lg-grad" style="background:${rampGradient(current)}"></span></button>${menu}</div>` +
       `<div class="lg-scale"><span>${fmt(prop.min)}</span><span>${fmt(prop.max)}</span></div>`;
-  } else {
-    const items = shape === "lg-dot" ? nodeLegendItems(prop)
-      : prop.categories.map((c, i) => ({ category: c, color: catColor(prop, c, i), radius: null }));
-    html += items.map(it => {
-      const size = it.radius ? `width:${it.radius * 2}px;height:${it.radius * 2}px;margin:0 ${8 - it.radius}px;` : "";
-      return `<div class="lg-item"><span class="lg-sw ${shape}" style="${size}background:${rgb(it.color)}"></span>${esc(it.category)}</div>`;
-    }).join("");
   }
-  return `<div class="lg-block">${html}</div>`;
+  const items = shape === "lg-dot" ? nodeLegendItems(prop)
+    : prop.categories.map((c, i) => ({ category: c, color: catColor(prop, c, i), radius: null }));
+  return items.map(it => {
+    const size = it.radius ? `width:${it.radius * 2}px;height:${it.radius * 2}px;margin:0 ${8 - it.radius}px;` : "";
+    return `<div class="lg-item"><span class="lg-sw ${shape}" style="${size}background:${rgb(it.color)}"></span>${esc(it.category)}</div>`;
+  }).join("");
 }
 
-// The legend shows whichever of the link and node colorings is on (the loaded property must be the styled one).
+// The legend fills the Links and Nodes rows of the card while "Show legend" is on and that layer is colored by a
+// column (the loaded property must be the styled one).
 export function renderLegend(st, prop, nodeProp) {
-  const el = $("legend"), blocks = [];
-  if (st.show_legend && st.color_by !== "none" && prop && prop.name === st.color_by) blocks.push(legendBlock(st, prop, "Links", "lg-line"));
-  if (st.show_legend && st.node_color_by !== "none" && nodeProp && nodeProp.name === st.node_color_by) blocks.push(legendBlock(st, nodeProp, "Nodes", "lg-dot"));
-  if (!blocks.length) { el.style.display = "none"; return; }
-  el.style.display = "block";
-  el.innerHTML = blocks.join("");
+  lastLegend = [st, prop, nodeProp];
+  const links = st.show_legend && st.color_by !== "none" && prop && prop.name === st.color_by;
+  const nodes = st.show_legend && st.node_color_by !== "none" && nodeProp && nodeProp.name === st.node_color_by;
+  $("lg-links").innerHTML = links ? legendBlock(st, prop, "lg-line", "links") : "";
+  $("lg-nodes").innerHTML = nodes ? legendBlock(st, nodeProp, "lg-dot", "nodes") : "";
+}
+
+// Open or close the ramp menu and redraw the legend; picking a ramp is the same recorded Style action as any other.
+function setRampOpen(layer) {
+  rampOpen = layer;
+  if (lastLegend) renderLegend(...lastLegend);
+}
+
+function wireRampMenu() {
+  $("layers-card").addEventListener("click", e => {
+    const opt = e.target.closest(".ramp-opt"), btn = e.target.closest(".lg-ramp-btn");
+    if (opt) { style({ [RAMP_KEY[opt.dataset.layer]]: opt.dataset.ramp }); setRampOpen(null); }
+    else if (btn) setRampOpen(rampOpen === btn.dataset.layer ? null : btn.dataset.layer);
+    else if (rampOpen) setRampOpen(null);
+  });
+  document.addEventListener("click", e => { if (rampOpen && !e.composedPath().includes($("layers-card"))) setRampOpen(null); });
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && rampOpen) setRampOpen(null); });
 }

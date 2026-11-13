@@ -39,7 +39,7 @@ still runs (see [Write a Workbench plugin](workbench-plugins.md#startup-outcomes
 2. **Pick a change.** Right-click the selection (or open **Selection actions ▾** in the **Find** tab) and
    choose **New change ▸ Property change** or **New change ▸ Deletion**. **New change ▸ Addition** adds a link, and
    optionally a new end node, without a selection, so it is only in the command palette (**Ctrl+K**, **⌘K** on a
-   Mac). The **Cards** dock tab opens with the form, in its **Draft** section.
+   Mac). The **Cards** rail icon opens its pane with the form, in its **Draft** section.
 3. **Fill in the form.** The panel says what the change applies to ("1 picked link", or "4 links matching
    {"name": ["Benton Street"]}").
     - **Property change:** one field per column, titled with its current value when every selected link agrees
@@ -132,13 +132,26 @@ distinct from the draft you build above.
   starts (see the [Settings reference](../reference/settings.md)). The folder is
   scanned non-recursively, plus one level of sub-folders, for `.yml` / `.yaml` / `.json` card files; files that
   are not cards are listed with why not. **Refresh** rescans (new, changed and removed files).
-- **Does it fit?** Each listed card has a status pill, and the section's heading names the network they were
-  checked against ("Catalog · checked against leavenworth"). A green **Fits this network** pill means the card
-  applies cleanly to the network as it is now (`warn` and `skip` conflicts still fit; hover for the warning). A red
-  **Doesn't fit** pill has its first reason beside it in small text, and every reason in its tooltip: "missing link
-  999999", "conflict: lanes: expected 1, found 2 on 1 of 1 links" (a property's `existing` value differs and the card
-  says `existing_value_conflict: error`), "already applied on leavenworth at 10:15" (with `enable_apply` on), or why
-  a change can't be applied. A gray **Not checked** pill has a check button beside it; the panel also checks up to 50
+- **Try the sample catalog.** With the bundled Leavenworth example open, press **Sample cards (Leavenworth)**
+  under the folder path (it is the primary button when Leavenworth is the open network): nine small cards written
+  against the network's real ids open at once, with no folder to find and no `io.allowed_roots` entry needed. They
+  cover a road diet, a speed reduction, bike lanes, a Segment (`Front Street pedestrian improvements`), OpenStreetMap
+  ids, a closure, an added connector and a card with `dependencies`; eight fit, and one
+  (`Cedar Street road diet (stale baseline)`) is there to show a red X and, in its details, the reason. Inspect
+  details, Preview, **Show as table** and (with `enable_apply`) Apply all work on them. The catalog is read-only: its
+  details show the fields without editing them (the tooltip says why) and offer no Duplicate or Delete, and renaming,
+  editing or deleting its files is refused ("This is a bundled sample catalog and cannot be changed here…"); copy
+  the folder (`netstead.fixtures.leavenworth.cards_dir()`) somewhere of your own and open that to change cards.
+- **A row per card.** Each row is the card's fit icon, its project name (its tags beneath, in small text) and two
+  icon buttons: **Inspect details** (the ⓘ, see [Inspect a card](#inspect-a-card)) and **Preview on the map** (the
+  magnifier).
+- **Does it fit?** The fit icon says, and the section's heading names the network the cards were checked against
+  ("Catalog · checked against leavenworth"). A green check ("Compatible with the current network") means the card
+  applies cleanly to the network as it is now (`warn` and `skip` conflicts still fit; the details list the warning).
+  A red X ("Incompatible; click to see details") opens the card's details at every reason: "missing link 999999",
+  "conflict: lanes: expected 1, found 2 on 1 of 1 links" (a property's `existing` value differs and the card says
+  `existing_value_conflict: error`), "already applied on leavenworth at 10:15" (with `enable_apply` on), or why a
+  change can't be applied. A gray dash means not checked yet: click it to check; the panel also checks up to 50
   unchecked cards per request. A query selection with no netstead provenance reads and
   lists fine, but is refused when applying: "query without provenance; re-resolution not supported".
 - **Show as table** (the table icon beside the folder) opens the catalog in the table pane as the read-only
@@ -147,9 +160,10 @@ distinct from the draft you build above.
   and filter it with the column funnels (**any of** on `tags` picks the cards with a tag); clicking a row brings the
   Cards tab forward with that card marked. The table follows the catalog: a rescan, a check or a file action reads
   it again.
-- **Preview** shows every change of the card on a copy of the network (as in step 4 above) and highlights the
-  links and nodes it targets on the map, so you can see what it touches before committing to it.
-- **Apply…** (only when `[plugins.project_cards] enable_apply = true`; it is off by default, and
+- **Preview on the map** (the magnifier) shows every change of the card on a copy of the network (as in step 4
+  above), highlights the links it targets and zooms the map to them, so you can see what it touches before committing
+  to it.
+- **Apply…** (in the card's details, only when `[plugins.project_cards] enable_apply = true`; it is off by default, and
   `project_cards.apply_card` is refused while it is) applies the card to the network, all or nothing, through the
   same path as a draft change — no file
   is written, since the card already exists. Its dialog offers **If a current value differs when the card is
@@ -165,14 +179,14 @@ distinct from the draft you build above.
 
 ### Edit a card
 
-**Edit**, on a catalog card, loads it into the open network's draft: every change of the card is applied, as
+**Edit changes** (the pencil in a catalog card's details) loads it into the open network's draft: every change of the card is applied, as
 **Import** does (all or nothing), and the draft takes the card's project, tags, dependencies and notes. The draft
 remembers the card's file ("Editing main.yml (…)") and the commit fields are filled in with the card's. Then edit
 the draft: **Remove** or **Edit…** its changes, or add new ones (see [Undo](#undo)).
 
 - If the draft already has uncommitted changes, Edit asks first: **Replace the draft** undoes them (network edits
   included) and loads the card instead.
-- Edit applies the card to the network, so it needs a network the card applies to (a **Fits this network** pill). A card committed
+- Edit applies the card to the network, so it needs a network the card applies to (a green check). A card committed
   in this session is already on its network: reopen the network (or open another copy) to edit it.
 - **Commit…** then offers **Save over main.yml** (replace the card's file) or **Save as new file** (the **Card
   file** field, which must name another file; an existing one is replaced only with **Replace an existing file**).
@@ -182,19 +196,20 @@ From Python: `project_cards.edit_card(card_id, replace_draft=False)` and `projec
 
 ### Manage the catalog's files
 
-Each catalog card's row of icon buttons (hover one for its name) ends with four file actions; **Details** shows the
-card's path. Each one is a recorded Action, listed in
+A catalog card's details edit its file: double-click a field (or focus it and press Enter), then Enter (or
+Cmd/Ctrl+Enter) saves and Escape cancels; leaving the field saves too. Each save is a recorded Action, listed in
 the session summary under **Catalog files**; the catalog is rescanned after it. They change files, not the network,
 and the assistant is not offered them.
 
-- **Rename…** gives the file a new name in the catalog folder (or `sub/name.yml`, one sub-folder down). A name
-  without a suffix keeps the card's. An existing file with other content is replaced only when **Replace an existing
-  file** is ticked.
-- **Duplicate** copies the file, byte for byte, to `<name>-copy.yml` (`-copy-2`, … when that is taken).
-- **Edit metadata…** changes the card's project name, tags and dependencies (prerequisites, corequisites,
-  conflicts; comma separated). Only those keys of the file change; its changes and notes stay as they are, though
-  YAML comments are not kept.
-- **Delete** moves the file to a `.trash` folder inside the catalog folder; nothing is deleted for good. The status
+- **Project name**, **Tags**, **Prerequisites**, **Corequisites** and **Conflicts** (lists comma separated) are the
+  card's metadata (`project_cards.update_card_meta`). Only those keys of the file change; its changes and notes stay
+  as they are, though YAML comments are not kept.
+- **File** renames the card's file in the catalog folder (or `sub/name.yml`, one sub-folder down;
+  `project_cards.rename_card`). A name without a suffix keeps the card's. An existing file with other content is not
+  replaced: the refusal shows in the status line and the field stays open.
+- **Duplicate** (an icon in the details' header) copies the file, byte for byte, to `<name>-copy.yml` (`-copy-2`, …
+  when that is taken).
+- **Delete** (the trash icon in the details' header) moves the file to a `.trash` folder inside the catalog folder; nothing is deleted for good. The status
   line offers **Undo delete**, which moves it back (`project_cards.restore_card`). Empty `.trash` yourself when you
   are sure.
 
@@ -204,17 +219,22 @@ not renamed, copied or rewritten.
 
 ### Inspect a card
 
-**Inspect**, on a catalog card or under the draft, opens a read-only view of the card:
+**Inspect details** (ⓘ) on a catalog card, or **Inspect** under the draft, opens the card's details in the
+Workbench's right-hand **Details** panel (where a link's details show), titled "Card · <project>" or "Draft · <network>".
+Only one thing shows there at a time: clicking a link or node on the map replaces the card's details with the
+record's, and the panel's **×** (or Escape) closes them. Opening another catalog closes a card's details from the
+previous one. The details show:
 
-- its **Project**, **Tags**, **Dependencies** (prerequisites, corequisites, conflicts), **Notes** and **File**;
+- for a catalog card, its fit in full (every reason and warning) and its icon actions (**Edit changes**, **Apply…**,
+  **Duplicate**, **Delete**), then its editable fields (see [Manage the catalog's files](#manage-the-catalogs-files))
+  and its **Notes**; for the draft, its **Project**, **Tags**, **Dependencies** and **Notes**, read-only;
 - each change, numbered, with its type, its facility ("links 1, 2", or `links matching {"name":["Benton Street"]}`
   with the number of links it resolved to), its property changes as existing → new ("lanes: 1 → 2", "lanes: 1 →
   change by +1") and whether it applies to the open network ("Applies: 2 records found", "0 found; missing 999999",
   or the reason it can't be applied). The draft's changes are already on its network: "In the draft: applied to …".
 
-Click a change to highlight its links on the map. The map does not zoom to them: the Workbench gives plugins no
-camera control yet, so pan to them yourself (or use **Find** to zoom to a link). **YAML** shows the card's text: the
-file itself for a catalog card, the YAML a commit would write for the draft. **Close** clears the highlights.
+Click a change to highlight its links on the map and zoom to them. **YAML** shows the card's text: the file itself
+for a catalog card, the YAML a commit would write for the draft. Closing the details clears the highlights.
 Inspecting changes nothing; `GET /api/plugins/project_cards/card?card_id=<id>` (or `?draft=true`) serves the same
 view as JSON.
 
@@ -456,7 +476,7 @@ refused as stale if the previewed network has changed since.
 
 ## See also
 
-- [Explore in the Workbench](workbench.md): selection, edits, the Edit tab, saving.
+- [Explore in the Workbench](workbench.md): selection, edits, the Changes tab, saving.
 - [Write a Workbench plugin](workbench-plugins.md): the plugin API this plugin is built on.
 - [Triage and fix findings](fix-findings.md): the offline report's edit log.
 - [projectcard](https://github.com/network-wrangler/projectcard): the ProjectCard schema and validator.

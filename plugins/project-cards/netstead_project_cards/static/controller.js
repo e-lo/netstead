@@ -340,8 +340,6 @@ export function createController(wb) {
   const restoreCard = (cardId, overwrite = false) => fileAction("restore_card", cardId, overwrite ? { overwrite } : {});
   // `fields`: metaFields' {project, tags, dependencies}.
   const updateCardMeta = (cardId, fields) => fileAction("update_card_meta", cardId, fields);
-  // A catalog card's details (GET /card), for the Edit metadata form; not kept.
-  const cardDetail = (cardId, netId = null) => wb.api.get(`/card?${query({ card_id: cardId, net_id: netId })}`);
 
   // The Inspect view (GET /card, read only) of a catalog card, or of the draft (`cardId` null), kept in
   // `state.inspect` until closed or inspected again. Reads only; nothing on the server changes.
@@ -361,7 +359,7 @@ export function createController(wb) {
 
   return {
     state, start, setFacility, changeFrom, check, serverChanged, selectionChanged, loadCatalog, catalog, catalogChanged, summary,
-    anotherChange, endCreate, inspect, closeInspect, cardDetail,
+    anotherChange, endCreate, inspect, closeInspect,
     ...Object.fromEntries(Object.entries({
       preview, closePreview, add, cancel, undo, commit, importCard, reload, openCatalog, refreshCatalog, previewCard,
       applyCard, beginCreate, chooseCreateType, useFacility, backCreate, selectByText, removeChange, editCard,

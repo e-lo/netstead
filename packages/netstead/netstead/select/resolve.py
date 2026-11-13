@@ -26,6 +26,7 @@ from ._support import (
     dijkstra_links,
     link_length,
     matches_direction,
+    route_alias,
     to_py,
 )
 from .intent import SelectionIntent
@@ -50,34 +51,36 @@ def _node_coords(nodes, needed):
 
 
 def _facility_links(links, facility, index: StreetIndex):
-    """Links whose ref or name matches the facility (any road class), plus fallback notes.
+    """Links whose ref or name matches the facility (any road class), plus notes saying which column matched.
 
-    ``ref``/``name`` may each be a single value or a list (OR-matched). A name matches the way
-    :meth:`StreetIndex.lookup_name` says (exact, then spelling, then directional); a match that is
-    not exact adds a note naming the streets it stood for. A value that matches nothing in its own
-    column is tried against the other one (small models put "Capital Blvd" in ``ref`` or "US 1" in
-    ``name``); each such fallback that hits adds a note. A value that matches its own column never
-    falls back. ``ref`` and ``name`` are optional GMNS fields; a missing column matches nothing.
+    ``ref``/``name`` may each be a single value or a list (OR-matched). A facility value matches the **union**
+    of the links whose ``ref`` shares a route-number token with it (``"US 2"`` ~ ``"US-2"`` ~ ``"US Highway 2"``)
+    and the links whose ``name`` it names (exact, then spelling, then directional): a route is often named on
+    some of its links and only numbered on others (OSM ways with ``ref=US 2`` and no ``name``). A name match
+    that is not exact adds a note naming the streets it stood for. A value given as a ``ref`` that matches no
+    ``ref`` is tried as a street name and the other way round (small models put "Capital Blvd" in ``ref`` or
+    "US 1" in ``name``); that fallback adds a note. A looser (spelling or fuzzy) street match is never added to a
+    route number that matched. When both columns match, a note gives the count per column. ``ref`` and ``name``
+    are optional GMNS fields; a missing column matches nothing.
     """
     notes = []
-
-    def by_name(value):
-        rows, match = index.name_rows(value)
-        notes.extend(_loose_match_note(value, match))
-        return rows
-
     hit = []
-    for field, values, own, other, as_other in (
-        ("ref", facility.refs(), index.ref_rows, by_name, "a street name"),
-        ("name", facility.names(), by_name, index.ref_rows, "a route number"),
-    ):
+    for field, values in (("ref", facility.refs()), ("name", facility.names())):
         for value in values:
-            rows = own(value)
-            if not rows.size:
-                rows = other(value)
-                if rows.size:
-                    notes.append(f"treated {field} {value!r} as {as_other}")
-            hit.append(rows)
+            by_ref = index.ref_rows(value)
+            by_name, match = index.name_rows(value)
+            if not by_name.size and (short := route_alias(str(value))) != str(value):
+                by_name, match = index.name_rows(short)  # "US Highway 2" is named "US 2" on some links
+            own = by_ref if field == "ref" else by_name
+            if field == "ref" and by_ref.size and match.how != "exact":
+                by_name = by_name[:0]  # a loose street match never widens a route number that matched
+            if not own.size and (by_ref.size or by_name.size):
+                notes.append(f"treated {field} {value!r} as {'a street name' if field == 'ref' else 'a route number'}")
+            if by_ref.size and by_name.size:
+                notes.append(f"matched {value!r} on ref ({by_ref.size} links) and on name ({by_name.size} links)")
+            if by_name.size:
+                notes.extend(_loose_match_note(value, match))
+            hit.append(np.union1d(by_ref, by_name))
     rows = np.unique(np.concatenate(hit)) if hit else np.array([], dtype=np.int64)
     return links.iloc[rows], notes
 

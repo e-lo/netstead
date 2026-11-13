@@ -8,6 +8,33 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Added
 
+- **A sample ProjectCard catalog for the bundled Leavenworth network.** `netstead/fixtures/leavenworth/cards/` holds
+  nine small cards written against the network's real ids: a road diet, a speed reduction, bike lanes, a Segment with
+  its `netstead.resolved[i]` provenance note, OpenStreetMap ids (`osm_link_id`, `osm_node_id`), a closure, an added
+  connector, one with `dependencies`, and one that intentionally does not fit (to show "Doesn't fit" and its reason),
+  each tagged with a year and a theme, plus a `cards/README.md`. `netstead.fixtures.leavenworth.cards_dir()` returns the
+  folder, and the wheel includes it. The Workbench's Cards panel opens it in one click (**Sample cards (Leavenworth)**).
+- **Workbench plugin API 1.9: bundled sample catalogs.** `host.sample_catalogs()` lists the sample ProjectCard
+  catalogs bundled with netstead; `host.readable` and `host.list_dir` reach a catalog's folder (and the files directly
+  in it) even outside `io.allowed_roots`, as the Included examples reach their network folders, and `host.writable`
+  refuses it with "This is a bundled sample catalog and cannot be changed here…", whatever `io.allowed_roots` says.
+  Nothing else beside the catalog opens. Additive: a plugin written for 1.8 keeps working.
+
+- **Workbench Help link.** A life-buoy icon at the right end of the header opens the Workbench guide in a new tab, and the command palette has "Open the documentation".
+- **Workbench layout: a left rail, a Details panel on the right, and a Layers & legend card on the map.** The
+  side panel's tab strip is now a vertical icon rail on the far left (Find, Changes, Validate, Cards, Assistant;
+  plugin panels below a divider). Clicking an icon opens its pane in a drawer; clicking the open icon closes it and
+  the map takes the width (arrows move between icons, Enter or Space toggles). The Edit tab is now **Changes**, with
+  a history icon. The **Inspect** pane is now a **Details** panel on the right that opens when you focus a record
+  (map click, table row, a finding's zoom-to, a Find result) and closes with its **×** or Escape; it has its own
+  resize handle and remembered width. The **View** tab and the map's separate legend are gone: a collapsible
+  **Layers & legend** card at the map's top-left has a row per layer (Links, Nodes, Selection, then overlays) with a
+  visibility eye, swatch, "by ‹column›" picker and legend, the Links options (width, direction, offset, "Show only
+  links where…") behind a chevron, and a footer with Basemap labels. It collapses to a **Layers** button
+  (remembered), hides in Table view and scrolls in Split view. Tooltips are now one floating layer above
+  everything, placed to stay on screen, so the map and drawers no longer clip them. The project-cards plugin's
+  Cards panel moved after Validate in the rail (panel order 35).
+
 - **Find answers common requests without calling the model.** With a language model selected, the Workbench's
   Find tab now reads a request with the offline pattern parser first ("Glenwood Ave between Peace St and Wade
   Ave", "I-40 EB", "all residential links", "links 5, 6") and calls the model only when that reading names a
@@ -48,9 +75,19 @@ This file is for the **netstead** package only. The underlying generic engine `c
   (release 2026-09-23.1) with Overture GERS ids on every link and node, as csv, parquet, zip and
   `datapackage.json`. It is listed under **Included examples** in the Workbench and exercises the Find tab's
   Overture GERS id system on real data. Data (c) OpenStreetMap contributors, ODbL; data from TomTom.
+- **Workbench plugin API 1.10: plugin views in the Details panel, and zooming to highlighted links.** In the
+  browser, `wb.showDetails({id, title, render, onClose})` shows a plugin's view in the right-hand Details panel under
+  its own title, and `wb.closeDetails(id)` closes it. The panel shows one thing at a time: a plugin's view replaces
+  the focused record, focusing a record replaces the view, and the panel's × and Escape close whichever shows
+  (calling the view's `onClose`). `wb.highlight({links, zoom: true})` also fits the map to the links, now and when the
+  network the plugin is opening (a preview) loads, instead of fitting the whole network. Core's icons add `zoom-in`.
+  `wb.showDetails` is present only where the host has the panel, so a plugin can feature-test it. Additive: a plugin
+  written for 1.9 keeps working.
 
 ### Fixed
 
+- **Language model changes apply without a reload.** Choosing a provider or model in the header now re-reads the Assistant pane's status (it kept the old model until a reload), and a pick holds back the refresh its own two settings writes triggered, which could redraw the old pair.
+- **Find: a route matches by number as well as by name.** A facility now matches the union of the links whose `name` or `ref` matches, with route spellings normalized (`US-2`, `US Highway 2`, `Interstate 5`) and the diagnostics saying which column matched, so "US 2 between Mill Street and 9th Street" on Leavenworth follows the unnamed links of US 2. OpenStreetMap builds keep OSM's `ref` as a `ref` column (never copied into `name`); the bundled Leavenworth fixture gained it through a deterministic patch script (no rebuild).
 - **Local models now see the assistant's whole prompt.** Ollama's default context window (4,096 tokens on
   recent versions) cut the Ask prompt to about 2,050 tokens. netstead now asks for 16,384 (new setting
   `llm.ollama.num_ctx`) and keeps the model loaded for 30 minutes after each call instead of Ollama's 5 (new
@@ -88,6 +125,9 @@ This file is for the **netstead** package only. The underlying generic engine `c
 
 ### Changed
 
+- **Assistant pane opens on its box; Select and Ask AI say how they differ.** The long privacy paragraph is replaced by the input box, two clickable examples, a one-line privacy summary with an info tooltip holding the detail, and a link to the docs. In Find, Select (target icon) and Ask AI (sparkles icon) have tooltips that depend on the chosen model; Ask stays clickable offline (the offline assistant still answers a few fixed commands) but is drawn muted.
+- **Color ramp is picked from the legend gradient, separately for links and nodes.** Clicking the gradient under a numeric "by" column opens a menu of ramps (each drawn as a gradient); the footer Ramp row is gone. `Style` gains `node_ramp` (links keep `ramp`). The filter's explanatory note is an info tooltip beside its heading.
+- **Workbench Changes pane: its explanation is an info tooltip.** The paragraph with a × dismiss button (and its remembered choice) is replaced by an info icon beside the Changes heading; the help.js module is gone.
 - **Anthropic's default model is now Haiku 5.5** (`claude-haiku-5-5`, $0.10 / $0.50 per million input /
   output tokens, a tenth of Haiku 4.5's price), and the catalog offers Sonnet 5.5 (`claude-sonnet-5-5`) in place
   of Sonnet 5. A `select.model` you set yourself is unchanged.

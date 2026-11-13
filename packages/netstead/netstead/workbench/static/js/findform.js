@@ -5,11 +5,10 @@
 import { getJSON, netPath } from "./api.js";
 import { barRoute } from "./assistmodel.js";
 import { $ } from "./dom.js";
-import { BLANK_LABELS, PATTERNS, crossChoices, missingMessage, patternSentence, useForm } from "./findmodel.js";
+import { BLANK_LABELS, PATTERNS, crossChoices, findButtonTips, missingMessage, patternSentence, useForm } from "./findmodel.js";
 import { store } from "./store.js";
 
 const BLANKS = ["street", "from", "to", "type", "ids"];
-const ASK_TIP_OFFLINE = "Ask: offline, the assistant understands only a few fixed requests. Choose a language model for open questions.";
 const LIMIT = 5000;
 let formOn = false, wired = false, pending = null;
 let lists = null;          // {key, streets, types} for the network version it was read under
@@ -71,6 +70,10 @@ async function narrowCross() {
 // Show the form while the offline parser is chosen, else the free-text box (prefilled with the last sentence).
 export function setFindProvider(provider) {
   if (!wired) { pending = provider; return; }
+  const tips = findButtonTips(provider);
+  $("go").dataset.tip = tips.select;
+  $("ask").dataset.tip = tips.ask;
+  $("ask").classList.toggle("needs-model", !tips.askReady);
   const on = useForm(provider);
   if (on === formOn) return;
   const sentence = patternSentence(pattern(), fields());
@@ -78,7 +81,6 @@ export function setFindProvider(provider) {
   $("find-form").hidden = !on;
   $("utterance").hidden = on;
   if (!on && sentence) $("utterance").value = sentence;
-  $("ask").title = on ? ASK_TIP_OFFLINE : "Ask the assistant (Ctrl+Enter, ⌘Enter on a Mac)";
   if (on) { refresh(); loadLists().catch(() => {}); }
 }
 

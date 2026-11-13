@@ -1,0 +1,13 @@
+project: Mine Street alley closure
+tags:
+- year:2027
+- maintenance
+notes: 'netstead.note[0]: A 17.6 m stub between Mine Street and West Street; both
+  directions close.'
+changes:
+- roadway_deletion:
+    links:
+      model_link_id:
+      - 203
+      - 233
+      ignore_missing: false

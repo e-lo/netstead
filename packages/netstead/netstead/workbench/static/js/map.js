@@ -18,6 +18,7 @@ const FOCUS_COLOR = [255, 0, 200, 240];
 const RELATED_COLOR = [45, 210, 230, 110]; // the highlight hue, lighter
 // Under the focus and highlight strokes, so they read on the light Positron basemap and over white highway casings.
 const CASING_COLOR = [20, 20, 30, 220];
+const SELECTION_HALO_PX = 16; // extra width of the selection's translucent band
 // A white arrowhead with a dark outline, for the same reason as the casing.
 const ARROW_SVG = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">' +
@@ -87,7 +88,7 @@ function linkColors(s) {
 // like the links'. `order` maps a drawn index back to the node's index (null: the same).
 function nodeStyle(s) {
   const st = s.server.style, np = s.nodeProp;
-  const key = JSON.stringify([s.netKey, st.node_color_by, st.ramp, st.colors.nodes, np && np.name, np && np.netKey]);
+  const key = JSON.stringify([s.netKey, st.node_color_by, st.node_ramp, st.colors.nodes, np && np.name, np && np.netKey]);
   if (nodeCache.key !== key) {
     const { colors, radii, order } = buildNodeStyle(s.net, st, np), pos = s.net.nodePositions;
     if (!order) nodeCache = { key, colors, radii, positions: pos, order };
@@ -186,15 +187,21 @@ function casedPathLayers(net, layerId, ids, color, extraWidth) {
   return stroke && [idPathLayer(net, layerId + "-casing", ids, CASING_COLOR, extraWidth + 2), stroke];
 }
 
+// The selection: a wide, translucent band of the selection color under a solid stroke, so the chosen links
+// read at a glance over any link coloring.
 function selectionLayers(net, style, sel) {
-  const layers = [];
-  const path = idPathLayer(net, "selection", sel.link_ids, [...style.colors.selection, 255], 3);
-  if (path) layers.push(path);
-  if (sel.anchors.length) layers.push(new deck.ScatterplotLayer({ id: "anchors", data: sel.anchors,
-    getPosition: a => [a.lon, a.lat], getRadius: 7, radiusUnits: "pixels",
-    getFillColor: a => (a.role === "from" ? [53, 196, 106] : [224, 82, 77]),
-    getLineColor: [17, 21, 26], lineWidthMinPixels: 2, stroked: true, parameters: { depthTest: false } }));
-  return layers;
+  const color = style.colors.selection;
+  const halo = idPathLayer(net, "selection-halo", sel.link_ids, [...color, 90], SELECTION_HALO_PX);
+  const path = idPathLayer(net, "selection", sel.link_ids, [...color, 255], 3);
+  return [halo, path].filter(Boolean);
+}
+
+// The from/to anchors, drawn above every link layer: large green and red dots with a white ring.
+function anchorLayer(sel) {
+  return new deck.ScatterplotLayer({ id: "anchors", data: sel.anchors,
+    getPosition: a => [a.lon, a.lat], getRadius: 10, radiusUnits: "pixels",
+    getFillColor: a => (a.role === "from" ? [53, 196, 106, 255] : [224, 82, 77, 255]),
+    getLineColor: [255, 255, 255, 255], lineWidthMinPixels: 3, stroked: true, parameters: { depthTest: false } });
 }
 
 // Records a foreign key away from the focus/highlights: lighter links, and rings on nodes.
@@ -234,6 +241,7 @@ function registerCoreLayers() {
   reg("related", c => (c.related ? relatedLayers(c.net, c.related) : null));
   reg("highlighted", c => (c.highlights.size ? casedPathLayers(c.net, "highlighted", c.highlights, [...HIGHLIGHT_COLOR, 255], 2.5) : null));
   reg("focus", c => (c.focus && c.focus.table === "link" ? casedPathLayers(c.net, "focus", [c.focus.id], FOCUS_COLOR, 4) : null));
+  reg("anchors", c => (c.style.show.selection && c.selection && c.selection.anchors.length ? anchorLayer(c.selection) : null));
   reg("marker", c => (c.marker ? markerLayer(c.marker) : null));
 }
 
@@ -328,16 +336,19 @@ export function fitNetwork({ animate = true } = {}) {
   fit(b, 60, false, animate ? 500 : 0);
 }
 
+// Fits the map to the links `ids` of the decoded network; false when it has none of them (nothing moves).
 export function fitLinks(ids) {
   const net = store.get().net;
-  if (!map || !net || !ids || !ids.length) return;
+  if (!map || !net || !ids || !ids.length) return false;
   const b = new maplibregl.LngLatBounds();
   for (const id of ids) {
     const i = net.id2idx.get(id);
     if (i == null) continue;
     for (let k = net.linkStart[i] * 2; k < net.linkStart[i + 1] * 2; k += 2) b.extend([net.linkPositions[k], net.linkPositions[k + 1]]);
   }
+  if (b.isEmpty()) return false;
   fit(b, 80);
+  return true;
 }
 
 export function fitBbox(bbox) { if (map) map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { padding: 40, duration: 500 }); }

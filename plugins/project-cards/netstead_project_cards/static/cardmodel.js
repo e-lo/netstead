@@ -189,6 +189,28 @@ export function commitView(check) {
 // The open catalog as state() reports it ({path, cards, rejected}), or null.
 export const catalogOf = state => cards(state).catalog || null;
 
+// The sample catalogs bundled with netstead ({id, name, path, network, cards}; Host API 1.9), each with whether it is
+// open now and whether it was written for `netId` (the open network: the panel then offers it first).
+export function sampleCatalogs(state, netId = null) {
+  const open = catalogOf(state);
+  return (cards(state).samples || []).map(sample => ({
+    ...sample,
+    isOpen: Boolean(open) && open.path === sample.path,
+    suggested: netId !== null && sample.network === netId,
+  }));
+}
+
+// Whether the open catalog is a bundled sample one: its files sit inside netstead's install, and the server refuses
+// every change to them (host.writable), so the panel offers none.
+export function catalogReadOnly(state) {
+  const open = catalogOf(state);
+  return Boolean(open) && (cards(state).samples || []).some(sample => sample.path === open.path);
+}
+
+// Why a sample catalog's fields and file actions are not offered.
+export const READ_ONLY_TIP = "A bundled sample catalog is read-only: copy its folder to a folder of your own, open "
+  + "that, and edit the copy";
+
 // Whether applying catalog cards is on (`[plugins.project_cards] enable_apply`; off by default).
 export const applyEnabled = state => Boolean(cards(state).enable_apply);
 
@@ -211,14 +233,43 @@ export function fitPill(entry) {
   const f = (entry && entry.fit) || { state: a ? (a.ok ? "fits" : "no") : "unchecked", reasons: [], warnings: [],
     net_id: a ? a.net_id : null };
   const warnings = f.warnings || [];
+  const net_id = f.net_id || null;
   if (f.state === "fits") {
-    return { fit: "fits", label: "Fits this network", reason: "", tip: [`Fits ${f.net_id}`, ...warnings].join("\n") };
+    return { fit: "fits", label: "Fits this network", reason: "", tip: [`Fits ${f.net_id}`, ...warnings].join("\n"),
+      reasons: [], warnings, net_id };
   }
   if (f.state === "no") {
     const reasons = f.reasons && f.reasons.length ? f.reasons : ["does not apply"];
-    return { fit: "no", label: "Doesn't fit", reason: reasons[0], tip: [...reasons, ...warnings].join("\n") };
+    return { fit: "no", label: "Doesn't fit", reason: reasons[0], tip: [...reasons, ...warnings].join("\n"),
+      reasons, warnings, net_id };
   }
-  return { fit: "unchecked", label: "Not checked", reason: "", tip: "Not checked against this network yet" };
+  return { fit: "unchecked", label: "Not checked", reason: "", tip: "Not checked against this network yet",
+    reasons: [], warnings: [], net_id: null };
+}
+
+// The icon a catalog row starts with: a green check (fits; its tooltip only), a red X that opens the card's details
+// at its fit reasons (`action` "details"), or a gray dash that checks the card (`action` "check").
+export function fitIcon(row) {
+  if (row.fit === "fits") return { fit: "fits", icon: "check", tip: "Compatible with the current network", action: null };
+  if (row.fit === "no") return { fit: "no", icon: "x", tip: "Incompatible; click to see details", action: "details" };
+  return { fit: "unchecked", icon: "dash", tip: "Not checked against this network; click to check", action: "check" };
+}
+
+// A catalog row's one secondary line: its tags, or "" (the file name and the change count are in its details).
+export const rowSubline = row => (row.tags || []).join(", ");
+
+// The details view's fit section: a title, then every reason and every warning.
+export function fitDetail(row) {
+  if (!row || row.fit === "unchecked") {
+    return { fit: "unchecked", title: "Not checked against this network yet.", reasons: [], warnings: [] };
+  }
+  const on = row.net_id ? ` ${row.net_id}` : " this network";
+  return {
+    fit: row.fit,
+    title: row.fit === "fits" ? `Compatible with${on}.` : `Incompatible with${on}:`,
+    reasons: row.reasons || [],
+    warnings: row.warnings || [],
+  };
 }
 
 // The network a listing's cards were checked against (the first checked card's), or null.
@@ -407,6 +458,46 @@ export function renameName(name, cardId) {
   if (!trimmed) return { error: "Give the card a new file name" };
   if (trimmed === cardId) return { error: `${cardId} already has that name` };
   return { name: trimmed };
+}
+
+// The fields a catalog card's details list, in order: [key, label]. Each but the file is the Edit metadata form's
+// (update_card_meta); the file is renamed (rename_card).
+export const DETAIL_FIELDS = [["project", "Project name"], ["tags", "Tags"], ["prerequisites", "Prerequisites"],
+  ["corequisites", "Corequisites"], ["conflicts", "Conflicts"], ["file", "File"]];
+const LIST_FIELDS = new Set(["tags", "prerequisites", "corequisites", "conflicts"]);
+
+// A catalog card's details fields (the /card route's answer): {key, label, value, editable, tip, hint}. In a
+// read-only catalog none is editable, and the tooltip says why.
+export function detailFields(detail, { readOnly = false } = {}) {
+  const values = { ...metaForm(detail), file: detail.card_id || "" };
+  return DETAIL_FIELDS.map(([key, label]) => ({
+    key, label, value: values[key], editable: !readOnly,
+    tip: readOnly ? READ_ONLY_TIP : key === "file" ? "Double-click to rename the file" : "Double-click to edit",
+    hint: LIST_FIELDS.has(key) ? "comma separated" : "",
+  }));
+}
+
+// What saving field `key` of a card's details as `text` does: {unchanged: true}, {rename: newName} (the file),
+// {meta: fields} (update_card_meta's, every field sent), or {error}.
+export function fieldEdit(detail, key, text) {
+  if (key === "file") {
+    if (String(text || "").trim() === detail.card_id) return { unchanged: true };
+    const { name, error } = renameName(text, detail.card_id);
+    return error ? { error } : { rename: name };
+  }
+  const form = metaForm(detail);
+  if (!Object.hasOwn(form, key)) return { error: `A card has no field ${key}` };
+  const now = LIST_FIELDS.has(key) ? splitList(text).join(", ") : String(text || "").trim();
+  if (now === form[key]) return { unchanged: true };
+  const { fields, error } = metaFields({ ...form, [key]: text });
+  return error ? { error } : { meta: fields };
+}
+
+// What a key does in a field being edited: "apply" (Enter, Cmd/Ctrl+Enter), "cancel" (Escape), or null.
+export function editKey(event) {
+  if (event.key === "Escape") return "cancel";
+  if (event.key === "Enter" && !event.shiftKey && !event.altKey) return "apply";
+  return null;
 }
 
 // What the panel says after a catalog file Action (its result {action, card_id, to}).

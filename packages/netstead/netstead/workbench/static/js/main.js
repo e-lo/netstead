@@ -15,11 +15,11 @@ import { hub } from "./hub.js";
 import { markFocusedIssue, onIssuesState, registerIssueLayer, reloadIssues, renderEditWarnings, wireIssues } from "./issues.js";
 import { loadJobs, onJob, wireJobs } from "./jobs.js";
 import { netChange } from "./linking.js";
-import { onHistoryEntry, onLLMEvent, onLLMJob, refreshLLM, renderLLMPanel, wireLLM } from "./llm.js";
+import { onHistoryEntry, onLLMEvent, onLLMJob, onLLMSelected, refreshLLM, renderLLMPanel, wireLLM } from "./llm.js";
 import { layerRegistry } from "./layers.js";
 import { fitBbox, fitLinks, fitNetwork, flyToNode, initMap, render, setBasemap } from "./map.js";
 import { decodeNetwork } from "./netbuf.js";
-import { populateColorby, registerViewPanel, populateNodeColorby, renderFilter, renderLegend, renderPluginLayers, syncControls, wireFilter, wirePanels } from "./panels.js";
+import { populateColorby, populateNodeColorby, renderFilter, renderLegend, renderPluginLayers, syncControls, wireFilter, wirePanels } from "./panels.js";
 import { commandReporters } from "./pluginload.js";
 import { loadPlugins, reportPluginError } from "./plugins.js";
 import { renderPluginsPanel, wirePluginsPanel } from "./pluginspanel.js";
@@ -30,6 +30,8 @@ import { wireSaveDialog } from "./savedialog.js";
 import { onSettingsHistory, registerSection, wireSettings } from "./settings.js";
 import { activeSelection, store } from "./store.js";
 import { onFocusChanged, onNetworkChanged, onNetworkEdited, refreshRows, restoreViewMode, syncScopeControls, tableVisible, wireTable } from "./table.js";
+import { wireDetailsPanel } from "./detailspanel.js";
+import { wireTooltip } from "./tooltip.js";
 import { onWizardJob, wireWizard } from "./wizard.js";
 import { registerCoreSlots, showPanel, wireWorkspaces } from "./workspaces.js";
 
@@ -52,9 +54,14 @@ async function loadActiveNetwork() {
     ]);
     if (netKeyFor(store.get().server).key !== key) return; // superseded while fetching
     const switched = !netKey || !netKey.startsWith(`${h.id}@`);
+    const before = store.get(); // a plugin's kept highlights asked to be framed (wb.highlight's zoom): fit to them
+    const zoomTo = switched && before.highlightsKeep && before.highlightsZoom ? [...before.highlights] : [];
+    // Where the network opening lacks them (a card that deletes links), the network shown so far still has them.
+    const framedBefore = zoomTo.length > 0 && fitLinks(zoomTo);
     store.set({ netKey: key, net: decodeNetwork(buf), attrs, properties: props.properties, nodeProperties: nodeProps.properties,
       prop: null, nodeProp: null, marker: null });
-    if (switched) fitNetwork({ animate: false });
+    const framed = (zoomTo.length > 0 && fitLinks(zoomTo)) || framedBefore;
+    if (switched && !framed) fitNetwork({ animate: false });
   } finally {
     inFlight.delete(key);
   }
@@ -148,15 +155,14 @@ function onNodeClick(nodeId) {
 // A box-select fills the highlights; with the table visible, it also becomes the table's filter.
 function onBoxSelect() { if (tableVisible()) store.set({ tableScope: "highlighted" }); }
 
-// The focused record: details, its map feature (fly only when the click came from the table), its row.
-// `focus.from` says where the click came from: "map" (the feature is in view: no fly) or "table" bring Inspect
-// forward; "panel" (a finding or warning picked in Validate or Edit, which stay) only flies there.
+// The focused record: details (the right-hand panel opens with any focus: detailspanel.js), its map feature (fly only
+// when the click came from the table), its row. `focus.from` says where the click came from: "map" (the feature is in
+// view: no fly), "table", or "panel" (a finding or warning picked in Validate or Changes) which only flies there.
 function onFocus(s) {
   const f = s.focus;
   store.set({ marker: null });
   if (f) {
     showDetails(f.table, f.id);
-    if (f.from === "map" || f.from === "table") showPanel("inspect");
     if (f.table === "link" && f.from !== "map") fitLinks([f.id]);
     if (f.table === "node") flyToNode(f.id, { fly: f.from !== "map" });
   } else {
@@ -182,7 +188,7 @@ function onNetKey(key) {
   }
   cancelRelated(); onNetworkChanged();
   const keep = store.get().highlightsKeep; // a plugin set them for the network now opening (a card preview)
-  store.set({ highlights: keep ? store.get().highlights : new Set(), highlightsKeep: false,
+  store.set({ highlights: keep ? store.get().highlights : new Set(), highlightsKeep: false, highlightsZoom: false,
     focus: null, related: null, fixTarget: null, issueFocus: null });
   clearDetails(); $("iss-fixer").innerHTML = "";
 }
@@ -267,7 +273,6 @@ async function boot() {
   mountIcons();
   registerCoreSlots();
   registerSelectionPanel();
-  registerViewPanel();
   registerEditPanels();
   registerAssistantPanel();
   wireWorkspaces({ onError: reportPluginError });
@@ -276,7 +281,7 @@ async function boot() {
   registerEditCommands();
   wirePalette({ onError: whenError, onRunError: runError });
   wireActionForm();
-  wireStore(); wirePanels(); wireFilter(); wireSide(); wireTable(); wireHandles(); wireHeader(); wireHistory(); wireMapButtons(); wireJobs(); wireWizard(); wireLLM(); wireSettings(); wireIssues(); wireEdits(); wireSaveDialog(); wireSelectionPanel(); wireAssistant();
+  wireStore(); wirePanels(); wireFilter(); wireSide(); wireTable(); wireHandles(); wireTooltip(); wireDetailsPanel(); wireHeader(); wireHistory(); wireMapButtons(); wireJobs(); wireWizard(); wireLLM(); wireSettings(); wireIssues(); wireEdits(); wireSaveDialog(); wireSelectionPanel(); wireAssistant();
   registerIssueLayer(); // after wireStore: the layerSeq subscription that renders Overlays is in place
   registerSection("llm", "Language models", "llm-panel", () => renderLLMPanel());
   registerAssistantSettings();
@@ -287,6 +292,7 @@ async function boot() {
   await loadJobs();
   restoreViewMode();
   loadPlugins().catch(e => toast(`Plugins: ${e.message}`)); // not awaited: a slow plugin never delays the map
+  onLLMSelected(() => loadAssistant()); // the Assistant's note and usage name the chosen model: re-read them now
   refreshLLM().catch(e => toast(e.message));
   loadAssistant();
   if (history.entries.length) showEntry(history.entries[history.entries.length - 1]);

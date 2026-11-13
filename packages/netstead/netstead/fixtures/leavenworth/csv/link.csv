@@ -1,340 +1,340 @@
-link_id,name,from_node_id,to_node_id,directed,geometry_id,length,facility_type,free_speed,lanes,bike_facility,ped_facility,parking,allowed_uses,osm_way_id
-1,Benton Street,1,2,False,1,232.717,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5836396
-2,West Street,1,59,False,2,203.747,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850530
-3,Ski Hill Drive,1,68,False,3,99.258,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236
-4,Ski Hill Drive,1,100,False,4,129.755,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236
-5,Benton Street,2,1,False,5,232.717,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5836396
-6,Benton Street,2,3,False,6,118.713,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5836396
-7,Woodward Street,2,81,False,7,94.533,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848820
-8,Benton Street,3,2,False,8,118.713,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5836396
-9,Evans Street,3,15,False,9,131.186,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5846367
-10,Evans Street,3,26,False,10,134.129,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5846367
-11,Orchard Street,3,93,False,11,200.909,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851214
-12,Mine Street,4,77,False,12,20.466,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1526268887
-13,Nordic Circle,4,115,False,13,29.694,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",607427620
-14,Mine Street,4,119,False,14,38.677,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1526268886
-15,Farivar Lane,5,6,False,15,168.946,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5837825
-16,Titus Road,5,29,False,16,254.98,tertiary,56.33,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848848
-17,Farivar Lane,6,5,False,17,168.946,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5837825
-18,West Benton Street,7,8,False,18,107.232,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5845859
-19,Mill Street,7,24,False,19,93.822,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846360
-20,West Benton Street,8,7,False,20,107.232,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5845859
-21,West Benton Street,8,9,False,21,159.145,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5845859
-22,Clinton Street,8,66,False,22,92.315,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848124
-23,Clinton Street,8,67,False,23,40.852,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848124
-24,West Benton Street,9,8,False,24,159.145,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5845859
-25,Prospect Street,9,52,False,25,129.943,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",318029080
-26,Prospect Street,9,53,False,26,23.553,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",318029080
-27,,10,11,False,27,585.357,primary,48.28,2,none,sidewalk,parallel,"auto,truck,walk,bike",5846044
-28,US 2,10,23,False,28,410.68,primary,48.28,3,none,sidewalk,parallel,"auto,truck,walk,bike",5851752
-29,3rd Street,10,74,False,29,90.189,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848610
-30,Ski Hill Drive,10,99,False,30,104.296,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236
-31,,11,10,False,31,585.357,primary,48.28,2,none,sidewalk,parallel,"auto,truck,walk,bike",5846044
-32,,11,12,False,32,399.307,primary,48.28,2,none,sidewalk,parallel,"auto,truck,walk,bike",5846044
-33,9th Street,11,48,False,33,148.215,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5847102
-34,Sherbourne Street,11,96,False,34,90.507,tertiary,40.0,3,none,sidewalk,parallel,"auto,truck,walk,bike",5846366
-35,,12,11,False,35,399.307,primary,48.28,2,none,sidewalk,parallel,"auto,truck,walk,bike",5846044
-36,,12,13,False,36,255.309,primary,48.28,2,none,sidewalk,parallel,"auto,truck,walk,bike",5846044
-37,12th Street,12,88,False,37,86.294,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851157
-38,,13,12,False,38,255.309,primary,48.28,2,none,sidewalk,parallel,"auto,truck,walk,bike",5846044
-39,,13,14,False,39,182.801,primary,48.28,2,none,sidewalk,parallel,"auto,truck,walk,bike",60696381
-40,Chumstick Road,13,85,False,40,98.123,secondary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5849940
-41,Front Street,13,97,False,41,26.616,tertiary,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73964436
-42,,14,13,False,42,182.801,primary,48.28,2,none,sidewalk,parallel,"auto,truck,walk,bike",60696381
-43,Alpensee Strasse,14,36,False,43,384.617,residential,40.0,3,none,sidewalk,parallel,"auto,truck,walk,bike",5846448
-44,Evans Street,15,3,False,44,131.186,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5846367
-45,Central Avenue,15,16,False,45,97.916,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",73960339
-46,Evans Street,15,25,False,46,99.914,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5846367
-47,Central Avenue,15,81,False,47,228.167,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850267
-48,Central Avenue,16,15,False,48,97.916,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",73960339
-49,Central Avenue,16,17,False,49,98.581,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",73960339
-50,Ash Street,16,39,False,50,100.223,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851283
-51,Central Avenue,17,16,False,51,98.581,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",73960339
-52,Central Avenue,17,18,False,52,102.894,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960364
-53,Birch Street,17,40,False,53,101.359,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960388
-54,Birch Street,17,93,False,54,130.395,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960388
-55,Central Avenue,18,17,False,55,102.894,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960364
-56,Central Avenue,18,19,False,56,99.634,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960364
-57,Cedar Street,18,41,False,57,99.966,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847010
-58,Central Avenue,19,18,False,58,99.634,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960364
-59,Pine Street,19,32,False,59,99.712,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846369
-60,Pine Street,19,33,False,60,131.876,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846369
-61,Central Avenue,19,114,False,61,77.797,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1210649192
-62,Division Street,20,79,False,62,50.362,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960353
-63,Division Street,20,90,False,63,49.58,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",987232718
-64,Commercial Street,20,102,False,64,138.557,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846309
-65,13th Street,21,84,False,65,105.196,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5849328
-66,Commercial Street,21,102,False,66,107.625,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846309
-67,Commercial Street,21,104,False,67,104.551,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846309
-68,Mill Street,22,23,False,68,35.649,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1526268892
-69,West Commercial Street,22,46,False,69,125.632,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848660
-70,Joseph Street,22,49,False,70,240.657,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848660
-71,US 2,23,10,False,71,410.68,primary,48.28,3,none,sidewalk,parallel,"auto,truck,walk,bike",5851752
-72,Mill Street,23,22,False,72,35.649,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1526268892
-73,Mill Street,23,24,False,73,144.617,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846360
-74,Mill Street,24,7,False,74,93.822,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846360
-75,Mill Street,24,23,False,75,144.617,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846360
-76,West Whitman Street,24,66,False,76,105.292,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850116
-77,Evans Street,25,15,False,77,99.914,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5846367
-78,Summit Avenue,25,39,False,78,96.8,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846842
-79,Evans Street,25,96,False,79,27.391,tertiary,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",426662508
-80,Evans Street,26,3,False,80,134.129,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5846367
-81,Evans Street,26,27,False,81,134.776,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5846367
-82,Center Street,26,68,False,82,180.735,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850630
-83,Cascade Street,26,89,False,83,201.841,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850487
-84,Evans Street,27,26,False,84,134.776,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5846367
-85,Ski Hill Drive,27,69,False,85,41.022,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236
-86,Ski Hill Drive,27,70,False,86,100.95,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236
-87,Pine Street,28,29,False,87,111.388,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846369
-88,Fir Street,28,42,False,88,160.502,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5849539
-89,Cone Street,28,98,False,89,38.275,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",304141388
-90,Titus Road,29,5,False,90,254.98,tertiary,56.33,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848848
-91,Pine Street,29,28,False,91,111.388,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846369
-92,Pine Street,29,30,False,92,110.176,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846369
-93,Burke Avenue,29,43,False,93,98.717,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5847228
-94,Pine Street,30,29,False,94,110.176,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846369
-95,Pine Street,30,31,False,95,93.833,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846369
-96,Kelley Avenue,30,44,False,96,99.153,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",318029065
-97,Pine Street,31,30,False,97,93.833,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846369
-98,Pine Street,31,32,False,98,99.832,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846369
-99,Price Avenue,31,45,False,99,97.931,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960359
-100,Pine Street,32,19,False,100,99.712,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846369
-101,Pine Street,32,31,False,101,99.832,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846369
-102,Summit Avenue,32,41,False,102,99.049,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1259592645
-103,Pine Street,33,19,False,103,131.876,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846369
-104,Pine Street,33,34,False,104,135.101,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",1496327819
-105,Orchard Street,33,93,False,105,203.442,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851214
-106,Pine Street,34,33,False,106,135.101,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",1496327819
-107,Pine Street,34,35,False,107,138.034,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",1496327819
-108,Cascade Street,34,89,False,108,203.229,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850487
-109,Cascade Street,34,113,False,109,69.909,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",607424909
-110,Pine Street,35,34,False,110,138.034,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",1496327819
-111,Ski Hill Drive,35,72,False,111,101.322,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236
-112,Alpensee Strasse,36,14,False,112,384.617,residential,40.0,3,none,sidewalk,parallel,"auto,truck,walk,bike",5846448
-113,Alpensee Strasse,36,36,False,113,633.478,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846447
-114,Alpensee Strasse,36,36,False,114,633.478,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846447
-115,Enchantment Park Way,37,38,False,115,225.723,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",125371324
-116,Enchantment Park Way,38,37,False,116,225.723,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",125371324
-117,Enchantment Way,38,46,False,117,81.96,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847039
-118,Scholze Street,38,49,False,118,284.384,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847128
-119,Scholze Street,38,50,False,119,76.031,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847128
-120,Ash Street,39,16,False,120,100.223,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851283
-121,Summit Avenue,39,25,False,121,96.8,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846842
-122,Summit Avenue,39,40,False,122,98.352,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846842
-123,Ash Street,39,56,False,123,100.703,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851283
-124,Birch Street,40,17,False,124,101.359,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960388
-125,Summit Avenue,40,39,False,125,98.352,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846842
-126,Birch Street,40,111,False,126,99.964,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960388
-127,Cedar Street,41,18,False,127,99.966,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847010
-128,Summit Avenue,41,32,False,128,99.049,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1259592645
-129,Cedar Street,41,45,False,129,101.024,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847010
-130,Fir Street,42,28,False,130,160.502,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5849539
-131,Fir Street,42,85,False,131,28.994,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5849541
-132,Cedar Street,42,107,False,132,134.89,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847010
-133,Burke Avenue,43,29,False,133,98.717,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5847228
-134,Cedar Street,43,44,False,134,108.4,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847010
-135,Birch Street,43,51,False,135,178.599,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5847228
-136,Cedar Street,43,107,False,136,100.417,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847010
-137,Kelley Avenue,44,30,False,137,99.153,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",318029065
-138,Cedar Street,44,43,False,138,108.4,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847010
-139,Cedar Street,44,45,False,139,100.133,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847010
-140,Kelley Avenue,44,51,False,140,102.422,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",318029065
-141,Price Avenue,45,31,False,141,97.931,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960359
-142,Cedar Street,45,41,False,142,101.024,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847010
-143,Cedar Street,45,44,False,143,100.133,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847010
-144,Price Avenue,45,111,False,144,102.923,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960359
-145,West Commercial Street,46,22,False,145,125.632,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848660
-146,Enchantment Way,46,38,False,146,81.96,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847039
-147,West Commercial Street,46,50,False,147,46.374,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848660
-148,9th Street,47,48,False,148,87.705,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",1368116534
-149,8th Street,47,101,False,149,207.856,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848825
-150,Main Street,47,112,False,150,59.999,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5849792
-151,9th Street,48,11,False,151,148.215,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5847102
-152,9th Street,48,47,False,152,87.705,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",1368116534
-153,Commercial Street,48,57,False,153,129.186,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848662
-154,Commercial Street,48,101,False,154,127.967,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848662
-155,Joseph Street,49,22,False,155,240.657,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848660
-156,Scholze Street,49,38,False,156,284.384,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847128
-157,Joseph Street,49,94,False,157,94.408,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851668
-158,Scholze Street,50,38,False,158,76.031,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847128
-159,West Commercial Street,50,46,False,159,46.374,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848660
-160,West Commercial Street,50,78,False,160,45.127,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848660
-161,Birch Street,51,43,False,161,178.599,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5847228
-162,Kelley Avenue,51,44,False,162,102.422,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",318029065
-163,Kelley Avenue,51,103,False,163,52.027,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",318029065
-164,Birch Street,51,111,False,164,99.425,tertiary,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",5851272
-165,Prospect Street,52,9,False,165,129.943,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",318029080
-166,West Whitman Street,52,66,False,166,252.101,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850116
-167,Prospect Street,52,99,False,167,68.382,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",318029080
-168,Prospect Street,53,9,False,168,23.553,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",318029080
-169,Prospect Street,53,54,False,169,214.783,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",318029080
-170,Cherry Street,53,58,False,170,94.07,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847582
-171,Prospect Street,54,53,False,171,214.783,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",318029080
-172,Prospect Street,54,55,False,172,137.519,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1526268889
-173,Mine Street,54,75,False,173,88.407,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",73960356
-174,Prospect Street,55,54,False,174,137.519,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1526268889
-175,Ash Street,56,39,False,175,100.703,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851283
-176,Price Avenue,56,96,False,176,140.319,tertiary,32.19,2,none,sidewalk,parallel,"auto,truck,walk,bike",5847453
-177,Price Avenue,56,111,False,177,98.929,tertiary,32.19,2,none,sidewalk,parallel,"auto,truck,walk,bike",5847453
-178,Commercial Street,57,48,False,178,129.186,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848662
-179,Commercial Street,57,79,False,179,124.539,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848662
-180,10th Street,57,87,False,180,227.621,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847505
-181,Cherry Street,58,53,False,181,94.07,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847582
-182,Cherry Street,58,59,False,182,94.927,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847582
-183,Park Avenue,58,75,False,183,215.113,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851991
-184,Park Avenue,58,95,False,184,120.333,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851991
-185,West Street,59,1,False,185,203.747,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850530
-186,Cherry Street,59,58,False,186,94.927,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847582
-187,Cherry Street,59,60,False,187,97.169,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847582
-188,West Street,59,76,False,188,210.762,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850530
-189,Cherry Street,60,59,False,189,97.169,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847582
-190,West Center Street,60,61,False,190,40.183,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850885
-191,West Center Street,60,83,False,191,40.642,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850885
-192,West Center Street,61,60,False,192,40.183,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850885
-193,Cherry Street,61,62,False,193,36.117,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1259209285
-194,West Center Street,61,91,False,194,77.19,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850885
-195,Cherry Street,62,61,False,195,36.117,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1259209285
-196,Commercial Street,63,74,False,196,90.2,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",430872038
-197,Commercial Street,63,78,False,197,123.059,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",430872038
-198,2nd Street,63,86,False,198,175.409,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847821
-199,Meadow Drive,64,65,False,199,191.641,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848033
-200,Mountain View Drive,64,77,False,200,250.366,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850012
-201,Mountain View Drive,64,109,False,201,51.849,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5852156
-202,Meadow Drive,65,64,False,202,191.641,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848033
-203,Mine Street,65,76,False,203,17.625,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1533731367
-204,Mine Street,65,77,False,204,66.793,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1526268887
-205,Clinton Street,66,8,False,205,92.315,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848124
-206,West Whitman Street,66,24,False,206,105.292,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850116
-207,West Whitman Street,66,52,False,207,252.101,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850116
-208,Clinton Street,67,8,False,208,40.852,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848124
-209,Ski Hill Drive,68,1,False,209,99.258,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236
-210,Center Street,68,26,False,210,180.735,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850630
-211,Ski Hill Drive,68,69,False,211,79.949,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236
-212,West Center Street,68,83,False,212,159.534,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850885
-213,Ski Hill Drive,69,27,False,213,41.022,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236
-214,Ski Hill Drive,69,68,False,214,79.949,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236
-215,Stafford Street,69,80,False,215,157.563,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848684
-216,Ski Hill Drive,70,27,False,216,100.95,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236
-217,Ski Hill Drive,70,71,False,217,100.387,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236
-218,Ski Hill Drive,71,70,False,218,100.387,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236
-219,Ski Hill Drive,71,72,False,219,101.946,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236
-220,Birch Street,71,89,False,220,137.724,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960388
-221,Ski Hill Drive,72,35,False,221,101.322,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236
-222,Ski Hill Drive,72,71,False,222,101.946,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236
-223,Poplar Street,72,120,False,223,50.801,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848435
-224,Poplar Street,73,120,False,224,172.864,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848435
-225,3rd Street,74,10,False,225,90.189,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848610
-226,Commercial Street,74,63,False,226,90.2,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",430872038
-227,Commercial Street,74,101,False,227,478.55,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",430872038
-228,Mine Street,75,54,False,228,88.407,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",73960356
-229,Park Avenue,75,58,False,229,215.113,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851991
-230,Mine Street,75,76,False,230,97.959,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",73960356
-231,Park Avenue,75,116,False,231,33.952,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851991
-232,West Street,76,59,False,232,210.762,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850530
-233,Mine Street,76,65,False,233,17.625,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1533731367
-234,Mine Street,76,75,False,234,97.959,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",73960356
-235,Mine Street,77,4,False,235,20.466,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1526268887
-236,Mountain View Drive,77,64,False,236,250.366,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850012
-237,Mine Street,77,65,False,237,66.793,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1526268887
-238,West Commercial Street,78,50,False,238,45.127,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848660
-239,Commercial Street,78,63,False,239,123.059,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",430872038
-240,1st Street,78,86,False,240,53.685,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5849658
-241,Division Street,79,20,False,241,50.362,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960353
-242,Commercial Street,79,57,False,242,124.539,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848662
-243,Division Street,79,87,False,243,60.183,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960353
-244,Stafford Street,80,69,False,244,157.563,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848684
-245,O Grady Street,80,82,False,245,57.32,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848919
-246,O Grady Street,80,83,False,246,80.353,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848919
-247,Woodward Street,81,2,False,247,94.533,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848820
-248,Central Avenue,81,15,False,248,228.167,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850267
-249,Whitman Street,81,100,False,249,311.453,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850267
-250,O Grady Street,82,80,False,250,57.32,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848919
-251,West Center Street,83,60,False,251,40.642,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850885
-252,West Center Street,83,68,False,252,159.534,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850885
-253,O Grady Street,83,80,False,253,80.353,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848919
-254,13th Street,84,21,False,254,105.196,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5849328
-255,Front Street,84,88,False,255,106.285,tertiary,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73964436
-256,Front Street,84,97,False,256,109.348,tertiary,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73964436
-257,Chumstick Road,85,13,False,257,98.123,secondary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5849940
-258,Fir Street,85,42,False,258,28.994,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5849541
-259,2nd Street,86,63,False,259,175.409,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847821
-260,1st Street,86,78,False,260,53.685,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5849658
-261,1st Street,86,110,False,261,48.731,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5849658
-262,10th Street,87,57,False,262,227.621,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847505
-263,Division Street,87,79,False,263,60.183,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960353
-264,Front Street,87,88,False,264,134.311,tertiary,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73964436
-265,12th Street,88,12,False,265,86.294,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851157
-266,Front Street,88,84,False,266,106.285,tertiary,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73964436
-267,Front Street,88,87,False,267,134.311,tertiary,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73964436
-268,12th Street,88,102,False,268,105.333,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851157
-269,Cascade Street,89,26,False,269,201.841,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850487
-270,Cascade Street,89,34,False,270,203.229,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850487
-271,Birch Street,89,71,False,271,137.724,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960388
-272,Birch Street,89,93,False,272,134.053,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960388
-273,Division Street,90,20,False,273,49.58,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",987232718
-274,West Center Street,91,61,False,274,77.19,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850885
-275,12th Street,92,102,False,275,57.26,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851157
-276,Orchard Street,93,3,False,276,200.909,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851214
-277,Birch Street,93,17,False,277,130.395,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960388
-278,Orchard Street,93,33,False,278,203.442,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851214
-279,Birch Street,93,89,False,279,134.053,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960388
-280,Joseph Street,94,49,False,280,94.408,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851668
-281,,94,94,True,281,68.721,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",318036764
-282,Park Avenue,95,58,False,282,120.333,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851991
-283,Sherbourne Street,96,11,False,283,90.507,tertiary,40.0,3,none,sidewalk,parallel,"auto,truck,walk,bike",5846366
-284,Evans Street,96,25,False,284,27.391,tertiary,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",426662508
-285,Price Avenue,96,56,False,285,140.319,tertiary,32.19,2,none,sidewalk,parallel,"auto,truck,walk,bike",5847453
-286,Front Street,97,13,False,286,26.616,tertiary,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73964436
-287,Front Street,97,84,False,287,109.348,tertiary,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73964436
-288,14th Street,97,104,False,288,106.377,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847509
-289,Cone Street,98,28,False,289,38.275,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",304141388
-290,Ski Hill Drive,99,10,False,290,104.296,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236
-291,Prospect Street,99,52,False,291,68.382,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",318029080
-292,Ski Hill Drive,99,100,False,292,51.417,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236
-293,Ski Hill Drive,100,1,False,293,129.755,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236
-294,Whitman Street,100,81,False,294,311.453,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850267
-295,Ski Hill Drive,100,99,False,295,51.417,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236
-296,8th Street,101,47,False,296,207.856,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848825
-297,Commercial Street,101,48,False,297,127.967,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848662
-298,Commercial Street,101,74,False,298,478.55,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",430872038
-299,8th Street,101,106,False,299,45.793,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",909746570
-300,Commercial Street,102,20,False,300,138.557,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846309
-301,Commercial Street,102,21,False,301,107.625,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846309
-302,12th Street,102,88,False,302,105.333,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851157
-303,12th Street,102,92,False,303,57.26,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851157
-304,Kelley Avenue,103,51,False,304,52.027,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",318029065
-305,Commercial Street,104,21,False,305,104.551,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846309
-306,14th Street,104,97,False,306,106.377,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847509
-307,14th Street,104,105,False,307,22.066,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847509
-308,14th Street,105,104,False,308,22.066,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847509
-309,8th Street,106,101,False,309,45.793,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",909746570
-310,Cedar Street,107,42,False,310,134.89,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847010
-311,Cedar Street,107,43,False,311,100.417,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847010
-312,Cone Street,107,108,False,312,53.218,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",426667287
-313,Cone Street,108,107,False,313,53.218,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",426667287
-314,Mountain View Drive,109,64,False,314,51.849,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5852156
-315,Mountain View Drive,109,116,False,315,215.656,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851991
-316,,109,117,False,316,175.529,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",783798097
-317,1st Street,110,86,False,317,48.731,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5849658
-318,Birch Street,111,40,False,318,99.964,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960388
-319,Price Avenue,111,45,False,319,102.923,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960359
-320,Birch Street,111,51,False,320,99.425,tertiary,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",5851272
-321,Price Avenue,111,56,False,321,98.929,tertiary,32.19,2,none,sidewalk,parallel,"auto,truck,walk,bike",5847453
-322,Main Street,112,47,False,322,59.999,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5849792
-323,Cascade Street,113,34,False,323,69.909,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",607424909
-324,Pinegrass Street,113,114,False,324,266.769,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",607425083
-325,Central Avenue,114,19,False,325,77.797,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1210649192
-326,Pinegrass Street,114,113,False,326,266.769,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",607425083
-327,Nordic Circle,115,4,False,327,29.694,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",607427620
-328,Park Avenue,116,75,False,328,33.952,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851991
-329,Mountain View Drive,116,109,False,329,215.656,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851991
-330,,116,117,False,330,40.955,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",783798097
-331,,117,109,False,331,175.529,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",783798097
-332,,117,116,False,332,40.955,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",783798097
-333,,117,118,False,333,40.438,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1519362990
-334,,118,117,False,334,40.438,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1519362990
-335,Mine Street,119,4,False,335,38.677,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1526268886
-336,Poplar Street,120,72,False,336,50.801,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848435
-337,Poplar Street,120,73,False,337,172.864,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848435
-338,,120,121,False,338,70.247,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1519384399
-339,,121,120,False,339,70.247,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1519384399
+link_id,name,from_node_id,to_node_id,directed,geometry_id,length,facility_type,free_speed,lanes,bike_facility,ped_facility,parking,allowed_uses,osm_way_id,ref
+1,Benton Street,1,2,False,1,232.717,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5836396,
+2,West Street,1,59,False,2,203.747,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850530,
+3,Ski Hill Drive,1,68,False,3,99.258,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236,
+4,Ski Hill Drive,1,100,False,4,129.755,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236,
+5,Benton Street,2,1,False,5,232.717,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5836396,
+6,Benton Street,2,3,False,6,118.713,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5836396,
+7,Woodward Street,2,81,False,7,94.533,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848820,
+8,Benton Street,3,2,False,8,118.713,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5836396,
+9,Evans Street,3,15,False,9,131.186,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5846367,
+10,Evans Street,3,26,False,10,134.129,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5846367,
+11,Orchard Street,3,93,False,11,200.909,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851214,
+12,Mine Street,4,77,False,12,20.466,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1526268887,
+13,Nordic Circle,4,115,False,13,29.694,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",607427620,
+14,Mine Street,4,119,False,14,38.677,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1526268886,
+15,Farivar Lane,5,6,False,15,168.946,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5837825,
+16,Titus Road,5,29,False,16,254.98,tertiary,56.33,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848848,
+17,Farivar Lane,6,5,False,17,168.946,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5837825,
+18,West Benton Street,7,8,False,18,107.232,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5845859,
+19,Mill Street,7,24,False,19,93.822,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846360,
+20,West Benton Street,8,7,False,20,107.232,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5845859,
+21,West Benton Street,8,9,False,21,159.145,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5845859,
+22,Clinton Street,8,66,False,22,92.315,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848124,
+23,Clinton Street,8,67,False,23,40.852,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848124,
+24,West Benton Street,9,8,False,24,159.145,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5845859,
+25,Prospect Street,9,52,False,25,129.943,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",318029080,
+26,Prospect Street,9,53,False,26,23.553,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",318029080,
+27,,10,11,False,27,585.357,primary,48.28,2,none,sidewalk,parallel,"auto,truck,walk,bike",5846044,US 2
+28,US 2,10,23,False,28,410.68,primary,48.28,3,none,sidewalk,parallel,"auto,truck,walk,bike",5851752,US 2
+29,3rd Street,10,74,False,29,90.189,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848610,
+30,Ski Hill Drive,10,99,False,30,104.296,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236,
+31,,11,10,False,31,585.357,primary,48.28,2,none,sidewalk,parallel,"auto,truck,walk,bike",5846044,US 2
+32,,11,12,False,32,399.307,primary,48.28,2,none,sidewalk,parallel,"auto,truck,walk,bike",5846044,US 2
+33,9th Street,11,48,False,33,148.215,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5847102,
+34,Sherbourne Street,11,96,False,34,90.507,tertiary,40.0,3,none,sidewalk,parallel,"auto,truck,walk,bike",5846366,
+35,,12,11,False,35,399.307,primary,48.28,2,none,sidewalk,parallel,"auto,truck,walk,bike",5846044,US 2
+36,,12,13,False,36,255.309,primary,48.28,2,none,sidewalk,parallel,"auto,truck,walk,bike",5846044,US 2
+37,12th Street,12,88,False,37,86.294,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851157,
+38,,13,12,False,38,255.309,primary,48.28,2,none,sidewalk,parallel,"auto,truck,walk,bike",5846044,US 2
+39,,13,14,False,39,182.801,primary,48.28,2,none,sidewalk,parallel,"auto,truck,walk,bike",60696381,US 2
+40,Chumstick Road,13,85,False,40,98.123,secondary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5849940,
+41,Front Street,13,97,False,41,26.616,tertiary,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73964436,
+42,,14,13,False,42,182.801,primary,48.28,2,none,sidewalk,parallel,"auto,truck,walk,bike",60696381,US 2
+43,Alpensee Strasse,14,36,False,43,384.617,residential,40.0,3,none,sidewalk,parallel,"auto,truck,walk,bike",5846448,
+44,Evans Street,15,3,False,44,131.186,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5846367,
+45,Central Avenue,15,16,False,45,97.916,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",73960339,
+46,Evans Street,15,25,False,46,99.914,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5846367,
+47,Central Avenue,15,81,False,47,228.167,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850267,
+48,Central Avenue,16,15,False,48,97.916,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",73960339,
+49,Central Avenue,16,17,False,49,98.581,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",73960339,
+50,Ash Street,16,39,False,50,100.223,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851283,
+51,Central Avenue,17,16,False,51,98.581,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",73960339,
+52,Central Avenue,17,18,False,52,102.894,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960364,
+53,Birch Street,17,40,False,53,101.359,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960388,
+54,Birch Street,17,93,False,54,130.395,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960388,
+55,Central Avenue,18,17,False,55,102.894,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960364,
+56,Central Avenue,18,19,False,56,99.634,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960364,
+57,Cedar Street,18,41,False,57,99.966,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847010,
+58,Central Avenue,19,18,False,58,99.634,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960364,
+59,Pine Street,19,32,False,59,99.712,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846369,
+60,Pine Street,19,33,False,60,131.876,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846369,
+61,Central Avenue,19,114,False,61,77.797,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1210649192,
+62,Division Street,20,79,False,62,50.362,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960353,
+63,Division Street,20,90,False,63,49.58,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",987232718,
+64,Commercial Street,20,102,False,64,138.557,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846309,
+65,13th Street,21,84,False,65,105.196,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5849328,
+66,Commercial Street,21,102,False,66,107.625,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846309,
+67,Commercial Street,21,104,False,67,104.551,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846309,
+68,Mill Street,22,23,False,68,35.649,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1526268892,
+69,West Commercial Street,22,46,False,69,125.632,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848660,
+70,Joseph Street,22,49,False,70,240.657,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848660,
+71,US 2,23,10,False,71,410.68,primary,48.28,3,none,sidewalk,parallel,"auto,truck,walk,bike",5851752,US 2
+72,Mill Street,23,22,False,72,35.649,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1526268892,
+73,Mill Street,23,24,False,73,144.617,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846360,
+74,Mill Street,24,7,False,74,93.822,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846360,
+75,Mill Street,24,23,False,75,144.617,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846360,
+76,West Whitman Street,24,66,False,76,105.292,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850116,
+77,Evans Street,25,15,False,77,99.914,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5846367,
+78,Summit Avenue,25,39,False,78,96.8,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846842,
+79,Evans Street,25,96,False,79,27.391,tertiary,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",426662508,
+80,Evans Street,26,3,False,80,134.129,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5846367,
+81,Evans Street,26,27,False,81,134.776,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5846367,
+82,Center Street,26,68,False,82,180.735,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850630,
+83,Cascade Street,26,89,False,83,201.841,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850487,
+84,Evans Street,27,26,False,84,134.776,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5846367,
+85,Ski Hill Drive,27,69,False,85,41.022,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236,
+86,Ski Hill Drive,27,70,False,86,100.95,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236,
+87,Pine Street,28,29,False,87,111.388,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846369,
+88,Fir Street,28,42,False,88,160.502,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5849539,
+89,Cone Street,28,98,False,89,38.275,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",304141388,
+90,Titus Road,29,5,False,90,254.98,tertiary,56.33,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848848,
+91,Pine Street,29,28,False,91,111.388,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846369,
+92,Pine Street,29,30,False,92,110.176,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846369,
+93,Burke Avenue,29,43,False,93,98.717,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5847228,
+94,Pine Street,30,29,False,94,110.176,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846369,
+95,Pine Street,30,31,False,95,93.833,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846369,
+96,Kelley Avenue,30,44,False,96,99.153,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",318029065,
+97,Pine Street,31,30,False,97,93.833,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846369,
+98,Pine Street,31,32,False,98,99.832,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846369,
+99,Price Avenue,31,45,False,99,97.931,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960359,
+100,Pine Street,32,19,False,100,99.712,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846369,
+101,Pine Street,32,31,False,101,99.832,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846369,
+102,Summit Avenue,32,41,False,102,99.049,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1259592645,
+103,Pine Street,33,19,False,103,131.876,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846369,
+104,Pine Street,33,34,False,104,135.101,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",1496327819,
+105,Orchard Street,33,93,False,105,203.442,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851214,
+106,Pine Street,34,33,False,106,135.101,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",1496327819,
+107,Pine Street,34,35,False,107,138.034,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",1496327819,
+108,Cascade Street,34,89,False,108,203.229,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850487,
+109,Cascade Street,34,113,False,109,69.909,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",607424909,
+110,Pine Street,35,34,False,110,138.034,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",1496327819,
+111,Ski Hill Drive,35,72,False,111,101.322,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236,
+112,Alpensee Strasse,36,14,False,112,384.617,residential,40.0,3,none,sidewalk,parallel,"auto,truck,walk,bike",5846448,
+113,Alpensee Strasse,36,36,False,113,633.478,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846447,
+114,Alpensee Strasse,36,36,False,114,633.478,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846447,
+115,Enchantment Park Way,37,38,False,115,225.723,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",125371324,
+116,Enchantment Park Way,38,37,False,116,225.723,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",125371324,
+117,Enchantment Way,38,46,False,117,81.96,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847039,
+118,Scholze Street,38,49,False,118,284.384,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847128,
+119,Scholze Street,38,50,False,119,76.031,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847128,
+120,Ash Street,39,16,False,120,100.223,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851283,
+121,Summit Avenue,39,25,False,121,96.8,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846842,
+122,Summit Avenue,39,40,False,122,98.352,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846842,
+123,Ash Street,39,56,False,123,100.703,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851283,
+124,Birch Street,40,17,False,124,101.359,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960388,
+125,Summit Avenue,40,39,False,125,98.352,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846842,
+126,Birch Street,40,111,False,126,99.964,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960388,
+127,Cedar Street,41,18,False,127,99.966,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847010,
+128,Summit Avenue,41,32,False,128,99.049,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1259592645,
+129,Cedar Street,41,45,False,129,101.024,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847010,
+130,Fir Street,42,28,False,130,160.502,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5849539,
+131,Fir Street,42,85,False,131,28.994,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5849541,
+132,Cedar Street,42,107,False,132,134.89,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847010,
+133,Burke Avenue,43,29,False,133,98.717,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5847228,
+134,Cedar Street,43,44,False,134,108.4,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847010,
+135,Birch Street,43,51,False,135,178.599,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5847228,
+136,Cedar Street,43,107,False,136,100.417,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847010,
+137,Kelley Avenue,44,30,False,137,99.153,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",318029065,
+138,Cedar Street,44,43,False,138,108.4,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847010,
+139,Cedar Street,44,45,False,139,100.133,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847010,
+140,Kelley Avenue,44,51,False,140,102.422,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",318029065,
+141,Price Avenue,45,31,False,141,97.931,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960359,
+142,Cedar Street,45,41,False,142,101.024,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847010,
+143,Cedar Street,45,44,False,143,100.133,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847010,
+144,Price Avenue,45,111,False,144,102.923,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960359,
+145,West Commercial Street,46,22,False,145,125.632,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848660,
+146,Enchantment Way,46,38,False,146,81.96,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847039,
+147,West Commercial Street,46,50,False,147,46.374,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848660,
+148,9th Street,47,48,False,148,87.705,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",1368116534,
+149,8th Street,47,101,False,149,207.856,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848825,
+150,Main Street,47,112,False,150,59.999,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5849792,
+151,9th Street,48,11,False,151,148.215,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5847102,
+152,9th Street,48,47,False,152,87.705,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",1368116534,
+153,Commercial Street,48,57,False,153,129.186,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848662,
+154,Commercial Street,48,101,False,154,127.967,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848662,
+155,Joseph Street,49,22,False,155,240.657,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848660,
+156,Scholze Street,49,38,False,156,284.384,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847128,
+157,Joseph Street,49,94,False,157,94.408,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851668,
+158,Scholze Street,50,38,False,158,76.031,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847128,
+159,West Commercial Street,50,46,False,159,46.374,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848660,
+160,West Commercial Street,50,78,False,160,45.127,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848660,
+161,Birch Street,51,43,False,161,178.599,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5847228,
+162,Kelley Avenue,51,44,False,162,102.422,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",318029065,
+163,Kelley Avenue,51,103,False,163,52.027,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",318029065,
+164,Birch Street,51,111,False,164,99.425,tertiary,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",5851272,
+165,Prospect Street,52,9,False,165,129.943,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",318029080,
+166,West Whitman Street,52,66,False,166,252.101,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850116,
+167,Prospect Street,52,99,False,167,68.382,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",318029080,
+168,Prospect Street,53,9,False,168,23.553,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",318029080,
+169,Prospect Street,53,54,False,169,214.783,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",318029080,
+170,Cherry Street,53,58,False,170,94.07,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847582,
+171,Prospect Street,54,53,False,171,214.783,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",318029080,
+172,Prospect Street,54,55,False,172,137.519,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1526268889,
+173,Mine Street,54,75,False,173,88.407,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",73960356,
+174,Prospect Street,55,54,False,174,137.519,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1526268889,
+175,Ash Street,56,39,False,175,100.703,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851283,
+176,Price Avenue,56,96,False,176,140.319,tertiary,32.19,2,none,sidewalk,parallel,"auto,truck,walk,bike",5847453,
+177,Price Avenue,56,111,False,177,98.929,tertiary,32.19,2,none,sidewalk,parallel,"auto,truck,walk,bike",5847453,
+178,Commercial Street,57,48,False,178,129.186,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848662,
+179,Commercial Street,57,79,False,179,124.539,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848662,
+180,10th Street,57,87,False,180,227.621,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847505,
+181,Cherry Street,58,53,False,181,94.07,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847582,
+182,Cherry Street,58,59,False,182,94.927,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847582,
+183,Park Avenue,58,75,False,183,215.113,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851991,
+184,Park Avenue,58,95,False,184,120.333,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851991,
+185,West Street,59,1,False,185,203.747,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850530,
+186,Cherry Street,59,58,False,186,94.927,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847582,
+187,Cherry Street,59,60,False,187,97.169,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847582,
+188,West Street,59,76,False,188,210.762,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850530,
+189,Cherry Street,60,59,False,189,97.169,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847582,
+190,West Center Street,60,61,False,190,40.183,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850885,
+191,West Center Street,60,83,False,191,40.642,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850885,
+192,West Center Street,61,60,False,192,40.183,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850885,
+193,Cherry Street,61,62,False,193,36.117,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1259209285,
+194,West Center Street,61,91,False,194,77.19,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850885,
+195,Cherry Street,62,61,False,195,36.117,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1259209285,
+196,Commercial Street,63,74,False,196,90.2,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",430872038,
+197,Commercial Street,63,78,False,197,123.059,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",430872038,
+198,2nd Street,63,86,False,198,175.409,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847821,
+199,Meadow Drive,64,65,False,199,191.641,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848033,
+200,Mountain View Drive,64,77,False,200,250.366,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850012,
+201,Mountain View Drive,64,109,False,201,51.849,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5852156,
+202,Meadow Drive,65,64,False,202,191.641,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848033,
+203,Mine Street,65,76,False,203,17.625,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1533731367,
+204,Mine Street,65,77,False,204,66.793,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1526268887,
+205,Clinton Street,66,8,False,205,92.315,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848124,
+206,West Whitman Street,66,24,False,206,105.292,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850116,
+207,West Whitman Street,66,52,False,207,252.101,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850116,
+208,Clinton Street,67,8,False,208,40.852,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848124,
+209,Ski Hill Drive,68,1,False,209,99.258,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236,
+210,Center Street,68,26,False,210,180.735,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850630,
+211,Ski Hill Drive,68,69,False,211,79.949,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236,
+212,West Center Street,68,83,False,212,159.534,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850885,
+213,Ski Hill Drive,69,27,False,213,41.022,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236,
+214,Ski Hill Drive,69,68,False,214,79.949,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236,
+215,Stafford Street,69,80,False,215,157.563,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848684,
+216,Ski Hill Drive,70,27,False,216,100.95,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236,
+217,Ski Hill Drive,70,71,False,217,100.387,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236,
+218,Ski Hill Drive,71,70,False,218,100.387,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236,
+219,Ski Hill Drive,71,72,False,219,101.946,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236,
+220,Birch Street,71,89,False,220,137.724,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960388,
+221,Ski Hill Drive,72,35,False,221,101.322,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236,
+222,Ski Hill Drive,72,71,False,222,101.946,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236,
+223,Poplar Street,72,120,False,223,50.801,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848435,
+224,Poplar Street,73,120,False,224,172.864,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848435,
+225,3rd Street,74,10,False,225,90.189,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848610,
+226,Commercial Street,74,63,False,226,90.2,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",430872038,
+227,Commercial Street,74,101,False,227,478.55,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",430872038,
+228,Mine Street,75,54,False,228,88.407,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",73960356,
+229,Park Avenue,75,58,False,229,215.113,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851991,
+230,Mine Street,75,76,False,230,97.959,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",73960356,
+231,Park Avenue,75,116,False,231,33.952,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851991,
+232,West Street,76,59,False,232,210.762,residential,40.23,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850530,
+233,Mine Street,76,65,False,233,17.625,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1533731367,
+234,Mine Street,76,75,False,234,97.959,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",73960356,
+235,Mine Street,77,4,False,235,20.466,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1526268887,
+236,Mountain View Drive,77,64,False,236,250.366,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850012,
+237,Mine Street,77,65,False,237,66.793,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1526268887,
+238,West Commercial Street,78,50,False,238,45.127,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848660,
+239,Commercial Street,78,63,False,239,123.059,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",430872038,
+240,1st Street,78,86,False,240,53.685,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5849658,
+241,Division Street,79,20,False,241,50.362,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960353,
+242,Commercial Street,79,57,False,242,124.539,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848662,
+243,Division Street,79,87,False,243,60.183,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960353,
+244,Stafford Street,80,69,False,244,157.563,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848684,
+245,O Grady Street,80,82,False,245,57.32,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848919,
+246,O Grady Street,80,83,False,246,80.353,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848919,
+247,Woodward Street,81,2,False,247,94.533,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848820,
+248,Central Avenue,81,15,False,248,228.167,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850267,
+249,Whitman Street,81,100,False,249,311.453,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850267,
+250,O Grady Street,82,80,False,250,57.32,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848919,
+251,West Center Street,83,60,False,251,40.642,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850885,
+252,West Center Street,83,68,False,252,159.534,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850885,
+253,O Grady Street,83,80,False,253,80.353,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848919,
+254,13th Street,84,21,False,254,105.196,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5849328,
+255,Front Street,84,88,False,255,106.285,tertiary,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73964436,
+256,Front Street,84,97,False,256,109.348,tertiary,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73964436,
+257,Chumstick Road,85,13,False,257,98.123,secondary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5849940,
+258,Fir Street,85,42,False,258,28.994,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5849541,
+259,2nd Street,86,63,False,259,175.409,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847821,
+260,1st Street,86,78,False,260,53.685,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5849658,
+261,1st Street,86,110,False,261,48.731,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5849658,
+262,10th Street,87,57,False,262,227.621,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847505,
+263,Division Street,87,79,False,263,60.183,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960353,
+264,Front Street,87,88,False,264,134.311,tertiary,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73964436,
+265,12th Street,88,12,False,265,86.294,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851157,
+266,Front Street,88,84,False,266,106.285,tertiary,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73964436,
+267,Front Street,88,87,False,267,134.311,tertiary,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73964436,
+268,12th Street,88,102,False,268,105.333,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851157,
+269,Cascade Street,89,26,False,269,201.841,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850487,
+270,Cascade Street,89,34,False,270,203.229,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850487,
+271,Birch Street,89,71,False,271,137.724,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960388,
+272,Birch Street,89,93,False,272,134.053,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960388,
+273,Division Street,90,20,False,273,49.58,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",987232718,
+274,West Center Street,91,61,False,274,77.19,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850885,
+275,12th Street,92,102,False,275,57.26,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851157,
+276,Orchard Street,93,3,False,276,200.909,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851214,
+277,Birch Street,93,17,False,277,130.395,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960388,
+278,Orchard Street,93,33,False,278,203.442,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851214,
+279,Birch Street,93,89,False,279,134.053,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960388,
+280,Joseph Street,94,49,False,280,94.408,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851668,
+281,,94,94,True,281,68.721,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",318036764,
+282,Park Avenue,95,58,False,282,120.333,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851991,
+283,Sherbourne Street,96,11,False,283,90.507,tertiary,40.0,3,none,sidewalk,parallel,"auto,truck,walk,bike",5846366,
+284,Evans Street,96,25,False,284,27.391,tertiary,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",426662508,
+285,Price Avenue,96,56,False,285,140.319,tertiary,32.19,2,none,sidewalk,parallel,"auto,truck,walk,bike",5847453,
+286,Front Street,97,13,False,286,26.616,tertiary,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73964436,
+287,Front Street,97,84,False,287,109.348,tertiary,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73964436,
+288,14th Street,97,104,False,288,106.377,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847509,
+289,Cone Street,98,28,False,289,38.275,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",304141388,
+290,Ski Hill Drive,99,10,False,290,104.296,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236,
+291,Prospect Street,99,52,False,291,68.382,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",318029080,
+292,Ski Hill Drive,99,100,False,292,51.417,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236,
+293,Ski Hill Drive,100,1,False,293,129.755,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236,
+294,Whitman Street,100,81,False,294,311.453,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5850267,
+295,Ski Hill Drive,100,99,False,295,51.417,tertiary,40.23,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848236,
+296,8th Street,101,47,False,296,207.856,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848825,
+297,Commercial Street,101,48,False,297,127.967,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",5848662,
+298,Commercial Street,101,74,False,298,478.55,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",430872038,
+299,8th Street,101,106,False,299,45.793,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",909746570,
+300,Commercial Street,102,20,False,300,138.557,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846309,
+301,Commercial Street,102,21,False,301,107.625,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846309,
+302,12th Street,102,88,False,302,105.333,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851157,
+303,12th Street,102,92,False,303,57.26,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851157,
+304,Kelley Avenue,103,51,False,304,52.027,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",318029065,
+305,Commercial Street,104,21,False,305,104.551,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5846309,
+306,14th Street,104,97,False,306,106.377,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847509,
+307,14th Street,104,105,False,307,22.066,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847509,
+308,14th Street,105,104,False,308,22.066,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847509,
+309,8th Street,106,101,False,309,45.793,residential,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",909746570,
+310,Cedar Street,107,42,False,310,134.89,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847010,
+311,Cedar Street,107,43,False,311,100.417,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5847010,
+312,Cone Street,107,108,False,312,53.218,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",426667287,
+313,Cone Street,108,107,False,313,53.218,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",426667287,
+314,Mountain View Drive,109,64,False,314,51.849,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5852156,
+315,Mountain View Drive,109,116,False,315,215.656,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851991,
+316,,109,117,False,316,175.529,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",783798097,
+317,1st Street,110,86,False,317,48.731,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5849658,
+318,Birch Street,111,40,False,318,99.964,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960388,
+319,Price Avenue,111,45,False,319,102.923,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",73960359,
+320,Birch Street,111,51,False,320,99.425,tertiary,40.0,2,none,sidewalk,parallel,"auto,truck,walk,bike",5851272,
+321,Price Avenue,111,56,False,321,98.929,tertiary,32.19,2,none,sidewalk,parallel,"auto,truck,walk,bike",5847453,
+322,Main Street,112,47,False,322,59.999,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5849792,
+323,Cascade Street,113,34,False,323,69.909,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",607424909,
+324,Pinegrass Street,113,114,False,324,266.769,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",607425083,
+325,Central Avenue,114,19,False,325,77.797,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1210649192,
+326,Pinegrass Street,114,113,False,326,266.769,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",607425083,
+327,Nordic Circle,115,4,False,327,29.694,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",607427620,
+328,Park Avenue,116,75,False,328,33.952,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851991,
+329,Mountain View Drive,116,109,False,329,215.656,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5851991,
+330,,116,117,False,330,40.955,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",783798097,
+331,,117,109,False,331,175.529,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",783798097,
+332,,117,116,False,332,40.955,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",783798097,
+333,,117,118,False,333,40.438,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1519362990,
+334,,118,117,False,334,40.438,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1519362990,
+335,Mine Street,119,4,False,335,38.677,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1526268886,
+336,Poplar Street,120,72,False,336,50.801,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848435,
+337,Poplar Street,120,73,False,337,172.864,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",5848435,
+338,,120,121,False,338,70.247,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1519384399,
+339,,121,120,False,339,70.247,residential,40.0,1,none,sidewalk,parallel,"auto,truck,walk,bike",1519384399,

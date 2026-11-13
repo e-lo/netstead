@@ -35,6 +35,27 @@ export function budgetText(status) {
   return `${count(status.remote_used)} of ${count(status.budget)} tokens used this session (all remote models)`;
 }
 
+// What the Assistant pane says about privacy: a one-line summary under the box, and the full list (what is sent, the
+// tool set) for the info icon's tooltip. `status` is /api/assistant's. An error replaces the line and has no detail.
+export function privacySummary(status) {
+  if (status.error) return { line: status.error, detail: "" };
+  if (status.provider === "stub") {
+    return {
+      line: "Runs offline, with a few fixed commands; choose a language model with the robot icon for more.",
+      detail: "The offline assistant understands a few fixed commands and sends nothing anywhere.",
+    };
+  }
+  const who = [status.provider, status.model].filter(Boolean).join(" · ");
+  const sends = (status.sends || []).length ? status.sends.join("; ") : "nothing beyond your question";
+  const where = status.local ? "on this machine" : "a remote service";
+  const compact = status.compact ? ` It is offered a compact tool set (${(status.tools || []).length} tools: the read-only ones that ` +
+    "apply now, plus edit, delete, undo and plugin edits marked compact; assistant.compact_tools)." : "";
+  return {
+    line: `Runs on ${who}; it sees column names and summaries, never your tables.`,
+    detail: `${who} (${where}) receives: ${sends}. Never your network tables or files.${compact}`,
+  };
+}
+
 // The in-flight line under the Find box: "Thinking… (provider · model)", with the elapsed seconds from 3 s on.
 export function thinkingText({ provider, model, elapsedMs }) {
   const who = [provider, model].filter(Boolean).join(" · ");

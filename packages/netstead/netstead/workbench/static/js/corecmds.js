@@ -7,10 +7,14 @@ import { store } from "./store.js";
 import { setViewMode } from "./table.js";
 import { openWizard } from "./wizard.js";
 
+// The published Workbench guide (mkdocs site_url + page); the header's Help link points at the same page.
+const DOCS_URL = "https://e-lo.github.io/netstead/netstead/cookbook/workbench/";
+
 export function registerCoreCommands() {
   const add = spec => addCommandTo(slots, store, CORE, { contexts: ["palette"], ...spec });
   add({ id: "open", title: "Open / Import…", run: () => openWizard() });
   add({ id: "settings", title: "Settings…", run: () => openSettings() });
+  add({ id: "docs", title: "Open the documentation", run: () => window.open(DOCS_URL, "_blank", "noopener") });
   add({ id: "zoom_network", title: "Zoom to full network", when: c => Boolean(c.network), run: () => fitNetwork() });
   add({ id: "zoom_selection", title: "Zoom to selection", when: c => c.selectionCount > 0, run: c => fitLinks(c.selection.link_ids) });
   add({ id: "highlight_mode", title: "Highlight links (on / off)", when: c => Boolean(c.network),

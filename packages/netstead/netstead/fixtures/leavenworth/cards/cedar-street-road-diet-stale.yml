@@ -1,0 +1,33 @@
+project: Cedar Street road diet (stale baseline)
+tags:
+- year:2027
+- safety
+- road-diet
+notes: 'INTENTIONALLY DOES NOT FIT: it expects 2 lanes but Cedar Street has 1 in this
+  network, so the Cards panel shows a red X (its details give the reason), and Apply
+  would refuse it. Kept as a sample of that state.
+
+  netstead.note[0]: Written against an older network where Cedar Street had two lanes.'
+changes:
+- roadway_property_change:
+    facility:
+      links:
+        model_link_id:
+        - 57
+        - 127
+        - 129
+        - 132
+        - 134
+        - 136
+        - 138
+        - 139
+        - 142
+        - 143
+        - 310
+        - 311
+        ignore_missing: false
+    property_changes:
+      lanes:
+        existing: 2
+        existing_value_conflict: error
+        set: 1
