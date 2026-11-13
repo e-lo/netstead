@@ -22,6 +22,16 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
   changes**, **Apply…** (with `enable_apply`), **Duplicate** and **Delete**. In a bundled sample catalog the fields
   are read-only, with the reason in their tooltip, and Duplicate and Delete are not offered. No server API changed.
 
+- **A card's details open in the Workbench's right-hand Details panel**, where a link's details show, titled "Card ·
+  <project>" (or "Draft · <network>" for the draft's **Inspect**), with the header icons as before and the panel's ×
+  and Escape to close. One thing shows there at a time: clicking a link on the map replaces the card's details. The
+  details view at the top of the Cards panel is gone where the Workbench has the panel (Host API 1.10,
+  `wb.showDetails`); an older Workbench still gets it there. Opening another catalog now closes a card's details
+  from the previous one.
+- **Preview is a magnifier, "Preview on the map", and the map zooms to the card's links** (`wb.highlight({links,
+  zoom: true})`, Host API 1.10), as does clicking a change in the details. The draft's **Inspect** is now the ⓘ
+  icon, like a catalog card's.
+
 ### Added
 
 - **Open the bundled Leavenworth sample catalog in one click.** The Cards panel's Catalog section has a **Sample

@@ -35,7 +35,10 @@ __all__ = ["HOST_API", "ActionSpec", "WorkbenchPlugin", "api_compatible", "probl
 #:      1.8 keeps working; no method was added.
 #: 1.9: Host.sample_catalogs (the sample ProjectCard catalogs bundled with netstead); Host.readable and Host.list_dir
 #:      also reach a bundled catalog's folder, though Host.writable refuses it with an ActionError.
-HOST_API = "1.9"
+#: 1.10 (browser only): wb.showDetails / wb.closeDetails (a plugin's view in the right-hand Details panel, one thing
+#:      at a time with the focused record), wb.highlight({links, zoom: true}) fits the map to the links, and core's
+#:      "zoom-in" icon.
+HOST_API = "1.10"
 
 #: A plugin id: the namespace for its Action types, routes, state, settings and static files (``fullmatch``).
 _PLUGIN_ID = re.compile(r"[a-z][a-z0-9_]*")

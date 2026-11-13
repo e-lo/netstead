@@ -75,6 +75,14 @@ This file is for the **netstead** package only. The underlying generic engine `c
   (release 2026-09-23.1) with Overture GERS ids on every link and node, as csv, parquet, zip and
   `datapackage.json`. It is listed under **Included examples** in the Workbench and exercises the Find tab's
   Overture GERS id system on real data. Data (c) OpenStreetMap contributors, ODbL; data from TomTom.
+- **Workbench plugin API 1.10: plugin views in the Details panel, and zooming to highlighted links.** In the
+  browser, `wb.showDetails({id, title, render, onClose})` shows a plugin's view in the right-hand Details panel under
+  its own title, and `wb.closeDetails(id)` closes it. The panel shows one thing at a time: a plugin's view replaces
+  the focused record, focusing a record replaces the view, and the panel's × and Escape close whichever shows
+  (calling the view's `onClose`). `wb.highlight({links, zoom: true})` also fits the map to the links, now and when the
+  network the plugin is opening (a preview) loads, instead of fitting the whole network. Core's icons add `zoom-in`.
+  `wb.showDetails` is present only where the host has the panel, so a plugin can feature-test it. Additive: a plugin
+  written for 1.9 keeps working.
 
 ### Fixed
 

@@ -89,8 +89,8 @@ def test_details_is_a_right_hand_panel_with_a_close_button_its_own_handle_and_no
 
 def test_a_focus_opens_details_and_the_close_button_and_escape_clear_it():
     src = js("detailspanel.js")
-    assert 'store.subscribe(["focus"], sync)' in src and "hidden = !open" in src
-    assert "closeDetails() { store.set({ focus: null }); }" in src
+    assert 'store.subscribe(["focus"], onFocus)' in src and "hidden = !open" in src
+    assert "if (!detailsViews.dismiss()) store.set({ focus: null });" in src  # a plugin's view first (API 1.10)
     assert '$("details-close").onclick = closeDetails' in src
     assert 'e.key !== "Escape"' in src and 'document.addEventListener("keydown", onKey)' in src
     assert "wireDetailsPanel()" in js("main.js")

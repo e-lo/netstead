@@ -31,7 +31,7 @@ description run through core's natural-language **Select**, or a saved selection
 The **Cards** panel has four sections, in order: **Catalog** (open a folder of cards; each card's row is a fit icon
 against the network the heading names, a green check (compatible), a red X (incompatible: click it for the reasons) or a
 gray dash (not checked: click it to check), then the project name with its tags beneath, then two icon buttons,
-**Inspect details** and **Preview on the network**; files that are not cards are listed under "Not cards"), **Draft** (the compose, draft and commit UI above), **This session** (what the
+**Inspect details** and **Preview on the map**, a magnifier; files that are not cards are listed under "Not cards"), **Draft** (the compose, draft and commit UI above), **This session** (what the
 session did with cards, newest first with the time: "Saved <file>", the catalog file actions, and "Applied …" when
 `enable_apply` is on; `plugins.project_cards.session`) and **Session summary** (Copy and Download).
 
@@ -40,8 +40,10 @@ uncommitted changes is replaced only when you confirm). **Remove** takes out any
 are re-applied, so the network ends as if it had never been made), **Edit…** removes a change and reopens its form,
 and **Commit…** offers **Save over <file>** or **Save as new file**.
 
-The panel's actions are icon buttons (hover for the name). **Inspect details** opens a catalog card's details view:
-its fit in full (every reason and warning), its fields, its actions and its changes. Double-click a field (or focus it
+The panel's actions are icon buttons (hover for the name). **Inspect details** opens a catalog card's details in the
+Workbench's right-hand Details panel (`wb.showDetails`, Host API 1.10; on an older Workbench, at the top of the Cards
+panel), which shows one thing at a time: a link clicked on the map replaces them, and the panel's × or Escape closes
+them. They show its fit in full (every reason and warning), its fields, its actions and its changes. Double-click a field (or focus it
 and press Enter) to edit it; Enter or Cmd/Ctrl+Enter saves, Escape cancels, leaving the field saves. **Project name**,
 **Tags**, **Prerequisites**, **Corequisites** and **Conflicts** are saved with `project_cards.update_card_meta`;
 **File** renames the card's file (`project_cards.rename_card`). The details' icon actions are **Edit changes**,
@@ -53,7 +55,7 @@ editable (their tooltip says why) and Duplicate and Delete are not offered.
 
 **Inspect** on the draft opens the same view, read-only: the project, tags, dependencies and notes, then each change with its type, facility (ids, or the query and what it resolved to), property changes
 (existing → set or change) and whether it applies to the open network. Clicking a change highlights its links on
-the map (`wb.highlight`; the map does not zoom to them, since the Workbench gives plugins no camera control yet), and
+the map and zooms to them (`wb.highlight({links, zoom: true})`, Host API 1.10), and
 **YAML** shows the card's text. Nothing changes.
 
 The library the Workbench pieces build on:

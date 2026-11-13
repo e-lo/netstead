@@ -32,7 +32,8 @@ __all__ = ["REQUIRES_API", "STATIC", "CardsSettings", "plugin"]
 logger = logging.getLogger(__name__)
 
 #: The plugin API this plugin is written against (1.7: readable, list_dir and history, for the catalog and the summary;
-#: 1.8: register_table, for the catalog as a table; 1.9: sample_catalogs, and a bundled catalog is readable).
+#: 1.8: register_table, for the catalog as a table; 1.9: sample_catalogs, and a bundled catalog is readable). The front
+#: end uses 1.10's wb.showDetails and wb.highlight's zoom where the host has them, and falls back without them.
 REQUIRES_API = "1.9"
 #: The front end: main.js (the entry module), controller.js, cardmodel.js.
 STATIC = Path(__file__).parent / "static"

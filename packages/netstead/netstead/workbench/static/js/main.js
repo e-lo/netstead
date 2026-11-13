@@ -54,9 +54,14 @@ async function loadActiveNetwork() {
     ]);
     if (netKeyFor(store.get().server).key !== key) return; // superseded while fetching
     const switched = !netKey || !netKey.startsWith(`${h.id}@`);
+    const before = store.get(); // a plugin's kept highlights asked to be framed (wb.highlight's zoom): fit to them
+    const zoomTo = switched && before.highlightsKeep && before.highlightsZoom ? [...before.highlights] : [];
+    // Where the network opening lacks them (a card that deletes links), the network shown so far still has them.
+    const framedBefore = zoomTo.length > 0 && fitLinks(zoomTo);
     store.set({ netKey: key, net: decodeNetwork(buf), attrs, properties: props.properties, nodeProperties: nodeProps.properties,
       prop: null, nodeProp: null, marker: null });
-    if (switched) fitNetwork({ animate: false });
+    const framed = (zoomTo.length > 0 && fitLinks(zoomTo)) || framedBefore;
+    if (switched && !framed) fitNetwork({ animate: false });
   } finally {
     inFlight.delete(key);
   }
@@ -183,7 +188,7 @@ function onNetKey(key) {
   }
   cancelRelated(); onNetworkChanged();
   const keep = store.get().highlightsKeep; // a plugin set them for the network now opening (a card preview)
-  store.set({ highlights: keep ? store.get().highlights : new Set(), highlightsKeep: false,
+  store.set({ highlights: keep ? store.get().highlights : new Set(), highlightsKeep: false, highlightsZoom: false,
     focus: null, related: null, fixTarget: null, issueFocus: null });
   clearDetails(); $("iss-fixer").innerHTML = "";
 }

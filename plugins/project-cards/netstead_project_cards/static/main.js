@@ -1,8 +1,9 @@
 // The project cards plugin's front end: the "Cards" dock panel (its id is the bare `cards` core reserves for this
 // plugin) and the "New change ▸ …" commands. The panel has four sections: the catalog (a folder of cards, each row
-// its fit icon, its name, Inspect details and Preview; the details view edits a card), the draft card (compose a change, preview it, the draft's changes,
-// commit and import), this session's card actions (saved, applied, catalog files), and the session summary (copied
-// or downloaded). Everything
+// its fit icon, its name, Inspect details and Preview), the draft card (compose a change, preview it, the draft's
+// changes, commit and import), this session's card actions (saved, applied, catalog files), and the session summary
+// (copied or downloaded). A card's details (which edit the card) show in the Workbench's right-hand Details panel
+// (Host API 1.10), or in this panel on an older Workbench. Everything
 // goes through `wb` (see the cookbook page "Write a Workbench plugin"); the flow lives in controller.js and the rules
 // in cardmodel.js, both tested under node. Card and user text is only ever set as text (`h`'s `text`, or a string
 // child), never parsed as markup.
@@ -150,7 +151,7 @@ export function activate(wb) {
   const highlight = ids => { if (typeof wb.highlight === "function") wb.highlight(ids || {}); };
   wb.on("card_selection", payload => {
     cardShown = payload.card_id;
-    highlight({ links: payload.links || [], nodes: payload.nodes || [] });
+    highlight({ links: payload.links || [], nodes: payload.nodes || [], zoom: true }); // the map frames them
   });
 
   // Core redraws the badge on every server change; the panel follows the draft, the preview and the catalog here.
@@ -162,6 +163,7 @@ export function activate(wb) {
       highlight();
     }
     if (!view) return;
+    view.dropOtherCatalog();
     view.draw();
     view.draftMoved();
     if (stale) view.checkWentStale();
@@ -200,6 +202,8 @@ function createView(wb, ctl, el) {
   };
   const catalogBox = h("section", { id: "pc-catalog" });
   const previewBox = h("section", { id: "pc-preview" });
+  // A card's details show in core's right-hand Details panel (Host API 1.10); an older host gets them here.
+  const hostDetails = typeof wb.showDetails === "function";
   const inspectBox = h("section", { id: "pc-inspect", "aria-label": "Inspect a card" });
   const createBox = h("section", { id: "pc-create" });
   const composeBox = h("section", { id: "pc-compose" });
@@ -222,7 +226,7 @@ function createView(wb, ctl, el) {
     + "[data-pc-panel] .pc-field-value[tabindex]:hover,[data-pc-panel] .pc-field-value[tabindex]:focus{"
     + "background:#20242e;outline:none}" }));
   el.append(
-    catalogHeading, catalogBox, previewBox, inspectBox,
+    catalogHeading, catalogBox, previewBox, ...(hostDetails ? [] : [inspectBox]),
     heading("Draft"), createBox, composeBox, draftBox, commitBox,
     heading("This session"), sessionBox,
     heading("Session summary"), summaryBox,
@@ -465,7 +469,7 @@ function createView(wb, ctl, el) {
     const heading = h("div", { class: "label", tabindex: -1, text: `Draft card${name} (${draft.count})` });
     const from = draft.source ? [h("p", { class: "muted", id: "pc-draft-source",
       text: `Editing ${draft.source.card_id} (${draft.source.path})` })] : [];
-    const inspect = iconAct("search", "Inspect", () => openInspect(null), "Inspect the draft card");
+    const inspect = iconAct("info", "Inspect", () => openInspect(null), "Inspect the draft card");
     redraw(draftBox, [heading, ...from, list, actionRow(undo, inspect)], takeFocus);
     fillCommit(draft);
   }
@@ -637,19 +641,41 @@ function createView(wb, ctl, el) {
 
   // --------------------------------------------------------------------------------------------- inspecting
 
-  // The details view (#pc-inspect) of a catalog card or the draft. A catalog card's shows its fit in full, its
-  // fields (double-click one to edit it, unless the catalog is read-only) and its actions; clicking a change
-  // highlights its links on the map. The map does not zoom to them (the Workbench gives plugins no camera control).
+  // The details of a catalog card or the draft: in core's right-hand Details panel (wb.showDetails, Host API 1.10),
+  // else in this panel (#pc-inspect). A catalog card's show its fit in full, its fields (double-click one to edit it,
+  // unless the catalog is read-only) and its actions; clicking a change highlights its links and zooms the map to them.
+  const DETAILS_VIEW = "card";
   let showYaml = false;
   let highlighted = false;
   let inspectedDraft = null; // the draft the view shows, to read it again when it changes
+  let inspectedCatalog = null; // the path of the catalog a card's details came from
   let editing = null; // the key of the details field being edited, or null
+  let detailsRoot = null; // where the details are drawn while core's panel shows them
+  const detailsBox = () => (hostDetails ? detailsRoot : inspectBox);
   const highlight = links => {
     if (typeof wb.highlight !== "function") return false;
-    wb.highlight(links ? { links } : {});
+    wb.highlight(links ? { links, zoom: true } : {});
     highlighted = Boolean(links && links.length);
     return true;
   };
+  const detailsTitle = detail => (detail.source !== "draft" ? `Card · ${detail.project || detail.card_id}`
+    : `Draft · ${detail.net_id}`);
+  // Show the details in core's panel (again, after a rename: the title follows), or draw them here.
+  function present() {
+    if (!hostDetails) { drawInspect(true); return; }
+    wb.showDetails({
+      id: DETAILS_VIEW,
+      title: detailsTitle(ctl.state.inspect),
+      render: el => {
+        const root = h("div", { "data-pc-panel": "", style: "overflow-wrap:anywhere" });
+        el.append(root);
+        detailsRoot = root;
+        drawInspect(true);
+        return () => { if (detailsRoot === root) detailsRoot = null; };
+      },
+      onClose: () => closeInspect(), // the panel's ×, Escape, or a record focused on the map
+    });
+  }
   // The element `id` under `root`, or null.
   const findIn = (root, id) => {
     if (root.id === id) return root;
@@ -660,7 +686,8 @@ function createView(wb, ctl, el) {
     return null;
   };
   function focusIn(id) {
-    const target = findIn(inspectBox, id);
+    const box = detailsBox();
+    const target = box && findIn(box, id);
     if (!target) return;
     target.focus();
     if (typeof target.scrollIntoView === "function") target.scrollIntoView({ block: "nearest" });
@@ -671,7 +698,8 @@ function createView(wb, ctl, el) {
     showYaml = false;
     editing = null;
     inspectedDraft = cardId ? null : JSON.stringify(draftOf(server(), server().active));
-    drawInspect(true);
+    inspectedCatalog = cardId ? (catalogOf(server()) || {}).path || null : null;
+    present();
     drawCatalog(); // the row being inspected is marked
     if (focusFit) focusIn("pc-inspect-fit");
     say(`Inspecting ${detail.card_id || `the draft on ${detail.net_id}`}`);
@@ -680,15 +708,27 @@ function createView(wb, ctl, el) {
   async function reinspect(cardId, focusField) {
     await ctl.inspect(cardId, baseNet());
     editing = null;
-    drawInspect(true);
+    present();
     focusIn(`pc-field-${focusField}`);
   }
   function closeInspect() {
+    const was = ctl.state.inspect;
     ctl.closeInspect();
     inspectedDraft = null;
+    inspectedCatalog = null;
     editing = null;
     if (highlighted) highlight(null);
-    drawInspect(true);
+    if (hostDetails) wb.closeDetails(DETAILS_VIEW);
+    else drawInspect(true);
+    if (was && was.source !== "draft") drawCatalog(); // the row is no longer marked
+  }
+  // Called on every server change: another catalog opened (or none is open), so a card's details from the one
+  // before close.
+  function dropOtherCatalog() {
+    const detail = ctl.state.inspect;
+    if (!detail || detail.source === "draft") return;
+    const open = catalogOf(server());
+    if (!open || open.path !== inspectedCatalog) closeInspect();
   }
   // Called on every server change: a draft being inspected is read again when it changed (or closed when empty).
   async function draftMoved() {
@@ -740,7 +780,7 @@ function createView(wb, ctl, el) {
           editing = f.key;
           drawInspect();
           focusIn(`pc-edit-${f.key}`);
-          const input = findIn(inspectBox, `pc-edit-${f.key}`);
+          const input = findIn(detailsBox(), `pc-edit-${f.key}`);
           if (input && typeof input.select === "function") input.select(); // typing replaces the value
         };
         value.ondblclick = begin;
@@ -799,19 +839,23 @@ function createView(wb, ctl, el) {
   }
 
   function drawInspect(force = false) {
+    const box = detailsBox();
+    if (!box) return; // core's panel does not show them (closed, or not shown yet)
     const detail = ctl.state.inspect;
-    if (!detail) { redraw(inspectBox, [], force); return; }
+    if (!detail) { redraw(box, [], force); return; }
     const catalogCard = detail.source !== "draft";
     const row = inspectedRow(detail);
     const readOnly = catalogReadOnly(server());
     const yaml = glyph(h("button", { class: `iconbtn${showYaml ? " on" : ""}`, "data-tip": "YAML",
       "aria-label": "Show the card's YAML", "aria-pressed": String(showYaml) }), "code", "YAML");
     yaml.onclick = () => { showYaml = !showYaml; drawInspect(); };
-    const close = iconAct("x", "Close", async () => closeInspect(), "Close the details");
-    const title = catalogCard ? `Details: ${detail.project || detail.card_id}` : `Inspect: the draft on ${detail.net_id}`;
-    const head = h("div", { style: "display:flex;gap:4px;align-items:center;flex-wrap:wrap" },
-      h("div", { class: "label", tabindex: -1, style: "flex:1", text: title }),
-      ...(catalogCard ? cardActions(row, readOnly) : []), yaml, close);
+    const actions = [...(catalogCard ? cardActions(row, readOnly) : []), yaml];
+    // Core's panel has the title and the close button; here the view draws its own.
+    const head = hostDetails ? actionRow(...actions) : h("div", {
+      style: "display:flex;gap:4px;align-items:center;flex-wrap:wrap" },
+    h("div", { class: "label", tabindex: -1, style: "flex:1", text: catalogCard
+      ? `Details: ${detail.project || detail.card_id}` : `Inspect: the draft on ${detail.net_id}` }),
+    ...actions, iconAct("x", "Close", async () => closeInspect(), "Close the details"));
     const nodes = [head];
     if (catalogCard) {
       nodes.push(fitSection(row), ...detailFields(detail, { readOnly }).map(f => fieldRow(detail, f)));
@@ -831,8 +875,8 @@ function createView(wb, ctl, el) {
       pick.onclick = () => {
         const n = change.links.length;
         if (!highlight(change.links)) say("This Workbench cannot highlight links for plugins");
-        else say(n ? `Highlighted ${n} link${n === 1 ? "" : "s"} of change ${change.index + 1} on the map `
-          + "(the map does not zoom to them)" : `Change ${change.index + 1} has no links to highlight`);
+        else say(n ? `Highlighted ${n} link${n === 1 ? "" : "s"} of change ${change.index + 1} on the map`
+          : `Change ${change.index + 1} has no links to highlight`);
       };
       list.append(h("li", { "data-change": String(change.index), style: "margin:4px 0" }, pick,
         h("div", { class: "muted", text: change.facility }),
@@ -840,13 +884,13 @@ function createView(wb, ctl, el) {
         ...(change.note ? [h("div", { class: "muted", text: `Why: ${change.note}` })] : []),
         h("div", { "data-check": change.check.state, text: change.check.text })));
     }
-    nodes.push(h("p", { class: "muted", text: "Click a change to highlight its links on the map. "
+    nodes.push(h("p", { class: "muted", text: "Click a change to highlight its links and zoom the map to them. "
       + "Inspecting changes nothing." }), list);
     if (showYaml) {
       nodes.push(h("pre", { id: "pc-inspect-yaml", text: detail.yaml,
         style: "max-height:45vh;overflow:auto;background:var(--bg)" }));
     }
-    redraw(inspectBox, nodes, force);
+    redraw(box, nodes, force);
   }
 
   // A fit icon (a green check, a red X or a gray dash) drawn in a `tag`: a span, or a button (the row's X and dash).
@@ -883,10 +927,11 @@ function createView(wb, ctl, el) {
     const name = h("div", { style: "flex:1;min-width:0" }, h("div", { class: "pc-name", text: row.project }),
       ...(subline ? [h("div", { class: "muted pc-tags", style: "font-size:11px", text: subline })] : []));
     const info = iconAct("info", "Inspect details", () => openInspect(row.card_id), `Inspect details of ${of}`);
-    const preview = iconAct("play", "Preview on the network", async () => {
+    // The magnifier: the card's links show on a preview of the network, and the map zooms to them.
+    const preview = iconAct("zoom-in", "Preview on the map", async () => {
       const result = await ctl.previewCard(row.card_id, baseNet());
       say(`Previewing ${row.card_id} on ${result.preview}`);
-    }, `Preview ${of} on the network`);
+    }, `Preview ${of} on the map`);
     const picked = row.card_id === selectedCard;
     const inspected = (ctl.state.inspect || {}).card_id === row.card_id;
     return h("div", { class: "pc-card", "data-card": row.card_id,
@@ -1067,5 +1112,5 @@ function createView(wb, ctl, el) {
     say(`Selected ${row.project} (${cardId}) from the table`);
   }
 
-  return { draw, drawCreate, draftMoved, loadCatalog, checkWentStale, composeWentStale, selectCard };
+  return { draw, drawCreate, draftMoved, dropOtherCatalog, loadCatalog, checkWentStale, composeWentStale, selectCard };
 }

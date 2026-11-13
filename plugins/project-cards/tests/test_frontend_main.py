@@ -16,7 +16,7 @@ from netstead.workbench.server import STATIC_DIR
 
 STATIC = Path(netstead_project_cards.__file__).parent / "static"
 FORM = "/api/plugins/project_cards/form"
-CORE = ("wbhost.js", "slots.js", "layers.js", "store.js", "hub.js", "commands.js")
+CORE = ("wbhost.js", "slots.js", "layers.js", "store.js", "hub.js", "commands.js", "detailsview.js")
 FILES = {
     **{name: STATIC_DIR / "js" / name for name in CORE},
     **{name: STATIC / name for name in ("main.js", "cardmodel.js", "controller.js")},
@@ -379,7 +379,7 @@ def test_the_panel_under_a_fake_dom(run_js):
     def two_buttons(of):
         return [
             ["Inspect details", f"Inspect details of {of}"],
-            ["Preview on the network", f"Preview {of} on the network"],
+            ["Preview on the map", f"Preview {of} on the map"],
         ]
 
     assert got["cards"] == [
@@ -613,7 +613,7 @@ def test_inspect_under_a_fake_dom(run_js):
     assert got["yaml"] == ["project: Good\n", "true"]
     assert got["highlighted"] == [
         [1, 2],
-        "Highlighted 2 links of change 1 on the map (the map does not zoom to them)",
+        "Highlighted 2 links of change 1 on the map",
     ]
     assert got["nothing"] == "Change 2 has no links to highlight"
     assert got["closed"] == [0, []]  # closing clears the highlights it made
@@ -725,6 +725,7 @@ panels[0].render(root);
 const SAMPLE = { id: "leavenworth", name: "Sample cards (Leavenworth)", path: "/pkg/cards", network: "base", cards: 2 };
 const open = path => store.set({ server: { ...store.get().server, plugins: { project_cards: { drafts: {},
   preview: null, catalog: { ...CATALOG, path }, applied: [], samples: [SAMPLE] } } } });
+await settle(); // the first listing read (no catalog yet) finishes
 open("/cards");
 await settle(); await settle();
 const status = elById(root, "pc-status"), inspectBox = elById(root, "pc-inspect");
@@ -863,7 +864,7 @@ await settle(); await settle();
 const row = walk(elById(root, "pc-catalog")).find(e => e.getAttribute("data-card") === "good.yml");
 const shown = tip => { const b = button(row, tip); return [b.innerHTML || null, b.textContent]; };
 const mark = walk(row).find(e => (e.getAttribute("class") || "").includes("pc-fit"));
-console.log(JSON.stringify({ preview: shown("Preview on the network"), missing: shown("Inspect details"),
+console.log(JSON.stringify({ preview: shown("Preview on the map"), missing: shown("Inspect details"),
   dash: [mark.getAttribute("data-fit"), mark.innerHTML],
   errors: calls.filter(c => c[0] === "error") }));
 """
@@ -873,7 +874,7 @@ console.log(JSON.stringify({ preview: shown("Preview on the network"), missing: 
 def test_icon_buttons_draw_the_hosts_icons_and_fall_back_to_text(run_js):
     got = run_js(FILES, ICONS_HARNESS)
     assert got["errors"] == []
-    assert got["preview"] == ["<svg>play</svg>", ""]  # core's icon
+    assert got["preview"] == ["<svg>zoom-in</svg>", ""]  # core's icon: the magnifier
     fit, dash = got["dash"]  # not checked yet: the panel's own dash
     assert fit == "unchecked" and dash.startswith("<svg") and '<line x1="6" y1="12"' in dash
     assert got["missing"] == [None, "Inspect details"]  # a name the host lacks: the text
@@ -1064,3 +1065,76 @@ def test_a_pick_cannot_choose_segment(run_js, session):
     got = run_js(FILES, page)
     assert got["start"][:3] == ["Link list: 1 link (GMNS)", False, True]
     assert "no named segment" in got["pick"][1] and got["pick"][0].startswith("Link list")
+
+
+# Host API 1.10: the card's details show in core's right-hand Details panel (core's real detailsview.js), not the pane.
+HOST_DETAILS_HARNESS = (
+    'import { createDetailsViews } from "./detailsview.js";\n'
+    + PANEL_SETUP.replace(
+        'const { wb } = createWb("project_cards", deps);',
+        """const panel = document.createElement("aside"), fits = [];
+let title = null;
+deps.fitLinks = ids => fits.push(ids);
+deps.details = createDetailsViews({
+  mount: t => { title = t; panel.replaceChildren(); return panel; },
+  unmount: () => { title = null; panel.replaceChildren(); },
+  clearFocus: () => store.set({ focus: null }),
+  onError: e => calls.push(["error", "core", "details", String(e.message || e)]),
+});
+const { wb } = createWb("project_cards", deps);""",
+    )
+    + """
+panels[0].render(root);
+const open = path => store.set({ server: { ...store.get().server,
+  plugins: { project_cards: { drafts: {}, preview: null, catalog: { ...CATALOG, path }, applied: [] } } } });
+await settle(); // the first listing read (no catalog yet) finishes
+open("/cards");
+await settle(); await settle();
+const card = id => walk(elById(root, "pc-catalog")).find(e => e.getAttribute("data-card") === id);
+const marked = id => card(id).attrs.style.includes("background");
+const markOf = c => walk(c).find(e => (e.getAttribute("class") || "").includes("pc-fit"));
+const tips = el => walk(el).filter(e => e.tagName === "BUTTON").map(b => b.getAttribute("data-tip"));
+const got = { pane: Boolean(elById(root, "pc-inspect")) };
+// The red X: the card's details in the right-hand panel, the fit reasons focused.
+await markOf(card("bad.yml")).onclick();
+got.red = [title, deps.details.current(), document.activeElement && document.activeElement.id,
+  panel.textContent.includes("missing link 999999"),
+  tips(panel), marked("bad.yml")];
+// Another card replaces it in place (no onClose: the plugin still inspects it).
+await button(card("good.yml"), "Inspect details").onclick();
+got.replaced = [title, marked("good.yml"), marked("bad.yml")];
+// The panel's close button (or Escape, or a record focused on the map): closed, the row no longer marked.
+deps.details.dismiss();
+got.dismissed = [title, panel.children.length, marked("good.yml")];
+// Another catalog opened: the details of a card from the one before close.
+await button(card("good.yml"), "Inspect details").onclick();
+open("/elsewhere");
+await settle(); await settle();
+got.otherCatalog = [title, deps.details.current()];
+// The magnifier previews the card: its links are highlighted and the map zooms to them.
+await button(card("good.yml"), "Preview on the map").onclick();
+hub.emit("project_cards.card_selection", { card_id: "good.yml", links: [1, 2], nodes: [] });
+got.preview = [calls.filter(c => c[0] === "dispatch").at(-1), fits, store.get().highlightsZoom,
+  store.get().highlightsKeep];
+got.errors = calls.filter(c => c[0] === "error");
+console.log(JSON.stringify(got));
+"""
+)
+
+
+def test_the_details_show_in_the_hosts_right_hand_panel(run_js):
+    got = run_js(FILES, HOST_DETAILS_HARNESS)
+    assert got["errors"] == []
+    assert got["pane"] is False  # no in-pane details view where the host has the panel
+    assert got["red"] == [
+        "Card · Bad",
+        {"owner": "project_cards", "id": "card", "title": "Card · Bad"},
+        "pc-inspect-fit",
+        True,
+        ["Edit changes", "Duplicate", "Delete", "YAML"],  # no Close: core's panel has the title and close
+        True,
+    ]
+    assert got["replaced"] == ["Card · Good", True, False]
+    assert got["dismissed"] == [None, 0, False]
+    assert got["otherCatalog"] == [None, None]
+    assert got["preview"] == [["dispatch", "project_cards.preview_card", "base"], [[1, 2]], True, True]

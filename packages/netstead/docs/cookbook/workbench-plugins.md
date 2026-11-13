@@ -506,7 +506,7 @@ export function activate(wb) {
 
 | Member | What it gives you |
 |---|---|
-| `wb.id`, `wb.hostApi` | This plugin's id, and the plugin API this netstead provides (`"1.8"`). |
+| `wb.id`, `wb.hostApi` | This plugin's id, and the plugin API this netstead provides (`"1.10"`). |
 | `wb.api.fetch(path, init)`, `wb.api.get(path)`, `wb.api.post(path, body)` | `fetch`, and JSON helpers, scoped to your router: `"/count"` is `/api/plugins/<id>/count`. A path must start with `/` and, once resolved (`%2e%2e` and `\` count as `..` and `/`), stay under that prefix; other hosts are refused. |
 | `wb.api.dispatch(action)` | Posts any Action (yours, another plugin's, core's) to `POST /api/actions` and resolves to its result. |
 | `wb.store.get()`, `wb.store.subscribe(keys, fn)` | The server state (`/api/state`), and a listener that fires when any of `keys` changes. Keys may be dotted (`"plugins.hello"`). `get()` and the listener's argument are a frozen copy: changing it throws (changes go through Actions). Returns an unsubscribe function. |
@@ -521,7 +521,9 @@ export function activate(wb) {
 | `wb.showPanel(id)` | Shows a panel, switching workspace when the current one doesn't have it. |
 | `wb.showTable(name)` | Shows a table in the table pane (one you registered with `host.register_table`), opening the pane beside the map when only the map shows. Resolves once its rows show; rejects when no network is open or there is no such table. API 1.8. |
 | `wb.toast(message)` | A short notice, prefixed with your plugin id. |
-| `wb.highlight({links})` | Replaces the page's highlighted links (the highlight tool's cyan links, listed in the Find panel) with `links`; `wb.highlight()` clears them. Nodes are not highlighted by core yet (`nodes` is accepted and ignored). |
+| `wb.highlight({links, zoom?})` | Replaces the page's highlighted links (the highlight tool's cyan links, listed in the Find panel) with `links`; `wb.highlight()` clears them. They survive the next network switch once (a preview the plugin is opening). `zoom: true` also fits the map to them, now and when that network opens (API 1.10). Nodes are not highlighted by core yet (`nodes` is accepted and ignored). |
+| `wb.showDetails({id, title, render, onClose?})` | Shows your view in the right-hand **Details** panel, titled `title`: `render(el)` draws it into an empty element and may return a cleanup function. The panel shows one thing at a time: your view replaces a focused record (or another view), and focusing a record (a map click, a table row) replaces your view. The panel's **×** and Escape close it. `onClose()` runs when the user closes it or something replaces it; the cleanup runs whenever it goes. Calling it again with the same `id` redraws the view (a new title, say) without `onClose`. Present only where the host has the panel: feature-test `typeof wb.showDetails === "function"`. API 1.10. |
+| `wb.closeDetails(id?)` | Closes your view `id` (or any of yours) if it shows; `true` when one closed. Its cleanup runs, not its `onClose`. API 1.10. |
 
 `GET /api/actions` lists every registered Action: `type`, class `name`, `description` (its
 docstring's first line), owning `plugin` (`null` for core), `mutates`, `assistant` (whether the NL assistant may ever offer it), and its JSON `schema`.
@@ -717,6 +719,7 @@ A minor bump only adds to the API and a major bump breaks it.
 | `1.7` | Reading inside the sandbox: `host.readable(path)` (a file or folder that exists, inside `io.allowed_roots`) and `host.list_dir(path)` (a folder's entries, hidden ones skipped). `host.history(prefix=None)` gives a read-only view of the session's history, so a plugin can summarize what it did. |
 | `1.8` | Plugin tables: `host.register_table(name, title, rows_fn, *, primary_key, columns=None)` and `host.unregister_table(name)` publish a read-only table to the table view (rebuilt when the plugin publishes), served by the table routes with sorting and the column filters. In the browser, `wb.showTable(name)` shows it, and a row click emits `core.table_row` (`{plugin, table, id}`); `core.table_changed` says it was rebuilt. |
 | `1.9` | Bundled sample catalogs: `host.sample_catalogs()` lists them, and `host.readable` / `host.list_dir` reach their folders read-only (`host.writable` refuses them). |
+| `1.10` | The browser only: `wb.showDetails` / `wb.closeDetails` show a plugin's view in the right-hand Details panel (one thing at a time with the focused record), `wb.highlight({links, zoom: true})` fits the map to the links, and core's icons add `zoom-in`. |
 
 **The plugin API is provisional until netstead v1.0.** Until then it may change without a major
 bump. Pin the netstead versions you support in your package's dependencies, and check the changelog

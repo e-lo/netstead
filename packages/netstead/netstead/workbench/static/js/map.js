@@ -336,16 +336,19 @@ export function fitNetwork({ animate = true } = {}) {
   fit(b, 60, false, animate ? 500 : 0);
 }
 
+// Fits the map to the links `ids` of the decoded network; false when it has none of them (nothing moves).
 export function fitLinks(ids) {
   const net = store.get().net;
-  if (!map || !net || !ids || !ids.length) return;
+  if (!map || !net || !ids || !ids.length) return false;
   const b = new maplibregl.LngLatBounds();
   for (const id of ids) {
     const i = net.id2idx.get(id);
     if (i == null) continue;
     for (let k = net.linkStart[i] * 2; k < net.linkStart[i + 1] * 2; k += 2) b.extend([net.linkPositions[k], net.linkPositions[k + 1]]);
   }
+  if (b.isEmpty()) return false;
   fit(b, 80);
+  return true;
 }
 
 export function fitBbox(bbox) { if (map) map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { padding: 40, duration: 500 }); }

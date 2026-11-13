@@ -143,7 +143,8 @@ distinct from the draft you build above.
   editing or deleting its files is refused ("This is a bundled sample catalog and cannot be changed here…"); copy
   the folder (`netstead.fixtures.leavenworth.cards_dir()`) somewhere of your own and open that to change cards.
 - **A row per card.** Each row is the card's fit icon, its project name (its tags beneath, in small text) and two
-  icon buttons: **Inspect details** (the ⓘ, see [Inspect a card](#inspect-a-card)) and **Preview on the network**.
+  icon buttons: **Inspect details** (the ⓘ, see [Inspect a card](#inspect-a-card)) and **Preview on the map** (the
+  magnifier).
 - **Does it fit?** The fit icon says, and the section's heading names the network the cards were checked against
   ("Catalog · checked against leavenworth"). A green check ("Compatible with the current network") means the card
   applies cleanly to the network as it is now (`warn` and `skip` conflicts still fit; the details list the warning).
@@ -159,8 +160,9 @@ distinct from the draft you build above.
   and filter it with the column funnels (**any of** on `tags` picks the cards with a tag); clicking a row brings the
   Cards tab forward with that card marked. The table follows the catalog: a rescan, a check or a file action reads
   it again.
-- **Preview on the network** shows every change of the card on a copy of the network (as in step 4 above) and highlights the
-  links and nodes it targets on the map, so you can see what it touches before committing to it.
+- **Preview on the map** (the magnifier) shows every change of the card on a copy of the network (as in step 4
+  above), highlights the links it targets and zooms the map to them, so you can see what it touches before committing
+  to it.
 - **Apply…** (in the card's details, only when `[plugins.project_cards] enable_apply = true`; it is off by default, and
   `project_cards.apply_card` is refused while it is) applies the card to the network, all or nothing, through the
   same path as a draft change — no file
@@ -217,8 +219,11 @@ not renamed, copied or rewritten.
 
 ### Inspect a card
 
-**Inspect details** (ⓘ) on a catalog card, or **Inspect** under the draft, opens the card's details in the Cards
-tab:
+**Inspect details** (ⓘ) on a catalog card, or **Inspect** under the draft, opens the card's details in the
+Workbench's right-hand **Details** panel (where a link's details show), titled "Card · <project>" or "Draft · <network>".
+Only one thing shows there at a time: clicking a link or node on the map replaces the card's details with the
+record's, and the panel's **×** (or Escape) closes them. Opening another catalog closes a card's details from the
+previous one. The details show:
 
 - for a catalog card, its fit in full (every reason and warning) and its icon actions (**Edit changes**, **Apply…**,
   **Duplicate**, **Delete**), then its editable fields (see [Manage the catalog's files](#manage-the-catalogs-files))
@@ -228,9 +233,8 @@ tab:
   change by +1") and whether it applies to the open network ("Applies: 2 records found", "0 found; missing 999999",
   or the reason it can't be applied). The draft's changes are already on its network: "In the draft: applied to …".
 
-Click a change to highlight its links on the map. The map does not zoom to them: the Workbench gives plugins no
-camera control yet, so pan to them yourself (or use **Find** to zoom to a link). **YAML** shows the card's text: the
-file itself for a catalog card, the YAML a commit would write for the draft. **Close** clears the highlights.
+Click a change to highlight its links on the map and zoom to them. **YAML** shows the card's text: the file itself
+for a catalog card, the YAML a commit would write for the draft. Closing the details clears the highlights.
 Inspecting changes nothing; `GET /api/plugins/project_cards/card?card_id=<id>` (or `?draft=true`) serves the same
 view as JSON.
 

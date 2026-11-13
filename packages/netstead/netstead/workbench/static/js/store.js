@@ -26,6 +26,7 @@ export const store = createStore({
   filterIds: null,            // Set of link ids the active network's recorded Filter matches (per tab, derived), or null
   highlightMode: false, highlights: new Set(), marker: null,
   highlightsKeep: false,      // a plugin's highlights (wb.highlight) survive the next network switch (a preview)
+  highlightsZoom: false,      // and the map fits to them when that network opens (wb.highlight's zoom)
   focus: null,                // {table, id, from: "map" | "table"}: the one record last clicked (per tab, never recorded)
   related: null,              // last /related answer for focus + highlights (related.js)
   tableScope: "all",          // all | selection | highlighted | related | filtered

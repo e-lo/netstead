@@ -256,7 +256,8 @@ Focus is a view. Clicking never changes the selection.
   - **Details** is a panel on the right that opens when you focus a record: click a link or node on the map, click a
     table row, zoom to a finding in Validate, or pick a result in Find. It lists the record's fields and has
     **Edit…** and **Delete…**. Close it with its **×** or Escape (which also clears the focus); the map takes the width
-    back.
+    back. A plugin can show its own view there too (the Cards panel shows a card's details): one thing at a time, so
+    focusing a record replaces the plugin's view, and the other way round.
   - **Layers & legend** is a card at the map's top-left, below the zoom control (see
     [Style, filter and navigate](#style-filter-and-navigate)). The old View tab is gone.
   - **Tooltips** appear above everything after a short pause on hover or keyboard focus, flipped to stay on screen,
