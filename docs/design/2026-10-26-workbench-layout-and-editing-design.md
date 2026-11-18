@@ -142,6 +142,33 @@ renumbers conflicts into `registry.csv` on commit.
 
 The Cards pane keeps only browsing the catalog (fit pill, inspect, edit, file actions, table view).
 
+### 2g. Fixes and projects
+
+Proposed 2026-11-18 from beta feedback; not yet accepted.
+
+A staged change is one of two kinds, chosen in the Changes pane (default **Project**):
+
+- **Project:** a proposed change to the network (a road diet, a new connector). It goes into a ProjectCard (2e).
+- **Fix:** a correction to the source data so it matches the ground today (wrong lane count, a missing link).
+  A fix is not a project and does not belong in a scenario's cards.
+
+Fixes get their own path:
+
+1. **Keep:** fixes are written to a **fix log**, a card-shaped file (`kind: fix` tag) stored beside the network.
+   It is re-applied automatically when the network is rebuilt from its source, so a rebuild does not lose them
+   until the source catches up. A fix that the rebuilt source already has is reported as "fixed upstream" and
+   dropped from the log.
+2. **Send upstream:** for a network built from OpenStreetMap or Overture, each fix row offers a way to tell the
+   source, using the ids the network already keeps (OSM way ids, GERS ids and an Overture feature's `sources`):
+   - **OpenStreetMap:** open the way in the iD editor or JOSM at that spot, with a suggested changeset comment;
+     or leave an OSM note (no editing account needed) describing the correction. netstead never uploads edits to
+     OSM itself: OSM's rules for automated edits make a person-in-the-loop editor the right tool.
+   - **Overture:** most road segments come from OSM, so the fix goes to OSM as above when the feature's `sources`
+     says so; otherwise netstead shows Overture's feedback route and a ready-to-paste description.
+   - Other sources: export the fixes (GMNS fragment or CSV) to send to whoever maintains the data.
+
+The card dialog (2e) lists only Project changes; a "Fixes…" action beside it handles fixes.
+
 ## Phases
 
 1. **Layout (done 2026-10-26):** left rail, right detail panel, Layers & legend card, tooltip layer. No behavior change.
@@ -151,6 +178,7 @@ The Cards pane keeps only browsing the catalog (fit pill, inspect, edit, file ac
    download and copy destinations.
 4. **Checks:** pre-apply checks and hints, rule `suggest()`, change-set evaluation, finding difference.
 5. **Registries:** read and contribute (2f).
+6. **Fixes (proposed):** the Fix/Project kind, the fix log re-applied on rebuild, and the upstream links (2g).
 
 Each phase is one PR, browser-checked, with the docs and screenshots updated in the same PR.
 
