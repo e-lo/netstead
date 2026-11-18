@@ -12,7 +12,7 @@ from netstead.fixtures import leavenworth
 from netstead.select.parse import StubParser
 from netstead.workbench import Session, build_app
 from netstead.workbench.actions import EditCells, OpenNetwork
-from netstead.workbench.plugins import HOST_API, Host, WorkbenchPlugin
+from netstead.workbench.plugins import Host, WorkbenchPlugin
 from netstead.workbench.plugins.spec import api_compatible
 from netstead.workbench.registry import NETWORK_TABLE_NAMES, PluginTables
 
@@ -83,8 +83,8 @@ def ids(payload: dict[str, Any]) -> list[str]:
     return [r[key] for r in payload["rows"]]
 
 
-def test_this_netstead_provides_host_api_1_8():
-    assert HOST_API == "1.8" and api_compatible("1.8") and api_compatible("1.7")
+def test_this_netstead_provides_host_api_1_9_or_newer():
+    assert api_compatible("1.9") and api_compatible("1.8") and api_compatible("1.7")
 
 
 def test_the_table_is_listed_after_the_networks_marked_read_only(client):

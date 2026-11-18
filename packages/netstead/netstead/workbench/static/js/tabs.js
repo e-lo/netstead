@@ -13,6 +13,20 @@ export function nextIndex(index, key, count, axis = "horizontal") {
   return step ? (index + step + count) % count : null;
 }
 
+// The left rail's toggle: clicking an entry opens its pane in the drawer; clicking the open entry again closes the drawer.
+// `state` is {open, current}; returns the next one. Pure.
+export const toggleRail = (state, id) => ({ open: !(state.open && state.current === id), current: id });
+
+// Opening a panel by id (a command, a plugin) always shows it.
+export const openRail = id => ({ open: true, current: id });
+
+// Rail entries in two groups, core's (and the id a plugin reserves, such as Cards) then plugin panels below a divider.
+// Returns the entries in order with {divider: true} between the groups when both exist. `isPlugin(entry)` says which.
+export function railGroups(entries, isPlugin) {
+  const core = entries.filter(e => !isPlugin(e)), plugin = entries.filter(isPlugin);
+  return core.length && plugin.length ? [...core, { divider: true }, ...plugin] : [...core, ...plugin];
+}
+
 const blank = v => v === null || v === undefined || v === false || v === "" || v === 0;
 
 // A badge as registered (a count, a string, {text, dirty, tone?, quiet?, title}, or nothing) -> {text, dirty, tone,

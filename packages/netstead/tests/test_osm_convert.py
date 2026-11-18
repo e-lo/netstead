@@ -167,3 +167,20 @@ class TestMalformedInput:
         ways = [{"id": 42, "nodes": [1, 99, 2], "tags": {"highway": "residential"}}]
         with pytest.raises(ValueError, match=r"way 42 references node 99"):
             convert.build_node_link_tables(nodes, ways)
+
+
+class TestRouteRef:
+    def test_ref_is_kept_as_its_own_column_and_never_copied_into_name(self):
+        nodes = {1: (0.0, 0.0), 2: (0.0, 1.0)}
+        ways = [
+            {"id": 1, "nodes": [1, 2], "tags": {"highway": "trunk", "ref": "US 2"}},
+            {"id": 2, "nodes": [1, 2], "tags": {"highway": "trunk", "ref": "US 2;WA 207", "name": "Front Street"}},
+            {"id": 3, "nodes": [1, 2], "tags": {"highway": "residential"}},
+        ]
+
+        _, link_recs = convert.build_node_link_tables(nodes, ways)
+
+        by_way = {r["osm_way_id"]: r for r in link_recs}
+        assert by_way[1]["ref"] == "US 2" and by_way[1]["name"] is None  # numbered, still unnamed
+        assert by_way[2]["ref"] == "US 2;WA 207" and by_way[2]["name"] == "Front Street"
+        assert by_way[3]["ref"] is None

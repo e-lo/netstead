@@ -26,7 +26,8 @@ roundtrip and assert equality.
 - :func:`zip_path`      — zipped CSV bundle (single distributable file)
 
 Plus :data:`DATAPACKAGE` for the Frictionless ``datapackage.json``
-manifest and :data:`ROOT` for the on-disk parent directory.
+manifest, :data:`ROOT` for the on-disk parent directory, and :func:`cards_dir` for a sample catalog of
+ProjectCards (``cards/``) written against this network.
 
 Quick use
 ---------
@@ -55,6 +56,7 @@ if TYPE_CHECKING:
 __all__ = [
     "DATAPACKAGE",
     "ROOT",
+    "cards_dir",
     "csv_dir",
     "duckdb_path",
     "load",
@@ -93,6 +95,20 @@ _FIXTURE_INFO = {
 def csv_dir() -> Path:
     """Directory containing the canonical CSV form of the fixture."""
     return ROOT / "csv"
+
+
+def cards_dir() -> Path:
+    """Directory of the sample ProjectCard catalog written against this network (see ``cards/README.md``).
+
+    Open it in the Workbench's Cards panel (**Sample cards (Leavenworth)**), or read one card with
+    ``projectcard.read_card``.
+
+    Examples:
+        >>> from netstead.fixtures import leavenworth
+        >>> sorted(p.suffix for p in leavenworth.cards_dir().glob("*.yml"))[:1]
+        ['.yml']
+    """
+    return ROOT / "cards"
 
 
 def parquet_dir() -> Path:

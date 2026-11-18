@@ -562,16 +562,61 @@ console.log(JSON.stringify({
         "reason": "missing link 999999",  # the first, shown inline
         "tip": "missing link 999999\nconflict: lanes: expected 1, found 2 on 4 of 4 links\n"
         "lanes: expected 1, found 3 on 1 of 1 links",
+        "reasons": ["missing link 999999", "conflict: lanes: expected 1, found 2 on 4 of 4 links"],
+        "warnings": ["lanes: expected 1, found 3 on 1 of 1 links"],
+        "net_id": "base",
     }
     assert got["warned"] == {
         "fit": "fits",
         "label": "Fits this network",
         "reason": "",
         "tip": "Fits base\nlanes: expected 1, found 2 on 2 of 2 links",
+        "reasons": [],
+        "warnings": ["lanes: expected 1, found 2 on 2 of 2 links"],
+        "net_id": "base",
     }
     assert got["applied"]["reason"] == "already applied on base at 09:05"
     assert got["bare"]["reason"] == "does not apply"
     assert got["unchecked"]["fit"] == got["nothing"]["fit"] == "unchecked"
+
+
+def test_the_rows_fit_icon_subline_and_the_details_fit(run_js):
+    got = run_js(
+        MODEL,
+        'import { catalogRows, fitDetail, fitIcon, rowSubline } from "./cardmodel.js";'
+        + CATALOG_SNAPSHOT
+        + """
+const rows = Object.fromEntries(catalogRows(snapshot).map(r => [r.card_id, r]));
+const warned = { ...rows["good.yml"], warnings: ["lanes: expected 1, found 2"] };
+console.log(JSON.stringify({
+  icons: ["good.yml", "bad.yml", "new.yml"].map(id => fitIcon(rows[id])),
+  sublines: [rowSubline(rows["good.yml"]), rowSubline(rows["bad.yml"]), rowSubline({})],
+  details: [fitDetail(warned), fitDetail(rows["bad.yml"]), fitDetail(rows["new.yml"]), fitDetail(null),
+            fitDetail({ fit: "no", reasons: ["x"] })],
+}));
+""",
+    )
+    assert got["icons"] == [
+        {"fit": "fits", "icon": "check", "tip": "Compatible with the current network", "action": None},
+        {"fit": "no", "icon": "x", "tip": "Incompatible; click to see details", "action": "details"},
+        {
+            "fit": "unchecked",
+            "icon": "dash",
+            "tip": "Not checked against this network; click to check",
+            "action": "check",
+        },
+    ]
+    assert got["sublines"] == ["a, b", "", ""]  # the tags only: the file name and change count are in the details
+    fits, bad, new, none, bare = got["details"]
+    assert fits == {
+        "fit": "fits",
+        "title": "Compatible with base.",
+        "reasons": [],
+        "warnings": ["lanes: expected 1, found 2"],
+    }
+    assert bad == {"fit": "no", "title": "Incompatible with base:", "reasons": ["does not apply"], "warnings": []}
+    assert new["fit"] == none["fit"] == "unchecked" and new["title"] == "Not checked against this network yet."
+    assert bare["title"] == "Incompatible with this network:" and bare["warnings"] == []
 
 
 def test_apply_defaults_ignore_missing_only_for_missing_ids(run_js):
@@ -961,6 +1006,60 @@ console.log(JSON.stringify({
     ]
 
 
+def test_the_details_fields_and_saving_one(run_js):
+    got = run_js(
+        MODEL,
+        """
+import { catalogReadOnly, detailFields, editKey, fieldEdit, READ_ONLY_TIP } from "./cardmodel.js";
+const detail = { card_id: "a.yml", project: "Main", tags: ["a", "b"],
+  dependencies: { prerequisites: ["Bridge"], corequisites: [], conflicts: [] } };
+const state = (path, samples) => ({ plugins: { project_cards: { catalog: path ? { path } : null, samples } } });
+const sample = [{ id: "leavenworth", path: "/pkg/cards" }];
+console.log(JSON.stringify({
+  fields: detailFields(detail), readOnly: detailFields(detail, { readOnly: true }).map(f => [f.editable, f.tip]),
+  edits: [
+    fieldEdit(detail, "project", " Main St "), fieldEdit(detail, "project", " Main "), fieldEdit(detail, "project", ""),
+    fieldEdit(detail, "tags", "a,b"), fieldEdit(detail, "tags", "a, c"), fieldEdit(detail, "conflicts", "W"),
+    fieldEdit(detail, "file", " b.yml "), fieldEdit(detail, "file", "a.yml"), fieldEdit(detail, "file", " "),
+    fieldEdit(detail, "notes", "x"),
+  ],
+  keys: [{ key: "Enter" }, { key: "Enter", metaKey: true }, { key: "Enter", ctrlKey: true }, { key: "Escape" },
+         { key: "Enter", shiftKey: true }, { key: "a" }].map(editKey),
+  readOnlyCatalog: [catalogReadOnly(state("/pkg/cards", sample)), catalogReadOnly(state("/mine", sample)),
+                    catalogReadOnly(state(null, sample)), catalogReadOnly(state("/pkg/cards"))],
+  tip: READ_ONLY_TIP,
+}));
+""",
+    )
+    assert [(f["key"], f["label"], f["value"], f["editable"], f["hint"]) for f in got["fields"]] == [
+        ("project", "Project name", "Main", True, ""),
+        ("tags", "Tags", "a, b", True, "comma separated"),
+        ("prerequisites", "Prerequisites", "Bridge", True, "comma separated"),
+        ("corequisites", "Corequisites", "", True, "comma separated"),
+        ("conflicts", "Conflicts", "", True, "comma separated"),
+        ("file", "File", "a.yml", True, ""),
+    ]
+    assert got["fields"][0]["tip"] == "Double-click to edit"
+    assert got["fields"][-1]["tip"] == "Double-click to rename the file"
+    assert got["readOnly"] == [[False, got["tip"]]] * 6
+    deps = {"prerequisites": ["Bridge"], "corequisites": [], "conflicts": []}
+    assert got["edits"] == [
+        {"meta": {"project": "Main St", "tags": ["a", "b"], "dependencies": deps}},
+        {"unchanged": True},
+        {"error": "Give the card a project name"},
+        {"unchanged": True},  # the same list, spelled differently
+        {"meta": {"project": "Main", "tags": ["a", "c"], "dependencies": deps}},
+        {"meta": {"project": "Main", "tags": ["a", "b"], "dependencies": {**deps, "conflicts": ["W"]}}},
+        {"rename": "b.yml"},
+        {"unchanged": True},
+        {"error": "Give the card a new file name"},
+        {"error": "A card has no field notes"},
+    ]
+    assert got["keys"] == ["apply", "apply", "apply", "cancel", None, None]
+    assert got["readOnlyCatalog"] == [True, False, False, False]
+    assert got["tip"].startswith("A bundled sample catalog is read-only")
+
+
 def test_the_controller_dispatches_the_catalog_file_actions(run_js):
     got = run_js(
         BOTH,
@@ -974,7 +1073,6 @@ await ctl.deleteCard("a.yml");
 await ctl.restoreCard("a.yml");
 await ctl.restoreCard("a.yml", true);
 await ctl.updateCardMeta("a.yml", { project: "P", tags: [], dependencies: {} });
-await ctl.cardDetail("a.yml", "base");
 console.log(JSON.stringify(calls.map(c => (c[0] === "dispatch" ? c[1] : c))));
 """,
     )
@@ -993,7 +1091,6 @@ console.log(JSON.stringify(calls.map(c => (c[0] === "dispatch" ? c[1] : c))));
             "tags": [],
             "dependencies": {},
         },
-        ["get", "/card?card_id=a.yml&net_id=base"],
     ]
 
 

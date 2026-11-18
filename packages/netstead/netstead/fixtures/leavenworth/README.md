@@ -51,6 +51,7 @@ GMNS attributes are derived from OSM tags as follows:
 | `node.ctrl_type`      | `highway=traffic_signals` -> `signal`; `highway=stop` -> `stop`; otherwise spread by node_id mod 7 across `stop_2_way`/`stop_4_way`/`yield`/`no_control` |
 | `link.from/to_node_id`| OSM edge endpoints                                            |
 | `link.length`         | OSM edge `length` attribute (meters)                          |
+| `link.ref` (extra)    | OSM `ref` (route number, `US 2`), kept apart from `name`; empty when untagged. Added by `scripts/add_route_refs.py` to the existing data (3 of the 89 ways carry one, all `US 2`: 10 links, 8 of them unnamed) |
 | `link.lanes`          | OSM `lanes` (default 1)                                       |
 | `link.free_speed`     | OSM `maxspeed` parsed from `mph`/`km/h`; class default if absent |
 | `link.facility_type`  | `highway` mapped via the table in `scripts/build_leavenworth.py` |
@@ -72,6 +73,8 @@ uv run python packages/netstead/netstead/fixtures/leavenworth/scripts/build_leav
 ```
 
 **Deterministic given an unchanged OSM snapshot.** Output is byte-identical when re-run against the same `osmnx` response (line terminators pinned, Parquet statistics disabled, zip member timestamps fixed, row + column order stable, ID assignment derived from sorted OSM ids). OSM itself drifts over time, so a real re-run will produce diffs — those reflect upstream changes, not script bugs. Treat any unexplained diff on a fresh run as expected OSM churn.
+
+`scripts/add_route_refs.py` is the one deliberate exception: a deterministic, offline, idempotent patch that added the `ref` column to the existing files (the way -> ref table inside it was read from the OSM API once). `build_leavenworth.py` now emits `ref` itself, so a rebuild produces the column too.
 
 The build script is the **only** source of truth for the bundled files. Don't hand-edit the CSV/Parquet/DuckDB/zip outputs — re-run the build script.
 
@@ -98,11 +101,16 @@ print(leavenworth.parquet_dir())        # .../parquet/
 print(leavenworth.duckdb_path())        # .../leavenworth.duckdb
 print(leavenworth.zip_path())           # .../leavenworth.csv.zip
 print(leavenworth.DATAPACKAGE)          # .../datapackage.json
+print(leavenworth.cards_dir())          # .../cards/ (sample ProjectCards)
 
 # Quick load
 nodes = pd.read_csv(leavenworth.csv_dir() / "node.csv")
 links = pd.read_csv(leavenworth.csv_dir() / "link.csv")
 ```
+
+### Sample ProjectCards
+
+`cards/` holds a small catalog of nine [ProjectCards](https://network-wrangler.github.io/projectcard/) written against this network's real link and node ids (a road diet, a speed reduction, bike lanes, a Segment, OpenStreetMap ids, a closure, an added connector, a card with dependencies, and one that intentionally does not fit). `leavenworth.cards_dir()` returns the folder; see [`cards/README.md`](cards/README.md) for one line per card. In the Workbench, open them with **Sample cards (Leavenworth)** in the Cards panel's Catalog section (read-only; copy the folder to edit). Unlike the network tables, the cards are hand-written files, not build-script output, so they stay out of the regeneration steps above.
 
 To get a `Network` directly instead, use `leavenworth.load()` (CSV by default; `"parquet"` and `"duckdb"` also accepted).
 

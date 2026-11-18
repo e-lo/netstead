@@ -875,7 +875,8 @@ def test_settings_switches_save_what_is_on_screen_and_list_only_offerable_action
 
 ICON_NAMES = [
     "undo", "redo", "gear", "terminal", "code", "save", "folder-open", "play", "download", "check-circle",
-    "alert-triangle", "x-circle", "circle", "filter", "x", "chevron-down", "layers", "crosshair", "grip",
+    "alert-triangle", "x-circle", "circle", "filter", "x", "chevron-down", "layers", "crosshair", "grip", "life-buoy",
+    "target", "sparkles",
 ]  # fmt: skip
 
 
@@ -1104,7 +1105,7 @@ def test_grid_filter_chip_text_elides_a_long_value_list(node_module):
 
 # ---- resize.js: panel sizes (the map/table split percentage, the side column width) ----
 
-SIZE_DEFAULTS = {"split": 55, "side": 330}
+SIZE_DEFAULTS = {"split": 55, "side": 330, "details": 320}
 
 
 @pytest.mark.parametrize(
@@ -1116,6 +1117,9 @@ SIZE_DEFAULTS = {"split": 55, "side": 330}
         ("side", 100, 240),
         ("side", 9999, 720),
         ("side", 500, 500),
+        ("details", 100, 260),
+        ("details", 9999, 640),
+        ("details", 400, 400),
     ],
 )
 def test_clamp_size_keeps_each_panel_within_its_range(node_module, kind, value, expected):
@@ -1141,21 +1145,34 @@ def test_parse_sizes_falls_back_to_defaults_on_garbage(node_module, stored):
 
 
 def test_parse_sizes_reads_valid_fields(node_module):
-    assert parse_sizes(node_module, """'{"split":40,"side":500}'""") == {"split": 40, "side": 500}
+    got = parse_sizes(node_module, """'{"split":40,"side":500,"details":400}'""")
+    assert got == {"split": 40, "side": 500, "details": 400}
 
 
 def test_parse_sizes_defaults_each_bad_field_on_its_own(node_module):
-    assert parse_sizes(node_module, """'{"split":"x","side":500}'""") == {"split": 55, "side": 500}
-    assert parse_sizes(node_module, """'{"split":40}'""") == {"split": 40, "side": 330}
+    assert parse_sizes(node_module, """'{"split":"x","side":500}'""") == {"split": 55, "side": 500, "details": 320}
+    assert parse_sizes(node_module, """'{"split":40}'""") == {
+        "split": 40,
+        "side": 330,
+        "details": 320,
+    }  # an older store
     # an out-of-range number is clamped, not dropped
-    assert parse_sizes(node_module, """'{"split":99,"side":1}'""") == {"split": 80, "side": 240}
+    assert parse_sizes(node_module, """'{"split":99,"side":1,"details":9999}'""") == {
+        "split": 80,
+        "side": 240,
+        "details": 640,
+    }
 
 
 def test_serialize_sizes_round_trips(node_module):
-    expr = "parseSizes(serializeSizes({split: 40, side: 500}))"
-    assert node_module("resize.js", ["parseSizes", "serializeSizes"], expr) == {"split": 40, "side": 500}
-    raw = node_module("resize.js", ["serializeSizes"], "serializeSizes({split: 40, side: 500, extra: 1})")
-    assert json.loads(raw) == {"split": 40, "side": 500}
+    expr = "parseSizes(serializeSizes({split: 40, side: 500, details: 400}))"
+    assert node_module("resize.js", ["parseSizes", "serializeSizes"], expr) == {
+        "split": 40,
+        "side": 500,
+        "details": 400,
+    }
+    raw = node_module("resize.js", ["serializeSizes"], "serializeSizes({split: 40, side: 500, details: 400, extra: 1})")
+    assert json.loads(raw) == {"split": 40, "side": 500, "details": 400}
 
 
 # ---- recents.js: the Open menu's recent networks ----
@@ -1247,7 +1264,7 @@ def test_validity_error_warn_and_clean_with_plurals(node_module):
 
 # ---- palette.js: node colors follow the links' palette rules
 
-_NODE_STYLE = 'ramp: "YlOrRd", colors: {nodes: [1, 2, 3]}'
+_NODE_STYLE = 'ramp: "Blues", node_ramp: "YlOrRd", colors: {nodes: [1, 2, 3]}'
 
 
 def test_node_colors_single_categorical_continuous_and_null(node_module):
@@ -1266,6 +1283,22 @@ def test_node_colors_single_categorical_continuous_and_null(node_module):
     assert single == [[1, 2, 3, 150]] * 3 and other == single  # no property, or the wrong one: the single color
     assert cat == [[228, 66, 62, 215], [205, 208, 214, 215], [57, 126, 184, 215]]  # palette, null, palette
     assert num == [[255, 237, 160, 215], [254, 178, 76, 215], [240, 59, 32, 215]]  # the ramp's ends and middle
+
+
+def test_nodes_use_their_own_ramp_and_the_ramp_menu_lists_the_ramps(node_module):
+    expr = (
+        "(() => { const net = {N: {count: 2}};"
+        " const p = {name: 'z', kind: 'continuous', min: 0, max: 1, values: [0, 1]};"
+        " const style = {node_color_by: 'z', ramp: 'Blues', node_ramp: 'Viridis', colors: {nodes: [1, 2, 3]}};"
+        " const c = buildNodeColors(net, style, p);"
+        " return [[...c.slice(0, 3)], [...c.slice(4, 7)]]; })()"
+    )
+    assert node_module("palette.js", ["buildNodeColors"], expr) == [[68, 1, 84], [253, 231, 37]]  # Viridis, not Blues
+    menu = node_module("palette.js", ["rampMenu"], 'rampMenu("Blues")')
+    assert [m["name"] for m in menu] == ["YlOrRd", "Blues", "Viridis"]
+    assert [m["selected"] for m in menu] == [False, True, False]
+    assert all(m["gradient"].startswith("linear-gradient(90deg, rgb(") for m in menu)
+    assert node_module("palette.js", ["rampGradient"], 'rampGradient("nope") === rampGradient("YlOrRd")') is True
 
 
 def test_node_style_semantic_for_ctrl_type_generic_otherwise(node_module):
@@ -1469,46 +1502,6 @@ def test_related_explanation_is_generic_or_uses_the_real_answer(node_module):
     assert "nothing more in this network" in lines[2]
 
 
-def test_dismissible_help_remembers_its_choice_and_survives_broken_storage(node_module):
-    harness = """
-const mem = new Map();
-const storage = {
-  getItem: k => (mem.has(k) ? mem.get(k) : null),
-  setItem: (k, v) => mem.set(k, v),
-  removeItem: k => mem.delete(k),
-};
-const boom = () => { throw new Error("blocked"); };
-const broken = { getItem: boom, setItem: boom, removeItem: boom };
-const mk = () => ({ el: { hidden: false }, hideBtn: {}, showBtn: { hidden: true } });
-const a = mk();
-wireDismissibleHelp(a.el, helpKey("edit"), { ...a, storage });
-const shownFirst = [a.el.hidden, a.showBtn.hidden];
-a.hideBtn.onclick();
-const afterHide = [a.el.hidden, a.showBtn.hidden, mem.get("wb.help.edit")];
-const b = mk();
-wireDismissibleHelp(b.el, helpKey("edit"), { ...b, storage });  // a reload: still hidden
-const reload = [b.el.hidden, b.showBtn.hidden];
-b.showBtn.onclick();
-const afterShow = [b.el.hidden, b.showBtn.hidden, mem.has("wb.help.edit")];
-const c = mk();
-wireDismissibleHelp(c.el, "k", { ...c, storage: broken });
-c.hideBtn.onclick();
-const brokenHide = [c.el.hidden, c.showBtn.hidden];
-"""
-    got = node_module(
-        "help.js",
-        ["helpKey", "wireDismissibleHelp"],
-        "(() => {" + harness + "return {shownFirst, afterHide, reload, afterShow, brokenHide};})()",
-    )
-    assert got == {
-        "shownFirst": [False, True],
-        "afterHide": [True, False, "hidden"],
-        "reload": [True, False],
-        "afterShow": [False, True, False],
-        "brokenHide": [True, False],  # the toggle works even when nothing can be remembered
-    }
-
-
 def test_tab_labels_say_what_the_badge_means(node_module):
     got = node_module(
         "tabs.js",
@@ -1545,13 +1538,11 @@ def test_swatch_tooltips_say_when_a_color_by_is_on(node_module):
     assert tip("nodes", STYLE_OFF) == "Node color"
 
 
-def test_folded_view_sections_round_trip_and_survive_bad_storage(node_module):
-    names = ["parseClosed", "serializeClosed"]
-    assert node_module("viewmodel.js", names, 'serializeClosed(new Set(["width", "color"]))') == '["color","width"]'
-    assert node_module("viewmodel.js", names, '[...parseClosed(\'["color","width"]\')]') == ["color", "width"]
-    for raw in ("null", "'{bad'", "'{}'", "'[1, \"a\"]'"):
-        expected = ["a"] if raw.startswith("'[1") else []
-        assert node_module("viewmodel.js", names, f"[...parseClosed({raw})]") == expected
+def test_the_layers_card_is_open_unless_stored_as_closed(node_module):
+    names = ["parseCardOpen", "CARD_KEY"]
+    assert node_module("viewmodel.js", names, "CARD_KEY") == "wb.layers.open"
+    expr = 'parseCardOpen("false"), parseCardOpen("true"), parseCardOpen(null), parseCardOpen("garbage")'
+    assert node_module("viewmodel.js", names, f"[{expr}]") == [False, True, True, True]
 
 
 def test_a_click_picks_nodes_over_links_and_never_a_hidden_layer(node_module):
@@ -1740,3 +1731,56 @@ def test_find_form_cross_choices_and_mode(node_module):
     ]"""
     got = node_module("findmodel.js", ["crossChoices", "useForm", "parseIds"], expr)
     assert got == [["C"], ["A", "B"], ["B"], True, False, [1, 2], None, None]
+
+
+def test_a_changed_provider_or_model_is_reported_once_and_the_first_pair_is_not_a_change(node_module):
+    expr = """(() => {
+      const a = {provider: "stub", model: null}, b = {provider: "ollama", model: "qwen2.5:7b"};
+      const first = selectionChange(null, a);
+      const same = selectionChange(first.key, a);
+      const provider = selectionChange(first.key, b);
+      const model = selectionChange(provider.key, {provider: "ollama", model: "llama3.1:8b"});
+      const none = selectionChange(provider.key, null);
+      return [first, same, provider, model, none];
+    })()"""
+    first, same, provider, model, none = node_module("llmstatus.js", ["selectionChange"], expr)
+    assert first == {"key": "stub|", "changed": False}  # the page loaded it already
+    assert same["changed"] is False
+    assert provider == {"key": "ollama|qwen2.5:7b", "changed": True}
+    assert model["changed"] is True
+    assert none == {"key": "", "changed": True}
+
+
+def test_find_buttons_say_how_select_and_ask_differ(node_module):
+    offline, model = node_module(
+        "findmodel.js", ["findButtonTips"], '[findButtonTips("stub"), findButtonTips("anthropic")]'
+    )
+    assert offline["select"] == "Select links: matches street names in this network"
+    assert model["select"] == "Select links: the language model reads your request, then it is matched to this network"
+    assert model["ask"] == "Ask the assistant: a language model that can select, style and edit for you"
+    assert offline["ask"] == "Ask needs a language model: choose one with the robot icon"
+    assert (offline["askReady"], model["askReady"]) == (False, True)
+
+
+_ASSISTANT_REMOTE = (
+    '{provider: "anthropic", model: "claude-haiku-5-5", local: false,'
+    ' sends: ["your question", "column names"], compact: false}'
+)
+
+
+def test_the_assistant_privacy_summary_is_one_line_with_the_detail_apart(node_module):
+    expr = (
+        f"[privacySummary({_ASSISTANT_REMOTE}), privacySummary({{provider: 'stub'}}),"
+        " privacySummary({provider: 'ollama', model: 'qwen2.5:7b', local: true, sends: [],"
+        " compact: true, tools: [1, 2]}),"
+        " privacySummary({error: 'no provider'})]"
+    )
+    remote, stub, local, error = node_module("assistmodel.js", ["privacySummary"], expr)
+    assert (
+        remote["line"] == "Runs on anthropic · claude-haiku-5-5; it sees column names and summaries, never your tables."
+    )
+    assert "a remote service) receives: your question; column names. Never your network tables" in remote["detail"]
+    assert stub["line"].startswith("Runs offline") and "sends nothing anywhere" in stub["detail"]
+    assert local["line"].startswith("Runs on ollama · qwen2.5:7b;") and "on this machine" in local["detail"]
+    assert "nothing beyond your question" in local["detail"] and "compact tool set (2 tools" in local["detail"]
+    assert error == {"line": "no provider", "detail": ""}

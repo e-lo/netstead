@@ -1,0 +1,32 @@
+project: Front Street pedestrian improvements
+tags:
+- year:2030
+- safety
+- pedestrian
+notes: 'A Segment: the street and its two end nodes, so the card finds the same links
+  again after a network update.
+
+  netstead.resolved[0]: model_link_id=[41, 287, 255, 267]
+
+  netstead.note[0]: Curb extensions replace the parking lane, and the speed drops
+  to 30.'
+changes:
+- roadway_property_change:
+    facility:
+      links:
+        name:
+        - Front Street
+        ignore_missing: true
+      from:
+        model_node_id: 13
+      to:
+        model_node_id: 87
+    property_changes:
+      parking:
+        existing: parallel
+        existing_value_conflict: error
+        set: none
+      free_speed:
+        existing: 40
+        existing_value_conflict: error
+        set: 30

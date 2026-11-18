@@ -1,0 +1,30 @@
+project: Commercial Street bike lanes
+tags:
+- year:2030
+- bike
+dependencies:
+  prerequisites:
+  - Commercial Street road diet
+  conflicts:
+  - Park Avenue bike lanes
+notes: 'Needs the road diet first (a prerequisite, named by its project). The Park Avenue lanes
+  are listed as a conflict only to show the field: imagine the budget covers one of the two.
+
+  netstead.note[0]: Uses the space the road diet frees.'
+changes:
+- roadway_property_change:
+    facility:
+      links:
+        model_link_id:
+        - 153
+        - 154
+        - 178
+        - 179
+        - 242
+        - 297
+        ignore_missing: false
+    property_changes:
+      bike_facility:
+        existing: none
+        existing_value_conflict: error
+        set: unseparated bike lane

@@ -24,7 +24,8 @@ export const keysChanged = (prev, next, keys) => keys.some(k => JSON.stringify(p
 
 // deps: {hostApi, store, activeSelection, getJSON, postJSON, fetch, dispatch, events: {on}, addCommand,
 //        layers: {register}, dock: {addWorkspace, addPanel, showPanel}, schemaForm, actionTypes, actionSchema,
-//        toast, onError(pluginId, phase, error), frozenCopy, icon, showTable}
+//        toast, onError(pluginId, phase, error), frozenCopy, icon, showTable, fitLinks,
+//        details: {show(owner, spec), close(owner, id?)}}
 export function createWb(pluginId, deps) {
   const disposers = [];
   let closed = false;
@@ -92,8 +93,11 @@ export function createWb(pluginId, deps) {
     // Replace the page's highlights (the cyan links of the highlight tool, the Find panel's list) with `links`;
     // `highlight()` clears them. Core highlights links only: `nodes` is accepted and ignored for now.
     // They survive the next network switch once, so a plugin can highlight the links of a network it is about to open.
-    highlight({ links = [] } = {}) {
-      deps.store.set({ highlights: new Set(links), highlightsKeep: links.length > 0 });
+    // `zoom: true` (Host API 1.10) also fits the map to them, now and when that network opens.
+    highlight({ links = [], zoom = false } = {}) {
+      const fit = Boolean(zoom) && links.length > 0;
+      deps.store.set({ highlights: new Set(links), highlightsKeep: links.length > 0, highlightsZoom: fit });
+      if (fit && deps.fitLinks) deps.fitLinks([...links]);
     },
     // Core's inline SVG icon `name` (icons.js) as markup, for a plugin's icon buttons; "" where the host has none.
     icon: name => (deps.icon ? deps.icon(name) : ""),
@@ -103,6 +107,24 @@ export function createWb(pluginId, deps) {
     showTable: name => (deps.showTable ? deps.showTable(name)
       : Promise.reject(new Error(`${pluginId}: this Workbench has no table view to show ${name} in`))),
   };
+  // The right-hand Details panel (Host API 1.10): only where the host has one, so `typeof wb.showDetails` tells.
+  if (deps.details) {
+    let tracked = false;
+    // Show {id, title, render(el) -> cleanup?, onClose?} in the panel, replacing what it shows (a focused record,
+    // another view). onClose runs when the user closes it (× or Escape) or something else replaces it.
+    wb.showDetails = spec => {
+      open();
+      if (!tracked) { tracked = true; track(() => deps.details.close(pluginId)); } // a rollback closes the view
+      const s = spec || {};
+      const render = typeof s.render === "function" ? el => {
+        const out = safe(s.render, "details")(el);
+        return typeof out === "function" ? safe(out, "details cleanup") : undefined;
+      } : s.render;
+      deps.details.show(pluginId, { ...s, render, onClose: s.onClose && safe(s.onClose, "details close") });
+    };
+    // Close this plugin's view `id` (or any of its views) if it shows; true when one closed. onClose does not run.
+    wb.closeDetails = (id = null) => deps.details.close(pluginId, id);
+  }
   const rollback = () => {
     closed = true;
     for (const off of disposers.splice(0).reverse()) {

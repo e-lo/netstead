@@ -6,7 +6,7 @@ import { dispatch, getJSON, sendJSON } from "./api.js";
 import { $, esc, toast } from "./dom.js";
 import { setFindProvider } from "./findform.js";
 import { openJobsPanel } from "./jobs.js";
-import { llmStatus } from "./llmstatus.js";
+import { llmStatus, selectionChange } from "./llmstatus.js";
 import { openSettings } from "./settings.js";
 
 const SECRETS = { "X-Netstead-Secrets": "1" };
@@ -38,6 +38,9 @@ let baseSources = null;  // where that pair came from ({provider, model}: "user"
 let refreshSeq = 0;      // drop out-of-order refresh responses
 let modelsSeq = 0;
 let modelMissing = false; // the chosen local model is not installed (set by renderModels, read by the robot status)
+let writing = 0;          // this tab's own provider/model writes in flight (its picks are the truth until they land)
+let shownKey = null;      // the provider|model pair last drawn (see selectionChange)
+let onSelected = null;    // called when the chosen pair changes, however it changed: the Assistant re-reads its status
 const pulling = new Set(); // Ollama models this tab asked to pull, until that model's own pull job ends
 // "Pull {model} (Ollama)" (see routes/llm.py:_pull_label); used to recover the model id from a job event.
 const PULL_JOB_LABEL = /^Pull (.+) \(Ollama\)$/;
@@ -70,6 +73,9 @@ export function privacyNote(p) {
   const where = p.local ? `${p.label} runs on this machine, so nothing leaves it.` : `${p.label} is a remote service.`;
   return `${where} Each selection sends: ${p.sends.join("; ")}. Never your network tables or files.`;
 }
+
+// Register the one listener told when the chosen provider or model changes (a header pick, Settings, Python, another tab).
+export function onLLMSelected(fn) { onSelected = fn; }
 
 export async function refreshLLM() {
   const seq = ++refreshSeq;
@@ -118,6 +124,7 @@ function shadowingLayers() {
 // A set_setting from Python or another tab may change the provider, model, endpoints or quality.
 export function onHistoryEntry(entry) {
   const a = entry.action;
+  if (writing) return; // this tab's own pick: a refresh now could read the pair between its two writes and redraw the old one
   if (entry.ok && a.type === "set_setting" && /^(select|llm)(\.|$)/.test(a.key)) refreshLLM().catch(report);
 }
 
@@ -158,6 +165,9 @@ async function renderPicker() {
   if (panelOpen()) $("llm-privacy").textContent = privacyNote(providerRow(provider));
   await renderModels(provider, model);
   syncButtonTip(current, provider);
+  const change = selectionChange(shownKey, llm.selected);
+  shownKey = change.key;
+  if (change.changed && onSelected) onSelected(llm.selected);
 }
 
 // The header robot shows whether the chosen provider and model can answer: its color (green ready, yellow
@@ -239,9 +249,25 @@ function startingModel(provider) {
   return p ? defaultModel(p) : null;
 }
 
+// A header pick writes to the session, then redraws from what was picked. `writing` holds back history-driven refreshes
+// meanwhile (see onHistoryEntry) and a refresh already in flight is dropped: it may predate the writes.
+async function whileWriting(pick) {
+  writing++;
+  refreshSeq++;
+  try {
+    await pick();
+  } finally {
+    writing--;
+    refreshSeq++;
+  }
+  await renderPicker();
+}
+
 // Model first, then provider; if the provider write fails the model goes back, so the pair never mismatches.
 // (The stub has no model: its switch is a single write.)
-async function onProviderChange(provider) {
+const onProviderChange = provider => whileWriting(() => writeProvider(provider));
+
+async function writeProvider(provider) {
   const before = llm.selected;
   const sessionModel = settings && settings.sources["select.model"] === "session";
   let modelWritten = false;
@@ -263,18 +289,16 @@ async function onProviderChange(provider) {
       await setSetting("select.model", sessionModel ? before.model : null, "session").catch(report);
     }
   }
-  await renderPicker();
 }
 
-async function onModelChange(model) {
+const onModelChange = model => whileWriting(async () => {
   try {
     await setSetting("select.model", model, "session");
     llm.selected = { ...llm.selected, model };
   } catch (e) {
     report(e);
   }
-  await renderPicker();
-}
+});
 
 // One write of the whole [select] table, so the saved pair is atomic. The model is saved as chosen:
 // null (never chosen, or the stub) leaves it out, so the catalog default keeps applying.

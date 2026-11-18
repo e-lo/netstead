@@ -17,9 +17,10 @@ from pydantic import BaseModel, ValidationError
 
 from ..editing import EditPlan, plan_add, plan_delete, plan_update
 from ..errors import ActionError
+from ..examples import SAMPLE_CATALOG_READ_ONLY, in_sample_catalog, sample_catalogs
 from ..files import list_dir
 from ..ledger import PendingEdits
-from ..paths import resolve_allowed
+from ..paths import resolve_allowed, resolve_readable
 from ..selection import payload_facility_forms, selection_warnings
 
 if TYPE_CHECKING:
@@ -304,16 +305,26 @@ class Host:
         return self._session.jobs.submit(f"{self.plugin_id}.job", label, fn).id
 
     def writable(self, path: str | Path) -> Path:
-        """Resolve ``path`` for writing inside ``io.allowed_roots`` (raises ``PathNotAllowed`` outside it)."""
+        """Resolve ``path`` for writing inside ``io.allowed_roots`` (raises ``PathNotAllowed`` outside it).
+
+        A bundled sample catalog (:meth:`sample_catalogs`) is never writable, whatever the roots say: ``ActionError``.
+        """
+        try:
+            bundled = in_sample_catalog(Path(path).expanduser().resolve(), whole_tree=True)
+        except (RuntimeError, ValueError, OSError):  # unusable paths are the roots check's to refuse
+            bundled = False
+        if bundled:
+            raise ActionError(SAMPLE_CATALOG_READ_ONLY)
         return resolve_allowed(path, self._session.settings)
 
     def readable(self, path: str | Path) -> Path:
         """Resolve ``path`` for reading inside ``io.allowed_roots``: a file or a folder that exists (1.7).
 
+        A bundled sample catalog's folder and the files directly in it (:meth:`sample_catalogs`) are readable too (1.9).
         Raises ``PathNotAllowed`` outside the roots (before touching the disk) and ``ActionError`` when nothing is
         there, or when the disk refuses to say (a folder on the way that cannot be searched).
         """
-        resolved = resolve_allowed(path, self._session.settings)
+        resolved = resolve_readable(path, self._session.settings)
         try:
             exists = resolved.exists()
         except OSError as exc:
@@ -330,10 +341,18 @@ class Host:
         ``PathNotAllowed`` outside the roots and ``ActionError`` when the folder is missing or is a file.
         """
         try:
-            listing = list_dir(str(path), self._session.settings)
+            listing = list_dir(str(path), self._session.settings, sample_catalogs=True)
         except (FileNotFoundError, NotADirectoryError) as exc:
             raise ActionError(str(exc)) from exc
         return [{k: e[k] for k in ("name", "path", "kind", "is_dir")} for e in listing["entries"]]
+
+    def sample_catalogs(self) -> list[dict[str, Any]]:
+        """The sample ProjectCard catalogs bundled with netstead, as ``{id, name, path, network, cards}`` (1.9).
+
+        ``path`` is the catalog's folder, readable (:meth:`readable`, :meth:`list_dir`) though never writable;
+        ``network`` is the id of the bundled example network its cards were written against. Copies: change freely.
+        """
+        return [dict(c) for c in sample_catalogs()]
 
     def history(self, prefix: str | None = None) -> list[dict[str, Any]]:
         """The session's history (``GET /api/history`` entries), oldest first, as JSON-safe copies (1.7).

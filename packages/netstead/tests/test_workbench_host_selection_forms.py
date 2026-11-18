@@ -39,7 +39,7 @@ def test_the_old_keys_are_unchanged_and_the_api_version_did_not_move(probe):
     session, holder = probe
     session.dispatch(Select(utterance=PINE))
     forms = holder.host.selection["projectcard"]
-    assert HOST_API == "1.8"
+    assert HOST_API == "1.10"
     assert set(forms) >= OLD_KEYS | NEW_KEYS
     assert forms["resolved"] == {
         "links": {"model_link_id": [60], "ignore_missing": True},

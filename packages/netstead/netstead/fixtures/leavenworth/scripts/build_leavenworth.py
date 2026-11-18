@@ -150,6 +150,13 @@ def _coerce_str(value: object) -> str:
     return str(value)
 
 
+def _join_refs(value: object) -> str:
+    """OSM ``ref`` as one string: a list (osmnx merges the refs of a simplified way) joins sorted with ``;``."""
+    if isinstance(value, list):
+        return ";".join(sorted({str(v) for v in value}))
+    return "" if value is None else str(value)
+
+
 def _coerce_int(value: object, default: int) -> int:
     """Pick a deterministic int-coercible token; fall back to default."""
     if value is None:
@@ -365,6 +372,9 @@ def build_link_and_geometry_tables(g: object, osmid_to_node_id: dict) -> tuple[p
                 # OSM provenance — enables iD/JOSM edit deep-links from
                 # validation findings.
                 "osm_way_id": way_id,
+                # OSM's route number (``US 2``), kept apart from ``name``: a way with a ``ref`` and no ``name``
+                # stays unnamed. Multi-valued refs join with ``;`` (OSM's own separator).
+                "ref": _join_refs(data.get("ref")),
             }
         )
 

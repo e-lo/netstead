@@ -1,0 +1,35 @@
+project: Ski Hill Drive safety package (OpenStreetMap ids)
+tags:
+- year:2030
+- safety
+- bike
+notes: 'Written in OpenStreetMap ids (osm_link_id, osm_node_id), which the card resolves
+  against this network''s osm_way_id and osm_node_id columns.
+
+  netstead.note[0]: OSM way 5848236 is Ski Hill Drive; every link of the way is covered.
+
+  netstead.note[1]: All-way stop at the Benton Street / West Street / Ski Hill Drive
+  node (OSM node 46817728).'
+changes:
+- roadway_property_change:
+    facility:
+      links:
+        osm_link_id:
+        - '5848236'
+        ignore_missing: false
+    property_changes:
+      bike_facility:
+        existing: none
+        existing_value_conflict: error
+        set: buffered bike lane
+- roadway_property_change:
+    facility:
+      nodes:
+        osm_node_id:
+        - '46817728'
+        ignore_missing: false
+    property_changes:
+      ctrl_type:
+        existing: stop_2_way
+        existing_value_conflict: error
+        set: stop_4_way

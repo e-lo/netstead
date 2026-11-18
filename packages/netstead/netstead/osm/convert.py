@@ -53,7 +53,8 @@ def build_node_link_tables(
         ``node_id`` (the OSM node id), ``x_coord`` (lon), ``y_coord`` (lat).
         ``link_records`` carry ``link_id``, ``from_node_id``, ``to_node_id``,
         ``directed`` (always ``True``), ``length`` (metres), ``free_speed``,
-        ``lanes``, ``facility_type``, ``name``, ``geometry`` (WKT), and the
+        ``lanes``, ``facility_type``, ``name``, ``ref`` (OSM's route number, ``None`` without one; never
+        copied into ``name``), ``geometry`` (WKT), and the
         provenance fields ``osm_way_id`` + ``osm_node_ids``.
 
     Examples:
@@ -109,6 +110,7 @@ def build_node_link_tables(
                 "lanes": attrs["lanes"],
                 "facility_type": attrs["facility_type"],
                 "name": attrs["name"],
+                "ref": attrs["ref"],
                 "geometry": _wkt_linestring(coords),
                 "osm_way_id": segment["way_id"],
                 "osm_node_ids": ",".join(str(n) for n in oriented),

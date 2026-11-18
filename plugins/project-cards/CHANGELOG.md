@@ -5,7 +5,41 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
 
 ## [Unreleased]
 
+### Changed
+
+- **The Cards panel sits after Validate in the Workbench's new left rail** (panel order 35, was 25), matching core's
+  order Find, Changes, Validate, Cards, Assistant.
+
+- **Quieter catalog rows; the card's details do the rest.** Each row is now a fit icon (a green check, "Compatible
+  with the current network"; a red X, "Incompatible; click to see details", which opens the details at the reasons; a
+  gray dash, not checked, which checks the card), the project name with its tags beneath, and two icon buttons:
+  **Inspect details** and **Preview on the network**. The status pills, the inline reason, the change count, the
+  file name and the row's Apply…, Inspect, Edit, Details, Rename…, Duplicate, Edit metadata… and Delete buttons are
+  gone from the row. The details view (the Inspect view, in the Cards tab) shows the fit in full (every reason and
+  warning) and edits the card in place: double-click a field (or press Enter on it), Enter or Cmd/Ctrl+Enter saves,
+  Escape cancels. **Project name**, **Tags**, **Prerequisites**, **Corequisites** and **Conflicts** replace the Edit
+  metadata dialog (`update_card_meta`), **File** replaces Rename… (`rename_card`), and the header's icons are **Edit
+  changes**, **Apply…** (with `enable_apply`), **Duplicate** and **Delete**. In a bundled sample catalog the fields
+  are read-only, with the reason in their tooltip, and Duplicate and Delete are not offered. No server API changed.
+
+- **A card's details open in the Workbench's right-hand Details panel**, where a link's details show, titled "Card ·
+  <project>" (or "Draft · <network>" for the draft's **Inspect**), with the header icons as before and the panel's ×
+  and Escape to close. One thing shows there at a time: clicking a link on the map replaces the card's details. The
+  details view at the top of the Cards panel is gone where the Workbench has the panel (Host API 1.10,
+  `wb.showDetails`); an older Workbench still gets it there. Opening another catalog now closes a card's details
+  from the previous one.
+- **Preview is a magnifier, "Preview on the map", and the map zooms to the card's links** (`wb.highlight({links,
+  zoom: true})`, Host API 1.10), as does clicking a change in the details. The draft's **Inspect** is now the ⓘ
+  icon, like a catalog card's.
+
 ### Added
+
+- **Open the bundled Leavenworth sample catalog in one click.** The Cards panel's Catalog section has a **Sample
+  cards (Leavenworth)** button (the primary one when Leavenworth is the open network; read from `host.sample_catalogs()`,
+  so it needs Host API 1.9, which this version now requires). The nine cards open read-only from netstead's own files,
+  outside `io.allowed_roots`: Inspect, Preview, Show as table and Apply work, and renaming, editing metadata,
+  duplicating, deleting or committing into that folder is refused with "This is a bundled sample catalog and cannot be
+  changed here…". The plugin's state carries `samples`.
 
 - **Card facilities as a Segment or a Link list, in a chosen id system.** A property change's facility is built in
   exactly one of the two strict forms the Find tab exports: **Segment** (`name` / `ref` with `from` / `to`;

@@ -9,7 +9,9 @@
 # tags.oneway_direction() to decide how many links to emit, not mapped to a
 # field value.
 
-name:          { osm_tag: name,     transform: direct }      # street name, verbatim
+name:          { osm_tag: name,     transform: direct }      # street name, verbatim (never filled from ref)
+ref:           { osm_tag: ref,      transform: direct }      # route number (US 2, I 40), verbatim: not a GMNS field,
+                                                              # kept like osm_way_id so Select can match a route by number
 lanes:         { osm_tag: lanes,    transform: parse_int }    # motor-vehicle lane count
 free_speed:    { osm_tag: maxspeed, transform: parse_speed }  # speed limit -> mph (OSM default km/h)
 facility_type: { osm_tag: highway,  transform: direct }       # OSM road class (residential, primary, ...)

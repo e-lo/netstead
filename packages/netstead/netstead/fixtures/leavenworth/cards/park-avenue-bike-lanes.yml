@@ -1,0 +1,23 @@
+project: Park Avenue bike lanes
+tags:
+- year:2030
+- bike
+notes: 'netstead.note[0]: Striped lanes on both sides; bike_facility takes a GMNS
+  allowed value.'
+changes:
+- roadway_property_change:
+    facility:
+      links:
+        model_link_id:
+        - 183
+        - 184
+        - 229
+        - 231
+        - 282
+        - 328
+        ignore_missing: false
+    property_changes:
+      bike_facility:
+        existing: none
+        existing_value_conflict: error
+        set: unseparated bike lane

@@ -1,0 +1,36 @@
+project: Downtown slow streets
+tags:
+- year:2027
+- safety
+- speed
+notes: 'netstead.note[0]: Cedar and Division Streets drop from 40 to 30 (the network''s
+  speed units, kilometers per hour).'
+changes:
+- roadway_property_change:
+    facility:
+      links:
+        model_link_id:
+        - 57
+        - 127
+        - 129
+        - 132
+        - 134
+        - 136
+        - 138
+        - 139
+        - 142
+        - 143
+        - 310
+        - 311
+        - 62
+        - 63
+        - 241
+        - 243
+        - 263
+        - 273
+        ignore_missing: false
+    property_changes:
+      free_speed:
+        existing: 40
+        existing_value_conflict: error
+        set: 30

@@ -8,7 +8,7 @@ import { dispatch, getJSON, postJSON } from "./api.js";
 import { openActionForm } from "./actform.js";
 import { addCommandTo } from "./commands.js";
 import { $, esc, toast } from "./dom.js";
-import { assistBadge, budgetText, offerableCore, pendingDraft, stepRows, switchedOn } from "./assistmodel.js";
+import { assistBadge, budgetText, offerableCore, pendingDraft, privacySummary, stepRows, switchedOn } from "./assistmodel.js";
 import { registerSection } from "./settings.js";
 import { ALL_WORKSPACES, CORE, slots } from "./slots.js";
 import { store } from "./store.js";
@@ -112,24 +112,12 @@ function pendingElement(q) {
   return wrap;
 }
 
-function noteText(st) {
-  if (st.error) return st.error;
-  if (st.provider === "stub") {
-    return "Offline assistant (a few fixed commands). Choose a language model with the robot icon in the header for more.";
-  }
-  const sends = (st.sends || []).length ? st.sends.join("; ") : "nothing beyond your question";
-  const compact = st.compact ? ` It is offered a compact tool set (${(st.tools || []).length} tools: ` +
-    "the read-only ones that apply now, plus edit, delete, undo and plugin edits marked compact; assistant.compact_tools)." : "";
-  return `${st.provider}${st.model ? ` (${st.model})` : ""}${st.local ? ", on this machine," : ""} receives: ${sends}.` +
-    compact;
-}
-
 export function renderAssistant(payload) {
   const log = $("as-log");
   const turns = (payload && payload.turns) || [];
   const draft = payload ? payload.draft : null;
   if (!turns.length && !asking) {
-    log.innerHTML = '<span class="empty">Ask for what you want done, e.g. “color by lanes and zoom to the selection”.</span>';
+    log.replaceChildren(); // nothing yet: the box and its examples are the first thing in the pane
   } else {
     log.replaceChildren(...turns.map(t => turnElement(t, draft)));
     if (asking) log.appendChild(pendingElement(asking));
@@ -137,7 +125,11 @@ export function renderAssistant(payload) {
   log.scrollTop = log.scrollHeight;
   if (payload) {
     const st = payload.status;
-    $("as-note").textContent = noteText(st);
+    const privacy = privacySummary(st), info = $("as-privacy-info");
+    $("as-note").textContent = privacy.line;
+    info.hidden = !privacy.detail;
+    info.dataset.tip = privacy.detail;
+    info.setAttribute("aria-label", privacy.detail);
     $("as-usage").textContent = st.provider === "stub" ? "" : budgetText(st);
     if (!asking) setBusy(Boolean(st.busy));
   }
@@ -178,6 +170,12 @@ export function wireAssistant() {
   $("as-send").onclick = () => ask($("as-input").value);
   $("as-input").onkeydown = e => {
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); ask($("as-input").value); }
+  };
+  $("as-examples").onclick = e => {
+    const example = e.target.closest("button[data-example]");
+    if (!example) return;
+    $("as-input").value = example.dataset.example; // fills the box only: nothing runs until Ask
+    $("as-input").focus();
   };
   $("as-clear").onclick = () => postJSON("/api/assistant/clear", {}).catch(e => toast(e.message));
   $("as-draft").onclick = e => {

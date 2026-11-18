@@ -21,17 +21,34 @@ def to_py(value):
     return value.item() if hasattr(value, "item") else value
 
 
+# Spelled-out route prefixes -> the short form a ref carries ("US Highway 2" -> "US 2", "Interstate 5" -> "I 5").
+_ROUTE_WORDS = re.compile(
+    r"^\s*(?:(?:united\s+states|u\.?\s?s\.?)\s+(?:highway|hwy|route|rte)|interstate)\s*(?=\d)",
+    re.IGNORECASE,
+)
+
+
+def route_alias(part: str) -> str:
+    """``part`` with a spelled-out US route or interstate prefix shortened (``"US Highway 2"`` -> ``"US 2"``)."""
+    match = _ROUTE_WORDS.match(part)
+    if not match:
+        return part
+    prefix = "I" if match.group(0).strip().lower().startswith("interstate") else "US"
+    return f"{prefix} {part[match.end() :]}"
+
+
 def norm_ref(value) -> set[str]:
     """Normalize an OSM/GMNS ref into a set of comparable tokens.
 
-    ``"I 40"`` -> ``{"I40"}``; multi-refs ``"I 40;US 1"`` -> ``{"I40", "US1"}``.
+    ``"I 40"`` -> ``{"I40"}``; multi-refs ``"I 40;US 1"`` -> ``{"I40", "US1"}``; ``"US-2"``, ``"U.S. Route 2"``
+    and ``"US Highway 2"`` are all ``{"US2"}``, ``"Interstate 5"`` is ``{"I5"}``.
     Prevents the substring collision where ``"40"`` matches ``"I 540"``.
     """
     if value is None or (isinstance(value, float) and math.isnan(value)):
         return set()
     out = set()
     for part in re.split(r"[;,]", str(value)):
-        token = re.sub(r"[^A-Za-z0-9]", "", part).upper()
+        token = re.sub(r"[^A-Za-z0-9]", "", route_alias(part)).upper()
         if token:
             out.add(token)
     return out

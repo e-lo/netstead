@@ -124,7 +124,8 @@ Replay: `app.do(DeleteSelection(name='ski hill'))`
 
 Partially update the map style; omitted fields are unchanged. `color_by` colors links by a column of the link
 table and `node_color_by` colors nodes by one of the node table (`"none"` for a single color); `width_by`
-sizes links by a numeric column (`"none"` for widths by lane count). A fresh session defaults `color_by` to
+sizes links by a numeric column (`"none"` for widths by lane count). `ramp` is the color ramp for a numeric
+`color_by` column of links and `node_ramp` the one for a numeric `node_color_by` column of nodes. A fresh session defaults `color_by` to
 `"facility_type"` and `node_color_by` to `"ctrl_type"` when those columns exist (`"none"` otherwise).
 
 | Field | Type | Default |
@@ -133,6 +134,7 @@ sizes links by a numeric column (`"none"` for widths by lane count). A fresh ses
 | `node_color_by` | `str \| None` | `None` |
 | `width_by` | `str \| None` | `None` |
 | `ramp` | `"YlOrRd" \| "Blues" \| "Viridis" \| None` | `None` |
+| `node_ramp` | `"YlOrRd" \| "Blues" \| "Viridis" \| None` | `None` |
 | `show` | `dict[("links" \| "nodes" \| "labels" \| "selection"), bool] \| None` | `None` |
 | `colors` | `dict[("links" \| "nodes" \| "selection"), [r, g, b]] \| None` | `None` |
 | `offset` | `bool \| None` | `None` |

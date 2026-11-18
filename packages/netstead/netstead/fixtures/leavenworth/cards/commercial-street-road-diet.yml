@@ -1,0 +1,24 @@
+project: Commercial Street road diet
+tags:
+- year:2027
+- safety
+- road-diet
+notes: 'netstead.note[0]: Two travel lanes become one in each direction''s link, with
+  room for a later bike lane.'
+changes:
+- roadway_property_change:
+    facility:
+      links:
+        model_link_id:
+        - 153
+        - 154
+        - 178
+        - 179
+        - 242
+        - 297
+        ignore_missing: false
+    property_changes:
+      lanes:
+        existing: 2
+        existing_value_conflict: error
+        set: 1
