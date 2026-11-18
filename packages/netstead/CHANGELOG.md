@@ -83,6 +83,22 @@ This file is for the **netstead** package only. The underlying generic engine `c
   network the plugin is opening (a preview) loads, instead of fitting the whole network. Core's icons add `zoom-in`.
   `wb.showDetails` is present only where the host has the panel, so a plugin can feature-test it. Additive: a plugin
   written for 1.9 keeps working.
+- **Workbench editing states: staged changes, editing in Details, and a Changes pane with selection.** An applied
+  edit is now called **staged** (applied in this session, not saved) everywhere the Workbench said "unsaved": the
+  network picker (`• 1 staged`), the Changes rail badge, and a count on the header's Save icon, like an
+  unsaved-document dot. A field or cell holding a staged value has a yellow outline in Details and in the table,
+  with the tooltip "Staged: applied in this session, not saved. Save a copy or put it in a card."; it clears when a
+  copy is saved or the change is undone. The Details panel is where you edit: a field is read-only until you
+  double-click it, press Enter on it or click its pencil; Enter or Cmd/Ctrl+Enter applies it (one `EditCells`) and
+  Escape cancels. A field with allowed values, or a yes/no field, is a drop-down. Details' header has Undo and Redo
+  icons ("Undo last change", "Redo"); **Edit…** is now a pencil icon (**Edit all fields…**) and **Delete…** a trash
+  icon. Cmd/Ctrl+Enter also applies in the table's cell editor and the record form. In the Changes pane each change
+  shows its rows and state (`1 link · Staged` or `Saved`) and has a checkbox; with changes ticked, **Undo
+  selected** takes back the newest run of them (disabled, with the reason, otherwise), **Save a copy…** opens the
+  save dialog, and **Make a card…** is shown disabled until the card dialog arrives. Clicking a change focuses its
+  record and highlights its links. The "Save selection as card…" button, which only opened the Cards panel without
+  a map selection, is gone. Each pending edit's view (`/edits`, `host.pending_edits`) gains `cells`: the table
+  keys and fields it set (`"*"` for an added row). Core's icons add `trash`.
 
 ### Fixed
 

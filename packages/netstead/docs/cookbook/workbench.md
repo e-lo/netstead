@@ -245,17 +245,19 @@ Focus is a view. Clicking never changes the selection.
   appear in the header; each keeps the map / split / table view you left it in.
   - **The rail** is a vertical strip of icons at the far left (hover for the name; counts stay as a badge on the
     icon), in order: **Find** (magnifier; the selection form or box, anchors, diagnostics, export, saved selections
-    and highlighted links), **Changes** (clock with a counter-clockwise arrow; the edit list, undo/redo, edit
-    warnings and "Save selection as card…"), **Validate** (shield with a check; run / export, status, facets and the
+    and highlighted links), **Changes** (clock with a counter-clockwise arrow; the change list with checkboxes,
+    undo/redo and edit warnings: see [Staged changes and the Changes pane](#staged-changes-and-the-changes-pane)), **Validate** (shield with a check; run / export, status, facets and the
     grouped findings list), **Cards** (stacked cards; the project-cards plugin's panel, when it's installed) and
     **Assistant** (chat bubble). Panels another plugin adds sit below a divider. Click an icon to open its pane in
     the **drawer** beside the rail; click the open icon again to close the drawer, and the map takes the width. With
     the keyboard, the Up and Down arrows move between icons and Enter or Space opens or closes the drawer. A badge is
-    one pill at its icon's corner (orange while edits are unsaved). The **ⓘ** beside the Changes heading explains the pane
+    one pill at its icon's corner (the Changes icon's counts the staged changes). The **ⓘ** beside the Changes heading explains the pane
     in a tooltip.
   - **Details** is a panel on the right that opens when you focus a record: click a link or node on the map, click a
-    table row, zoom to a finding in Validate, or pick a result in Find. It lists the record's fields and has
-    **Edit…** and **Delete…**. Close it with its **×** or Escape (which also clears the focus); the map takes the width
+    table row, zoom to a finding in Validate, or pick a result in Find. It lists the record's fields, and is where you
+    edit them (see [Edit tables](#edit-tables)); its header has **Undo** and **Redo** icons (tooltips "Undo last
+    change", "Redo") beside the **×**, and below the record name a pencil (**Edit all fields…**) and a trash can
+    (**Delete…**). Close it with its **×** or Escape (which also clears the focus); the map takes the width
     back. A plugin can show its own view there too (the Cards panel shows a card's details): one thing at a time, so
     focusing a record replaces the plugin's view, and the other way round.
   - **Layers & legend** is a card at the map's top-left, below the zoom control (see
@@ -321,6 +323,16 @@ app.do(RunValidation())  # a job; the result has counts, version, stale and supe
 Edits change the network you opened **in memory**. Nothing is written to disk until you
 [save a copy](#save-a-copy), and the source is never overwritten.
 
+Every edit form works the same way: **Enter** or **Cmd/Ctrl+Enter** applies (in a multi-line field only
+Cmd/Ctrl+Enter does), and **Escape** cancels.
+
+- **A field in Details.** Focus a record (click it on the map or in the table) and its fields show read-only in the
+  Details panel. Double-click a field, press Enter on it, or click the pencil that shows when you point at it, and it
+  becomes editable: type and press Enter or Cmd/Ctrl+Enter to apply, Escape to cancel. A field with allowed values
+  (the spec's `enum`) or a yes/no field is a drop-down, with `(empty)` to clear it; a text field completes from the
+  column's existing values. Clicking away applies a changed value, as in the table. The applied value is
+  [staged](#staged-changes-and-the-changes-pane) and outlined in yellow. Empty fields are not listed: use
+  **Edit all fields…** (the pencil under the record name) to fill one in.
 - **A cell.** Click a row to focus it, then click one of its cells, type, and press Enter (Escape cancels and
   discards; an empty value clears the cell). Leaving the cell — clicking elsewhere, tabbing away — applies the
   edit too, as in a spreadsheet. A text column completes from the spec's allowed values plus the column's
@@ -329,25 +341,47 @@ Edits change the network you opened **in memory**. Nothing is written to disk un
   column cannot hold (`1.5` lanes) is refused with a toast, and nothing changes; a value outside the spec's
   allowed list (an out-of-enum categorical, such as `facility_type = "boulevard"`) is **kept**, not dropped,
   and the cell is outlined in red with a warning icon, the reason as its tooltip.
-- **A record.** **Edit…** in the Details panel, or **Edit record…** in the palette for the focused record, opens a form
+- **A record.** **Edit all fields…** in the Details panel, or **Edit record…** in the palette for the focused record, opens a form
   for every editable column. When the record is a link in a multi-link selection, a checkbox applies the same
   values to every selected link. The note you type is kept with the edit.
 - **Fix…** opens the same editor from an issue, or from right-clicking a record that has one.
 - **Delete…** (the Details panel, the record editor, or **Delete record…** in the palette) first runs a dry run and says
   what goes with the record: a link takes its lanes and time-of-day rows (`Delete 1 link row? This also deletes
-  2 lane rows, 1 link_tod row. Undo is in the Changes tab.`). Confirm to delete. A node a link still uses cannot
+  2 lane rows, 1 link_tod row. Undo is in the Changes pane.`). Confirm to delete. A node a link still uses cannot
   be deleted: the refusal names the links. The delete runs against the network version the dry run planned on:
   if another Workbench action (or a plugin's or your Python's `mutate`) changed the network in between, it is
   refused and you confirm again. A replayed delete has no dry run: it deletes the ids and whatever depends on
   them in the network it runs against.
 - **Adding rows** is Python or the API only: `app.do(AddRows(table="node", rows=[{...}]))`.
 - Each edit is one action in the session history (so "copy as Python" replays it), bumps the network's version,
-  and is listed in the **Edit** tab with what it changed.
+  and is listed in the **Changes** pane with what it changed.
+
+### Staged changes and the Changes pane
+
+An edit goes through these states, and the Workbench uses the same word for each everywhere:
+
+| State | What it means | Where it shows |
+|---|---|---|
+| **Typing** | a value in a field, not applied yet | the field itself (Escape drops it) |
+| **Staged** | applied to this session's copy of the network: on the map, in the table and to validation, but not written anywhere | a yellow outline on the field in Details and the cell in the table (tooltip "Staged: applied in this session, not saved. Save a copy or put it in a card."), a count on the Changes rail icon, on the header's Save icon and in the network switcher (`• 1 staged`) |
+| **Saved** | written to a file by [Save a copy](#save-a-copy) | the change's row says `Saved`; the outline clears |
+
+The **Changes** pane lists every change to the network since it was opened, newest first: what changed
+(`#1 link 271: lanes = 2`), the rows it touched and its state (`1 link · Staged`). A plugin's or Python's change
+carries its name (`[cards]`). Click a change to show its record in Details and on the map (the links it changed are
+highlighted). Tick changes to act on them together:
+
+- **Undo selected** takes them back, newest first. Only the newest changes can be undone, so it is enabled when
+  the ticked changes are the newest ones in a row and all were made in the Workbench; otherwise it is disabled
+  and its tooltip says why (`Only the newest changes can be undone: select #5 too.`).
+- **Save a copy…** opens the save dialog. A copy holds every staged change, not only the ticked ones.
+- **Make a card…** will turn the ticked changes into a project card; it is disabled (tooltip "Coming soon: make a
+  card from these changes") until that dialog arrives.
 
 ### Undo and redo
 
-The undo icon in the **Changes** tab (tooltip "Undo last edit"; also in the Details panel, or **Undo last edit** in the
-palette) reverses your newest edit. Undo is last-in, first-out across everything that changed the network, and
+The undo icon in the **Changes** pane (tooltip "Undo last change"; also in the Details panel's header, or **Undo
+last edit** in the palette) reverses your newest edit. Undo is last-in, first-out across everything that changed the network, and
 the Workbench only undoes **its own** edits:
 
 - If the newest change came from Python (`session.mutate(...)` outside an action), Undo is unavailable and
@@ -358,7 +392,7 @@ the Workbench only undoes **its own** edits:
   earlier version of a row you changed. Row order carries no meaning in GMNS, but an unsorted table shows those
   rows last. (An edit itself keeps the row where it is.)
 
-The redo icon next to it (tooltip "Redo") re-applies the edit `undo_edit` most recently took back —
+The redo icon next to it (tooltip "Redo", in the Changes pane and in Details) re-applies the edit `undo_edit` most recently took back —
 `app.do(RedoEdit())` — and is disabled ("nothing to redo") until there is an undone edit waiting, or whenever
 any other change to the network clears it.
 
@@ -367,7 +401,7 @@ any other change to the network clears it.
 An edit the spec disagrees with is still applied, and warned about at once: a foreign key that is not in the
 referenced table, a required field left empty, a value of the wrong type or outside the allowed list, or a
 duplicate key. The cell is outlined (hover for why), the row is marked, and the warning is listed under
-**Edit warnings** in the **Edit** tab, with **Fix**. A later edit that puts it right clears the
+**Edit warnings** in the **Changes** pane, with **Fix**. A later edit that puts it right clears the
 warning. The live check covers the rows an edit touched; after a very large edit it stops early and says so,
 and **Run validation** checks everything.
 
@@ -388,8 +422,8 @@ tab says **Stale pin** at its top: those links are no longer what the query give
 
 ### Save a copy
 
-The **Save** icon in the header (tooltip "Save a copy…"; or **Save a copy…** in the palette) opens the save
-dialog: name the copy, pick a format, then **Choose folder…** inside your allowed folders, and **Save**. The
+The **Save** icon in the header (tooltip "Save a copy…", with the staged count on it while there is one; or **Save a
+copy…** in the palette or the Changes pane) opens the save dialog: name the copy, pick a format, then **Choose folder…** inside your allowed folders, and **Save**. The
 save runs as a job and writes a **new** folder or file; the network you opened, local or remote, is never
 written to, and a copy inside the source folder is refused.
 
@@ -398,10 +432,11 @@ written to, and a copy inside the source folder is refused.
   save anyway. If the live check failed or stopped early, it says that instead (the warning count may be 0, and
   proves nothing) and asks the same. Saving anyway is recorded as `SaveNetwork(..., accept_warnings=True)`. The
   server checks again when the job runs, and asks again if something changed.
-- When the job ends, a toast says where the copy went and which tables differ from the source. The badge on the
-  Changes tab and in the network switcher (`• 1 unsaved`) counts edits no saved copy holds yet, and clears. If
-  the network was edited while saving, the copy holds the version the save started from and the later edits stay
-  unsaved; if it was closed while saving, nothing is marked saved.
+- When the job ends, a toast says where the copy went and which tables differ from the source. The staged count
+  (on the Changes icon, the Save icon and in the network switcher, `• 1 staged`) counts changes no saved copy holds
+  yet, and clears, as do the yellow outlines. If the network was edited while saving, the copy holds the version
+  the save started from and the later edits stay staged; if it was closed while saving, nothing is marked saved.
+  Undoing a saved change leaves the network "changed since saved" (a dot on the Save icon) until the next copy.
 - **Replay.** A replayed `SaveNetwork` writes the copy again (and fails if it is still there), and its
   `accept_warnings=True` accepts whatever warnings the network has when the replay runs. See
   [Every action is replayable](#every-action-is-replayable).

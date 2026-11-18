@@ -472,7 +472,8 @@ def test_the_dock_tabs_are_find_inspect_edit_cards_validate_assistant():
     # Order 25 is the project-cards plugin's Cards tab: core reserves the bare id for it.
     assert 'RESERVED_IDS = { cards: "project_cards" }' in (JS_DIR / "slots.js").read_text()
     edit_pane = html[html.index('id="dock-edit"') : html.index('id="dock-validate"')]
-    for element_id in ("ed-undo", "ed-redo", "ed-selbar", "ed-undo-sel", "ed-save-sel", "iss-edit-count", "iss-edit", "ed-card"):
+    ids = ("ed-undo", "ed-redo", "ed-selbar", "ed-undo-sel", "ed-save-sel", "iss-edit-count", "iss-edit", "ed-card")
+    for element_id in ids:
         assert f'id="{element_id}"' in edit_pane, element_id
     # Make a card… waits for Phase 3's card dialog (design 2e); "Save selection as card…" is gone.
     assert 'id="ed-card" disabled data-tip="Coming soon: make a card from these changes">Make a card…' in edit_pane

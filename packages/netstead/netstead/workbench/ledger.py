@@ -52,8 +52,11 @@ class PendingEdit:
     cells: dict[str, dict[str, list[Any]]] = field(default_factory=dict)
 
     def view(self) -> dict[str, Any]:
-        """JSON-safe: what the Changes pane shows (``rows`` per table counts added, removed and changed rows; ``cells``
-        are the cells it set, which the Details panel and the table outline while the edit is staged)."""
+        """JSON-safe: what the Changes pane shows.
+
+        ``rows`` per table counts added, removed and changed rows; ``cells`` are the cells it set, which the Details
+        panel and the table outline while the edit is staged.
+        """
         rows: dict[str, int] = {}
         for r in self.results:
             n = r.diff.rows_added + r.diff.rows_removed + r.diff.rows_changed
@@ -174,8 +177,11 @@ class EditLedger:
         self.diverged = False
 
     def summary(self) -> dict[str, Any]:
-        """JSON-safe counts for the session state (the staged counts read ``dirty`` and ``unsaved``: edits no saved copy
-        holds yet, which the Workbench calls *staged*)."""
+        """JSON-safe counts for the session state.
+
+        The staged counts read ``dirty`` and ``unsaved``: edits no saved copy holds yet, which the Workbench calls
+        *staged*.
+        """
         unsaved = sum(not e.saved for e in self.entries)
         last = self.last()
         return {

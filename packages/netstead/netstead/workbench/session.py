@@ -1092,7 +1092,13 @@ class Session:
             tables, removed = {e.table for e in edits}, _removed_links(applied, reverted=False)
             exprs = _exprs(handle, tables)
             self._ledger_for(handle.id).add(
-                self._source(origin), note, handle.version, applied, touched, exprs, redo=_redo,
+                self._source(origin),
+                note,
+                handle.version,
+                applied,
+                touched,
+                exprs,
+                redo=_redo,
                 cells=staged_cells(applied, pks),
             )
             self._settle(handle, note, origin, kind="mutate", first=touched, tables=tables, removed=removed)
@@ -1202,7 +1208,7 @@ class Session:
             return ledger.check if ledger else CheckResult()
 
     def edits_payload(self, handle: NetworkHandle) -> dict[str, Any]:
-        """The Changes pane's data: pending edits (newest first, each with the cells it staged), undo state, dirty state and the live warnings."""
+        """The Changes pane's data: pending edits (newest first, with their cells), undo and dirty state, warnings."""
         with self._lock:
             ledger = self.edits.get(handle.id) or EditLedger()
             last = ledger.last()

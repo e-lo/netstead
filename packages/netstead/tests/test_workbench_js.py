@@ -514,8 +514,9 @@ def test_staged_cells_come_from_the_changes_no_saved_copy_holds(node_module):
         "editmodel.js",
         ["stagedCells", "isStaged"],
         f"(() => {{ const s = stagedCells({{entries: {ENTRIES}}});"
-        ' return [s, isStaged(s, "link", 7, "lanes"), isStaged(s, "link", "8", "lanes"), isStaged(s, "link", 7, "name"),'
-        ' isStaged(s, "node", 9001, "x_coord"), isStaged(s, "link", 5, "name"), isStaged(null, "link", 7, "lanes")]; })()',
+        ' return [s, isStaged(s, "link", 7, "lanes"), isStaged(s, "link", "8", "lanes"),'
+        ' isStaged(s, "link", 7, "name"), isStaged(s, "node", 9001, "x_coord"), isStaged(s, "link", 5, "name"),'
+        ' isStaged(null, "link", 7, "lanes")]; })()',
     )
     assert got == [
         {"link": {"7": ["lanes"], "8": ["lanes"]}, "node": {"9001": ["*"]}},  # link 5's change is saved: no outline
@@ -535,7 +536,8 @@ def test_a_change_row_says_what_changed_and_its_state(node_module):
         f"(() => {{ const e = {ENTRIES}; return [e.map(changeDetail), e.map(changeTarget), STAGED_TIP]; }})()",
     )
     assert got[0] == ["2 link · Staged", "1 node · Staged", "1 link · Staged", "1 link · Saved"]
-    assert got[1] == [{"table": "link", "ids": [7, 8]}, {"table": "node", "ids": [9001]}, None, {"table": "link", "ids": [5]}]
+    links, nodes = {"table": "link", "ids": [7, 8]}, {"table": "node", "ids": [9001]}
+    assert got[1] == [links, nodes, None, {"table": "link", "ids": [5]}]  # a plugin's change set no cells here
     assert got[2] == "Staged: applied in this session, not saved. Save a copy or put it in a card."
 
 
