@@ -144,7 +144,7 @@ The Cards pane keeps only browsing the catalog (fit pill, inspect, edit, file ac
 
 ### 2g. Fixes and projects
 
-Proposed 2026-11-18 from beta feedback; not yet accepted.
+Accepted 2026-11-18 from beta feedback.
 
 A staged change is one of two kinds, chosen in the Changes pane (default **Project**):
 
@@ -178,7 +178,7 @@ The card dialog (2e) lists only Project changes; a "Fixes…" action beside it h
    download and copy destinations.
 4. **Checks:** pre-apply checks and hints, rule `suggest()`, change-set evaluation, finding difference.
 5. **Registries:** read and contribute (2f).
-6. **Fixes (proposed):** the Fix/Project kind, the fix log re-applied on rebuild, and the upstream links (2g).
+6. **Fixes:** the Fix/Project kind, the fix log re-applied on rebuild, and the upstream links (2g).
 
 Each phase is one PR, browser-checked, with the docs and screenshots updated in the same PR.
 
