@@ -187,6 +187,16 @@ Each package site's macros (spec tables, file includes) and its build-time page 
 
 `.github/workflows/documentation.yml` builds the umbrella and both package sites and deploys them to GitHub Pages.
 
+## AI-assisted contributions
+
+AI tools (Copilot, Claude, ChatGPT, etc.) are welcome here. You are still the author of everything you submit.
+
+- **Disclose** AI use in the pull request template: which tool, and roughly what it did (code, tests, docs, review).
+- **Review and understand** every line before you submit it. Be ready to explain any change in review; you stand behind it as if you wrote it yourself.
+- **Tests must check meaningful behavior**, not just raise coverage. Confirm that a test fails when the behavior it covers breaks.
+
+*Maintainer review time is limited. Contributions that are low quality or not well understood by their author may be closed without extended discussion.*
+
 ## Pull Requests
 
 Use the following guidance in creating and responding to pull requests

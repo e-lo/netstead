@@ -11,7 +11,9 @@ name: Bench
 # `test_bench_*.py`); if none are found the bench-run step is a no-op,
 # which is reported clearly in the job log.
 #
-# TODO(#100): post comparison as a PR comment via actions/github-script.
+# When benchmark JSON exists, a summary table (current vs baseline) is
+# posted as a PR comment, updated in place on later pushes. The comment
+# is skipped for fork PRs, whose token is read-only.
 
 on:
   pull_request:
@@ -25,6 +27,10 @@ on:
       - 'packages/netstead/netstead/scope/**'
       - 'packages/netstead/netstead/indexes/**'
       - '.github/workflows/bench.yml'
+
+permissions:
+  contents: read
+  pull-requests: write
 
 jobs:
   bench:
@@ -111,3 +117,103 @@ jobs:
           name: bench-${{ github.sha }}.json
           path: .benchmarks/bench-${{ github.sha }}.json
           retention-days: 90
+
+      - name: Build PR comment
+        id: comment
+        # Runs even when the benchmark step failed on a regression, so the
+        # table explains the failure. Writes nothing (has_body=false) when
+        # there is no benchmark JSON, e.g. only wall-clock perf tests ran.
+        if: always() && steps.discover.outputs.found == 'true' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          BENCH_JSON: .benchmarks/bench-${{ github.sha }}.json
+          BODY_FILE: ${{ runner.temp }}/bench-comment.md
+        run: |
+          uv run python - <<'PY'
+          import glob
+          import json
+          import os
+
+          current_path = os.environ["BENCH_JSON"]
+          if not os.path.exists(current_path):
+              print("no benchmark JSON; skipping PR comment")
+              raise SystemExit(0)
+
+          def means(path):
+              # pytest-benchmark leaves an empty file when only wall-clock
+              # perf tests ran (no benchmark fixture), so empty means none.
+              try:
+                  with open(path) as f:
+                      data = json.load(f)
+              except (OSError, json.JSONDecodeError):
+                  return {}
+              return {b["fullname"]: b["stats"]["mean"] for b in data.get("benchmarks", [])}
+
+          current = means(current_path)
+          if not current:
+              print("no benchmarks recorded; skipping PR comment")
+              raise SystemExit(0)
+
+          baseline = {}
+          baseline_files = sorted(glob.glob(".benchmarks/baseline/*.json"))
+          if baseline_files:
+              baseline = means(baseline_files[-1])
+
+          def fmt(seconds):
+              return f"{seconds * 1000:.3f} ms"
+
+          lines = [
+              "<!-- netstead-bench-comment -->",
+              "### Benchmark results",
+              "",
+          ]
+          if baseline:
+              lines += [
+                  "| Benchmark | Baseline | Current | Change |",
+                  "| --- | ---: | ---: | ---: |",
+              ]
+          else:
+              lines += [
+                  "No baseline from `main` was available; showing current means only.",
+                  "",
+                  "| Benchmark | Current |",
+                  "| --- | ---: |",
+              ]
+          for name in sorted(current):
+              now = current[name]
+              before = baseline.get(name)
+              if not baseline:
+                  lines.append(f"| `{name}` | {fmt(now)} |")
+              elif before:
+                  change = (now / before - 1) * 100
+                  flag = " :warning:" if now > 2 * before else ""
+                  lines.append(f"| `{name}` | {fmt(before)} | {fmt(now)} | {change:+.1f}%{flag} |")
+              else:
+                  lines.append(f"| `{name}` | n/a | {fmt(now)} | new |")
+          lines += ["", f"Mean time per benchmark; the job fails above 2x baseline. Commit {os.environ.get('GITHUB_SHA', '')[:7]}."]
+          with open(os.environ["BODY_FILE"], "w") as f:
+              f.write("\n".join(lines) + "\n")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write("has_body=true\n")
+          PY
+
+      - name: Post PR comment
+        if: always() && steps.comment.outputs.has_body == 'true'
+        uses: actions/github-script@v7
+        env:
+          BODY_FILE: ${{ runner.temp }}/bench-comment.md
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- netstead-bench-comment -->';
+            const body = fs.readFileSync(process.env.BODY_FILE, 'utf8');
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number, per_page: 100,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }

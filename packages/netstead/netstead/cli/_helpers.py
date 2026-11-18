@@ -122,21 +122,13 @@ def write_network(net: Network, *, source: Path, dest: Path | None) -> None:
     target and swaps them in once complete, so the tables, which still
     read from ``source``, are never read after their files are gone.
 
-    Suppresses :class:`OutOfSyncWarning` (raised by the dirty tracker
-    on tables we just edited). The whole point of these CLI ops is
-    "edit then write" — the dirty flag is expected, and the warning
-    would be promoted to an error under the project's
-    ``filterwarnings = ["error"]`` pytest config.
+    Call it after the editing :class:`~corral.editing.Session` has
+    committed: a committed session's edits are the package's new
+    baseline, so the write raises no ``OutOfSyncWarning`` (#164).
     """
-    import warnings
-
-    from corral.dataset.package import OutOfSyncWarning
-
     target = dest if dest is not None else source
     format = _directory_source_format(net) if dest is None and target.is_dir() else None
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", OutOfSyncWarning)
-        net.write(target, format=format, overwrite=target.exists())
+    net.write(target, format=format, overwrite=target.exists())
 
 
 def _directory_source_format(net: Network) -> str | None:

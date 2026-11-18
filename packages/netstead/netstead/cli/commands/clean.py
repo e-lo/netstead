@@ -64,8 +64,8 @@ def register(app: typer.Typer) -> None:
                 summary = summarise_results(result, op="simplify_geometry", source=source, dest=dest, dry_run=dry_run)
                 if dry_run:
                     session.rollback()
-                else:
-                    write_network(net, source=source, dest=dest)
+            if not dry_run:  # after the session commits, so the edited tables are its new baseline
+                write_network(net, source=source, dest=dest)
         except CleanError as exc:
             typer.secho(f"error: {exc}", fg="red", err=True)
             raise typer.Exit(code=1) from exc
@@ -98,8 +98,8 @@ def register(app: typer.Typer) -> None:
                 summary = summarise_results(results, op="merge_close_nodes", source=source, dest=dest, dry_run=dry_run)
                 if dry_run:
                     session.rollback()
-                else:
-                    write_network(net, source=source, dest=dest)
+            if not dry_run:  # after the session commits, so the edited tables are its new baseline
+                write_network(net, source=source, dest=dest)
         except CleanError as exc:
             typer.secho(f"error: {exc}", fg="red", err=True)
             raise typer.Exit(code=1) from exc
@@ -131,8 +131,8 @@ def register(app: typer.Typer) -> None:
                 summary = summarise_results(result, op="remove_orphans", source=source, dest=dest, dry_run=dry_run)
                 if dry_run:
                     session.rollback()
-                else:
-                    write_network(net, source=source, dest=dest)
+            if not dry_run:  # after the session commits, so the edited tables are its new baseline
+                write_network(net, source=source, dest=dest)
         except CleanError as exc:
             typer.secho(f"error: {exc}", fg="red", err=True)
             raise typer.Exit(code=1) from exc
@@ -165,8 +165,8 @@ def register(app: typer.Typer) -> None:
                 summary = summarise_results(result, op="recompute_lengths", source=source, dest=dest, dry_run=dry_run)
                 if dry_run:
                     session.rollback()
-                else:
-                    write_network(net, source=source, dest=dest)
+            if not dry_run:  # after the session commits, so the edited tables are its new baseline
+                write_network(net, source=source, dest=dest)
         except CleanError as exc:
             typer.secho(f"error: {exc}", fg="red", err=True)
             raise typer.Exit(code=1) from exc

@@ -42,7 +42,11 @@ class Session:
     attached) is notified on every apply. On exception, every applied
     edit is reversed in LIFO order before the exception propagates
     (atomicity); on clean exit, the log is persisted to ``log_path``
-    (when set) so :func:`corral.editing.rollback` can replay later.
+    (when set) so :func:`corral.editing.rollback` can replay later, and
+    the edited tables are committed as the new sync baseline (their
+    pre-session ``dirty`` flag is restored and, with a tracker, they are
+    re-stamped), so a following :meth:`Package.write` does not raise
+    :class:`~corral.dataset.OutOfSyncWarning` for the session's own edits.
 
     Args:
         package: The :class:`~corral.dataset.Package` to mutate.
@@ -132,6 +136,7 @@ class Session:
             return False
         if self.log_path is not None and self.results:
             self._persist_log(self.log_path)
+        self._commit_sync_state()
         return False
 
     # ------------------------------------------------------------------
@@ -165,6 +170,36 @@ class Session:
         for result in reversed(self.results):
             reverse_edit(self.package, result)
         self.results.clear()
+
+    # ------------------------------------------------------------------
+    # Commit
+    # ------------------------------------------------------------------
+
+    def _commit_sync_state(self) -> None:
+        """Treat this session's edits as the package's new baseline (issue #164).
+
+        ``apply_edit`` flips each touched table's ``dirty`` flag and drops its
+        :class:`~corral.validation.sync_state.DirtyTracker` stamp, which
+        :meth:`Package.write` reads as "out of sync". A cleanly committed
+        session is an intentional, logged change, so each table it edited
+        gets back the ``dirty`` flag it had *before* the session (a table
+        invalidated out of band stays dirty) and, when it was clean, a fresh
+        tracker stamp of its committed content. FK stamps are left alone: an
+        edit that changed a validated FK column still makes
+        :meth:`Package.write` warn.
+        """
+        pre_session_dirty: dict[str, bool] = {}
+        for result in self.results:  # the first edit per table carries its pre-session flag
+            pre_session_dirty.setdefault(result.edit.table, bool(result.rollback_data.get("_pre_edit_dirty", True)))
+        tracker = self.package.dirty_tracker
+        stamp_table = getattr(tracker, "stamp_table", None)
+        for name, was_dirty in pre_session_dirty.items():
+            table = self.package.tables.get(name)
+            if table is None:
+                continue
+            table.dirty = was_dirty
+            if not was_dirty and callable(stamp_table):
+                stamp_table(name, table.expr, table.engine)
 
     # ------------------------------------------------------------------
     # Persistence

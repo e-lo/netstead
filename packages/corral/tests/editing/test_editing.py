@@ -567,7 +567,7 @@ def test_reverse_edit_preserves_clean_dirty_flag() -> None:
     log_path = Path(log) / "h.parquet"
     with Session(pkg, log_path=log_path) as s:
         s.add_edit(Edit(op="add_rows", table="t", payload={"rows": [{"id": 99}]}))
-    assert pkg["t"].dirty is True
+    assert pkg["t"].dirty is False, "a committed session's own edits do not leave the table dirty (#164)"
     rollback(pkg, log_path)
     assert pkg["t"].dirty is False, "rollback of an edit applied to a clean table should restore clean state"
 
@@ -768,3 +768,99 @@ def test_edits_run_on_the_engine_and_register_no_memtables() -> None:
     assert default_after == default_before
     assert engine_after - engine_before == 2 * n
     assert pkg["t"].count() == 50 - n
+
+
+# ---------------------------------------------------------------------------
+# Edit-then-write: a committed Session is not "out of sync" (#164)
+# ---------------------------------------------------------------------------
+
+
+def _link_node_pkg(*, tracked: bool = False) -> Package:
+    """A two-table package whose ``link.from_node_id`` references ``node.node_id``."""
+    e = IbisEngine()
+    link = Table(name="link", expr=e.from_records([{"link_id": 1, "from_node_id": 1, "v": 1.0}]), engine=e)
+    node = Table(name="node", expr=e.from_records([{"node_id": 1}, {"node_id": 2}]), engine=e)
+    pkg = Package.from_tables({"link": link, "node": node}, engine=e)
+    if tracked:
+        pkg.dirty_tracker = DirtyTracker()
+        pkg.dirty_tracker.stamp_fk_from_exprs("link", "from_node_id", link.expr, "node", "node_id", node.expr, engine=e)
+    return pkg
+
+
+def _out_of_sync_on_write(pkg: Package, dest: Path) -> list[str]:
+    """Write ``pkg`` to ``dest``; return the OutOfSyncWarning messages it raised."""
+    import warnings
+
+    from corral.dataset import OutOfSyncWarning
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", OutOfSyncWarning)
+        pkg.write(dest, format="parquet")
+    return [str(w.message) for w in caught if issubclass(w.category, OutOfSyncWarning)]
+
+
+@pytest.mark.parametrize("tracked", [False, True])
+def test_write_after_a_committed_session_does_not_warn(tracked: bool, tmp_path: Path) -> None:
+    """``with Session(pkg): edit; pkg.write(...)`` is the intended save path, not a stale write."""
+    pkg = _link_node_pkg(tracked=tracked)
+    with Session(pkg) as s:
+        s.add_edit(
+            Edit(op="update_rows", table="link", payload={"predicate": lambda t: t.link_id == 1, "set": {"v": 2.0}})
+        )
+    assert pkg["link"].dirty is False
+    assert _out_of_sync_on_write(pkg, tmp_path / "out") == []
+
+
+def test_a_committed_session_restamps_the_tables_it_edited() -> None:
+    """The tracker's table stamp is the post-commit content, so a later out-of-band change still shows."""
+    pkg = _link_node_pkg(tracked=True)
+    tracker = pkg.dirty_tracker
+    tracker.stamp_table("link", pkg["link"].expr, pkg.engine)
+    with Session(pkg) as s:
+        s.add_edit(Edit(op="add_rows", table="link", payload={"rows": [{"link_id": 2, "from_node_id": 2, "v": 1.0}]}))
+    assert tracker.is_table_dirty("link", pkg["link"].expr, pkg.engine) is False
+    assert "link" in tracker.known_tables()
+
+
+def test_write_still_warns_on_a_table_dirty_before_the_session(tmp_path: Path) -> None:
+    """A session does not launder staleness it did not cause (an out-of-band ``invalidate``)."""
+    pkg = _link_node_pkg()
+    pkg.invalidate("link")
+    with Session(pkg) as s:
+        s.add_edit(
+            Edit(op="update_rows", table="link", payload={"predicate": lambda t: t.link_id == 1, "set": {"v": 2.0}})
+        )
+    assert pkg["link"].dirty is True
+    assert _out_of_sync_on_write(pkg, tmp_path / "out")
+
+
+def test_write_still_warns_on_an_out_of_band_invalidate(tmp_path: Path) -> None:
+    """An out-of-band ``invalidate`` with no session at all keeps warning."""
+    pkg = _link_node_pkg()
+    pkg.invalidate("node")
+    assert _out_of_sync_on_write(pkg, tmp_path / "out")
+
+
+def test_write_warns_when_a_session_edit_stales_a_validated_foreign_key(tmp_path: Path) -> None:
+    """Editing an FK column after validation is the staleness the warning exists for."""
+    pkg = _link_node_pkg(tracked=True)
+    with Session(pkg) as s:
+        s.add_edit(
+            Edit(
+                op="update_rows",
+                table="link",
+                payload={"predicate": lambda t: t.link_id == 1, "set": {"from_node_id": 9}},
+            )
+        )
+    messages = _out_of_sync_on_write(pkg, tmp_path / "out")
+    assert messages and "link" in messages[0] and "node" in messages[0]
+
+
+def test_strict_sync_raises_when_a_session_edit_stales_a_validated_foreign_key(tmp_path: Path) -> None:
+    from corral.dataset import OutOfSyncError
+
+    pkg = _link_node_pkg(tracked=True)
+    with Session(pkg) as s:
+        s.add_edit(Edit(op="delete_rows", table="node", payload={"predicate": lambda t: t.node_id == 1}))
+    with pytest.raises(OutOfSyncError):
+        pkg.write(tmp_path / "out", format="parquet", strict_sync=True)
