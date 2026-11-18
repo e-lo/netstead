@@ -25,7 +25,7 @@
           <button id="open-browse" role="menuitem">Browse / import…</button>
         </div>
       </span>
-      <button id="save-btn" class="iconbtn" data-icon="save" data-tip="Save a copy…" aria-label="Save a copy"></button>
+      <button id="save-btn" class="iconbtn" data-tip="Save a copy…" aria-label="Save a copy"><span data-icon="save"></span><span id="save-count" class="pcount warn" hidden></span></button>
       <div id="viewmode">
         <button data-mode="map" class="on">Map</button>
         <button data-mode="split">Split</button>
@@ -109,16 +109,19 @@
     </div>
     </section>
     <section class="dock-pane" id="dock-edit" data-panel="edit" role="tabpanel" aria-labelledby="dtab-edit" hidden>
-      <div class="label">Changes <button class="iconbtn" id="ed-info" data-icon="info" aria-label="About the Changes pane" data-tip="Every change to this network since it was opened, newest first: your edits, Python's and any plugin's. Undo reverses your newest edit. The strip at the bottom is the session history (every action)."></button></div>
-      <div class="row wrap"><button class="iconbtn" id="ed-undo" data-icon="undo" data-tip="Undo last edit" aria-label="Undo last edit" disabled></button>
+      <div class="label">Changes <button class="iconbtn" id="ed-info" data-icon="info" aria-label="About the Changes pane" data-tip="Every change to this network since it was opened, newest first: your edits, Python's and any plugin's. A change is staged (applied in this session, not saved) until Save a copy writes it. Tick changes to undo them or save a copy; click one to see its record. Undo reverses your newest change. The strip at the bottom is the session history (every action)."></button></div>
+      <div class="row wrap"><button class="iconbtn" id="ed-undo" data-icon="undo" data-tip="Undo last change" aria-label="Undo last change" disabled></button>
         <button class="iconbtn" id="ed-redo" data-icon="redo" data-tip="Redo" aria-label="Redo" disabled></button>
         <span class="diag" id="ed-undo-why"></span></div>
       <div id="ed-status" class="diag" role="status"></div>
-      <div id="ed-list"><span class="empty">No edits yet.</span></div>
+      <div id="ed-selbar" class="row wrap" role="toolbar" aria-label="Selected changes" hidden>
+        <span id="ed-sel-count" class="diag"></span>
+        <button class="mini ghost" id="ed-undo-sel" disabled>Undo selected</button>
+        <button class="mini ghost" id="ed-save-sel" data-tip="Writes the network with every staged change as a new copy">Save a copy…</button>
+        <button class="mini ghost" id="ed-card" disabled data-tip="Coming soon: make a card from these changes">Make a card…</button></div>
+      <div id="ed-list"><span class="empty">No changes yet.</span></div>
       <div class="label">Edit warnings <span id="iss-edit-count" class="pcount">0</span></div>
       <div id="iss-edit"></div>
-      <div class="label">Cards</div>
-      <div class="row wrap"><button class="mini ghost" id="ed-card" disabled data-tip="Needs the project-cards plugin">Save selection as card…</button></div>
     </section>
     <section class="dock-pane" id="dock-validate" data-panel="validate" role="tabpanel" aria-labelledby="dtab-validate" hidden>
       <div id="iss-fixer"></div>
@@ -258,7 +261,9 @@
        aria-valuemin="260" aria-valuemax="640" aria-valuenow="320" title="Drag to resize; double-click to reset"><span data-icon="grip"></span></div>
   <aside id="details-panel" aria-labelledby="details-title" hidden>
     <div class="dp-head"><h2 id="details-title">Details</h2>
-      <button class="iconbtn" id="details-close" data-icon="x" data-tip="Close (Esc)" aria-label="Close details"></button></div>
+      <span class="dp-icons"><button class="iconbtn" id="details-undo" data-icon="undo" data-tip="Undo last change" aria-label="Undo last change" disabled></button>
+      <button class="iconbtn" id="details-redo" data-icon="redo" data-tip="Redo" aria-label="Redo" disabled></button>
+      <button class="iconbtn" id="details-close" data-icon="x" data-tip="Close (Esc)" aria-label="Close details"></button></span></div>
     <div id="details"><span class="empty">Click a link or node on the map, or a row in the table.</span></div>
     <div id="details-plugin" hidden></div>
   </aside>
@@ -282,7 +287,7 @@
   <form method="dialog" id="save-form" class="modal-card save-card">
     <div class="modal-head"><h3 id="save-title">Save a copy</h3></div>
     <div class="modal-body">
-      <p class="diag">Writes the active network, with every pending edit, as a new copy. The original is never changed.</p>
+      <p class="diag">Writes the active network, with every staged change, as a new copy. The original is never changed.</p>
       <div class="row wrap">
         <label class="save-lbl" for="ed-save-name">Name</label>
         <input id="ed-save-name" placeholder="leavenworth-fixed" aria-label="Copy name" autocomplete="off">

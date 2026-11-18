@@ -1202,7 +1202,7 @@ class Session:
             return ledger.check if ledger else CheckResult()
 
     def edits_payload(self, handle: NetworkHandle) -> dict[str, Any]:
-        """The Edits panel's data: pending edits (newest first), undo state, dirty state and the live warnings."""
+        """The Changes pane's data: pending edits (newest first, each with the cells it staged), undo state, dirty state and the live warnings."""
         with self._lock:
             ledger = self.edits.get(handle.id) or EditLedger()
             last = ledger.last()

@@ -163,6 +163,7 @@ def test_the_save_dialog_owns_the_save_a_copy_flow():
     html = (STATIC_DIR / "index.html").read_text()
     row = html[html.index("<header>") : html.index("</header>")]
     assert 'id="save-btn"' in row and 'data-tip="Save a copy…"' in row
+    assert 'id="save-count" class="pcount warn" hidden' in row  # the staged count, like an unsaved-document dot
     assert (
         row.index('id="open-wizard"')
         < row.index('id="save-btn"')
@@ -186,7 +187,9 @@ def test_the_save_dialog_owns_the_save_a_copy_flow():
     for fmt in ("parquet", "csv", "duckdb", "zip"):
         assert f'<option value="{fmt}"' in dialog
     pane = html[html.index('id="dock-edit"') : html.index("</aside>")]
-    assert 'id="ed-save' not in pane and "Save a copy" not in pane
+    # The Changes pane's Save a copy… (with changes ticked) opens the same dialog: it has no save form of its own.
+    assert 'id="ed-save-name' not in pane and 'id="ed-save"' not in pane
+    assert '$("ed-save-sel").onclick = () => $("save-btn").click()' in (JS_DIR / "edits.js").read_text()
     save = (JS_DIR / "savedialog.js").read_text()
     assert "showModal()" in save and "createFileBrowser(" in save and "savePrompt(" in save
     assert "accept_warnings" in save and "window.confirm(" not in save  # the checkbox replaces the confirm
@@ -468,11 +471,12 @@ def test_the_dock_tabs_are_find_inspect_edit_cards_validate_assistant():
     )
     # Order 25 is the project-cards plugin's Cards tab: core reserves the bare id for it.
     assert 'RESERVED_IDS = { cards: "project_cards" }' in (JS_DIR / "slots.js").read_text()
-    assert 'const CARDS_PANEL = "cards"' in edits and 'hub.on("core.panels", syncCardButton)' in edits
     edit_pane = html[html.index('id="dock-edit"') : html.index('id="dock-validate"')]
-    for element_id in ("ed-undo", "ed-redo", "iss-edit-count", "iss-edit", "ed-card"):
+    for element_id in ("ed-undo", "ed-redo", "ed-selbar", "ed-undo-sel", "ed-save-sel", "iss-edit-count", "iss-edit", "ed-card"):
         assert f'id="{element_id}"' in edit_pane, element_id
-    assert 'id="ed-card" disabled' in edit_pane  # enabled only once the plugin's panel is registered
+    # Make a card… waits for Phase 3's card dialog (design 2e); "Save selection as card…" is gone.
+    assert 'id="ed-card" disabled data-tip="Coming soon: make a card from these changes">Make a card…' in edit_pane
+    assert "Save selection as card" not in html and "NEW_CARD_CHANGE" not in edits
     for old in ('showPanel("issues")', 'showPanel("edits")', 'showPanel("details")', 'showPanel("selection")'):
         for path in JS_DIR.glob("*.js"):
             assert old not in path.read_text(), f"{path.name} still shows {old}"
@@ -727,8 +731,14 @@ def test_record_edits_undo_and_save_are_registered_commands():
     assert "version: plan.version" in fix  # the delete runs against the version its plan was confirmed on
     assert "form.errors()" in fix and "changedValues(" in fix  # one EditCells with only what changed
     side = (JS_DIR / "side.js").read_text()
-    for act in ("edit", "delete", "undo"):
+    for act in ("edit", "delete"):
         assert f'data-act="{act}"' in side
+    # Undo and Redo are Details' header icons (design 2b), always shown, disabled with the reason.
+    page = (STATIC_DIR / "index.html").read_text()
+    head = page[page.index('class="dp-head"') : page.index('id="details"')]
+    assert 'id="details-undo" data-icon="undo" data-tip="Undo last change"' in head
+    assert 'id="details-redo" data-icon="redo" data-tip="Redo"' in head
+    assert 'setBlocked($("details-undo"), undoBlocked(summary), "Undo last change")' in side
     # Saving over warnings is an explicit choice (the Save dialog's checkbox); a refused save (the server checks
     # again) is shown in the dialog too, and a save's and a validation's result are reported.
     save = (JS_DIR / "savedialog.js").read_text()
@@ -954,7 +964,7 @@ def test_the_view_panel_is_gone_and_edit_help_is_a_tooltip():
     assert 'data-panel="view"' not in html
     assert "registerViewPanel" not in (JS_DIR / "panels.js").read_text() + (JS_DIR / "main.js").read_text()
     edit = html[html.index('id="dock-edit"') : html.index('id="dock-validate"')]
-    assert 'id="ed-info"' in edit and 'data-icon="info"' in edit and "Undo reverses your newest edit" in edit
+    assert 'id="ed-info"' in edit and 'data-icon="info"' in edit and "Undo reverses your newest change" in edit
     assert 'id="ed-help' not in edit and "wireDismissibleHelp" not in (JS_DIR / "edits.js").read_text()
     assert not (JS_DIR / "help.js").exists()
 

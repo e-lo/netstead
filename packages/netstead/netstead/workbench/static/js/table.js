@@ -7,7 +7,10 @@
 import { dispatch, getJSON, netPath, postJSON } from "./api.js";
 import { openContextMenu } from "./ctxmenu.js";
 import { $, esc, toast } from "./dom.js";
-import { cellAction, cellEditable, cellOptions, cellSample, cellWarnings, listOptions, shouldApplyOnLeave } from "./editmodel.js";
+import {
+  STAGED_TIP, cellAction, cellEditable, cellOptions, cellSample, cellWarnings, editKey, isStaged, listOptions,
+  shouldApplyOnLeave, stagedCells,
+} from "./editmodel.js";
 import { createGridFilter } from "./gridfilter.js";
 import { HOPS_TIP, hopsFromValue, hopsView } from "./hops.js";
 import { hub } from "./hub.js";
@@ -426,7 +429,9 @@ function renderRows(cols, rows, vias) {
   const selection = activeSelection(s);
   const body = $("tbl-grid").tBodies[0];
   const records = s.issues && s.issues.net_id === activeId() ? s.issues.records : null;
-  const warned = s.edits && s.edits.net_id === activeId() ? cellWarnings(s.edits.warnings, TBL.name) : {};
+  const ownEdits = s.edits && s.edits.net_id === activeId() ? s.edits : null;
+  const warned = ownEdits ? cellWarnings(ownEdits.warnings, TBL.name) : {};
+  const staged = ownEdits && !TBL.plugin ? stagedCells(ownEdits) : {};
   const schemaCols = new Map(TBL.schema.columns.map(c => [c.name, c]));
   body.innerHTML = rows.map((r, i) => {
     const pv = pkIdx >= 0 ? r[pkIdx] : null;
@@ -438,12 +443,14 @@ function renderRows(cols, rows, vias) {
       focused ? "click a cell to edit it" : ""].filter(Boolean).join(" · ");
     const title = tip ? ` title="${esc(tip)}"` : "";
     // A cell with an open edit warning (an out-of-enum value, a missing key) is outlined, carries the message as
-    // its tooltip and a warning icon after its text: a kept-but-warned edit is never mistaken for a dropped one.
+    // its tooltip and a warning icon after its text: a kept-but-warned edit is never mistaken for a dropped one. A
+    // cell holding a staged value (applied in this session, not saved) has a yellow outline and says so.
     const tds = r.map((v, c) => {
-      const msgs = rw && rw[cols[c]];
+      const msgs = rw && rw[cols[c]], st = isStaged(staged, TBL.name, pv, cols[c]);
       const editable = !TBL.plugin && cellEditable(schemaCols.get(cols[c]), pk);
-      const cls = [msgs ? "warn" : "", editable ? "" : "ro"].filter(Boolean).join(" ");
-      return `<td data-c="${c}"${cls ? ` class="${cls}"` : ""}${msgs ? ` title="${esc(msgs.join("\n"))}"` : ""}>` +
+      const cls = [msgs ? "warn" : "", st ? "staged" : "", editable ? "" : "ro"].filter(Boolean).join(" ");
+      return `<td data-c="${c}"${cls ? ` class="${cls}"` : ""}${msgs ? ` title="${esc(msgs.join("\n"))}"` : ""}` +
+        `${st && !msgs ? ` data-tip="${esc(STAGED_TIP)}"` : ""}>` +
         `${cellHTML(v, fks.get(cols[c]), focused)}${msgs ? icon("alert-triangle", { size: 12 }) : ""}</td>`;
     }).join("");
     const picked = TBL.plugin && pv != null && String(pv) === String(TBL.picked) ? " focus" : "";
@@ -496,8 +503,8 @@ async function columnOptions(col) {
 
 const fillOptions = values => { $("cell-opts").innerHTML = values.map(v => `<option value="${esc(v)}">`).join(""); };
 
-// Edit one cell of the focused row in place: Enter, or leaving the cell with changed text (a spreadsheet's
-// convention), applies an EditCells action; Escape discards. A text column's input completes from the spec's
+// Edit one cell of the focused row in place: Enter or Cmd/Ctrl+Enter, or leaving the cell with changed text (a
+// spreadsheet's convention), applies an EditCells action; Escape discards. A text column's input completes from the spec's
 // allowed values and the column's existing ones; a comma-list column completes its last token. Text that does not
 // parse (a bad yes/no) is refused before anything is sent, and a refusal from the server keeps the input open with
 // what was typed: a failed entry never leaves the old value looking applied, nor sends it. Leaving again with the
@@ -559,9 +566,10 @@ function startCellEdit(tr, td) {
   input.oncontextmenu = e => e.stopPropagation(); // the browser's own menu (paste) inside the input, not the row menu
   input.onblur = () => setTimeout(leave, 150);
   input.onkeydown = e => {
-    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); return; }
-    if (e.key !== "Enter") return;
+    const what = editKey(e);
+    if (!what) return;
     e.preventDefault();
+    if (what === "cancel") { e.stopPropagation(); close(); return; }
     apply();
   };
   input.focus();

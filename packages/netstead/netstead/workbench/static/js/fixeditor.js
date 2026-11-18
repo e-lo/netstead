@@ -5,7 +5,7 @@
 // Column names, values and notes are data: every one is escaped (schemaForm escapes its own labels).
 import { dispatch, getJSON, netPath, postJSON } from "./api.js";
 import { esc, toast } from "./dom.js";
-import { changedValues, deleteAction, deletePlanText, recordSchema } from "./editmodel.js";
+import { changedValues, deleteAction, deletePlanText, editKey, recordSchema } from "./editmodel.js";
 import { schemaForm } from "./formview.js";
 import { activeSelection, store } from "./store.js";
 
@@ -33,7 +33,15 @@ export async function openFixEditor(host, { table, id, column = null, note = "" 
   const el = host.querySelector(".fix-editor");
   const form = schemaForm(el.querySelector(".fx-form"), formSchema, before);
   const close = () => el.remove();
-  el.onkeydown = e => { if (e.key === "Escape") { e.stopPropagation(); close(); } };
+  // Cmd/Ctrl+Enter (or Enter in a single-line field) applies; Escape cancels (design 2b).
+  el.onkeydown = e => {
+    const what = e.target.matches("input:not([type=checkbox]), textarea, select") || e.key === "Escape"
+      ? editKey(e, { multiline: e.target.tagName === "TEXTAREA" }) : null;
+    if (!what) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (what === "cancel") close(); else el.querySelector(".fx-apply").click();
+  };
   el.querySelector(".fx-cancel").onclick = close;
   el.querySelector(".fx-delete").onclick = () => deleteRecord(table, id).then(done => { if (done) close(); });
   el.querySelector(".fx-apply").onclick = async () => {

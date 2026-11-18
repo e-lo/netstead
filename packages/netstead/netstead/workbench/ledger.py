@@ -1,6 +1,6 @@
 """Pending edits: every mutation of an open network, kept until it is closed.
 
-The Edits panel lists them, :meth:`~netstead.workbench.session.Session.undo_last` reverts the newest, and the
+The Changes pane lists them, :meth:`~netstead.workbench.session.Session.undo_last` reverts the newest, and the
 dirty badge counts the ones no saved copy holds yet. Each entry records who made it (``source``: the
 Workbench, Python, or a plugin's id) so an undo never reverses someone else's change. An entry keeps the corral
 results of its edits: they are what :meth:`~netstead.workbench.session.Session.revert` reverses.
