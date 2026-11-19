@@ -256,7 +256,34 @@ export function fitIcon(row) {
 }
 
 // A catalog row's one secondary line: its tags, or "" (the file name and the change count are in its details).
-export const rowSubline = row => (row.tags || []).join(", ");
+export function rowSubline(row) {
+  const year = yearOf(row.tags);
+  return [year ? `Year ${year}` : "", withoutYear(row.tags).join(", ")].filter(Boolean).join(" · ");
+}
+
+// ------------------------------------------------------------------------------------------------ the year tag
+
+// A card's year is a tag (design decision 4): `year:2030`, or a bare four-digit tag (`2030`) read as a year too.
+const YEAR_TAG = /^(?:year:)?(\d{4})$/;
+
+// The year a card's tags give ("2030"), or "" when none does.
+export function yearOf(tags) {
+  for (const tag of tags || []) {
+    const m = YEAR_TAG.exec(String(tag).trim());
+    if (m) return m[1];
+  }
+  return "";
+}
+
+// The tags without their year tags.
+export const withoutYear = tags => (tags || []).filter(t => !YEAR_TAG.test(String(t).trim()));
+
+// The Year field's text as a year (a number; null when blank), or {error}.
+export function parseYear(text) {
+  const t = String(text ?? "").trim();
+  if (!t) return { year: null };
+  return /^\d{4}$/.test(t) ? { year: Number(t) } : { error: `Year is four digits, such as 2030 (got "${t}")` };
+}
 
 // The details view's fit section: a title, then every reason and every warning.
 export function fitDetail(row) {
@@ -439,15 +466,19 @@ export const splitList = text => String(text || "").split(",").map(t => t.trim()
 export function metaFields(form = {}) {
   const project = String(form.project || "").trim();
   if (!project) return { error: "Give the card a project name" };
+  const { year, error } = parseYear(form.year);
+  if (error) return { error };
   const dependencies = {};
   for (const key of ["prerequisites", "corequisites", "conflicts"]) dependencies[key] = splitList(form[key]);
-  return { fields: { project, tags: splitList(form.tags), dependencies } };
+  const tags = [...withoutYear(splitList(form.tags)), ...(year ? [`year:${year}`] : [])];
+  return { fields: { project, tags, dependencies } };
 }
 
-// The Edit metadata form's start, from the /card route's answer.
+// The Edit metadata form's start, from the /card route's answer: the year is read from the tags.
 export const metaForm = detail => ({
   project: detail.project || "",
-  tags: (detail.tags || []).join(", "),
+  year: yearOf(detail.tags),
+  tags: withoutYear(detail.tags).join(", "),
   ...Object.fromEntries(["prerequisites", "corequisites", "conflicts"]
     .map(k => [k, ((detail.dependencies || {})[k] || []).join(", ")])),
 });
@@ -462,7 +493,8 @@ export function renameName(name, cardId) {
 
 // The fields a catalog card's details list, in order: [key, label]. Each but the file is the Edit metadata form's
 // (update_card_meta); the file is renamed (rename_card).
-export const DETAIL_FIELDS = [["project", "Project name"], ["tags", "Tags"], ["prerequisites", "Prerequisites"],
+export const DETAIL_FIELDS = [["project", "Project name"], ["year", "Year"], ["tags", "Tags"],
+  ["prerequisites", "Prerequisites"],
   ["corequisites", "Corequisites"], ["conflicts", "Conflicts"], ["file", "File"]];
 const LIST_FIELDS = new Set(["tags", "prerequisites", "corequisites", "conflicts"]);
 
@@ -473,7 +505,7 @@ export function detailFields(detail, { readOnly = false } = {}) {
   return DETAIL_FIELDS.map(([key, label]) => ({
     key, label, value: values[key], editable: !readOnly,
     tip: readOnly ? READ_ONLY_TIP : key === "file" ? "Double-click to rename the file" : "Double-click to edit",
-    hint: LIST_FIELDS.has(key) ? "comma separated" : "",
+    hint: LIST_FIELDS.has(key) ? "comma separated" : key === "year" ? "four digits; written as the tag year:2030" : "",
   }));
 }
 
@@ -613,4 +645,86 @@ export function inspectRows(detail) {
     check: checkText(change.check, { draft, netId: detail.net_id }),
     links: [...((change.targets && change.targets.links) || [])],
   }));
+}
+
+// ------------------------------------------------------------------------------------- a card from changes (2e)
+
+// Where a card made from the Changes pane's changes can go: each is one icon button of the dialog's Where step. The
+// server's CardDestination kinds: `catalog` and `folder` are its "folder"; `download` and `copy` hand the YAML back.
+export const CARD_DESTINATIONS = [
+  { key: "catalog", icon: "folder-open", tip: "The open catalog" },
+  { key: "folder", icon: "folder-plus", tip: "Another folder: an existing catalog, or a new one" },
+  { key: "download", icon: "download", tip: "Download the .yml" },
+  { key: "copy", icon: "copy", tip: "Copy the YAML" },
+];
+
+// Why destination `key` can't be picked now ("" when it can): the open catalog needs one open and writable.
+export function destinationReason(key, state) {
+  if (key !== "catalog") return "";
+  if (!catalogOf(state)) return "No catalog is open: pick a folder instead";
+  return catalogReadOnly(state) ? READ_ONLY_TIP : "";
+}
+
+// The Action's `destination` for the picked `key`, or {error}. `folder` is the typed folder (Another folder).
+export function cardDestination(key, { state = null, folder = "" } = {}) {
+  if (key === "download" || key === "copy") return { destination: { kind: key } };
+  if (key === "catalog") {
+    const why = destinationReason(key, state);
+    return why ? { error: why } : { destination: { kind: "folder", folder: catalogOf(state).path } };
+  }
+  const path = String(folder || "").trim();
+  return path ? { destination: { kind: "folder", folder: path } } : { error: "Give the folder to write the card to" };
+}
+
+// The About form ({project, year, tags, prerequisites, corequisites, conflicts, notes, file}, comma-separated lists)
+// as the card_from_changes fields, or {error}. A blank project is allowed while previewing (`draft`).
+export function aboutFields(form = {}, { draft = false } = {}) {
+  const project = String(form.project || "").trim();
+  if (!project && !draft) return { error: "Give the card a project name" };
+  const { year, error } = parseYear(form.year);
+  if (error) return { error };
+  const fields = { project, year, tags: splitList(form.tags), dependencies: {} };
+  for (const key of ["prerequisites", "corequisites", "conflicts"]) {
+    const list = splitList(form[key]);
+    if (list.length) fields.dependencies[key] = list;
+  }
+  const notes = String(form.notes || "").trim();
+  if (notes) fields.notes = notes;
+  const file = String(form.file || "").trim();
+  if (file) fields.file = file;
+  return { fields };
+}
+
+// The facility choices of a change row (the server's `options`): why choice `key` of `kind` ("forms" or
+// "id_systems") is unavailable, or "".
+export const optionReason = (options, kind, key) => ((options || {})[kind] || {})[key] || "";
+
+// The project_cards.card_from_changes Action: the ticked changes (oldest first), each one's facility choice (only
+// the ticked rows'), the About fields and the destination.
+export function cardFromChangesAction({ netId = null, seqs, choices = {}, fields, destination, confirm = false }) {
+  const sorted = [...seqs].sort((a, b) => a - b);
+  const action = { type: "project_cards.card_from_changes", seqs: sorted, ...fields, destination };
+  const kept = Object.fromEntries(Object.entries(choices).filter(([seq]) => sorted.includes(Number(seq))));
+  if (Object.keys(kept).length) action.choices = kept;
+  if (netId) action.net_id = netId;
+  if (confirm) action.confirm_warnings = true;
+  return action;
+}
+
+// What the dialog's Check step says (from POST /from-changes): {lines (the live warnings), needsConfirm, blocked,
+// problems}. Nothing ticked, or a schema problem, blocks writing; a warning needs the user's confirmation.
+export function changesCheck(check, ticked) {
+  if (!ticked) return { lines: [], needsConfirm: false, blocked: true, problems: "Tick at least one change" };
+  const lines = warningLines(check && check.warnings);
+  const problems = (check && check.problems) || [];
+  return { lines, needsConfirm: lines.length > 0, blocked: problems.length > 0, problems: problems.join("; ") };
+}
+
+// What the dialog says once the card went somewhere (the Action's result).
+export function deliveredLine(result, key) {
+  const n = result.seqs ? result.seqs.length : 0;
+  const what = `${n} change${n === 1 ? "" : "s"} in a card`;
+  if (key === "download") return `Downloaded ${result.file}: ${what}`;
+  if (key === "copy") return `Copied the YAML: ${what}`;
+  return `Wrote ${result.path}: ${what}${result.listed ? "" : " (not listed in the catalog)"}`;
 }

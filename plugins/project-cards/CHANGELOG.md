@@ -108,6 +108,17 @@ All notable changes to the `netstead-project-cards` package (the Workbench plugi
   UI as before. *Applied this session*: the cards committed or applied, newest first, with their source.
   *Session summary*: Copy and Download (`<network>-cards-session.txt`).
 
+- **Make a card from changes (design 2e).** The Changes pane's **Make a card…** opens a dialog with the ticked
+  changes: 1. Changes (untick to leave one out; each a Link list in GMNS or OpenStreetMap ids), 2. About the card
+  (project, Year written as the tag `year:2030`, tags, dependencies, notes, file name), 3. Check (schema problems,
+  live edit warnings to confirm, the YAML), 4. Where (the open catalog, another or a new folder, download the `.yml`,
+  copy the YAML; a bundled sample catalog is refused). The new Action `project_cards.card_from_changes` writes it
+  through the commit's own writer and destinations behind one `CardDestination` interface (`fromchanges.py`; a
+  registry is the next one); a folder becomes the open catalog. The changes then read **In a card** in the Changes
+  pane, and a commit marks the draft's changes the same way. `POST /from-changes` serves the dialog. A bare
+  four-digit tag reads as a year: catalog rows show `Year 2030 · <tags>` and a card's details have a **Year** field.
+  Requires Host API 1.11.
+
 ### Changed
 
 - A selection made by a request and applied as a Link list is written by id with `ignore_missing: false`, like a

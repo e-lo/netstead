@@ -13,11 +13,12 @@ Action. They run outside the session lock: each Host call takes it, and the draf
 from __future__ import annotations
 
 from collections.abc import Collection
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 from netstead.workbench.plugins import ActionError, Host
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from .card import DraftCard
 from .errors import CardError, not_supported
@@ -31,6 +32,7 @@ from .flow import (
     summary_text,
     target_network,
 )
+from .fromchanges import FacilityChoice, card_file_name, changes_card, entry_rows
 from .inspection import inspect_card
 from .lower import KEYS, rows_by_key
 from .mapping import FieldMap
@@ -38,7 +40,7 @@ from .state import CardsState
 from .types import ROADWAY_TYPES, TRANSIT_TYPES, Selection
 from .validate import card_problems
 
-__all__ = ["MAX_CHECKS", "build_router", "column_schema", "current_values", "list_columns", "next_id"]
+__all__ = ["MAX_CHECKS", "ChangesQuery", "build_router", "column_schema", "current_values", "list_columns", "next_id"]
 
 #: How many unchecked catalog cards one ``GET /catalog`` checks (the rest stay ``?`` until a later request).
 MAX_CHECKS = 50
@@ -211,6 +213,22 @@ def _form(
     }
 
 
+class ChangesQuery(BaseModel):
+    """``POST /from-changes``: the edits (``seqs``), the ticked ones (``picked``; default all), the About fields."""
+
+    model_config = ConfigDict(extra="forbid")
+    net_id: str | None = None
+    seqs: list[int] = Field(min_length=1, max_length=1000)
+    picked: list[int] | None = None
+    choices: dict[int, FacilityChoice] = Field(default_factory=dict)
+    project: str = Field(default="", max_length=200)
+    year: int | None = Field(default=None, ge=1000, le=9999)
+    tags: list[str] = Field(default_factory=list)
+    dependencies: dict[Literal["prerequisites", "corequisites", "conflicts"], list[str]] = Field(default_factory=dict)
+    notes: str | None = Field(default=None, max_length=5000)
+    file: str | None = Field(default=None, max_length=255)
+
+
 def build_router(host: Host, state: CardsState, mapping: FieldMap) -> APIRouter:
     """The plugin's router (``router(host)`` in :class:`~netstead.workbench.plugins.WorkbenchPlugin`)."""
     api = APIRouter()
@@ -247,6 +265,38 @@ def build_router(host: Host, state: CardsState, mapping: FieldMap) -> APIRouter:
         except (CardError, ActionError) as exc:
             raise HTTPException(400, str(exc)) from exc
         return {"net_id": net, "changes": len(card.changes), "warnings": warnings, "problems": problems, "yaml": text}
+
+    @api.post("/from-changes")
+    def from_changes(body: ChangesQuery) -> dict[str, Any]:
+        """The card dialog's view: each edit's row (``rows``, for ``seqs``) and the card ``picked`` of them make."""
+        try:
+            net = target_network(host, state, body.net_id)
+            entries = host.edit_changes(net, sorted(set(body.seqs)))
+            warnings = host.edit_warnings(net)
+        except (CardError, ActionError) as exc:
+            raise HTTPException(400, str(exc)) from exc
+        picked = set(body.seqs if body.picked is None else body.picked)
+        out = {"net_id": net, "rows": entry_rows(entries), "warnings": warnings, "yaml": "", "problems": []}
+        out["file"] = card_file_name(body.project, body.file)
+        chosen = [e for e in entries if e["seq"] in picked]
+        if not chosen:
+            out["problems"] = ["Tick at least one change"]
+            return out
+        try:
+            card = changes_card(
+                chosen,
+                body.choices,
+                project=body.project or "untitled",
+                year=body.year,
+                tags=body.tags,
+                dependencies=body.dependencies,
+                notes=body.notes,
+            )
+            out["problems"] = card_problems(card.to_card(mapping))
+            out["yaml"] = card.to_yaml(mapping)
+        except (CardError, ValidationError) as exc:
+            out["problems"] = [str(exc)]
+        return out
 
     @api.get("/catalog")
     def catalog(net_id: str | None = None) -> dict[str, Any]:

@@ -107,7 +107,7 @@ COMPACT = {
     "edit_card",
 }
 COMPACT |= READ_ONLY
-EVERY = COMPACT | {"commit", "import"}
+EVERY = COMPACT | {"commit", "import", "card_from_changes"}
 #: Applying a catalog card is never offered (``enable_apply`` is per session; see ApplyCard).
 NOT_OFFERED = {"apply_card"}
 DRAFTED = EVERY - READ_ONLY

@@ -475,10 +475,10 @@ def test_the_dock_tabs_are_find_inspect_edit_cards_validate_assistant():
     ids = ("ed-undo", "ed-redo", "ed-selbar", "ed-undo-sel", "ed-save-sel", "iss-edit-count", "iss-edit", "ed-card")
     for element_id in ids:
         assert f'id="{element_id}"' in edit_pane, element_id
-    # Make a card… waits for Phase 3's card dialog (design 2e); "Save selection as card…" is gone.
+    # Make a card… is disabled until a plugin registers a card maker (Host API 1.11); "Save selection as card…" is gone.
     assert (
         'id="ed-card" disabled aria-label="Make a card" '
-        'data-tip="Coming soon: make a card from these changes"><span data-icon="cards">'
+        'data-tip="Make a card…: needs the project-cards plugin"><span data-icon="cards">'
     ) in edit_pane
     assert "Save selection as card" not in html and "NEW_CARD_CHANGE" not in edits
     for old in ('showPanel("issues")', 'showPanel("edits")', 'showPanel("details")', 'showPanel("selection")'):

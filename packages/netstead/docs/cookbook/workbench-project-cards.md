@@ -268,6 +268,32 @@ Import refuses:
   planned for later.
 - **A deletion that doesn't select by id** (`model_link_id` / `model_node_id`).
 
+## Make a card from changes
+
+Edit the network as usual (Details, the table, a fix), then open **Changes**, tick the changes and press **Make a
+card…** (the cards icon). The dialog has four steps, each with an ⓘ for help:
+
+1. **Changes**: the ticked changes; untick one to leave it out. Each shows what it becomes in the card and how its
+   facility is written. A change made in the Workbench names its rows by id, so it is a **Link list** (Segment is
+   unavailable); pick GMNS or OpenStreetMap ids. A change a card can't hold (a cleared value, a change to the lane
+   table) says why and can't be ticked.
+2. **About the card**: project name (required), **Year** (written as the tag `year:2030`), tags, prerequisites,
+   corequisites, conflicts, notes and the file name (default: the project's name, `benton-diet.yml`).
+3. **Check**: the card against the ProjectCard schema, the live edit warnings (tick **Make the card anyway** to go
+   on) and the card's YAML.
+4. **Where**: the open catalog, another folder (an existing catalog or a new one, made for you), **Download the
+   .yml**, or **Copy the YAML**. A bundled sample catalog is read-only and refused.
+
+Enter or Cmd/Ctrl+Enter makes the card (the check-circle icon), Escape closes. A folder becomes the open catalog,
+so the new card is listed with its fit icon. The changes then read `In a card: <file>` in the Changes pane. Each
+property change keeps its `existing` value when the rows agreed, so on the network you edited the card shows
+"Doesn't fit" (its changes are already there); it fits the network as it was. From Python:
+`project_cards.card_from_changes(seqs=[1, 2], project=..., year=2030, destination={"kind": "folder", "folder":
+...})`. Committing the guided draft marks its changes **In a card** too.
+
+A year is read back from a `year:2030` tag or a bare four-digit tag (`2030`): the catalog row shows `Year 2030 ·
+<tags>`, and a card's details have a **Year** field (saving it writes `year:<year>`).
+
 ## What goes in the card
 
 The card uses network_wrangler's names. GMNS names map to them through a data file,

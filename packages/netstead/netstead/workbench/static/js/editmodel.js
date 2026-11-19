@@ -134,22 +134,42 @@ export function deletePlanText(plan) {
 export const pendingLine = e => `#${e.seq} ${e.note}${e.source === "workbench" ? "" : ` [${e.source}]`}`;
 
 // The words for an edit's state (design 2a), used everywhere: a value in a field not yet applied (typing), a change
-// applied in this session (staged), one a saved copy holds (saved). "In a card" arrives with cards made from changes.
-export const STATE_WORDS = { typing: "Typing", staged: "Staged", saved: "Saved" };
+// applied in this session (staged), one a saved copy holds (saved), one put in a ProjectCard (inCard).
+export const STATE_WORDS = { typing: "Typing", staged: "Staged", saved: "Saved", inCard: "In a card" };
 export const STAGED_TIP = "Staged: applied in this session, not saved. Save a copy or put it in a card.";
 
-// A change row's second line: its rows per table, then its state word.
+// The last part of a path ("/a/b/main.yml" -> "main.yml"); a name without a folder stays as it is.
+export const baseName = path => String(path || "").split(/[\\/]/).filter(Boolean).pop() || String(path || "");
+
+// A change row's second line: its rows per table, then its state: "Staged", or where it is ("Saved: copy.zip",
+// "In a card: main.yml"; both when a saved change went into a card).
 export function changeDetail(e) {
   const rows = Object.entries(e.rows || {}).map(([t, n]) => `${n} ${t}`).join(", ");
-  return [rows, e.saved ? STATE_WORDS.saved : STATE_WORDS.staged].filter(Boolean).join(" · ");
+  const saved = e.saved ? (e.saved_to ? `${STATE_WORDS.saved}: ${baseName(e.saved_to)}` : STATE_WORDS.saved) : "";
+  const card = e.card ? `${STATE_WORDS.inCard}: ${baseName(e.card)}` : "";
+  return [rows, ...(saved || card ? [saved, card] : [STATE_WORDS.staged])].filter(Boolean).join(" · ");
 }
 
-// The cells the staged (not saved) entries of GET /edits set: {table: {"<key>": ["field", ...]}}; "*" is every
-// field of an added row.
+// A change row's tooltip: its state in full (the whole file paths), then what a click does.
+export function changeTip(e) {
+  const where = [e.saved ? `Saved in ${e.saved_to || "a copy"}.` : "", e.card ? `In a card: ${e.card}.` : ""];
+  const state = where.filter(Boolean).join(" ") || STAGED_TIP;
+  return `${state} Click to show it on the map and in Details.`;
+}
+
+// The Changes pane's "Make a card…" for `n` ticked changes: {reason} (disabled, said in its tooltip) or {tip}. Only a
+// plugin that registered a card maker (wb.registerCardMaker, Host API 1.11: the project-cards plugin) makes cards.
+export function cardButton(hasMaker, n) {
+  if (!hasMaker) return { reason: "Make a card…: needs the project-cards plugin", tip: "" };
+  return { reason: "", tip: n === 1 ? "Make a card from this change…" : `Make a card from these ${n} changes…` };
+}
+
+// The cells the staged (not saved, not in a card) entries of GET /edits set: {table: {"<key>": ["field", ...]}};
+// "*" is every field of an added row.
 export function stagedCells(edits) {
   const out = {};
   for (const e of (edits && edits.entries) || []) {
-    if (e.saved) continue;
+    if (e.saved || e.card) continue;
     for (const [table, { keys, fields }] of Object.entries(e.cells || {})) {
       const t = (out[table] ||= {});
       for (const k of keys) {

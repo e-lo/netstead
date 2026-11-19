@@ -215,9 +215,9 @@ def test_a_nested_overwriting_commit_whose_parent_fails_restores_the_old_file(ne
 def test_a_nested_commit_whose_file_cannot_be_restored_is_logged(nested, tmp_path, monkeypatch, caplog):
     import logging
 
-    from netstead_project_cards import handlers
+    from netstead_project_cards import flow
 
-    monkeypatch.setattr(handlers, "undo_write", lambda written: "removed")
+    monkeypatch.setattr(flow, "undo_write", lambda written: "removed")
     nested.dispatch(AddChange(change=lanes(1, 2)))
     path = tmp_path / "card.yml"
     with caplog.at_level(logging.WARNING), pytest.raises(ActionError, match="the parent failed"):

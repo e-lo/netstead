@@ -34,6 +34,7 @@ __all__ = [
     "CheckResult",
     "EditWarning",
     "check_rows",
+    "edit_ops",
     "fits_type",
     "referencing_keys",
     "staged_cells",
@@ -138,6 +139,44 @@ def staged_cells(results: Sequence[EditResult], pks: Mapping[str, str | None]) -
         fields.update(result.edit.payload.get("set", {}) if op == "update_rows" else [WHOLE_ROW])
         keys.update(json_scalar(row[pk]) for row in affected_rows(result) if row.get(pk) is not None)
     return {t: {"keys": sorted(k, key=str), "fields": sorted(f)} for t, (k, f) in out.items() if k}
+
+
+def edit_ops(results: Sequence[EditResult], pks: Mapping[str, str | None]) -> list[dict[str, Any]]:
+    """What each of ``results`` did, JSON-safe: ``{op, table, keys, ...}`` (``host.edit_changes``, Host API 1.11).
+
+    ``op`` is ``update`` (with ``set``, the values it wrote, and ``existing``, each field's value before when every
+    row had the same one), ``add`` (with ``rows``, the rows it added) or ``delete``; ``keys`` are the rows' primary
+    keys. Anything else (``replace_table``) is its corral op name with no keys: there is no row to describe.
+
+    Examples:
+        >>> from types import SimpleNamespace as NS
+        >>> upd = NS(edit=NS(op="update_rows", table="link", payload={"set": {"lanes": 2}}),
+        ...          rollback_data={"original_rows": [{"link_id": 7, "lanes": 3}]})
+        >>> edit_ops([upd], {"link": "link_id"})
+        [{'op': 'update', 'table': 'link', 'keys': [7], 'set': {'lanes': 2}, 'existing': {'lanes': 3}}]
+    """
+    out: list[dict[str, Any]] = []
+    for result in results:
+        table, op, pk = result.edit.table, result.edit.op, pks.get(result.edit.table)
+        rows = affected_rows(result)
+        keys = [json_scalar(row[pk]) for row in rows if pk is not None and row.get(pk) is not None]
+        if op == "update_rows":
+            values = result.edit.payload.get("set", {})
+            existing = {}
+            for name in values:
+                before = [_plain(row.get(name)) for row in rows]
+                if before and before[0] is not None and all(v == before[0] for v in before):
+                    existing[name] = before[0]
+            changed = {k: _plain(v) for k, v in values.items()}
+            out.append({"op": "update", "table": table, "keys": keys, "set": changed, "existing": existing})
+        elif op == "add_rows":
+            added = [{k: _plain(v) for k, v in row.items()} for row in rows]
+            out.append({"op": "add", "table": table, "keys": keys, "rows": added})
+        elif op == "delete_rows":
+            out.append({"op": "delete", "table": table, "keys": keys})
+        else:
+            out.append({"op": op, "table": table, "keys": []})
+    return out
 
 
 def referencing_keys(net: Any, results: Sequence[EditResult]) -> dict[str, set[Any]]:

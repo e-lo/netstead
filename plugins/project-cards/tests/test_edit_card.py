@@ -263,13 +263,13 @@ def test_a_commit_outside_the_catalog_folder_does_not_rescan(session, folder, tm
 
 
 def test_a_catalog_folder_gone_before_the_rescan_keeps_the_listing(session, folder, monkeypatch):
-    import netstead_project_cards.handlers as handlers
+    import netstead_project_cards.flow as flow
 
     def gone(*args, **kwargs):
         raise ActionError("no such file or folder")
 
     session.dispatch(AddChange(change=lanes(1, 2)))
-    monkeypatch.setattr(handlers, "load_catalog", gone)
+    monkeypatch.setattr(flow, "load_catalog", gone)
     result = session.dispatch(CommitCard(path=str(folder / "new.yml"), project="New"))
     assert result["listed"] is False and (folder / "new.yml").is_file()
 

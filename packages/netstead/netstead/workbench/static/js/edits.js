@@ -2,12 +2,12 @@
 // pending edits and live edit warnings (GET /edits), kept in `store.edits`. The Changes pane (design 2c): Undo and
 // Redo of the last change, the changes newest first, each staged (applied in this session, not saved) or saved, with
 // a checkbox; with changes ticked, Undo selected (the newest run only), Save a copy… (the header's Save dialog,
-// savedialog.js) and Make a card… (Phase 3: disabled for now). Clicking a change shows its record on the map and in
-// Details. The edit warnings follow (issues.js renders them). Notes and table names are data: every one is escaped.
+// savedialog.js) and Make a card… (the card maker a plugin registers: wb.registerCardMaker, Host API 1.11). Clicking a
+// change shows its record on the map and in Details. The edit warnings follow (issues.js renders them). Notes and table names are data: every one is escaped.
 import { dispatch, getJSON, netPath } from "./api.js";
 import { $, esc, toast } from "./dom.js";
 import {
-  STAGED_TIP, changeDetail, changeTarget, dirtyBadge, editsBadge, pendingLine, redoBlocked, undoBlocked, undoSelection,
+  cardButton, changeDetail, changeTarget, changeTip, dirtyBadge, editsBadge, pendingLine, redoBlocked, undoBlocked, undoSelection,
   validatedText,
 } from "./editmodel.js";
 import { issuesBadge } from "./issuelist.js";
@@ -18,6 +18,8 @@ import { addPanel } from "./workspaces.js";
 let seq = 0, feedKey = null;
 // The ticked changes' seqs (per tab; pruned to the listed changes on every render).
 let picked = new Set();
+// The plugin that makes cards from changes ({owner, fn}; the newest registration wins), or null.
+let cardMaker = null;
 const fail = e => toast(e.message);
 const activeId = () => { const s = store.get().server; return s && s.active; };
 
@@ -61,7 +63,7 @@ export function renderEdits(edits) {
   setBlocked("ed-undo", why, "Undo last change");
   setBlocked("ed-redo", redoBlocked(e), "Redo");
   $("ed-undo-why").textContent = e && e.pending ? why : "";
-  const parts = e ? [dirtyBadge(e) || (e.pending ? "Every change is in a saved copy." : ""),
+  const parts = e ? [dirtyBadge(e) || (e.pending ? "Nothing staged: every change is saved or in a card." : ""),
     e.warnings.length ? `${e.warnings.length} open warning(s): see Edit warnings below.` : "",
     e.check_failed ? "The live check failed: run validation." :
       e.truncated ? "The live check was cut short: run validation." : ""] : [];
@@ -69,10 +71,10 @@ export function renderEdits(edits) {
   const entries = e ? e.entries : [];
   picked = new Set(entries.map(x => x.seq).filter(n => picked.has(n)));
   $("ed-list").innerHTML = entries.length ? entries.map(x => {
-    const line = pendingLine(x), state = x.saved ? "saved" : "staged";
+    const line = pendingLine(x), state = x.card ? "in-card" : x.saved ? "saved" : "staged";
     return `<div class="chg ${state}" data-seq="${esc(x.seq)}">` +
       `<input type="checkbox" class="chg-pick" aria-label="${esc(`Select ${line}`)}"${picked.has(x.seq) ? " checked" : ""}>` +
-      `<button class="chg-go" data-tip="${x.saved ? "Saved in a copy." : STAGED_TIP} Click to show it on the map and in Details.">` +
+      `<button class="chg-go" data-tip="${esc(changeTip(x))}">` +
       `${esc(line)}<span class="diag">${esc(changeDetail(x))}</span></button></div>`;
   }).join("")
     : '<span class="empty">No changes yet. Double-click a field in Details (or click a cell of the focused row in the table) to edit it; or fix an issue.</span>';
@@ -88,6 +90,29 @@ function renderSelectionBar() {
   $("ed-sel-count").textContent = `${n} selected`;
   const plan = undoSelection(e ? e.entries : [], [...picked]);
   setBlocked("ed-undo-sel", plan.reason, plan.count === 1 ? "Undo this change" : `Undo these ${plan.count} changes, newest first`);
+  const card = cardButton(Boolean(cardMaker), n);
+  setBlocked("ed-card", card.reason, card.tip);
+}
+
+// The Changes pane's card maker (wb.registerCardMaker): `fn({net_id, seqs})` opens the plugin's card dialog with the
+// ticked changes (oldest first). Returns the disposer.
+export const cardMakers = {
+  register(owner, fn) {
+    const mine = { owner, fn };
+    cardMaker = mine;
+    if (document.getElementById("ed-selbar")) renderSelectionBar();
+    return () => {
+      if (cardMaker !== mine) return;
+      cardMaker = null;
+      if (document.getElementById("ed-selbar")) renderSelectionBar();
+    };
+  },
+};
+
+function makeCard() {
+  const e = shownEdits();
+  if (!cardMaker || !e || !picked.size) return;
+  cardMaker.fn({ net_id: e.net_id, seqs: [...picked].sort((a, b) => a - b) });
 }
 
 // Undo the ticked changes: one undo_edit per change, newest first (each is a recorded action, as the Undo button's).
@@ -148,7 +173,7 @@ export function wireEdits() {
   $("ed-redo").onclick = () => dispatch({ type: "redo_edit" }).catch(fail);
   $("ed-undo-sel").onclick = undoSelected;
   $("ed-save-sel").onclick = () => $("save-btn").click(); // the header's Save dialog: it writes every staged change
-  // "Make a card…" stays disabled until Phase 3's card dialog (design 2e) takes the ticked changes.
+  $("ed-card").onclick = makeCard;
   $("ed-list").onchange = ev => {
     const row = ev.target.closest(".chg");
     if (!row || !ev.target.classList.contains("chg-pick")) return;
