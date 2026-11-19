@@ -1,0 +1,37 @@
+# corral + netstead documentation
+
+Generated from the mkdocs nav for AI-agent consumption. Each link below points at the canonical rendered page.
+
+## Home
+
+- [Home](https://e-lo.github.io/netstead/corral/index.md)
+
+## Quickstart
+
+- [Quickstart](https://e-lo.github.io/netstead/corral/quickstart.md)
+
+## Cookbook
+
+- [Cookbook](https://e-lo.github.io/netstead/corral/cookbook/index.md)
+- [Read from S3](https://e-lo.github.io/netstead/corral/cookbook/read-from-s3.md)
+- [Convert formats](https://e-lo.github.io/netstead/corral/cookbook/convert-formats.md)
+- [Spatial scope (bbox / polygon)](https://e-lo.github.io/netstead/corral/cookbook/scope-bbox.md)
+
+## Reference
+
+- [API](https://e-lo.github.io/netstead/corral/reference/api.md)
+
+## Concepts
+
+- [Frictionless data packages](https://e-lo.github.io/netstead/corral/concepts/frictionless.md)
+- [Compute engine & dataframe formats](https://e-lo.github.io/netstead/corral/concepts/engines.md)
+
+## AI surface
+
+- [AI surface](https://e-lo.github.io/netstead/corral/ai/index.md)
+- [Drive the CLI from an agent](https://e-lo.github.io/netstead/corral/ai/json-cli.md)
+
+## Project
+
+- [Architecture](https://e-lo.github.io/netstead/corral/architecture.md)
+- [Development](https://e-lo.github.io/netstead/corral/development.md)

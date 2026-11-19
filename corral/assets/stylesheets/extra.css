@@ -1,0 +1,84 @@
+/* Project-specific tweaks on top of Material's defaults.
+ *
+ * Kept small on purpose — Material's defaults are good. We only override:
+ *  - Card grid spacing on landing pages.
+ *  - "Why install" callout border for the package landing pages.
+ *  - Screenshot frame so embedded PNGs feel like real previews, not raw images.
+ */
+
+/* ---------------------------------------------------------------------------
+ * Card grids on landing pages
+ * --------------------------------------------------------------------------- */
+
+.md-typeset .grid.cards > ul > li {
+    border-radius: 0.5rem;
+    transition: box-shadow 200ms ease;
+}
+
+.md-typeset .grid.cards > ul > li:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* ---------------------------------------------------------------------------
+ * "When to install" callout — soft border so it stands out on landing pages.
+ * --------------------------------------------------------------------------- */
+
+.md-typeset .admonition.install,
+.md-typeset details.install {
+    border-left: 0.2rem solid var(--md-primary-fg-color);
+}
+
+/* ---------------------------------------------------------------------------
+ * Screenshot frame
+ * --------------------------------------------------------------------------- */
+
+.md-typeset img.screenshot {
+    border: 1px solid var(--md-default-fg-color--lightest);
+    border-radius: 0.4rem;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+    max-width: 100%;
+}
+
+.md-typeset figure {
+    margin: 1.2rem 0;
+}
+
+.md-typeset figure figcaption {
+    font-size: 0.85em;
+    color: var(--md-default-fg-color--light);
+    text-align: center;
+    margin-top: 0.4rem;
+}
+
+/* ---------------------------------------------------------------------------
+ * Package badges in nav tabs (corral vs netstead).
+ * --------------------------------------------------------------------------- */
+
+.md-typeset .pkg-badge {
+    display: inline-block;
+    padding: 0.1rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75em;
+    font-weight: 600;
+    vertical-align: middle;
+}
+
+.md-typeset .pkg-badge.corral {
+    background: #e3eaf7;
+    color: #2c3e63;
+}
+
+.md-typeset .pkg-badge.netstead {
+    background: #e7f0e8;
+    color: #2d5a3a;
+}
+
+[data-md-color-scheme="slate"] .md-typeset .pkg-badge.corral {
+    background: #2c3e63;
+    color: #e3eaf7;
+}
+
+[data-md-color-scheme="slate"] .md-typeset .pkg-badge.netstead {
+    background: #2d5a3a;
+    color: #e7f0e8;
+}
