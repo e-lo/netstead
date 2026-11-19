@@ -371,11 +371,11 @@ The **Changes** pane lists every change to the network since it was opened, newe
 carries its name (`[cards]`). Click a change to show its record in Details and on the map (the links it changed are
 highlighted). Tick changes to act on them together:
 
-- **Undo selected** takes them back, newest first. Only the newest changes can be undone, so it is enabled when
+- **Undo selected** (a list with an ×) takes them back, newest first. Only the newest changes can be undone, so it is enabled when
   the ticked changes are the newest ones in a row and all were made in the Workbench; otherwise it is disabled
   and its tooltip says why (`Only the newest changes can be undone: select #5 too.`).
-- **Save a copy…** opens the save dialog. A copy holds every staged change, not only the ticked ones.
-- **Make a card…** will turn the ticked changes into a project card; it is disabled (tooltip "Coming soon: make a
+- **Save a copy…** (the save icon) opens the save dialog. A copy holds every staged change, not only the ticked ones.
+- **Make a card…** (the cards icon) will turn the ticked changes into a project card; it is disabled (tooltip "Coming soon: make a
   card from these changes") until that dialog arrives.
 
 ### Undo and redo
