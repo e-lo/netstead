@@ -172,6 +172,34 @@ class Host:
         """
         return self._session.pending_edits(net_id)
 
+    def edit_changes(self, net_id: str | None, seqs: Sequence[int]) -> list[dict[str, Any]]:
+        """What the pending edits ``seqs`` changed, in the order given, to turn them into a card (1.11).
+
+        Each is its :meth:`pending_edits` view plus ``ops``: one per corral edit, ``{op, table, keys, ...}`` where
+        ``op`` is ``update`` (``set``: the values written; ``existing``: each field's value before, when every row
+        had the same one), ``add`` (``rows``: the rows added) or ``delete``. An ``update`` of links also carries
+        ``projectcard``: its links as the Find tab's strict forms (the shape of ``host.selection["projectcard"]``;
+        ``None`` when they cannot be built), so a plugin writes them as a Link list in GMNS or OpenStreetMap ids
+        without building its own. Raises ``ActionError`` when the network is not open or has no such pending edit.
+        """
+        handle = self.network(net_id)
+        entries = self._session.edit_changes(handle.id, seqs)
+        for entry in entries:
+            for op in entry["ops"]:
+                if op["table"] == "link" and op["op"] == "update" and op["keys"]:
+                    payload = {"status": "resolved", "net_id": handle.id, "link_ids": list(op["keys"])}
+                    op["projectcard"] = payload_facility_forms(payload, handle)
+        return entries
+
+    def mark_in_card(self, net_id: str | None, seqs: Sequence[int], card: str) -> None:
+        """Record that the pending edits ``seqs`` went into the card ``card`` (its file, or where it went) (1.11).
+
+        The Changes pane then shows them *In a card* (``In a card: <card>``) and stops counting them as staged. Call it
+        from an Action handler, after the card is written: a failing Action rolls the mark back. Raises
+        ``ActionError`` as :meth:`edit_changes` does.
+        """
+        self._session.mark_in_card(net_id, seqs, card)
+
     def on_rollback(self, fn: Callable[[], None]) -> None:
         """Call ``fn()`` if the Action now running is rolled back, so this plugin can put its own state back (1.6).
 

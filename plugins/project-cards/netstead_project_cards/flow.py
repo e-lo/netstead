@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import logging
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -15,6 +16,7 @@ from .card import DraftCard, read_card_file
 from .catalog import Catalog, CatalogEntry, applicability, scan_catalog
 from .errors import CardError, CardNotSupported, not_supported
 from .facility import FORMS, GERS_REFUSAL, OSM_KEY, resolve_osm
+from .files import undo_write, write_file
 from .lower import Pending, describe
 from .mapping import FieldMap
 from .state import CardsState
@@ -41,7 +43,10 @@ __all__ = [
     "selection_options",
     "summary_text",
     "target_network",
+    "write_card",
 ]
+
+logger = logging.getLogger(__name__)
 
 #: The change types that take their targets from a selection.
 SELECTABLE = frozenset({"roadway_property_change", "roadway_deletion"})
@@ -290,6 +295,74 @@ def load_catalog(host: Host, path: str, mapping: FieldMap) -> Catalog:
     if not folder.is_dir():
         raise ActionError(f"{path} is not a folder")
     return scan_catalog(str(folder), host.list_dir, lambda p: read_card_file(p, mapping))
+
+
+def write_card(
+    host: Host,
+    state: CardsState,
+    mapping: FieldMap,
+    path: str,
+    text: str,
+    *,
+    overwrite: bool,
+    open_folder: bool = False,
+) -> dict[str, Any]:
+    """Write a card's YAML at ``path`` as a commit does, and list it in the catalog: ``{path, catalog, listed}``.
+
+    ``host.writable`` refuses a path outside ``io.allowed_roots`` or in a bundled sample catalog (``PathNotAllowed``).
+    The file is written atomically (``files.write_file``: an existing file is replaced only with ``overwrite``; missing
+    folders are made). When the ``catalog`` plugin is installed it gets ``catalog.add_card`` (``catalog``); if that
+    fails, the file is taken back before the error is raised. The open catalog is rescanned when the file is in its
+    folder; else, with ``open_folder``, the file's folder becomes the open catalog (``listed`` says either). An
+    enclosing Action that fails takes the file and the listing back (``host.on_rollback``).
+    """
+    target = host.writable(path)  # PathNotAllowed (an ActionError) outside io.allowed_roots or in a sample catalog
+    with as_action_errors():
+        written = write_file(target, text.encode("utf-8"), overwrite=overwrite)
+    catalog = host.has_action("catalog.add_card")
+    if catalog:
+        try:
+            host.dispatch({"type": "catalog.add_card", "path": str(target)})
+        except Exception as exc:  # boundary: another plugin failed; the file must not outlive a failed write
+            failed = undo_write(written)
+            if failed is None:
+                raise
+            note = f"the file at {target} could not be {failed}"
+            if isinstance(exc, ActionError):
+                raise ActionError(f"{exc}; {note}") from exc
+            exc.add_note(note)
+            raise
+
+    def roll_back() -> None:
+        if (failed := undo_write(written)) is not None:
+            logger.warning("project_cards: a rolled-back card's file at %s could not be %s", target, failed)
+
+    host.on_rollback(roll_back)
+    current = state.catalog()
+    folder = current.path if current is not None and target.is_relative_to(current.path) else None
+    if folder is None and open_folder:
+        folder = str(target.parent)
+    return {
+        "path": str(target),
+        "catalog": catalog,
+        "listed": folder is not None and _rescan(host, state, mapping, folder),
+    }
+
+
+def _rescan(host: Host, state: CardsState, mapping: FieldMap, folder: str) -> bool:
+    """Make the folder (scanned again) the open catalog; whether it could be read.
+
+    A folder that can no longer be read keeps the catalog as it was (logged): the file is written either way.
+    An enclosing Action that fails puts the older listing back (``host.on_rollback``).
+    """
+    try:
+        catalog = load_catalog(host, folder, mapping)
+    except ActionError as exc:
+        logger.warning("project_cards: the catalog at %s was not scanned: %s", folder, exc)
+        return False
+    host.on_rollback(state.swap_catalog(catalog))
+    host.publish("catalog", {"path": catalog.path, "cards": len(catalog.cards)})
+    return True
 
 
 def catalog_entry(state: CardsState, card_id: str) -> CatalogEntry:

@@ -978,6 +978,7 @@ console.log(JSON.stringify({
     assert got["split"] == ["a", "b", "c"] and got["empty"] == []
     assert got["form"] == {
         "project": "Main",
+        "year": "",
         "tags": "a, b",
         "prerequisites": "Bridge",
         "corequisites": "",
@@ -1033,6 +1034,7 @@ console.log(JSON.stringify({
     )
     assert [(f["key"], f["label"], f["value"], f["editable"], f["hint"]) for f in got["fields"]] == [
         ("project", "Project name", "Main", True, ""),
+        ("year", "Year", "", True, "four digits; written as the tag year:2030"),
         ("tags", "Tags", "a, b", True, "comma separated"),
         ("prerequisites", "Prerequisites", "Bridge", True, "comma separated"),
         ("corequisites", "Corequisites", "", True, "comma separated"),
@@ -1041,7 +1043,7 @@ console.log(JSON.stringify({
     ]
     assert got["fields"][0]["tip"] == "Double-click to edit"
     assert got["fields"][-1]["tip"] == "Double-click to rename the file"
-    assert got["readOnly"] == [[False, got["tip"]]] * 6
+    assert got["readOnly"] == [[False, got["tip"]]] * 7
     deps = {"prerequisites": ["Bridge"], "corequisites": [], "conflicts": []}
     assert got["edits"] == [
         {"meta": {"project": "Main St", "tags": ["a", "b"], "dependencies": deps}},
@@ -1140,3 +1142,127 @@ def test_the_facility_choice_rules_and_the_action_fields(run_js):
     assert got["saved"]["saved_selection"] == "ski" and got["saved"]["facility_form"] == "segment"
     assert "facility_form" not in got["deletion"] and "id_system" not in got["plain"]  # a deletion takes GMNS ids
     assert got["texts"] == ["Link list: 2 links (GMNS)", "Link list: 1 OSM way (OpenStreetMap)"]
+
+
+# ------------------------------------------------------------------------------------ a card from changes (2e)
+
+
+def test_the_year_is_a_tag(run_js):
+    got = run_js(
+        MODEL,
+        """
+import { metaFields, metaForm, parseYear, rowSubline, withoutYear, yearOf } from "./cardmodel.js";
+console.log(JSON.stringify({
+  years: [yearOf(["bike", "year:2030"]), yearOf(["2035", "x"]), yearOf(["phase 2", "20301"]), yearOf(null)],
+  without: withoutYear(["bike", "2030", "year:2031", "y2030"]),
+  parse: [parseYear(" 2030 "), parseYear(""), parseYear("30")],
+  sublines: [rowSubline({ tags: ["bike", "2030"] }), rowSubline({ tags: ["bike"] }), rowSubline({ tags: [] })],
+  form: metaForm({ project: "P", tags: ["2030", "bike"] }),
+  fields: metaFields({ project: "P", year: "2035", tags: "bike, year:2030" }),
+  bad: metaFields({ project: "P", year: "soon" }),
+}));
+""",
+    )
+    assert got["years"] == ["2030", "2035", "", ""]
+    assert got["without"] == ["bike", "y2030"]
+    assert got["parse"] == [{"year": 2030}, {"year": None}, {"error": 'Year is four digits, such as 2030 (got "30")'}]
+    assert got["sublines"] == ["Year 2030 · bike", "bike", ""]
+    assert (got["form"]["year"], got["form"]["tags"]) == ("2030", "bike")  # a bare 2030 tag reads as the year
+    assert got["fields"]["fields"]["tags"] == ["bike", "year:2035"]  # the Year field wins, written as year:<year>
+    assert got["bad"] == {"error": 'Year is four digits, such as 2030 (got "soon")'}
+
+
+def test_the_card_dialog_rules(run_js):
+    got = run_js(
+        MODEL,
+        """
+import {
+  CARD_DESTINATIONS, aboutFields, cardDestination, cardFromChangesAction, changesCheck, deliveredLine,
+  destinationReason, optionReason,
+} from "./cardmodel.js";
+const state = (path, samples = []) => ({ plugins: { project_cards: { catalog: path ? { path } : null, samples } } });
+const sample = [{ id: "leavenworth", path: "/pkg/cards" }];
+const about = aboutFields({ project: " Diet ", year: "2030", tags: "bike, ", prerequisites: "Bridge", notes: " n ",
+  file: " diet " });
+const options = { forms: { segment: "no segment", link_list: null }, id_systems: { gmns: null } };
+console.log(JSON.stringify({
+  keys: CARD_DESTINATIONS.map(d => [d.key, d.icon]),
+  reasons: [destinationReason("catalog", state(null)), destinationReason("catalog", state("/pkg/cards", sample)),
+            destinationReason("catalog", state("/mine")), destinationReason("download", state(null))],
+  dest: [cardDestination("catalog", { state: state("/mine") }), cardDestination("catalog", { state: state(null) }),
+         cardDestination("folder", { folder: " /x/new " }), cardDestination("folder", { folder: " " }),
+         cardDestination("download"), cardDestination("copy")],
+  about, noProject: aboutFields({ project: "" }), draft: aboutFields({ project: "" }, { draft: true }),
+  badYear: aboutFields({ project: "P", year: "x" }),
+  why: [optionReason(options, "forms", "segment"), optionReason(options, "id_systems", "gmns"),
+        optionReason(null, "forms", "x")],
+  action: cardFromChangesAction({ netId: "n", seqs: [3, 1], choices: { 1: { form: "link_list", id_system: "osm" },
+    7: { form: "link_list", id_system: "gmns" } }, fields: about.fields, destination: { kind: "copy" },
+    confirm: true }),
+  bare: cardFromChangesAction({ seqs: [2], fields: { project: "P" }, destination: { kind: "download" } }),
+  checks: [changesCheck(null, 0), changesCheck({ warnings: [], problems: [] }, 1),
+           changesCheck({ warnings: [{ table: "link", key: 1, message: "bad" }], problems: ["x"] }, 2)],
+  lines: [deliveredLine({ seqs: [1], file: "a.yml" }, "download"), deliveredLine({ seqs: [1, 2] }, "copy"),
+          deliveredLine({ seqs: [1], path: "/c/a.yml", listed: true }, "folder"),
+          deliveredLine({ seqs: [1], path: "/c/a.yml", listed: false }, "catalog")],
+}));
+""",
+    )
+    assert got["keys"] == [
+        ["catalog", "folder-open"],
+        ["folder", "folder-plus"],
+        ["download", "download"],
+        ["copy", "copy"],
+    ]
+    assert got["reasons"][0] == "No catalog is open: pick a folder instead"
+    assert got["reasons"][1].startswith("A bundled sample catalog is read-only") and got["reasons"][2:] == ["", ""]
+    assert got["dest"] == [
+        {"destination": {"kind": "folder", "folder": "/mine"}},
+        {"error": "No catalog is open: pick a folder instead"},
+        {"destination": {"kind": "folder", "folder": "/x/new"}},
+        {"error": "Give the folder to write the card to"},
+        {"destination": {"kind": "download"}},
+        {"destination": {"kind": "copy"}},
+    ]
+    assert got["about"] == {
+        "fields": {
+            "project": "Diet",
+            "year": 2030,
+            "tags": ["bike"],
+            "dependencies": {"prerequisites": ["Bridge"]},
+            "notes": "n",
+            "file": "diet",
+        }
+    }
+    assert got["noProject"] == {"error": "Give the card a project name"}
+    assert got["draft"]["fields"]["project"] == "" and "error" in got["badYear"]
+    assert got["why"] == ["no segment", "", ""]
+    assert got["action"] == {
+        "type": "project_cards.card_from_changes",
+        "seqs": [1, 3],
+        **got["about"]["fields"],
+        "destination": {"kind": "copy"},
+        "choices": {"1": {"form": "link_list", "id_system": "osm"}},  # an unticked change's choice is dropped
+        "net_id": "n",
+        "confirm_warnings": True,
+    }
+    assert got["bare"] == {
+        "type": "project_cards.card_from_changes",
+        "seqs": [2],
+        "project": "P",
+        "destination": {"kind": "download"},
+    }
+    assert got["checks"][0] == {
+        "lines": [],
+        "needsConfirm": False,
+        "blocked": True,
+        "problems": "Tick at least one change",
+    }
+    assert got["checks"][1] == {"lines": [], "needsConfirm": False, "blocked": False, "problems": ""}
+    assert got["checks"][2] == {"lines": ["link 1: bad"], "needsConfirm": True, "blocked": True, "problems": "x"}
+    assert got["lines"] == [
+        "Downloaded a.yml: 1 change in a card",
+        "Copied the YAML: 2 changes in a card",
+        "Wrote /c/a.yml: 1 change in a card",
+        "Wrote /c/a.yml: 1 change in a card (not listed in the catalog)",
+    ]

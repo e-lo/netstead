@@ -19,7 +19,7 @@ FORM = "/api/plugins/project_cards/form"
 CORE = ("wbhost.js", "slots.js", "layers.js", "store.js", "hub.js", "commands.js", "detailsview.js")
 FILES = {
     **{name: STATIC_DIR / "js" / name for name in CORE},
-    **{name: STATIC / name for name in ("main.js", "cardmodel.js", "controller.js")},
+    **{name: STATIC / name for name in ("main.js", "cardmodel.js", "controller.js", "dom.js", "carddialog.js")},
 }
 
 HARNESS = """
@@ -800,6 +800,7 @@ def test_the_catalog_files_under_a_fake_dom(run_js):
     tip = "Double-click to edit"
     assert got["fields"] == [
         ["project", "Good", tip, "0"],
+        ["year", "—", tip, "0"],
         ["tags", "t", tip, "0"],
         ["prerequisites", "Bridge", tip, "0"],
         ["corequisites", "—", tip, "0"],

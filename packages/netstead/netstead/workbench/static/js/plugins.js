@@ -4,6 +4,7 @@
 // never stops the others (pluginload.js).
 import { openActionForm } from "./actform.js";
 import { dispatch, getJSON, postJSON } from "./api.js";
+import { cardMakers } from "./edits.js";
 import { actionCommands, addCommandTo, frozenCopy } from "./commands.js";
 import { detailsViews } from "./detailspanel.js";
 import { toast } from "./dom.js";
@@ -46,6 +47,6 @@ function hostDeps({ hostApi, actionTypes, schemas }) {
     hostApi, store, activeSelection, getJSON, postJSON, dispatch, fetch: (url, init) => fetch(url, init),
     events: hub, addCommand, layers: { register: addLayer }, dock: { addWorkspace, addPanel, showPanel },
     schemaForm, actionTypes, actionSchema: type => schemas.get(type) || null, toast, onError: reportPluginError,
-    frozenCopy, icon, showTable, fitLinks, details: detailsViews,
+    frozenCopy, icon, showTable, fitLinks, details: detailsViews, cardMakers,
   };
 }

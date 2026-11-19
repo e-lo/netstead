@@ -64,6 +64,8 @@ def test_a_mutation_is_a_pending_edit(session):
         "check_failed": False,
         "last_source": "python",
         "redo_count": 0,
+        "in_card": 0,
+        "marks": 0,
     }
     assert session.history[-1].action["type"] == "python.mutate"  # Part 1: recorded outside an Action
 

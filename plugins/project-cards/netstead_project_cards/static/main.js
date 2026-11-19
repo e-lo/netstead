@@ -14,25 +14,14 @@ import {
   openPreview, previewLine, savedChoices, selectionStatus, sessionRows, stepIndicator, summaryFileName, typeChoices,
   READ_ONLY_TIP, catalogReadOnly, detailFields, editKey, fieldEdit, fitDetail, fitIcon, rowSubline,
 } from "./cardmodel.js";
+import { openCardDialog } from "./carddialog.js";
 import { createController } from "./controller.js";
+import { h } from "./dom.js";
 
 const PANEL = "cards";
 // The catalog's table in the table pane (the server registers it with host.register_table).
 const CATALOG_TABLE = "cards_catalog";
 
-// A DOM element. `text` is its text content, `on<event>` a handler, `disabled` / `checked` properties, the rest
-// attributes; string children become text nodes.
-function h(tag, props = {}, ...children) {
-  const el = document.createElement(tag);
-  for (const [key, value] of Object.entries(props)) {
-    if (key === "text") el.textContent = value;
-    else if (key.startsWith("on")) el[key] = value;
-    else if (key === "disabled" || key === "checked") el[key] = Boolean(value);
-    else el.setAttribute(key, value);
-  }
-  el.append(...children);
-  return el;
-}
 
 // Runs `fn` with `buttons` disabled, so a second click can't start it again; they are re-enabled after.
 async function busy(buttons, fn) {
@@ -136,6 +125,9 @@ export function activate(wb) {
       run: () => compose(type),
     });
   }
+  // The Changes pane's "Make a card…" (Host API 1.11): the ticked changes open the card dialog (design 2e).
+  if (typeof wb.registerCardMaker === "function") wb.registerCardMaker(picked => openCardDialog(wb, picked));
+
   wb.registerCommand({
     id: "project_cards.undo",
     title: "Undo the draft card's last change",

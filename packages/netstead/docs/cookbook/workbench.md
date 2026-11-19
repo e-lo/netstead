@@ -364,7 +364,8 @@ An edit goes through these states, and the Workbench uses the same word for each
 |---|---|---|
 | **Typing** | a value in a field, not applied yet | the field itself (Escape drops it) |
 | **Staged** | applied to this session's copy of the network: on the map, in the table and to validation, but not written anywhere | a yellow outline on the field in Details and the cell in the table (tooltip "Staged: applied in this session, not saved. Save a copy or put it in a card."), a count on the Changes rail icon, on the header's Save icon and in the network switcher (`• 1 staged`) |
-| **Saved** | written to a file by [Save a copy](#save-a-copy) | the change's row says `Saved`; the outline clears |
+| **Saved** | written to a file by [Save a copy](#save-a-copy) | the change's row names the copy (`Saved: leavenworth-edited`); the outline clears |
+| **In a card** | put in a ProjectCard by **Make a card…** | the change's row names the card (`In a card: benton-diet.yml`); the outline clears and it no longer counts as staged |
 
 The **Changes** pane lists every change to the network since it was opened, newest first: what changed
 (`#1 link 271: lanes = 2`), the rows it touched and its state (`1 link · Staged`). A plugin's or Python's change
@@ -375,8 +376,9 @@ highlighted). Tick changes to act on them together:
   the ticked changes are the newest ones in a row and all were made in the Workbench; otherwise it is disabled
   and its tooltip says why (`Only the newest changes can be undone: select #5 too.`).
 - **Save a copy…** (the save icon) opens the save dialog. A copy holds every staged change, not only the ticked ones.
-- **Make a card…** (the cards icon) will turn the ticked changes into a project card; it is disabled (tooltip "Coming soon: make a
-  card from these changes") until that dialog arrives.
+- **Make a card…** (the cards icon) opens the project-cards plugin's card dialog with the ticked changes: see
+  [Make a card from changes](workbench-project-cards.md#make-a-card-from-changes). Without the plugin it is disabled
+  ("needs the project-cards plugin").
 
 ### Undo and redo
 

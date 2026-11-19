@@ -174,7 +174,7 @@ The card dialog (2e) lists only Project changes; a "Fixes…" action beside it h
 1. **Layout (done 2026-10-26):** left rail, right detail panel, Layers & legend card, tooltip layer. No behavior change.
 2. **Editing states (done 2026-11-18):** Staged wording and outlines, Details as the editor, Cmd/Ctrl+Enter, undo/redo icons,
    Changes pane with selection.
-3. **Cards from changes:** the dialog in 2e, reusing the plugin's draft and commit code underneath; local,
+3. **Cards from changes (done 2026-11-19):** the dialog in 2e, reusing the plugin's draft and commit code underneath; local,
    download and copy destinations.
 4. **Checks:** pre-apply checks and hints, rule `suggest()`, change-set evaluation, finding difference.
 5. **Registries:** read and contribute (2f).

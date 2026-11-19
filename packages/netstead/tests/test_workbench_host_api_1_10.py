@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-from netstead.workbench.plugins import HOST_API
 from netstead.workbench.plugins.spec import api_compatible
 from netstead.workbench.server import STATIC_DIR
 
@@ -11,7 +10,7 @@ JS = STATIC_DIR / "js"
 
 
 def test_this_netstead_provides_host_api_1_10():
-    assert HOST_API == "1.10" and api_compatible("1.10") and api_compatible("1.9") and not api_compatible("1.11")
+    assert api_compatible("1.10") and api_compatible("1.9")
 
 
 # ---------------------------------------------------------------------------- detailsview.js: one thing at a time

@@ -14,11 +14,13 @@ from typing import Any, ClassVar, Literal
 from netstead.workbench.plugins import BaseAction
 from pydantic import Field, model_validator
 
+from .fromchanges import Destination, FacilityChoice
 from .types import NetworkChange
 
 __all__ = [
     "AddChange",
     "ApplyCard",
+    "CardFromChanges",
     "CheckCard",
     "ClosePreview",
     "CommitCard",
@@ -142,6 +144,34 @@ class CommitCard(BaseAction):
     notes: str | None = Field(default=None, max_length=5000)
     confirm_warnings: bool = False
     overwrite: bool = False
+
+
+class CardFromChanges(BaseAction):
+    """Make a ProjectCard from a network's pending edits (the Changes pane's ticked changes) and send it somewhere.
+
+    ``seqs`` are the edits (``host.pending_edits``), written oldest first as the card's changes; ``choices`` says how
+    each edit's facility is written (``{seq: {form, id_system}}``; default a Link list in GMNS ids). ``year`` is
+    written as the tag ``year:<year>``. ``destination`` is a catalog ``folder`` (inside ``io.allowed_roots``; made
+    when missing; a bundled sample catalog is refused; an existing file is replaced only with ``overwrite``; the folder
+    becomes the open catalog), ``download`` or ``copy`` (the result carries the ``yaml`` for the browser). The edits
+    then read "In a card" in the Changes pane. Live edit warnings must be confirmed (``confirm_warnings``), as for
+    ``project_cards.commit``. No network changes.
+    """
+
+    type: Literal["project_cards.card_from_changes"] = "project_cards.card_from_changes"
+    mutates: ClassVar[bool] = True  # it writes a file and marks the edits
+    replay_overrides: ClassVar[dict[str, Any]] = {"confirm_warnings": True}
+    net_id: str | None = None
+    seqs: list[int] = Field(min_length=1, max_length=1000)
+    choices: dict[int, FacilityChoice] = Field(default_factory=dict)
+    project: str = Field(min_length=1, max_length=200)
+    year: int | None = Field(default=None, ge=1000, le=9999)
+    tags: list[str] = Field(default_factory=list)
+    dependencies: dict[Literal["prerequisites", "corequisites", "conflicts"], list[str]] = Field(default_factory=dict)
+    notes: str | None = Field(default=None, max_length=5000)
+    file: str | None = Field(default=None, max_length=255)
+    destination: Destination
+    confirm_warnings: bool = False
 
 
 class ImportCard(BaseAction):

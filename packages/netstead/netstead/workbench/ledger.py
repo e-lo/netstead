@@ -28,7 +28,8 @@ PYTHON_SOURCE = "python"
 class PendingEdits:
     """A network's pending edits read at one moment (``host.pending_edits``, Host API 1.6).
 
-    ``edits`` are the entries' views, oldest first (``seq``, ``source``, ``note``, ``version``, ``rows``, ``saved``).
+    ``edits`` are the entries' views, oldest first (``seq``, ``source``, ``note``, ``version``, ``rows``, ``saved``,
+    ``cells``; 1.11: ``saved_to`` and ``card``).
     ``issued`` is the newest seq handed out on the network when they were read: an edit whose seq is above it was made
     after the read, so the read says nothing about it.
     """
@@ -50,12 +51,17 @@ class PendingEdit:
     saved: bool = False
     #: The cells it set, ``{table: {"keys", "fields"}}`` (:func:`~netstead.workbench.editcheck.staged_cells`).
     cells: dict[str, dict[str, list[Any]]] = field(default_factory=dict)
+    #: The file the newest saved copy holding it was written to (``None``: not saved, or saved before 1.11).
+    saved_to: str | None = None
+    #: The card it was put in (a file, or what a plugin calls where it went), by ``host.mark_in_card``.
+    card: str | None = None
 
     def view(self) -> dict[str, Any]:
         """JSON-safe: what the Changes pane shows.
 
         ``rows`` per table counts added, removed and changed rows; ``cells`` are the cells it set, which the Details
-        panel and the table outline while the edit is staged.
+        panel and the table outline while the edit is staged (not saved, not in a card). ``saved_to`` names the copy
+        that holds it and ``card`` the card it went into.
         """
         rows: dict[str, int] = {}
         for r in self.results:
@@ -69,6 +75,8 @@ class PendingEdit:
             "rows": rows,
             "saved": self.saved,
             "cells": self.cells,
+            "saved_to": self.saved_to,
+            "card": self.card,
         }
 
 
@@ -90,6 +98,8 @@ class EditLedger:
         #: The Workbench's undone edits, newest last: what ``redo_edit`` re-applies. Any other change to the
         #: network (an add, or a pop that is not the Workbench's own undo) empties it.
         self.redo: list[PendingEdit] = []
+        #: How many times a save or a card marked entries: the Changes pane reloads when it moves.
+        self.marks = 0
         self._seq = issued
 
     @property
@@ -108,6 +118,7 @@ class EditLedger:
         other.check, other.diverged, other.version, other._seq = self.check, self.diverged, self.version, self._seq
         other.exprs = dict(self.exprs)
         other.redo = list(self.redo)
+        other.marks = self.marks
         return other
 
     def add(
@@ -170,19 +181,30 @@ class EditLedger:
                 out.setdefault(table, set()).update(keys)
         return out
 
-    def mark_saved(self) -> None:
-        """A copy holding every pending edit was written."""
+    def mark_saved(self, output: str | None = None) -> None:
+        """A copy holding every pending edit was written (to ``output``)."""
         for entry in self.entries:
             entry.saved = True
+            entry.saved_to = output
         self.diverged = False
+        self.marks += 1
+
+    def mark_in_card(self, seqs: Sequence[int], card: str) -> None:
+        """The edits ``seqs`` were put in the card ``card``: they are no longer staged."""
+        wanted = set(seqs)
+        for entry in self.entries:
+            if entry.seq in wanted:
+                entry.card = card
+        self.marks += 1
 
     def summary(self) -> dict[str, Any]:
         """JSON-safe counts for the session state.
 
-        The staged counts read ``dirty`` and ``unsaved``: edits no saved copy holds yet, which the Workbench calls
-        *staged*.
+        The staged counts read ``dirty`` and ``unsaved``: edits no saved copy and no card holds yet, which the
+        Workbench calls *staged*. ``in_card`` counts the edits put in a card; ``marks`` counts the saves and cards
+        that marked edits (it moves when only a mark changed).
         """
-        unsaved = sum(not e.saved for e in self.entries)
+        unsaved = sum(not e.saved and e.card is None for e in self.entries)
         last = self.last()
         return {
             "pending": len(self.entries),
@@ -193,4 +215,6 @@ class EditLedger:
             "check_failed": self.check.failed,
             "last_source": last.source if last else None,
             "redo_count": len(self.redo),
+            "in_card": sum(e.card is not None for e in self.entries),
+            "marks": self.marks,
         }

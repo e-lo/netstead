@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import logging
 import weakref
-from pathlib import Path
 from typing import Any
 
 from netstead.workbench.plugins import ActionError, ActionSpec, Host
@@ -19,6 +18,7 @@ from netstead.workbench.plugins import ActionError, ActionSpec, Host
 from .actions import (
     AddChange,
     ApplyCard,
+    CardFromChanges,
     CheckCard,
     ClosePreview,
     CommitCard,
@@ -35,7 +35,6 @@ from .actions import (
 from .card import Dependencies, read_card_file
 from .catalog import applicability, card_targets, with_options
 from .errors import CardError
-from .files import undo_write, write_file
 from .flow import (
     APPLY_OFF,
     apply_enabled,
@@ -50,7 +49,9 @@ from .flow import (
     selection_networks,
     summary_text,
     target_network,
+    write_card,
 )
+from .fromchanges import CardFile, card_file_name, changes_card
 from .lower import Applied, apply_change, describe, few
 from .mapping import FieldMap
 from .state import AppliedCard, CardsState, Entry, Preview, timestamp
@@ -76,6 +77,7 @@ class Handlers:
             ActionSpec(UndoChange, self.undo_change),
             ActionSpec(RemoveChange, self.remove_change),
             ActionSpec(CommitCard, self.commit),
+            ActionSpec(CardFromChanges, self.card_from_changes),
             ActionSpec(ImportCard, self.import_card),
             ActionSpec(EditCard, self.edit_card),
             ActionSpec(PreviewChange, self.preview),
@@ -296,59 +298,67 @@ class Handlers:
             if problems:
                 raise CardError(f"not a valid ProjectCard: {problems[0]}")
             text = card.to_yaml(self.mapping)
-        path = host.writable(action.path)  # PathNotAllowed (an ActionError) outside io.allowed_roots
-        with as_action_errors():
-            written = write_file(path, text.encode("utf-8"), overwrite=action.overwrite)
-        catalog = host.has_action("catalog.add_card")
-        if catalog:
-            try:
-                host.dispatch({"type": "catalog.add_card", "path": str(path)})
-            except Exception as exc:  # boundary: another plugin failed; the file must not outlive a failed commit
-                failed = undo_write(written)
-                if failed is None:
-                    raise
-                note = f"the file at {path} could not be {failed}"
-                if isinstance(exc, ActionError):
-                    raise ActionError(f"{exc}; {note}") from exc
-                exc.add_note(note)
-                raise
-        card_id, uncommit = self.state.commit(net, card, str(path))
-
-        def roll_back() -> None:
-            if (failed := undo_write(written)) is not None:
-                logger.warning("project_cards: a rolled-back commit's file at %s could not be %s", path, failed)
-            uncommit()
-
-        host.on_rollback(roll_back)
-        listed = self._rescan_for(host, path)
-        host.publish("committed", {"net_id": net, "card_id": card_id, "path": str(path)})
+        written = write_card(host, self.state, self.mapping, action.path, text, overwrite=action.overwrite)
+        path = written["path"]
+        card_id, uncommit = self.state.commit(net, card, path)
+        host.on_rollback(uncommit)
+        self._mark_in_card(host, net, path)
+        host.publish("committed", {"net_id": net, "card_id": card_id, "path": path})
         return {
             "card_id": card_id,
             "net_id": net,
-            "path": str(path),
+            "path": path,
             "changes": len(card.changes),
             "warnings": len(warnings),
-            "catalog": catalog,
-            "listed": listed,
+            "catalog": written["catalog"],
+            "listed": written["listed"],
         }
 
-    def _rescan_for(self, host: Host, path: Path) -> bool:
-        """Rescan the open catalog when ``path`` (a file just written) is in its folder; whether it was.
+    def _mark_in_card(self, host: Host, net: str, path: str) -> None:
+        """The committed draft's network edits read "In a card: <path>" in the Changes pane (Host API 1.11)."""
+        applied = self.state.applied_card(net, path)
+        pending = {e["seq"] for e in host.pending_edits(net).edits}
+        seqs = [s for s in (applied.edit_ids if applied is not None else ()) if s in pending]
+        if seqs:
+            host.mark_in_card(net, seqs, path)
 
-        A folder that can no longer be read keeps the catalog as it was (logged): the file is written either way.
-        An enclosing Action that fails puts the older listing back (``host.on_rollback``).
+    def card_from_changes(self, host: Host, action: CardFromChanges) -> dict[str, Any]:
+        """Build the card from the pending edits, check it, send it to its destination, and mark the edits.
+
+        Everything fallible but the destination runs first; a folder destination's file and listing are taken back
+        if a later step (or an enclosing Action) fails. The draft card is not touched.
         """
-        current = self.state.catalog()
-        if current is None or not path.is_relative_to(current.path):
-            return False
-        try:
-            catalog = load_catalog(host, current.path, self.mapping)
-        except ActionError as exc:
-            logger.warning("project_cards: the catalog at %s was not rescanned: %s", current.path, exc)
-            return False
-        host.on_rollback(self.state.swap_catalog(catalog))
-        host.publish("catalog", {"path": catalog.path, "cards": len(catalog.cards)})
-        return True
+        with as_action_errors():
+            net = target_network(host, self.state, action.net_id)
+            entries = host.edit_changes(net, sorted(set(action.seqs)))
+            warnings = host.edit_warnings(net)
+            if warnings and not action.confirm_warnings:
+                raise CardError(
+                    f"{net} has {len(warnings)} live edit warning(s); review them in the Changes pane, "
+                    "then make the card with confirm_warnings=True"
+                )
+            card = changes_card(
+                entries,
+                action.choices,
+                project=action.project,
+                year=action.year,
+                tags=action.tags,
+                dependencies=action.dependencies,
+                notes=action.notes,
+            )
+            problems = card_problems(card.to_card(self.mapping))
+            if problems:
+                raise CardError(f"not a valid ProjectCard: {problems[0]}")
+            text = card.to_yaml(self.mapping)
+
+        def write(path: str, overwrite: bool) -> dict[str, Any]:
+            return write_card(host, self.state, self.mapping, path, text, overwrite=overwrite, open_folder=True)
+
+        with as_action_errors():
+            delivered = action.destination.deliver(CardFile(text, card_file_name(action.project, action.file), write))
+        seqs = [e["seq"] for e in entries]
+        host.mark_in_card(net, seqs, delivered.where)
+        return {"net_id": net, "seqs": seqs, "changes": len(card.changes), "where": delivered.where, **delivered.result}
 
     def import_card(self, host: Host, action: ImportCard) -> dict[str, Any]:
         """Read a card (or an offline edit log) and apply its changes to the draft, all or nothing.

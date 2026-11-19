@@ -98,7 +98,7 @@ from .actions import (
     to_python,
 )
 from .buildid import plugin_build_id
-from .editcheck import CheckResult, check_rows, referencing_keys, staged_cells, touched_keys
+from .editcheck import CheckResult, check_rows, edit_ops, referencing_keys, staged_cells, touched_keys
 from .editing import EditPlan, EditRefused, plan_add, plan_delete, plan_update, table_keys
 from .errors import ActionError, ApprovalRequired, JobCancelled, NotSupportedYet, PathNotAllowed
 from .estimate import Estimate, needs_approval
@@ -225,7 +225,7 @@ class _Saved:
         edited = h.version != self.version
         ledger = session.edits.get(h.id)
         if ledger is not None and not edited and not closed:
-            ledger.mark_saved()
+            ledger.mark_saved(self.output)
         return {
             "net_id": h.id,
             "output": self.output,
@@ -1274,6 +1274,38 @@ class Session:
             if ledger is None:
                 return PendingEdits(self._issued.get(handle_id, 0), ())
             return PendingEdits(ledger.issued, tuple(e.view() for e in ledger.entries))
+
+    def edit_changes(self, net_id: str | None, seqs: Sequence[int]) -> list[dict[str, Any]]:
+        """The pending edits ``seqs`` of a network, in the order given: each one's view plus ``ops``.
+
+        ``ops`` says what each of its corral edits did (:func:`~netstead.workbench.editcheck.edit_ops`). Raises
+        :class:`ActionError` when the network is not open or has no pending edit with one of the seqs.
+        """
+        with self._lock:
+            handle = self._handle(net_id)
+            entries = self._entries(handle.id, seqs)
+            pks = table_keys(handle.roadway)
+            return [{**e.view(), "ops": edit_ops(e.results, pks)} for e in entries]
+
+    def mark_in_card(self, net_id: str | None, seqs: Sequence[int], card: str) -> None:
+        """Record that the pending edits ``seqs`` were put in the card ``card`` (a file name or a place).
+
+        They read *In a card* in the Changes pane and are no longer counted as staged. Inside an Action a failure
+        rolls the mark back. Raises :class:`ActionError` as :meth:`edit_changes` does.
+        """
+        with self._lock:
+            handle = self._handle(net_id)
+            self._entries(handle.id, seqs)
+            self._ledger_for(handle.id).mark_in_card(seqs, card)
+
+    def _entries(self, net_id: str, seqs: Sequence[int]) -> list[PendingEdit]:
+        """The pending edits ``seqs`` of the open network ``net_id`` (``ActionError`` naming one it lacks)."""
+        ledger = self.edits.get(net_id)
+        by_seq = {e.seq: e for e in (ledger.entries if ledger is not None else [])}
+        missing = [s for s in seqs if s not in by_seq]
+        if missing:
+            raise ActionError(f"{net_id} has no pending edit #{missing[0]}")
+        return [by_seq[s] for s in seqs]
 
     def _retire_seqs(self, net_id: str, issued: int) -> None:
         """A ledger that handed out seqs up to ``issued`` is going: the next one for ``net_id`` starts after them."""

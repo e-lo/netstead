@@ -99,6 +99,15 @@ This file is for the **netstead** package only. The underlying generic engine `c
   record and highlights its links. The "Save selection as card…" button, which only opened the Cards panel without
   a map selection, is gone. Each pending edit's view (`/edits`, `host.pending_edits`) gains `cells`: the table
   keys and fields it set (`"*"` for an added row). Core's icons add `trash`.
+- **Make a card… works (design 2e), with Workbench plugin API 1.11.** The Changes pane's **Make a card…** opens the
+  card dialog of the plugin that registered a card maker (`wb.registerCardMaker`; the project-cards plugin), with the
+  ticked changes; without one it stays disabled ("needs the project-cards plugin"). `host.edit_changes(net_id,
+  seqs)` says what pending edits did (`ops`: update, add, delete; an update of links carries its strict facility
+  forms), and `host.mark_in_card(net_id, seqs, card)` records the card they went into (rolled back with a failing
+  Action). A change's row then reads `In a card: <file>`, loses its staged outline and no longer counts as staged; a
+  saved change's row names its copy (`Saved: <file>`). Pending edit views gain `saved_to` and `card`; the edit
+  summary gains `in_card` and `marks`. Core's icons add `folder-plus`. **Save a copy…** from the selection still
+  writes every staged change.
 
 ### Fixed
 

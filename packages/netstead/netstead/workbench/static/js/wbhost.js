@@ -25,7 +25,7 @@ export const keysChanged = (prev, next, keys) => keys.some(k => JSON.stringify(p
 // deps: {hostApi, store, activeSelection, getJSON, postJSON, fetch, dispatch, events: {on}, addCommand,
 //        layers: {register}, dock: {addWorkspace, addPanel, showPanel}, schemaForm, actionTypes, actionSchema,
 //        toast, onError(pluginId, phase, error), frozenCopy, icon, showTable, fitLinks,
-//        details: {show(owner, spec), close(owner, id?)}}
+//        details: {show(owner, spec), close(owner, id?)}, cardMakers: {register(owner, fn) -> off}}
 export function createWb(pluginId, deps) {
   const disposers = [];
   let closed = false;
@@ -124,6 +124,16 @@ export function createWb(pluginId, deps) {
     };
     // Close this plugin's view `id` (or any of its views) if it shows; true when one closed. onClose does not run.
     wb.closeDetails = (id = null) => deps.details.close(pluginId, id);
+  }
+  // The Changes pane's "Make a card…" (Host API 1.11): only where the host has one. `fn({net_id, seqs})` gets the
+  // ticked changes' seqs (oldest first) when the user clicks it; core enables the button only while a maker is
+  // registered (the newest registration wins). Returns the disposer.
+  if (deps.cardMakers) {
+    wb.registerCardMaker = fn => {
+      open();
+      if (typeof fn !== "function") throw new Error(`${pluginId}: registerCardMaker needs a function`);
+      return track(deps.cardMakers.register(pluginId, safe(fn, "card maker")));
+    };
   }
   const rollback = () => {
     closed = true;
