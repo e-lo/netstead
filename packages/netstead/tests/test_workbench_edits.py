@@ -265,6 +265,22 @@ def test_what_storage_cannot_hold_is_refused_and_recorded(session):
     assert not session.history[-1].ok and handle(session).version == 0 and "leavenworth" not in session.edits
 
 
+def test_each_pending_edit_names_the_cells_it_staged(session):
+    """The Details panel and the table outline these cells (``cells``) until a saved copy holds them."""
+    session.dispatch(EditCells(ids=[2, 1], values={"free_speed": 30, "lanes": 2}))
+    session.dispatch(AddRows(table="node", rows=[{"node_id": 9001, "x_coord": -120.66, "y_coord": 47.6}]))
+    session.dispatch(DeleteRows(ids=[3]))
+    entries = session.edits_payload(handle(session))["entries"]  # newest first
+    assert [e["cells"] for e in entries] == [
+        {},  # a deletion leaves no cell to outline
+        {"node": {"keys": [9001], "fields": ["*"]}},  # an added row is new in every field
+        {"link": {"keys": [1, 2], "fields": ["free_speed", "lanes"]}},
+    ]
+    session.dispatch(UndoEdit())
+    session.dispatch(RedoEdit())  # a redo is a new pending edit that stages the same cells
+    assert session.edits_payload(handle(session))["entries"][0]["cells"] == {}
+
+
 def test_delete_a_link_then_undo(session):
     lanes = handle(session).roadway.tables["lane"].count()
     result = session.dispatch(DeleteRows(ids=[1]))

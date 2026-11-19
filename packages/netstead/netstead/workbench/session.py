@@ -98,7 +98,7 @@ from .actions import (
     to_python,
 )
 from .buildid import plugin_build_id
-from .editcheck import CheckResult, check_rows, referencing_keys, touched_keys
+from .editcheck import CheckResult, check_rows, referencing_keys, staged_cells, touched_keys
 from .editing import EditPlan, EditRefused, plan_add, plan_delete, plan_update, table_keys
 from .errors import ActionError, ApprovalRequired, JobCancelled, NotSupportedYet, PathNotAllowed
 from .estimate import Estimate, needs_approval
@@ -1085,13 +1085,21 @@ class Session:
             with _storage_refusal("the edit failed"):  # only applying to the draft: nothing has changed yet
                 applied = [apply_edit(draft, edit) for edit in edits]
             self._swap(handle, draft, {e.table for e in edits}, note, origin)
-            touched = touched_keys(applied, table_keys(handle.roadway))
+            pks = table_keys(handle.roadway)
+            touched = touched_keys(applied, pks)
             for table, keys in [*(recheck or {}).items(), *self._referencing(handle, applied).items()]:
                 touched.setdefault(table, set()).update(keys)
             tables, removed = {e.table for e in edits}, _removed_links(applied, reverted=False)
             exprs = _exprs(handle, tables)
             self._ledger_for(handle.id).add(
-                self._source(origin), note, handle.version, applied, touched, exprs, redo=_redo
+                self._source(origin),
+                note,
+                handle.version,
+                applied,
+                touched,
+                exprs,
+                redo=_redo,
+                cells=staged_cells(applied, pks),
             )
             self._settle(handle, note, origin, kind="mutate", first=touched, tables=tables, removed=removed)
         return applied
@@ -1200,7 +1208,7 @@ class Session:
             return ledger.check if ledger else CheckResult()
 
     def edits_payload(self, handle: NetworkHandle) -> dict[str, Any]:
-        """The Edits panel's data: pending edits (newest first), undo state, dirty state and the live warnings."""
+        """The Changes pane's data: pending edits (newest first, with their cells), undo and dirty state, warnings."""
         with self._lock:
             ledger = self.edits.get(handle.id) or EditLedger()
             last = ledger.last()

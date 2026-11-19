@@ -175,9 +175,10 @@ value `40` filled in and the issue text as the edit's note. Replace the note wit
 Change `free_speed` to `35` and press **Apply**. One edit is sent with only the value you changed. Three things
 update at once:
 
-- The **Edit** tab lists the edit (`#1 link 1: free_speed = 35.0 (Residential street: posted 35 mph)`,
-  `1 link · v1`), the status reads `1 unsaved`, the network picker reads `leavenworth • 1 unsaved`, and the
-  undo icon is enabled. The network's version moved from `v0` to `v1`; nothing on disk changed. The header's
+- The **Changes** pane lists the edit (`#1 link 1: free_speed = 35.0 (Residential street: posted 35 mph)`,
+  `1 link · Staged`), the status reads `1 staged`, the network picker reads `leavenworth • 1 staged`, the header's
+  Save icon and the Changes rail icon show `1`, and the undo icon is enabled. In Details and in the table the
+  `free_speed` value has a yellow outline: it is **staged**, applied in this session but not saved. The network's version moved from `v0` to `v1`; nothing on disk changed. The header's
   validity light turns amber-outlined (`Validated vN, the network changed since: re-run`).
 - The Validate panel re-checks the rows you touched straight away: a value the spec disagrees with would appear
   under **Edit warnings** with its own **Fix** button. This one is fine, so the count stays at 0. The stored
@@ -187,8 +188,9 @@ update at once:
   `app.do(EditCells(ids=[1], values={'free_speed': 35}, note='Residential street: posted 35 mph'))`.
 
 Press the undo icon and the value goes back to 40, recorded as `app.do(UndoEdit())`. A redo icon beside it
-becomes active and would reapply the edit (`app.do(RedoEdit())`); instead, press **Fix** and apply the change
-once more, so there is an edit to save in step 8.
+becomes active and would reapply the edit (`app.do(RedoEdit())`); instead, edit it in Details this time: with
+link 1 focused, double-click its `free_speed` field in the Details panel, type `35` and press Enter (or
+Cmd/Ctrl+Enter; Escape would cancel), so there is an edit to save in step 8.
 
 ![Fixing a free_speed value from an issue; the Changes tab shows the pending edit](assets/screenshots/workbench-06-fix.png){ .screenshot }
 *Fixing a free_speed value from an issue; the Changes tab shows the pending edit and the undo/redo icons. (screenshot predates the panel restructure)*
@@ -214,8 +216,8 @@ Press the **Save** icon in the header (tooltip "Save a copy…") to open the sav
 opens; move to a folder inside your home directory and press **Use this folder**, then **Save**.
 
 The save runs as a job. When it finishes, a toast reads `Saved a copy to <folder>/leavenworth-fixed (1 edit).`
-and names the tables that differ from the source (`link`). In the Changes tab the edit is now marked `saved`
-and the unsaved badge clears. The folder you opened in step 1 is untouched: the Workbench never writes to the
+and names the tables that differ from the source (`link`). In the Changes pane the edit now reads `Saved`, the
+staged count clears and the yellow outline goes. The folder you opened in step 1 is untouched: the Workbench never writes to the
 network it opened, and never overwrites an existing copy. A folder outside your home directory is refused
 (`… is outside the allowed folders`), which `io.allowed_roots` can widen: see
 [Which folders the app can read and write](cookbook/workbench.md#which-folders-the-app-can-read-and-write).

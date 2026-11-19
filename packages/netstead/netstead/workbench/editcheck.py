@@ -36,8 +36,12 @@ __all__ = [
     "check_rows",
     "fits_type",
     "referencing_keys",
+    "staged_cells",
     "touched_keys",
 ]
+
+#: The field name :func:`staged_cells` gives an added row: every field of it is new.
+WHOLE_ROW = "*"
 
 #: Keys checked per table after one mutation; beyond this the result says ``truncated``.
 MAX_CHECKED_KEYS = 10_000
@@ -110,6 +114,30 @@ def touched_keys(results: Sequence[EditResult], pks: Mapping[str, str | None]) -
             if row.get(pk) is not None:
                 out.setdefault(result.edit.table, set()).add(json_scalar(row[pk]))
     return out
+
+
+def staged_cells(results: Sequence[EditResult], pks: Mapping[str, str | None]) -> dict[str, dict[str, list[Any]]]:
+    """``{table: {"keys": [...], "fields": [...]}}``: the cells ``results`` set, for the staged outlines.
+
+    An update sets its ``set`` fields on the rows it matched; an added row is new in every field (``"*"``). A deletion
+    leaves no cell to outline. Keys and fields are sorted (keys by their text), so the answer is stable JSON.
+
+    Examples:
+        >>> from types import SimpleNamespace as NS
+        >>> upd = NS(edit=NS(op="update_rows", table="link", payload={"set": {"lanes": 2}}),
+        ...          rollback_data={"original_rows": [{"link_id": 7, "lanes": 3}]})
+        >>> staged_cells([upd], {"link": "link_id"})
+        {'link': {'keys': [7], 'fields': ['lanes']}}
+    """
+    out: dict[str, tuple[set[Any], set[str]]] = {}
+    for result in results:
+        pk, op = pks.get(result.edit.table), result.edit.op
+        if pk is None or op not in ("update_rows", "add_rows"):
+            continue
+        keys, fields = out.setdefault(result.edit.table, (set(), set()))
+        fields.update(result.edit.payload.get("set", {}) if op == "update_rows" else [WHOLE_ROW])
+        keys.update(json_scalar(row[pk]) for row in affected_rows(result) if row.get(pk) is not None)
+    return {t: {"keys": sorted(k, key=str), "fields": sorted(f)} for t, (k, f) in out.items() if k}
 
 
 def referencing_keys(net: Any, results: Sequence[EditResult]) -> dict[str, set[Any]]:

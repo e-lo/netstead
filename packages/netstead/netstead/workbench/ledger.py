@@ -1,6 +1,6 @@
 """Pending edits: every mutation of an open network, kept until it is closed.
 
-The Edits panel lists them, :meth:`~netstead.workbench.session.Session.undo_last` reverts the newest, and the
+The Changes pane lists them, :meth:`~netstead.workbench.session.Session.undo_last` reverts the newest, and the
 dirty badge counts the ones no saved copy holds yet. Each entry records who made it (``source``: the
 Workbench, Python, or a plugin's id) so an undo never reverses someone else's change. An entry keeps the corral
 results of its edits: they are what :meth:`~netstead.workbench.session.Session.revert` reverses.
@@ -48,9 +48,15 @@ class PendingEdit:
     results: list[EditResult] = field(repr=False)
     touched: dict[str, set[Any]] = field(default_factory=dict)
     saved: bool = False
+    #: The cells it set, ``{table: {"keys", "fields"}}`` (:func:`~netstead.workbench.editcheck.staged_cells`).
+    cells: dict[str, dict[str, list[Any]]] = field(default_factory=dict)
 
     def view(self) -> dict[str, Any]:
-        """JSON-safe: what the Edits panel shows (rows per table counts added, removed and changed rows)."""
+        """JSON-safe: what the Changes pane shows.
+
+        ``rows`` per table counts added, removed and changed rows; ``cells`` are the cells it set, which the Details
+        panel and the table outline while the edit is staged.
+        """
         rows: dict[str, int] = {}
         for r in self.results:
             n = r.diff.rows_added + r.diff.rows_removed + r.diff.rows_changed
@@ -62,6 +68,7 @@ class PendingEdit:
             "version": self.version,
             "rows": rows,
             "saved": self.saved,
+            "cells": self.cells,
         }
 
 
@@ -112,13 +119,15 @@ class EditLedger:
         touched: dict[str, set[Any]],
         exprs: dict[str, Any],
         redo: Sequence[PendingEdit] = (),
+        cells: dict[str, dict[str, list[Any]]] | None = None,
     ) -> PendingEdit:
         """Record one applied mutation and return it; ``exprs`` maps each table it changed to its new expression.
 
-        ``redo`` becomes the redo stack: empty, unless this is a redo putting the rest of the stack back.
+        ``redo`` becomes the redo stack: empty, unless this is a redo putting the rest of the stack back. ``cells``
+        are the cells it set (for the staged outlines).
         """
         self._seq += 1
-        entry = PendingEdit(self._seq, source, note, version, list(results), touched)
+        entry = PendingEdit(self._seq, source, note, version, list(results), touched, cells=dict(cells or {}))
         self.entries.append(entry)
         self.version = version
         self.exprs.update(exprs)
@@ -168,7 +177,11 @@ class EditLedger:
         self.diverged = False
 
     def summary(self) -> dict[str, Any]:
-        """JSON-safe counts for the session state (the dirty badges read ``dirty`` and ``unsaved``)."""
+        """JSON-safe counts for the session state.
+
+        The staged counts read ``dirty`` and ``unsaved``: edits no saved copy holds yet, which the Workbench calls
+        *staged*.
+        """
         unsaved = sum(not e.saved for e in self.entries)
         last = self.last()
         return {

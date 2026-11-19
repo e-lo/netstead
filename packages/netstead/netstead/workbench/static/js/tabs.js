@@ -51,10 +51,10 @@ export function workspaceBadge(own, panelBadges) {
   return { text: "", dirty: true, tone: "", quiet: false, title: dirty.map(d => d.title).filter(Boolean).join("; ") || "Unsaved changes" };
 }
 
-// "1 selected link", "2 unsaved edits": a count and the noun it counts, pluralized the American way.
+// "1 selected link", "2 staged changes": a count and the noun it counts, pluralized the American way.
 export const countOf = (n, noun, plural = `${noun}s`) => `${n} ${n === 1 ? noun : plural}`;
 
-// A tab's tooltip and screen-reader label: "Edit — 2 unsaved edits", "Validate — 271 warnings, 16 info", "Inspect".
+// A tab's tooltip and screen-reader label: "Changes — 2 staged changes", "Validate — 271 warnings, 16 info", "Inspect".
 export function tabLabel(title, badge) {
   const b = normalizeBadge(badge);
   if (!b) return title;

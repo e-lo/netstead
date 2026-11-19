@@ -2,7 +2,7 @@
 // actions. (The utterance box is the Find panel's: selection.js.)
 import { dispatch } from "./api.js";
 import { $, esc, toast } from "./dom.js";
-import { dirtyBadge } from "./editmodel.js";
+import { dirtyBadge, editSummary, saveIconState } from "./editmodel.js";
 import { icon } from "./icons.js";
 import { recentEntries } from "./recents.js";
 import { derivedTitle, networkBadge } from "./tabs.js";
@@ -89,12 +89,21 @@ export function renderValidity(server) {
   b.setAttribute("aria-label", `Validation: ${v.tip}`);
 }
 
+// The Save icon shows the active network's staged count, like an unsaved-document dot (design 2a).
+function renderSaveIcon(server) {
+  const st = saveIconState(editSummary(server)), b = $("save-btn"), dot = $("save-count");
+  dot.textContent = st.count;
+  dot.hidden = !st.dirty;
+  b.dataset.tip = st.tip;
+  b.setAttribute("aria-label", st.tip.replace("…", ""));
+}
+
 export function renderHeader(server) {
   const sel = $("net-select");
   sel.innerHTML = server.networks.length
     ? server.networks.map(n => {
       const mark = networkBadge(n); // a clean base network's option is exactly as before
-      const marks = [dirtyBadge((server.edits || {})[n.id]), mark].filter(Boolean).join(" • "); // unsaved edits first
+      const marks = [dirtyBadge((server.edits || {})[n.id]), mark].filter(Boolean).join(" • "); // staged changes first
       return `<option value="${esc(n.id)}"${n.id === server.active ? " selected" : ""}` +
         `${mark ? ` title="${esc(derivedTitle(n, server.networks))}"` : ""}>${esc(n.label)}${marks ? ` • ${esc(marks)}` : ""}</option>`;
     }).join("")
@@ -103,6 +112,7 @@ export function renderHeader(server) {
   const h = server.networks.find(n => n.id === server.active);
   $("count").textContent = h ? `${h.links.toLocaleString()} links · ${h.nodes.toLocaleString()} nodes` : "";
   renderValidity(server);
+  renderSaveIcon(server);
 }
 
 export function wireHeader() {

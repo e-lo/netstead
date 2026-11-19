@@ -60,7 +60,7 @@ still runs (see [Write a Workbench plugin](workbench-plugins.md#startup-outcomes
    A second preview replaces the first. If the network changes while you preview, the panel says so: preview again
    to see it.
 5. **Add to card** applies the change to the network (never to the preview, which then closes) and lists it in the
-   draft card. Core's **Edit** tab lists it too, with `project_cards` as its source, and the live checks run as
+   draft card. Core's **Changes** pane lists it too, with `project_cards` as its source, and the live checks run as
    they do for any edit. Each change is one step: all of it applies, or none of it. **Cancel** closes the form and
    any preview. If the selection changes while a Property change or Deletion form is open, the form says it is out
    of date and **Preview** and **Add to card** wait until you press **Reload form**, which reads it again for the
@@ -81,7 +81,7 @@ still runs (see [Write a Workbench plugin](workbench-plugins.md#startup-outcomes
     replaced only when **Replace an existing file** is ticked. When the file is inside the open catalog's folder,
     the catalog is rescanned and lists the card. A new, empty draft then starts.
 
-Committing writes the card, not the network: the edits stay pending in the **Edit** tab until you save the
+Committing writes the card, not the network: the edits stay staged in the **Changes** pane until you save the
 network, as with any edit.
 
 ### New card mode
@@ -120,7 +120,7 @@ resolved to): change the form and **Add to card** to put it back, at the end of 
 supported.
 
 Core and the plugin each undo only their own edits. Core's **Undo** won't take back a card change, and the plugin's
-undo refuses when the network's newest edit is one you made yourself: undo that one first, in the **Edit** tab.
+undo refuses when the network's newest edit is one you made yourself: undo that one first, in the **Changes** pane.
 
 ## Use a card catalog
 

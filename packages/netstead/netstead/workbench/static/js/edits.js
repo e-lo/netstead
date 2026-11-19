@@ -1,23 +1,23 @@
-// The Edit and Validate dock panels (registered like a plugin's, in every workspace), and the active network's pending
-// edits and live edit warnings (GET /edits), kept in `store.edits`; the Edit panel: pending edits, Undo and Redo
-// (Save a copy is the header's Save dialog, savedialog.js), the edit warnings (issues.js renders them) and "Save
-// selection as card…", live only while the project-cards plugin's Cards panel is registered. Notes and table names
-// are data: every one is escaped.
+// The Changes and Validate dock panels (registered like a plugin's, in every workspace), and the active network's
+// pending edits and live edit warnings (GET /edits), kept in `store.edits`. The Changes pane (design 2c): Undo and
+// Redo of the last change, the changes newest first, each staged (applied in this session, not saved) or saved, with
+// a checkbox; with changes ticked, Undo selected (the newest run only), Save a copy… (the header's Save dialog,
+// savedialog.js) and Make a card… (Phase 3: disabled for now). Clicking a change shows its record on the map and in
+// Details. The edit warnings follow (issues.js renders them). Notes and table names are data: every one is escaped.
 import { dispatch, getJSON, netPath } from "./api.js";
-import { commandContext, runCommand } from "./commands.js";
 import { $, esc, toast } from "./dom.js";
-import { dirtyBadge, editsBadge, pendingLine, redoBlocked, undoBlocked, validatedText } from "./editmodel.js";
-import { hub } from "./hub.js";
+import {
+  STAGED_TIP, changeDetail, changeTarget, dirtyBadge, editsBadge, pendingLine, redoBlocked, undoBlocked, undoSelection,
+  validatedText,
+} from "./editmodel.js";
 import { issuesBadge } from "./issuelist.js";
-import { ALL_WORKSPACES, CORE, slots } from "./slots.js";
+import { ALL_WORKSPACES, CORE } from "./slots.js";
 import { store } from "./store.js";
-import { addPanel, showPanel } from "./workspaces.js";
-
-// The project-cards plugin's panel (a bare id core reserves for it: slots.js RESERVED_IDS) and its command that
-// starts a card change from the selection.
-const CARDS_PANEL = "cards", NEW_CARD_CHANGE = "project_cards.new_roadway_property_change";
+import { addPanel } from "./workspaces.js";
 
 let seq = 0, feedKey = null;
+// The ticked changes' seqs (per tab; pruned to the listed changes on every render).
+let picked = new Set();
 const fail = e => toast(e.message);
 const activeId = () => { const s = store.get().server; return s && s.active; };
 
@@ -50,23 +50,64 @@ function setBlocked(id, reason, tip) {
   b.dataset.tip = reason || tip;
 }
 
-// The Edits panel: pending edits (newest first), why Undo is unavailable, dirty state and the save controls. The
-// panel's tab badge comes from editsBadge (registered in registerEditPanels).
+const shownEdits = () => { const e = store.get().edits; return e && e.net_id === activeId() ? e : null; };
+
+// The Changes pane: Undo / Redo of the last change and why Undo is unavailable ("The last change was made by …"),
+// the staged count, the changes newest first with their checkboxes, and the selected changes' actions. The pane's
+// rail badge comes from editsBadge (registered in registerEditPanels).
 export function renderEdits(edits) {
   const e = edits && edits.net_id === activeId() ? edits : null;
   const why = undoBlocked(e);
-  setBlocked("ed-undo", why, "Undo last edit");
+  setBlocked("ed-undo", why, "Undo last change");
   setBlocked("ed-redo", redoBlocked(e), "Redo");
   $("ed-undo-why").textContent = e && e.pending ? why : "";
-  const parts = e ? [dirtyBadge(e) || (e.pending ? "Every edit is in a saved copy." : ""),
+  const parts = e ? [dirtyBadge(e) || (e.pending ? "Every change is in a saved copy." : ""),
     e.warnings.length ? `${e.warnings.length} open warning(s): see Edit warnings below.` : "",
     e.check_failed ? "The live check failed: run validation." :
       e.truncated ? "The live check was cut short: run validation." : ""] : [];
   $("ed-status").textContent = parts.filter(Boolean).join(" · ");
-  $("ed-list").innerHTML = e && e.entries.length ? e.entries.map(x =>
-    `<div class="chg${x.saved ? "" : " unsaved"}">${esc(pendingLine(x))}<div class="diag">` +
-    `${esc(Object.entries(x.rows).map(([t, n]) => `${n} ${t}`).join(", "))} · v${esc(x.version)}${x.saved ? " · saved" : ""}</div></div>`).join("")
-    : '<span class="empty">No edits yet. Click a row, then a cell, to edit it; or fix an issue.</span>';
+  const entries = e ? e.entries : [];
+  picked = new Set(entries.map(x => x.seq).filter(n => picked.has(n)));
+  $("ed-list").innerHTML = entries.length ? entries.map(x => {
+    const line = pendingLine(x), state = x.saved ? "saved" : "staged";
+    return `<div class="chg ${state}" data-seq="${esc(x.seq)}">` +
+      `<input type="checkbox" class="chg-pick" aria-label="${esc(`Select ${line}`)}"${picked.has(x.seq) ? " checked" : ""}>` +
+      `<button class="chg-go" data-tip="${x.saved ? "Saved in a copy." : STAGED_TIP} Click to show it on the map and in Details.">` +
+      `${esc(line)}<span class="diag">${esc(changeDetail(x))}</span></button></div>`;
+  }).join("")
+    : '<span class="empty">No changes yet. Double-click a field in Details (or click a cell of the focused row in the table) to edit it; or fix an issue.</span>';
+  renderSelectionBar();
+}
+
+// The selected changes' actions: shown while any is ticked. Undo selected undoes only the newest run; otherwise it
+// is disabled and says why.
+function renderSelectionBar() {
+  const e = shownEdits(), n = picked.size;
+  $("ed-selbar").hidden = !n;
+  if (!n) return;
+  $("ed-sel-count").textContent = `${n} selected`;
+  const plan = undoSelection(e ? e.entries : [], [...picked]);
+  setBlocked("ed-undo-sel", plan.reason, plan.count === 1 ? "Undo this change" : `Undo these ${plan.count} changes, newest first`);
+}
+
+// Undo the ticked changes: one undo_edit per change, newest first (each is a recorded action, as the Undo button's).
+async function undoSelected() {
+  const e = shownEdits(), plan = undoSelection(e ? e.entries : [], [...picked]);
+  if (plan.reason) { toast(plan.reason); return; }
+  try {
+    for (let i = 0; i < plan.count; i++) await dispatch({ type: "undo_edit" });
+    picked = new Set();
+  } catch (err) { toast(err.message); }
+}
+
+// A change row clicked: its records are focused (Details shows the first), highlighted when they are links, and
+// the map goes to them. A deletion's rows are gone: nothing to show.
+function showChange(entry) {
+  const t = changeTarget(entry);
+  if (!t) { toast("This change removed its rows: there is nothing to show.", "info"); return; }
+  const patch = { focus: { table: t.table, id: t.ids[0], from: "panel" } };
+  if (t.table === "link") patch.highlights = new Set(t.ids);
+  store.set(patch);
 }
 
 // Jobs this tab started and reports on when they end (job id → {action, onEnd}), and recently ended jobs, for a
@@ -102,25 +143,23 @@ export function onEditJob(job) {
   tracked.onEnd(job, tracked.action);
 }
 
-// "Save selection as card…": the plugin's new-change command when it applies (it needs a selection), else just its
-// Cards panel. Enabled only while a panel with the reserved id is registered.
-function saveAsCard() {
-  const command = slots.commands.get(NEW_CARD_CHANGE), s = store.get();
-  const ctx = commandContext({ server: s.server, focus: s.focus, highlights: s.highlights, workspace: s.workspace });
-  if (command && (!command.when || command.when(ctx))) runCommand(command, ctx, (c, e) => fail(e));
-  else showPanel(CARDS_PANEL);
-}
-
-function syncCardButton(ids) {
-  const on = ids.includes(CARDS_PANEL), b = $("ed-card");
-  b.disabled = !on;
-  b.dataset.tip = on ? "Start a project card change from the selection" : "Needs the project-cards plugin";
-}
-
 export function wireEdits() {
   $("ed-undo").onclick = () => dispatch({ type: "undo_edit" }).catch(fail);
   $("ed-redo").onclick = () => dispatch({ type: "redo_edit" }).catch(fail);
-  $("ed-card").onclick = saveAsCard;
-  hub.on("core.panels", syncCardButton);
-  syncCardButton(slots.panels.list().map(p => p.id));
+  $("ed-undo-sel").onclick = undoSelected;
+  $("ed-save-sel").onclick = () => $("save-btn").click(); // the header's Save dialog: it writes every staged change
+  // "Make a card…" stays disabled until Phase 3's card dialog (design 2e) takes the ticked changes.
+  $("ed-list").onchange = ev => {
+    const row = ev.target.closest(".chg");
+    if (!row || !ev.target.classList.contains("chg-pick")) return;
+    const n = Number(row.dataset.seq);
+    if (ev.target.checked) picked.add(n); else picked.delete(n);
+    renderSelectionBar();
+  };
+  $("ed-list").onclick = ev => {
+    const go = ev.target.closest(".chg-go"), e = shownEdits();
+    if (!go || !e) return;
+    const entry = e.entries.find(x => String(x.seq) === go.closest(".chg").dataset.seq);
+    if (entry) showChange(entry);
+  };
 }

@@ -1,6 +1,6 @@
 // The Validate panel: run validation (a background job), list its findings by filter, grouped by type (one collapsible
 // row per code and severity, built from /issues/summary; its members load on expand: issuegroups.js), and link finding <-> map marker <-> row, with an explicit Zoom to on
-// each located finding; plus the live edit warnings the Edit panel shows. The list, markers and report are read-only
+// each located finding; plus the live edit warnings the Changes pane shows. The list, markers and report are read-only
 // views of the last RunValidation and of GET /edits; nothing here is recorded. The markers are a core layer in the
 // layer registry ("Issues" in Overlays). Issue messages quote data values: every one goes through esc().
 import { getJSON, netPath } from "./api.js";

@@ -47,6 +47,7 @@ architecture.md and this index in the same PR.
 | [Engine strategy: DuckDB-only, stay on ibis](2026-10-01-engine-strategy-reevaluation.md) | 10-01 | implemented | #195, #198 | — |
 | [Geometry encoding: WKB in memory, WKT CSV, GeoParquet](2026-10-01-geometry-encoding-adr.md) | 10-01 | implemented | #201, #202 | regenerate committed fixtures with GeoParquet `geo` metadata |
 | [Foreign keys: report, don't enforce](2026-10-01-fk-constraints-adr.md) | 10-01 | accepted | — (records current behavior) | opt-in "trusted store" export with native constraints: backlog, no issue |
+| [Workbench UI style](workbench-ui-style.md) | 11-19 | standing | #269 | add each new UI correction here |
 
 ### Product requirements and feature designs
 

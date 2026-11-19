@@ -281,7 +281,7 @@ class Handlers:
             warnings = host.edit_warnings(net)
             if warnings and not action.confirm_warnings:
                 raise CardError(
-                    f"{net} has {len(warnings)} live edit warning(s); review them in the Edits panel, "
+                    f"{net} has {len(warnings)} live edit warning(s); review them in the Changes pane, "
                     "then commit with confirm_warnings=True"
                 )
             card = draft.model_copy(

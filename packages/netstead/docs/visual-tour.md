@@ -160,15 +160,20 @@ Three things happen, and each is visible:
   memory only; nothing on disk is touched until you save a copy, and the source is never overwritten. The
   version is what the rest of the Workbench keys on: the map and table redraw for `v1`, the stored validation
   is marked stale (`the network changed since: re-run`), and a delete planned on `v0` would be refused.
-- **The edit log grows.** The **Edit** tab lists `#1 link 1: free_speed = 35.0 (Residential street: posted
-  35 mph)`, with the rows it touched (`1 link`) and the version it produced (`v1`), and says `1 unsaved`; the
-  network picker says the same, and the header's validity light turns amber-outlined. The undo icon reverses
+- **The edit is staged.** The **Changes** pane lists `#1 link 1: free_speed = 35.0 (Residential street: posted
+  35 mph)`, with the rows it touched and its state (`1 link · Staged`: applied in this session, not saved), and
+  says `1 staged`; the network picker, the header's Save icon and the Changes rail icon say the same, the
+  `free_speed` value has a yellow outline in Details and in the table, and the header's validity light turns
+  amber-outlined. The undo icon reverses
   the newest edit; undo is last-in, first-out and is itself recorded (`app.do(UndoEdit())`). A redo icon beside
   it would reapply that edit (`app.do(RedoEdit())`) until any other change clears it.
 - **The edited rows are re-checked at once.** A value the spec disagrees with, such as a foreign key to a row
   that doesn't exist or a required field left empty, is applied anyway and listed under **Edit warnings** in
-  the **Edit** tab with its own **Fix**, so you can put it right where you found it. A speed of 35 raises
+  the **Changes** pane with its own **Fix**, so you can put it right where you found it. A speed of 35 raises
   no warning, so the count stays at 0.
+
+You can also edit straight from the Details panel: double-click a field (or press Enter on it), type, and press
+Enter or Cmd/Ctrl+Enter; Escape cancels.
 
 Why it matters: an edit in the Workbench is a typed action with a note, a version and an undo, not a cell
 changed in a spreadsheet. That is what makes the next two steps possible.
@@ -198,8 +203,8 @@ so a fresh `Session()` needs it in `io.allowed_roots` (see
 The **Save** icon in the header opens a dialog that writes the network as it is now (`v1`, with your fix) to
 a **new** folder or file: name it, choose Parquet, CSV, DuckDB or Zip, and pick a folder inside your home
 directory with **Choose folder…** and **Use this folder**, then **Save**. The save is a job; when it finishes
-a toast says where the copy went and which tables differ from the source, the edit is marked `saved` in the
-Changes tab, and the unsaved badge clears.
+a toast says where the copy went and which tables differ from the source, the edit reads `Saved` in the
+Changes pane, and the staged count and the yellow outline clear.
 
 What stays the same is the network you opened. The Workbench never writes to its source, local or remote, and
 never overwrites an existing copy, so an afternoon of edits can't damage the file you started from. Open

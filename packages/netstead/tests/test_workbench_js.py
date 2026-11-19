@@ -456,7 +456,7 @@ def test_delete_plan_text(node_module):
     text = node_module(
         "editmodel.js", ["deletePlanText"], 'deletePlanText({table: "link", rows: {lane: 2, link: 1}, refused: null})'
     )
-    assert text == "Delete 1 link row? This also deletes 2 lane rows. Undo is in the Edits panel."
+    assert text == "Delete 1 link row? This also deletes 2 lane rows. Undo is in the Changes pane."
     refused = node_module(
         "editmodel.js", ["deletePlanText"], 'deletePlanText({table: "node", rows: {}, refused: "node 1 is still used"})'
     )
@@ -477,15 +477,15 @@ def test_pending_lines_badges_and_undo(node_module):
         "[dirtyBadge({dirty: true, unsaved: 2}), dirtyBadge({dirty: true, unsaved: 0}),"
         " dirtyBadge({dirty: false}), dirtyBadge(null)]",
     )
-    assert badges == ["2 unsaved", "changed since saved", "", ""]
+    assert badges == ["2 staged", "changed since saved", "", ""]
     panel = node_module(
         "editmodel.js", ["editsBadge"], f'[editsBadge({STATE}), editsBadge({{...{STATE}, active: "b"}})]'
     )
-    assert panel == [{"text": "2", "dirty": True, "title": "2 unsaved edits"}, None]
+    assert panel == [{"text": "2", "dirty": True, "title": "2 staged changes"}, None]
     one = node_module(
         "editmodel.js", ["editsBadge"], 'editsBadge({active: "a", edits: {a: {dirty: true, unsaved: 1}}})'
     )
-    assert one["title"] == "1 unsaved edit"
+    assert one["title"] == "1 staged change"
     blocked = node_module(
         "editmodel.js",
         ["undoBlocked"],
@@ -499,6 +499,112 @@ def test_pending_lines_badges_and_undo(node_module):
         "Nothing to undo.",
     ]
     assert node_module("editmodel.js", ["editSummary"], f"editSummary({STATE}).unsaved") == 2
+
+
+ENTRIES = (
+    '[{seq: 4, source: "workbench", saved: false, rows: {link: 2}, cells: {link: {keys: [7, 8], fields: ["lanes"]}}},'
+    ' {seq: 3, source: "workbench", saved: false, rows: {node: 1}, cells: {node: {keys: [9001], fields: ["*"]}}},'
+    ' {seq: 2, source: "cards", saved: false, rows: {link: 1}, cells: {}},'
+    ' {seq: 1, source: "workbench", saved: true, rows: {link: 1}, cells: {link: {keys: [5], fields: ["name"]}}}]'
+)
+
+
+def test_staged_cells_come_from_the_changes_no_saved_copy_holds(node_module):
+    got = node_module(
+        "editmodel.js",
+        ["stagedCells", "isStaged"],
+        f"(() => {{ const s = stagedCells({{entries: {ENTRIES}}});"
+        ' return [s, isStaged(s, "link", 7, "lanes"), isStaged(s, "link", "8", "lanes"),'
+        ' isStaged(s, "link", 7, "name"), isStaged(s, "node", 9001, "x_coord"), isStaged(s, "link", 5, "name"),'
+        ' isStaged(null, "link", 7, "lanes")]; })()',
+    )
+    assert got == [
+        {"link": {"7": ["lanes"], "8": ["lanes"]}, "node": {"9001": ["*"]}},  # link 5's change is saved: no outline
+        True,
+        True,  # keys match as text (a row's key from the DOM is a string)
+        False,
+        True,  # an added row is staged in every field
+        False,
+        False,
+    ]
+
+
+def test_a_change_row_says_what_changed_and_its_state(node_module):
+    got = node_module(
+        "editmodel.js",
+        ["changeDetail", "changeTarget", "STAGED_TIP"],
+        f"(() => {{ const e = {ENTRIES}; return [e.map(changeDetail), e.map(changeTarget), STAGED_TIP]; }})()",
+    )
+    assert got[0] == ["2 link · Staged", "1 node · Staged", "1 link · Staged", "1 link · Saved"]
+    links, nodes = {"table": "link", "ids": [7, 8]}, {"table": "node", "ids": [9001]}
+    assert got[1] == [links, nodes, None, {"table": "link", "ids": [5]}]  # a plugin's change set no cells here
+    assert got[2] == "Staged: applied in this session, not saved. Save a copy or put it in a card."
+
+
+@pytest.mark.parametrize(
+    ("seqs", "want"),
+    [
+        ([4], {"count": 1, "reason": ""}),
+        ([4, 3], {"count": 2, "reason": ""}),
+        ([], {"count": 0, "reason": "Select changes to undo."}),
+        ([3], {"count": 0, "reason": "Only the newest changes can be undone: select #4 too."}),
+        ([4, 1], {"count": 0, "reason": "Only the newest changes can be undone: select #3, #2 too."}),
+        ([4, 3, 2], {"count": 0, "reason": "#2 was made by cards; undo it there."}),
+    ],
+)
+def test_undo_selected_takes_only_the_newest_run_of_workbench_changes(node_module, seqs, want):
+    assert node_module("editmodel.js", ["undoSelection"], f"undoSelection({ENTRIES}, {seqs})") == want
+
+
+def test_the_save_icon_shows_the_staged_count(node_module):
+    got = node_module(
+        "editmodel.js",
+        ["saveIconState"],
+        "[saveIconState({dirty: true, unsaved: 2}), saveIconState({dirty: true, unsaved: 0}),"
+        " saveIconState({dirty: false, unsaved: 0}), saveIconState(null)]",
+    )
+    assert got == [
+        {"count": "2", "dirty": True, "tip": "Save a copy… (2 staged changes)"},
+        {"count": "", "dirty": True, "tip": "Save a copy… (changed since saved)"},  # an undo of a saved change: a dot
+        {"count": "", "dirty": False, "tip": "Save a copy…"},
+        {"count": "", "dirty": False, "tip": "Save a copy…"},
+    ]
+
+
+@pytest.mark.parametrize(
+    ("event", "multiline", "want"),
+    [
+        ({"key": "Enter"}, False, "apply"),
+        ({"key": "Enter", "metaKey": True}, False, "apply"),
+        ({"key": "Enter", "ctrlKey": True}, True, "apply"),  # Cmd/Ctrl+Enter applies in every edit form
+        ({"key": "Enter"}, True, None),  # a plain Enter is a new line in a multi-line field
+        ({"key": "Enter", "shiftKey": True}, False, None),
+        ({"key": "Enter", "isComposing": True}, False, None),  # an IME confirming a word
+        ({"key": "Escape"}, False, "cancel"),
+        ({"key": "a"}, False, None),
+    ],
+)
+def test_edit_keys(node_module, event, multiline, want):
+    expr = f"editKey({json.dumps(event)}, {{multiline: {json.dumps(multiline)}}})"
+    assert node_module("editmodel.js", ["editKey"], expr) == want
+
+
+def test_a_field_with_allowed_values_is_edited_with_a_select(node_module):
+    got = node_module(
+        "editmodel.js",
+        ["fieldControl"],
+        '[fieldControl({kind: "str", enum: ["a", "b"]}, "b"), fieldControl({kind: "str", enum: ["a"]}, "z"),'
+        ' fieldControl({kind: "num", enum: [1, 2]}, 2), fieldControl({kind: "bool", enum: null}, true),'
+        ' fieldControl({kind: "str", enum: null}, "x"), fieldControl({kind: "num", enum: null}, 3)]',
+    )
+    assert got == [
+        {"select": ["", "a", "b"], "list": False},
+        {"select": ["", "a", "z"], "list": False},  # an out-of-enum value stays offered: it is what the field holds
+        {"select": ["", "1", "2"], "list": False},
+        {"select": ["", "true", "false"], "list": False},
+        {"select": None, "list": True},  # free text completes from the column's values
+        {"select": None, "list": False},
+    ]
 
 
 @pytest.mark.parametrize(

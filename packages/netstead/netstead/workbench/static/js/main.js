@@ -24,7 +24,7 @@ import { commandReporters } from "./pluginload.js";
 import { loadPlugins, reportPluginError } from "./plugins.js";
 import { renderPluginsPanel, wirePluginsPanel } from "./pluginspanel.js";
 import { registerSelectionPanel, renderSelectionPanel, wireSelectionPanel } from "./selection.js";
-import { clearDetails, renderHighlights, showDetails, syncDetailsUndo, wireSide } from "./side.js";
+import { clearDetails, markStagedDetails, renderHighlights, showDetails, syncDetailsUndo, wireSide } from "./side.js";
 import { cancelRelated, renderRelatedBadges, scheduleRelated } from "./related.js";
 import { wireSaveDialog } from "./savedialog.js";
 import { onSettingsHistory, registerSection, wireSettings } from "./settings.js";
@@ -261,6 +261,7 @@ function wireStore() {
   store.subscribe(["edits"], s => renderEditWarnings(s.edits));
   store.subscribe(["edits"], () => refreshRows()); // the cell and row warning marks follow the live check
   store.subscribe(["edits"], s => renderEdits(s.edits));
+  store.subscribe(["edits"], () => markStagedDetails()); // staged outlines in Details follow the change list
   store.subscribe(["assistant"], s => renderAssistant(s.assistant));
   store.subscribe(["server"], s => syncDetailsUndo(s.server));
   store.subscribe(["highlightMode"], s => { $("btn-highlight").classList.toggle("on", s.highlightMode); $("map").classList.toggle("highlighting", s.highlightMode); });
