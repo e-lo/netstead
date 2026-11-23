@@ -94,6 +94,7 @@ Records on a branch go here, then move to the tables above when they merge.
 | Record | Kind | Branch | Status | Notes |
 |---|---|---|---|---|
 | [Workbench layout, editing states and cards-from-changes](2026-10-26-workbench-layout-and-editing-design.md) | design | `design/workbench-layout-and-editing` | accepted | map-attached Layers & legend card, left rail, right detail panel, Staged edits, change log with selection, card dialog, checks before applying, git-repository card registries |
+| [Chat-first Workbench](2026-11-20-chat-first-scope.md) | scope | `claude/netstead-chat-first-strategy-ead784` | proposed | chat as the primary left panel (Pillar-style), routing by complexity with a cost guard, learning verb lexicon, proactive findings, `pycode:netstead`, scenarios and MCP-on-session pulled forward; re-sequences the layout design's phases |
 
 ## Gaps to close
 
